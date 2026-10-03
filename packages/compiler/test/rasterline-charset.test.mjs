@@ -4,10 +4,11 @@
 // intents a real implementation answers, the same way `raster.FINE_SCROLL`
 // already lets a program fold away a wobble on a machine with splits but
 // no scroll. `COLORS` is true exactly where `BORDER`/`BACKGROUND` already
-// are (C64, VIC-20, web). `CHARSET` is false on every DEFAULT-hardware
+// are (C64, VIC-20, web, X16). `CHARSET` is false on every DEFAULT-hardware
 // build — the sweep below builds each target with no `--hardware`, the
 // honest-stub case every rasterline file answers the same way — except
-// the PET's own `3032` and `4032` model tags, which have real drivers
+// the X16 (VERA's L1_TILEBASE, packages/cx16/AGENTS.md, "Raster splits")
+// and the PET's own `3032` and `4032` model tags, which have real drivers
 // (packages/pet/AGENTS.md, "Raster: character-set switching"); the two
 // tests after this one check those tags specifically. This file is the
 // "answers nothing but costs zero" gate for the new slot on every OTHER
@@ -27,7 +28,8 @@ const CHECKOUT = join(HERE, '..', '..', '..');
 
 const TARGETS = ['vic20', 'c64', 'pet', 'c128', 'atari8', 'nes', 'cx16', 'mega65', 'web', 'plus4', 'oric', 'apple2', 'bbc', 'atari5200', 'lynx', 'pce', 'supervision', 'atari2600', 'atari7800', 'gb', 'gbc', 'sms', 'gamegear', 'sg1000', 'msx', 'coleco', 'spectrum', 'cpc', 'coco', 'vectrex', 'odyssey2', 'channelf'];
 
-const COLORS_TRUE = new Set(['vic20', 'c64', 'web']);
+const COLORS_TRUE = new Set(['vic20', 'c64', 'web', 'cx16']);
+const CHARSET_TRUE = new Set(['cx16']);
 
 test('every rasterline file names Slot.CHARSET and answers raster.COLORS/raster.CHARSET as a folded constant', () => {
   for (const target of TARGETS) {
@@ -58,9 +60,7 @@ export function main(): void {
     const guards = main.body.filter((s) => s.kind === 'if');
     assert.equal(guards.length, 3, `${target}: all three guards survive linking`);
     for (const guard of guards) assert.equal(guard.test.kind, 'const', `${target}: each guard folded to a constant`);
-    // Today every machine's raster.CHARSET is false — no driver answers the
-    // new slot yet.
-    assert.equal(Boolean(guards[0].test.value), false, `${target}: raster.CHARSET`);
+    assert.equal(Boolean(guards[0].test.value), CHARSET_TRUE.has(target), `${target}: raster.CHARSET`);
     assert.equal(Boolean(guards[1].test.value), COLORS_TRUE.has(target), `${target}: raster.COLORS`);
   }
 });

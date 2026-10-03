@@ -25,7 +25,8 @@
 // the SMC) and then mouse_scan. mouse_scan only applies bytes already in
 // that buffer — with the IRQ silenced, a scan alone is a no-op and the
 // sprite stays at mouse_config's rest position. `$FEAB` with A=8 is the
-// published fetch; it is not re-entrant, which is why poll() `sei`s first.
+// published fetch; it is not re-entrant, which is why poll() `sei`s first
+// (and puts the I flag back after, so a raster handler stays live).
 // mouse_scan then saves and restores VERA address state around the sprite
 // write (the same screen_save_state/restore_state the IRQ uses), so a
 // program's text port is still where it left it.
@@ -115,6 +116,7 @@ export namespace mouse {
     function poll(): void {
         if (HAS_MOUSE) {
             asm6502 {
+                php
                 sei
                 lda #8
                 jsr $FEAB
@@ -122,6 +124,7 @@ export namespace mouse {
                 ldx #$80
                 jsr $FF6B
                 sta $84
+                plp
             }
             atX = posX;
             atY = posY;

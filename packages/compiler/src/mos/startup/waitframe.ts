@@ -300,9 +300,8 @@ const RASTER: Partial<Record<Machine, RasterSync>> = {
  * True when this machine's frame runtime must leave interrupts ENABLED —
  * the Atari 8-bit's live OS (see RasterSync.keepsInterrupts), or, for a
  * FLAG-synced machine, a future raster driver of its own that needs a
- * real interrupt (see FlagSync.keepsInterrupts, below — nothing sets it
- * yet; a VERA line-IRQ raster driver for the X16 was attempted and
- * reverted, packages/cx16/AGENTS.md records why). mos/index.ts asks,
+ * real interrupt from start-up (see FlagSync.keepsInterrupts, below —
+ * nothing sets it). mos/index.ts asks,
  * because it emits its own SEI ahead of the global initializers for the
  * same reason rasterSetup() emits one, and the two have to agree.
  */
@@ -343,13 +342,12 @@ interface FlagSync {
   /**
    * True on a machine whose own raster driver needs interrupts left on,
    * the same meaning RasterSync.keepsInterrupts has — see
-   * waitFrameKeepsInterrupts, which checks both tables. Nothing sets this
-   * yet: a VERA line-IRQ raster driver for the X16 needed it (a stock
-   * program runs under SEI, this file's own header above), but a real
-   * interrupt firing under x16emu hit a reproducible crash this project
-   * has not explained yet (packages/cx16/AGENTS.md), so the driver was
-   * reverted rather than shipped and the X16 stays SEI-only for now. Kept
-   * so the next attempt has this one line to flip rather than rediscovering it.
+   * waitFrameKeepsInterrupts, which checks both tables. Nothing sets
+   * this: the X16's VERA line-IRQ raster driver (packages/cx16/src/
+   * rasterline.8bs) does not need it, because this setup's SEI runs once
+   * before main() and the driver's enable() CLIs after it — and keeps
+   * VERA's VSYNC interrupt disabled, so the poll below never races the
+   * KERNAL for the bit.
    */
   keepsInterrupts?: boolean;
 }

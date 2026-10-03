@@ -1,0 +1,58 @@
+// The X16 raster list, run for real under x16emu: every slot split at a
+// known picture line, read back by test/raster.test.mjs from the
+// screenshot's rows. Picture line L is PNG row 16 + L (the inset's
+// VSTART, 8 × 2). Text rows of a solid block (code 160 in the ISO set is
+// a no-break space, so the rows are letters: 'H' has a column of pixels
+// at its left edge that the scroll test finds) fill the first 32 rows.
+//
+//   line  40  BORDER red (2)
+//   line  80  BACKGROUND blue (6) — the background's palette entry, 0
+//   line 100  BORDER yellow (7), and on the very next line red again —
+//             two planned lines closer than the handler, the late path
+//   line 120  SCROLL_X 4
+//   line 160  CHARSET 1 — PETSCII upper case / graphics
+//   line 200  everything back: BORDER green (5), BACKGROUND black,
+//             SCROLL_X 0, CHARSET 0 — and, since the frame wraps, the
+//             lines above line 40 too.
+//
+// After sixty frames the line-200 border entry is rewritten to cyan (3)
+// with setValue, so a capture past that shows cyan above line 40 and from
+// line 200: proof the handler is still firing while the loop runs
+// waitFrame() and input.poll() (whose `sei` used to silence it).
+import { screen } from "../src/screen.8bs";
+import { text } from "../src/text.8bs";
+import { input } from "../src/input.8bs";
+import { raster, Slot } from "../src/rasterline.8bs";
+
+let frames: utinyint = 0;
+
+export function main(): void {
+    screen.blank();
+    screen.setColors(5, 0);
+    for (let row: usmallint = 0; row < 32; row++) {
+        text.print(row * 76, "HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH");
+    }
+    input.begin();
+    raster.clear();
+    raster.at(40, Slot.BORDER, 2);
+    raster.at(80, Slot.BACKGROUND, 6);
+    raster.at(100, Slot.BORDER, 7);
+    raster.at(101, Slot.BORDER, 2);
+    raster.at(120, Slot.SCROLL_X, 4);
+    raster.at(160, Slot.CHARSET, 1);
+    raster.at(200, Slot.BORDER, 5);
+    raster.at(200, Slot.BACKGROUND, 0);
+    raster.at(200, Slot.SCROLL_X, 0);
+    raster.at(200, Slot.CHARSET, 0);
+    raster.enable();
+    while (true) {
+        waitFrame();
+        input.poll();
+        if (frames < 60) {
+            frames = frames + 1;
+            if (frames == 60) {
+                raster.setValue(6 * raster.STRIDE, 3);
+            }
+        }
+    }
+}

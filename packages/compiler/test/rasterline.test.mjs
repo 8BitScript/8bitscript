@@ -74,7 +74,9 @@ export function main(): void {
 test('on a machine without the capability, the guarded raster branch emits the same code size as no import at all', async () => {
   const scratch = await mkdtemp(join(tmpdir(), '8bs-rasterline-size-'));
   try {
-    for (const machine of ['pet', 'cx16']) {
+    // The stock PET (a 2001) is the release machine without the capability;
+    // the X16 left this list when its VERA line-IRQ driver landed.
+    for (const machine of ['pet']) {
       const resolved = resolveHardware(loadCatalog(machine), {});
       assert.ok(resolved.ok, resolved.ok ? '' : `${machine}: ${resolved.error}`);
       const sizes = {};

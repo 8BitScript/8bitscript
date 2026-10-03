@@ -80,7 +80,7 @@ way — or no way — to change something while it does:
 | PET | a 50/60 Hz retrace IRQ, the only sync point in a frame; a mid-frame character-ROM-select write (`$E84C`) splits the picture, applied by `waitFrame()`'s own frame hook — built and verified for the 3032 and 4032 model tags (`packages/pet/AGENTS.md`, "Raster: character-set switching"), every other model still the honest stub | none — PETSCII cells | none |
 | Atari 8-bit | the display list *is* a per-line plan; a DLI at any mode line, `WSYNC` aligns to blanking | 4 players + 4 missiles as live per-line registers | 9 colour registers per DLI: the archetype |
 | NES | no scanline IRQ in the chip: sprite-0 hit (one, polled) or a mapper's counter (MMC3 at dot 260) | 64 OAM entries, **per-frame data**, 8 per line chosen by the PPU | emphasis/greyscale bits only; palette is vblank-only |
-| X16 (VERA) | a line IRQ; changes show 1–2 lines later | 128 sprites in a per-line cycle budget (~46 small ones) | palette in VRAM, any time |
+| X16 (VERA) | a line IRQ, armed two scanlines early so layer writes (scroll, tile base) and composer writes (border, palette — in the line before's hblank) all show from the target line — built (`packages/cx16/AGENTS.md`, "Raster splits") | 128 sprites in a per-line cycle budget (~46 small ones) | palette in VRAM, any time |
 | web | the renderer applies the list at paint time | none yet | free |
 
 So the same intent — "eight objects and eight more below them" — is a
@@ -362,7 +362,17 @@ technique. The mapper is a hardware axis the catalog will need before
 
 **X16 (VERA).** A line IRQ (`IRQLINE`), changes visible 1–2 lines later
 because VERA renders a line ahead. Per line: layer scroll, map/tile
-base, border colour, scale, and the palette (VRAM `$1:FA00`). Sprites:
+base, border colour, scale, and the palette (VRAM `$1:FA00`).
+`@8bitscript/cx16/rasterline` is built on it: all four slots, measured
+under x16emu. A layer register (`L1_HSCROLL`, `L1_TILEBASE`) written
+anywhere in scanline Y shows from Y + 2, whole; `DC_BORDER` and the
+palette show at the beam, so the handler, armed two scanlines above the
+target, makes the layer writes at once and the composer writes in the
+next scanline's horizontal blank — every slot's target line is the first
+whole line in the new state. `BACKGROUND` is the background's palette
+entry rewritten (text cells carry their own background nibble; there is
+no register), and `CHARSET` the KERNAL's PETSCII set copied to VRAM
+`$1A800` beside the ISO one. Sprites:
 128, a per-line budget of 798 cycles (13–147 per sprite by size), so
 "per line" is a count the package states for a size (46 at 8 px 4 bpp)
 and the CPU's own VRAM traffic eats into it. Reuse at a line IRQ works
@@ -424,7 +434,7 @@ every twin agrees:
 - **Identical numbers.** `sprites.MAX` is 24 on the C64 and 16 in cells;
   a program that needs 20 tests the const and the branch folds.
 - **Sub-line timing.** An entry at line L shows from L+1 on the C64,
-  from L+1 or L+2 on the X16, on line L's hblank on the Atari; the
+  from line L itself on the X16 (armed two scanlines early), on line L's hblank on the Atari; the
   portable rule is "from the next line", and a program that needs the
   exact line writes the machine's own layer.
 

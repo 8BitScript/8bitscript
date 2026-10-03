@@ -5,13 +5,14 @@
 // list once with raster.at(), rewrite only its value bytes every frame
 // with raster.setValue() — before 2048 leans on the same surface.
 //
-// Three machines answer it, each as far as its chip goes:
+// Four machines answer it, each as far as its chip goes:
 // #fact(video.raster) is true on the C64 (a real raster interrupt
 // driving a write list), on the web (the renderer applies the list at
-// paint time), and on the VIC-20 (waitFrame() applies the list, busy-
+// paint time), on the X16 (VERA's line interrupt; packages/cx16/AGENTS.md,
+// "Raster splits"), and on the VIC-20 (waitFrame() applies the list, busy-
 // waiting down the frame — the VIC has no interrupt). The wobble needs a
-// per-line fine scroll as well, which `raster.FINE_SCROLL` says the C64
-// and the web have and the VIC-20 does not ($9000 moves the picture in
+// per-line fine scroll as well, which `raster.FINE_SCROLL` says the C64,
+// the web and the X16 have and the VIC-20 does not ($9000 moves the picture in
 // four-pixel steps), so a VIC-20 shows the colour bands with a still
 // title between them. Every raster call here sits behind one of those
 // two constants, so on a PET the whole effect folds away to nothing —
@@ -60,7 +61,7 @@
 //     joystick: a frozen program and an idle one look different, and on
 //     the static machines it is the only thing that moves.
 //   - **RASTER** prints #fact(video.raster) for the machine this build
-//     was made for: 1 on the C64, the web and the VIC-20, 0 elsewhere —
+//     was made for: 1 on the C64, the web, the X16 and the VIC-20, 0 elsewhere —
 //     so a still title can be read as "this machine has no per-scanline
 //     hook" rather than as a broken effect.
 //
@@ -72,7 +73,7 @@
 //   pet    1007 / 36   of a stock 4K 2001's 3071   — the tightest fit
 //   vic20  1053 / 43   of an unexpanded 3583
 //   c128   1051 / 37      mega65 1099 / 37      atari8 1154 / 38
-//   cx16   1700 / 63      nes    40976 / 63 (fixed ROM)
+//   cx16   1700 / 63      nes    40976 / 63 (fixed ROM)  — before its raster
 //   c64    2040 / 54   — the one 6502 machine that pays for the wobble
 //   web     95 bytes of constant data / 13
 //
@@ -82,6 +83,12 @@
 // count (pet 1007/1007, RAM identical too, measured 2026-09-14) — the
 // sine table, the probe, the list building and the per-frame rewrite are
 // pruned away, not carried along inert.
+//
+// The X16 has answered video.raster since 2026-10-03, wobble and all:
+// 5206 bytes against 3692 just before (+1514 program, +7 RAM), and x16emu
+// captures at --frames 310 and 320 show the title's left edge at 284-286
+// and 286-288, a different offset every two scanlines and a different
+// phase each frame (packages/cx16/AGENTS.md, "Raster splits").
 //
 // The VIC-20 has answered video.raster since 2026-09-29 (the colour
 // bands, no wobble: raster.FINE_SCROLL is false there), and pays for it:
