@@ -184,6 +184,34 @@ Do not describe more than this as working:
     list covers is color splits, split scrolling, character-set and
     screen switches, the opened border and the multiplexer below, and
     computed effects as a list rebuilt each frame.
+  - `@8bitscript/c64/rasterline` (`src/rasterline.8bs`): **the portable
+    `@8bitscript/raster` slots, translated onto the list above.**
+    Picture line 0 is raster line 50. `Slot.BORDER` → `$D020`,
+    `BACKGROUND` → `$D021`, `SCROLL_X` → `$D016` with the register's
+    current CSEL/MCM folded in, and `CHARSET` → `$D018` (`raster.CHARSET`
+    true): 0 is the upper-case/graphics set the machine boots in, 1 the
+    lower/upper-case set — the PET's meaning. Both sets are in this
+    package's RAM copy at `$D000`/`$D800`, so the entry's byte is one of
+    two constants, `Video.MEMORY_POINTER_UPPERCASE` (`$84`) or
+    `_LOWERCASE` (`$86`) — bit 1 the only difference, bits 4-7 the text
+    screen at `$E000` whatever `$D018` holds when the entry is stored.
+    Refused (false) while `videoMode` is `BITMAP`: either byte would put
+    the text matrix over a bitmap mid-picture. Nothing resets `$D018` at
+    the frame's wrap, so a list whose last band is lower case starts the
+    next frame lower case unless it has an entry at line 0 — first on
+    that line, because a second same-line entry lands 25 cycles later
+    and line 51 is a bad line: measured, a CHARSET entry placed after a
+    BORDER one on line 0 switched halfway along row 0's second scanline.
+    `setValue` re-encodes a `$D018` entry's 0/1 the way `at` does.
+    Verified under x64sc (`test/rasterline-charset-probe.8bs`, every
+    text row's glyph rows 0, 1 and 6 counted: entries at picture lines
+    40/80/120/160 switch exactly on rows 5/10/15/20, the row above each
+    whole; `test/rasterline-charset-bitmap-probe.8bs`, the refusal).
+    Cost (`8bs build c64`, 2026-10-03): `test/rasterline-probe.8bs`,
+    which never names CHARSET, went 1351 → 1401 bytes of program and
+    30 → 31 of RAM — the slot's branches in `at`/`insert` and
+    `charsetPointer`, paid because the slot is a run-time argument; the
+    CHARSET probe is 1724 bytes of program, 32 of RAM.
   - `@8bitscript/c64/idle` (`src/idle.8bs`): **the idle graphics and the
     ghost byte.** `idle.GHOST` (`$FFFF`: what idle lines draw with ECM
     clear — 0 by construction, read with `ghost()`, never written),
