@@ -1,5 +1,9 @@
 # @8bitscript/pet
 
+## 0.25.0
+
+No changes in this release.
+
 ## 0.24.0
 
 ### Minor Changes

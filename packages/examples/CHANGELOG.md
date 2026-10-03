@@ -1,5 +1,23 @@
 # @8bitscript/examples
 
+## 0.25.0
+
+### Patch Changes
+
+- b4bd7cd: The Commander X16 answers `@8bitscript/raster`: border, background, fine-scroll and character-set splits on VERA's line interrupt, each landing on its own picture line under x16emu, and `#fact(video.raster)` is now true on the X16. `examples/fancy` shows its colour bands and wobble there. `input.poll()` and `mouse.poll()` now restore the interrupt flag after their KERNAL calls instead of leaving interrupts off.
+- @8bitscript/audio@0.24.1
+  - @8bitscript/graphics@0.24.1
+  - @8bitscript/input@0.25.0
+  - @8bitscript/raster@0.25.0
+  - @8bitscript/screen@0.25.0
+  - @8bitscript/text@0.25.0
+  - @8bitscript/sprites@0.25.0
+  - @8bitscript/timeline@0.25.0
+  - @8bitscript/c64@0.25.0
+  - @8bitscript/pet@0.25.0
+  - @8bitscript/system@0.25.0
+  - @8bitscript/web@0.25.0
+
 ## 0.24.0
 
 ### Patch Changes
