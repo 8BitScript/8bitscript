@@ -1,0 +1,49 @@
+// Slot.CHARSET, run for real: the portable slot surface switching $D018
+// between the upper-case/graphics set (0) and the lower/upper-case set (1)
+// at picture lines, read from the screenshot. See test/layers.test.mjs.
+//
+// Every cell holds screen code 1 in white on black: "A" in the upper-case
+// set, "a" in the lower-case one. Their top two glyph rows differ — $18
+// and $3C for "A", both $00 for "a" — so a text row's first two scanlines
+// say which set the VIC was reading there. Text row r starts at raster
+// line 51 + 8r, which is picture line 1 + 8r; an entry at picture line L
+// takes effect from the line after it, so an entry at 8r lands exactly on
+// row r's first scanline. Glyph row 7 is blank in both sets, so where on
+// the line before the write falls cannot show.
+//
+// The bands: upper case in rows 0-4 (an entry at line 0 — the last
+// band's lower case would otherwise carry over the frame's wrap), lower from row 5 (line 40), upper
+// from row 10 (line 80), lower from row 15 (line 120), and from row 20
+// (line 160) an entry stored as 0 and then rewritten to 1 by setValue —
+// lower case there proves setValue re-encodes the slot value into the
+// $D018 byte (a raw 1 would point the VIC's screen at $C000 and its set at
+// $C000 in the bank, nothing like an "a"). A red border from line 0 is a
+// BORDER entry in the same list, the slots coexisting.
+import { raster, Slot } from "@8bitscript/raster";
+import { screen, BorderColor, BackgroundColor } from "../src/screen.8bs";
+import { screenRam, colorRam } from "../src/geometry.8bs";
+
+export function main(): void {
+    screen.blank(BorderColor.BLACK, BackgroundColor.BLACK);
+    for (let cell: usmallint = 0; cell < 1000; cell++) {
+        screenRam[cell] = 1;
+        colorRam[cell] = 1;
+    }
+    raster.clear();
+    // The frame's top: nothing resets $D018 at the wrap but this entry, and
+    // it goes FIRST on line 0 — a second entry on a line lands 25 cycles
+    // later and line 51 is a bad line (./raster.8bs), which measured put a
+    // CHARSET entry behind the BORDER one a line and a half late, into
+    // row 0's second scanline.
+    raster.at(0, Slot.CHARSET, 0);
+    raster.at(0, Slot.BORDER, 2);
+    raster.at(40, Slot.CHARSET, 1);
+    raster.at(80, Slot.CHARSET, 0);
+    raster.at(120, Slot.CHARSET, 1);
+    raster.at(160, Slot.CHARSET, 0);
+    raster.setValue((raster.count() - 1) * raster.STRIDE, 1);
+    raster.enable();
+    while (true) {
+        waitFrame();
+    }
+}

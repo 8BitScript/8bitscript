@@ -1,0 +1,27 @@
+// Slot.CHARSET over a bitmap: refused. A charset means nothing in bitmap
+// mode, and either of its $D018 bytes would point the VIC back at the text
+// screen mid-picture, so rasterline's at() answers false there and adds
+// nothing. The probe turns that answer into a picture: a red border from
+// line 0, and a yellow one from line 100 only if the CHARSET entry came
+// back false AND the list still holds just the one BORDER entry. The
+// bitmap's cells stay blue top to bottom — no $D018 write reached them.
+// See test/layers.test.mjs.
+import { raster, Slot } from "@8bitscript/raster";
+import { screen, BorderColor, BackgroundColor } from "../src/screen.8bs";
+import { bitmap } from "../src/bitmap.8bs";
+
+export function main(): void {
+    screen.blank(BorderColor.BLACK, BackgroundColor.BLACK);
+    bitmap.enter(false);
+    bitmap.clear();
+    bitmap.fillColors(1, 6); // white pixels on blue cells
+    raster.clear();
+    raster.at(0, Slot.BORDER, 2);
+    if (!raster.at(40, Slot.CHARSET, 1) && raster.count() == 1) {
+        raster.at(100, Slot.BORDER, 7);
+    }
+    raster.enable();
+    while (true) {
+        waitFrame();
+    }
+}
