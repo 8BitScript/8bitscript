@@ -95,11 +95,13 @@ Do not describe more than this as working:
   `waitFrame()` shares `JSR`s it after each frame edge — see "Raster
   splits" below.
 - **Raster splits** (`src/rasterline.8bs`, behind `@8bitscript/raster`):
-  `Slot.BORDER` and `Slot.BACKGROUND` at any picture line, both regions,
+  `Slot.BORDER`, `Slot.BACKGROUND` and `Slot.CHARSET` at any picture line,
+  both regions,
   every line landed whole and still from frame to frame, a list built once
   and `enable()`d kept every frame, `setValue` live without a commit.
-  `#fact(video.raster)` is true. `Slot.SCROLL_X` is refused and
-  `raster.FINE_SCROLL` is false. The VIC raises no interrupt, so
+  `#fact(video.raster)` is true and so is `raster.CHARSET` (0 the
+  upper-case/graphics ROM set, 1 the mixed-case one — the PET's meaning).
+  `Slot.SCROLL_X` is refused and `raster.FINE_SCROLL` is false. The VIC raises no interrupt, so
   `waitFrame()` applies the list — the section "Raster splits" below is
   the mechanism, the measurements and what they cost.
 - `8bs run vic20` launches `xvic -model vic20ntsc` (or `-model vic20pal`
@@ -463,13 +465,14 @@ What that costs a program — **expose it, never hide it**:
   reassuring half: 60 against 60.28 Hz, a call now and then waits two
   edges, and the hook runs on both.
 - **No `waitFrame()`, no splits.** Nothing else calls the hook.
-- **Bytes** (`8bs build vic20 --size`, NTSC, 2026-09-29): the hook is 166;
-  `commit()` with the plan builder inlined ~415; `at()` ~106; the region
-  probe 51. The compiler test's one-entry guarded program is 992 against
-  184 without it (+808). `examples/fancy` on the 8K build is 3654 against
-  2803 (+851 program, +24 RAM). The list (48 bytes), which planned line
-  each entry went to (16) and the plan (4 × 16) sit in the cassette
-  buffer, `$033C`–`$03BB`, not in the program image.
+- **Bytes** (`8bs build vic20 --size`, NTSC, 2026-10-03, with
+  `Slot.CHARSET`): the hook is 217 (166 before it); `commit()` with the
+  plan builder inlined ~489 (~415); `at()` 112 (106); `bits()` 42 (20);
+  the region probe 51. `examples/fancy` on the 8K build is 3811 (3654
+  before `Slot.CHARSET`, which it does not use; 2803 without raster at
+  all) and 74 bytes of RAM (71). The list (48 bytes), which planned line
+  each entry went to (16) and the plan (5 × 16) sit in the cassette
+  buffer, `$033C`–`$03CB`, not in the program image.
 
 ### Landing on the line: what the VIC-20 does
 
@@ -534,6 +537,50 @@ hook has one copy per region, chosen once a frame before any waiting;
 `commit()` probes the region once (`$9004 >= 140`, the frame runtime's
 own PAL test, 26,624 cycles — over a PAL frame) and caches it.
 
+### `Slot.CHARSET`: the third store
+
+`$9005` bits 0–3 are the character base and bits 4–7 the screen's, so
+an entry's value is stored as the whole byte: `Video.MEMORY_POINTER_UPPERCASE`
+(value 0, the upper-case/graphics ROM at `$8000`) or `_LOWERCASE` (1, the
+mixed-case ROM at `$8800`) — the geometry file's constants, so the
+screen nybble is the build's own (`$F` unexpanded and 3K, `$C` from 8K)
+and nothing reads it. RAM character sets are not a value: the VIC can
+only see one in `$1000`–`$1FFF`, a reservation no package makes yet.
+
+- **Where it lands.** The byte is loaded into Y at the start of the
+  second padding (`ldy $03bc,x`, page 3, 4 cycles, taken out of the
+  padding so P2 is unchanged) and stored with `sty $9005` straight after
+  the background store: **100 cycles after the edge on NTSC, 76 on
+  PAL**. The colour stores did not move a cycle.
+- **The window, measured** with `test/raster-charset-probe.8bs`
+  (eight entries mid-row, every picture line compared with a whole-screen
+  capture in each set, two frames) by moving the store in 2-cycle steps:
+  NTSC whole from 89 to 104 (88 and earlier split the line above, 106 and
+  later the target), PAL 60 to 82 (58 / 84). Chosen 100 and 76: margins
+  11 / 4 on NTSC — the same 4 as the background store's own low side —
+  and 16 / 6 on PAL. A character-set split is invisible exactly where a
+  background split is, in the border between the lines: the VIC fetches
+  the character with the cell, so the high side is a cycle or two
+  earlier than the background's 106.
+- **The frame starts in the last entry's set.** The hook writes the
+  carried value (`charsetTop`) to `$9005` before it waits for anything,
+  so the lines above the first entry show the last entry's set however
+  the program left `$9005` — and `@8bitscript/text` selects the
+  mixed-case set before every run it prints. What the hook cannot undo:
+  a print *below* the last planned line, in the same frame, switches the
+  rest of that frame to mixed case. A program that prints there keeps its
+  last CHARSET entry at 1.
+- **A list with no CHARSET entry still makes the third store**, of
+  `$9005`'s own byte: the hook copies it into the plan once a frame
+  before waiting (a 16-iteration loop at most, inside time it spends
+  waiting anyway), so the timed code has no branch and a colours-only
+  program's `$9005` is never changed. (`test/raster-probe.8bs` is that
+  case.)
+- **Tail time.** The `sty` is 4 more cycles a planned line after the last
+  store; the next planned line's `$9003` poll still starts before its edge
+  (at most two lines on, 130 cycles NTSC), so the two-line rule stands —
+  the colour probe's line-61 entry still lands at 62.
+
 ### Rules the plan follows
 
 - **Two lines apart, or it is moved.** A planned line keeps the hook
@@ -554,9 +601,11 @@ own PAL test, 26,624 cycles — over a PAL frame) and caches it.
   bytes in place and would have forced bit 3 on.)
 - **`setValue` rewrites the plan's bytes** from the list without a
   commit, as long as the list has not changed since the last one.
-- **Nothing is computed in the hook** but the one `$900F` read. The
-  picture-to-raster sum, the pair to poll for, the parity, the merge, the
-  carry and both bytes are `commit()`'s — the root file's rule.
+- **Nothing is computed in the hook** but the one `$900F` read, and
+  `$9005`'s once-a-frame copy or top-of-frame write (above), both before
+  any waiting. The picture-to-raster sum, the pair to poll for, the
+  parity, the merge, the carry and all three bytes are `commit()`'s —
+  the root file's rule.
 
 ### What was tried and why it failed
 
@@ -618,9 +667,10 @@ packages/vic20/src/geometry.vic20.expanded.8bs    the `expanded` tag's version (
 packages/vic20/package.json             "8bitscript".hardware: ram (defsym, -memory, the expanded tag, memory.ram), port1; presets
 packages/vic20/src/screen.8bs           @8bitscript/vic20/screen: one packed register, BorderColor (8) and BackgroundColor (16)
 packages/vic20/src/text.8bs             @8bitscript/vic20/text: ASCII → screen code, color nybble masked to 3 bits, 22 × 23
-packages/vic20/src/rasterline.8bs       @8bitscript/vic20/rasterline (behind @8bitscript/raster): the list, commit()'s plan in the cassette buffer ($033C-$03BB), vic20RasterFrame — the frame hook, two timed copies (NTSC, PAL)
+packages/vic20/src/rasterline.8bs       @8bitscript/vic20/rasterline (behind @8bitscript/raster): the list, commit()'s plan in the cassette buffer ($033C-$03CB), vic20RasterFrame — the frame hook, two timed copies (NTSC, PAL)
 packages/vic20/test/raster-probe.8bs    the probe: a list built once, both slots, an adjacent entry, a merged line, setValue after fifty frames, a frame counter
-packages/vic20/test/raster.test.mjs     links the probe; under xvic, NTSC and PAL, two consecutive frames each, every split on its line and whole
+packages/vic20/test/raster-charset-probe.8bs   eight CHARSET entries mid-row on screen code 66 (a different glyph on all eight lines in the two sets), two merged with BORDER
+packages/vic20/test/raster.test.mjs     links the probes; under xvic, NTSC and PAL (and NTSC 8K for CHARSET), two consecutive frames each, every split on its line and whole
 packages/compiler/src/mos/index.ts     FRAME_SYNC.vic20 ($9004 poll; frameHook vic20RasterFrame); the SEI a waitFrame() program starts with
 packages/compiler/src/mos/startup/waitframe.ts   rasterWait, and waitFrameRoutine's JSR to the frame hook after it
 packages/compiler/src/linker/reachability.mjs    pruneUnreachable's frameHook rule and frameHookWanted: the hook is kept only when the program feeds it
