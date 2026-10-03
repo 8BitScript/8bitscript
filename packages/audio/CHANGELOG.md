@@ -1,5 +1,18 @@
 # @8bitscript/audio
 
+## 0.24.1
+
+### Patch Changes
+
+- Updated dependencies [b4bd7cd]
+  - @8bitscript/cx16@0.25.0
+  - @8bitscript/atari8@0.25.0
+  - @8bitscript/c64@0.25.0
+  - @8bitscript/nes@0.25.0
+  - @8bitscript/pet@0.25.0
+  - @8bitscript/system@0.25.0
+  - @8bitscript/vic20@0.25.0
+
 ## 0.23.2
 
 ### Patch Changes
