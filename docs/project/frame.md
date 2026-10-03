@@ -28,9 +28,9 @@ machine answers it, and a written degradation for machines that cannot.
   `Slot.BORDER`, `BACKGROUND`, `SCROLL_X`; `at(line, slot, value)`,
   `setValue(entry, value)`, `enable()`. Real on the C64 (an IRQ-driven
   write list in `native/6502/raster.s`; `Slot.CHARSET` too, `$D018`
-  between the two ROM sets), the web, and the VIC-20 (border
-  and background only, `raster.FINE_SCROLL` false: `waitFrame()`'s frame
-  hook busy-waits down the frame and writes `$900F` at each line —
+  between the two ROM sets), the web, and the VIC-20 (border,
+  background and character set, `raster.FINE_SCROLL` false: `waitFrame()`'s frame
+  hook busy-waits down the frame and writes `$900F` and `$9005` at each line —
   `packages/vic20/AGENTS.md`, "Raster splits"); an honest zero-cost stub
   on the other six behind `#fact(video.raster)`. `examples/fancy` is the
   pattern: build once, rewrite values per frame, fold away elsewhere.
@@ -77,7 +77,7 @@ way — or no way — to change something while it does:
 | --- | --- | --- | --- |
 | C64 / C128 (VIC-II) | raster IRQ → a write list; an entry lands at the end of its line — on the C64 `Slot.CHARSET` is `$D018` bit 1 through it (`packages/c64/AGENTS.md`, `@8bitscript/c64/rasterline`) | 8 live register sets, reusable down the frame | `$D020`/`$D021` per line: free |
 | MEGA65 (VIC-IV) | the same, plus a fine raster and a per-row rewrite buffer (RRB) | the 8, up to 64 px wide; RRB "pixies" unlimited | palette registers, any time |
-| VIC-20 (VIC-I) | no raster IRQ; `waitFrame()`'s frame hook re-syncs on `$9004`/`$9003` bit 7 before every planned line (built; a VIA timer synced once is the untried alternative) | none — redefined characters | `$900F` per line: two stores a line, every second line at most |
+| VIC-20 (VIC-I) | no raster IRQ; `waitFrame()`'s frame hook re-syncs on `$9004`/`$9003` bit 7 before every planned line (built; a VIA timer synced once is the untried alternative); `Slot.CHARSET` is a third store, `$9005`'s character base, in the same border as the background's | none — redefined characters | `$900F` per line: two stores a line, every second line at most |
 | PET | a 50/60 Hz retrace IRQ, the only sync point in a frame; a mid-frame character-ROM-select write (`$E84C`) splits the picture, applied by `waitFrame()`'s own frame hook — built and verified for the 3032 and 4032 model tags (`packages/pet/AGENTS.md`, "Raster: character-set switching"), every other model still the honest stub | none — PETSCII cells | none |
 | Atari 8-bit | the display list *is* a per-line plan; a DLI at any mode line, `WSYNC` aligns to blanking | 4 players + 4 missiles as live per-line registers | 9 colour registers per DLI: the archetype |
 | NES | no scanline IRQ in the chip: sprite-0 hit (one, polled) or a mapper's counter (MMC3 at dot 260) | 64 OAM entries, **per-frame data**, 8 per line chosen by the PPU | emphasis/greyscale bits only; palette is vblank-only |
@@ -314,7 +314,11 @@ lines. What is built: `waitFrame()`'s frame hook polls `$9004` and the
 `$9003` bit-7 edge before every planned line and writes `$900F` twice —
 the border half in the picture, the background half in the border — so
 every split is whole and still (`packages/vic20/AGENTS.md`, "Raster
-splits", measured on both regions). The alternative, a VIA timer
+splits", measured on both regions). `Slot.CHARSET` adds a third store,
+`$9005` (the upper-case or mixed-case ROM set, the build's own screen
+base kept), 4 cycles after the background's, in the border between the
+two lines: a character-set split lands on any picture line, mid-row
+included, verified line by line on both regions and with 8K. The alternative, a VIA timer
 synchronised once to `$9004` (latch = lines × cycles) as a list engine
 (Mäkelä's `stable.txt`; Denial's NOP-slide sync for jitter), would give
 the frame back to the program between splits and is untried. Characters and colours are fetched every line, so

@@ -63,7 +63,7 @@
 // C64). Bits the list never sets — a slot it has no entry for, and bit 3
 // — are the program's: the hook reads them from $900F once a frame and
 // ORs them in. Per planned line it does no arithmetic at all: wait, OR,
-// store, wait, OR, store.
+// store, wait, OR, store, store.
 //
 // ---- landing on the line, not near it -------------------------------------
 //
@@ -95,8 +95,23 @@
 //
 // BORDER is $900F bits 0-2 (eight colors, masked & 7) and BACKGROUND bits
 // 4-7 (sixteen, & 15); bit 3, normal/inverted video, is never touched.
+// CHARSET is $9005 bits 0-3, the character base, with the PET's meaning:
+// 0 the upper-case/graphics ROM set at $8000, 1 the mixed-case (text) set
+// at $8800 — Video.MEMORY_POINTER_UPPERCASE and _LOWERCASE, the two bytes
+// @8bitscript/text already stores, so bits 4-7 (the screen base) are this
+// build's own and come from the geometry file, never from a read. Its
+// store is the third of a planned line's: in the same border the
+// background store hides in, where no character is being fetched. A list
+// that sets CHARSET owns $9005 for the whole frame: the hook writes the
+// last entry's value at the top of every frame, so the lines above the
+// first entry show it however the program left $9005 (text.print selects
+// the mixed-case set before every run of text). A print below the last
+// planned line still changes the set for the rest of that frame — keep
+// the last CHARSET entry at 1 if the program prints there.
 // Slot.SCROLL_X is refused: $9000's horizontal origin moves the picture in
 // four-pixel steps, not the 0-7 fine scroll the slot means everywhere else.
+
+import { Video } from "./geometry.8bs";
 
 // What the picture does at a line, named without an address. The numbers
 // are arbitrary and the same in all nine rasterline files.
@@ -104,7 +119,7 @@ export namespace Slot {
     const BORDER: utinyint = 0;     // the border's color, 0-7 here
     const BACKGROUND: utinyint = 1; // the playfield's background color, 0-15
     const SCROLL_X: utinyint = 2;   // the horizontal fine scroll: refused here
-    const CHARSET: utinyint = 3;    // the machine's alternate character set, where one exists
+    const CHARSET: utinyint = 3;    // 0 upper-case/graphics ($8000), 1 mixed-case text ($8800)
 }
 
 // Everything below at a fixed address lives in the cassette buffer
@@ -137,11 +152,17 @@ let planEven: array<utinyint, 16>;   // nonzero: sync on the even line of the pa
 let planFirst: array<utinyint, 16>;  // store 1: the new border, the old background
 @address(0x036C)
 let planSecond: array<utinyint, 16>; // store 2: both new
+@address(0x03BC)
+let planCharset: array<utinyint, 16>; // store 3: the whole $9005 byte
 // The count, read by the hook in 8BitScript — the global the hook shares
 // with commit(), which is what keeps it linked (see the header).
 let planCount: utinyint = 0;
 // The $900F bits the list does not own: the hook keeps the program's.
 let keepMask: utinyint = 0xFF;
+// Whether the list sets CHARSET, and the $9005 byte the frame starts with
+// when it does: the last entry's, as the colors wrap.
+let charsetOwned: bool = false;
+let charsetTop: utinyint = 0;
 let enabled: bool = false;
 // 0 until commit() has probed the region, then 1 NTSC or 2 PAL.
 let region: utinyint = 0;
@@ -157,10 +178,13 @@ let region: utinyint = 0;
 // jmp 3; even: three nops and a bit $00), then the first padding, then
 // 11 to the first store's write (lda zp 3, ora abs,x 4, sta 4), then the
 // second padding, then 11 to the second's. So the first store lands
-// 22 + P1 cycles after the edge and the second 11 + P2 after that:
+// 22 + P1 cycles after the edge and the second 11 + P2 after that; the
+// third, $9005, is a `sty` 4 cycles after the second, its byte loaded
+// into Y at the start of the second padding (`ldy abs,x` inside page 3,
+// 4 cycles, counted in P2):
 //
-//   NTSC  P1 36, P2 27 — stores at 58 and 96 cycles
-//   PAL   P1 14, P2 25 — stores at 36 and 72 cycles
+//   NTSC  P1 36, P2 27 — stores at 58, 96 and 100 cycles
+//   PAL   P1 14, P2 25 — stores at 36, 72 and 76 cycles
 //
 // packages/vic20/AGENTS.md ("Raster splits") has the windows these were
 // picked from. There is no taken branch between the edge and either
@@ -175,9 +199,19 @@ export function vic20RasterFrame(): void {
         return;
     }
     let base: utinyint = memory.read(0x900F) & keepMask;
+    // Before any waiting, so none of it is timed. A list without CHARSET
+    // entries still makes the third store; it stores $9005's own byte back.
+    if (charsetOwned) {
+        memory.write(0x9005, charsetTop);
+    } else {
+        let current: utinyint = memory.read(0x9005);
+        for (let p: utinyint = 0; p < n; p++) {
+            planCharset[p] = current;
+        }
+    }
     if (region == 2) {
         asm6502 {
-            ; PAL, 71-cycle lines: stores 36 and 72 cycles after the edge
+            ; PAL, 71-cycle lines: stores 36, 72 and 76 cycles after the edge
             ldx #0
         pal_coarse:
             lda $9004
@@ -201,18 +235,20 @@ export function vic20RasterFrame(): void {
             lda base
             ora $035c,x
             sta $900f
+            ldy $03bc,x
             bit $00
-            jsr sled+7
+            jsr sled+9
             lda base
             ora $036c,x
             sta $900f
+            sty $9005
             inx
             cpx n
             bne pal_coarse
         }
     } else {
         asm6502 {
-            ; NTSC, 65-cycle lines: stores 58 and 96 cycles after the edge
+            ; NTSC, 65-cycle lines: stores 58, 96 and 100 cycles after the edge
             ldx #0
         ntsc_coarse:
             lda $9004
@@ -236,11 +272,13 @@ export function vic20RasterFrame(): void {
             lda base
             ora $035c,x
             sta $900f
+            ldy $03bc,x
             bit $00
-            jsr sled+6
+            jsr sled+8
             lda base
             ora $036c,x
             sta $900f
+            sty $9005
             inx
             cpx n
             bne ntsc_coarse
@@ -271,7 +309,7 @@ export namespace raster {
     const STRIDE: utinyint = 3;   // bytes per entry: line, slot, value
     const FINE_SCROLL: bool = false; // Slot.SCROLL_X is refused: $9000 moves the picture in 4-pixel steps
     const COLORS: bool = true;      // Slot.BORDER/BACKGROUND entries are accepted
-    const CHARSET: bool = false;   // Slot.CHARSET entries are refused
+    const CHARSET: bool = true;    // Slot.CHARSET entries are accepted: $9005's character base
     const LINES: utinyint = 184;  // visible picture lines: Video.ROWS (23) * 8
 
     // Empty the list. What shows keeps showing until the next commit().
@@ -285,7 +323,7 @@ export namespace raster {
     // the line is past the picture, the slot is SCROLL_X or unknown, the
     // list is full, or the line is above the last entry's.
     function at(line: utinyint, slot: utinyint, value: utinyint): bool {
-        if (line >= raster.LINES || slot > Slot.BACKGROUND || entryCount >= raster.ENTRIES) {
+        if (line >= raster.LINES || slot == Slot.SCROLL_X || slot > Slot.CHARSET || entryCount >= raster.ENTRIES) {
             return false;
         }
         let offset: utinyint = entryCount * 3;
@@ -304,7 +342,7 @@ export namespace raster {
     // entries below it slid down a place. False, and nothing added, if the
     // line is past the picture, the slot is refused, or the list is full.
     function insert(line: utinyint, slot: utinyint, value: utinyint): bool {
-        if (line >= raster.LINES || slot > Slot.BACKGROUND || entryCount >= raster.ENTRIES) {
+        if (line >= raster.LINES || slot == Slot.SCROLL_X || slot > Slot.CHARSET || entryCount >= raster.ENTRIES) {
             return false;
         }
         let offset: utinyint = entryCount * 3;
@@ -337,6 +375,7 @@ export namespace raster {
         let lastLine: utinyint = 0;
         let planned: utinyint = 0;
         let owned: utinyint = 0;
+        let charset: bool = false;
         plannedEntries = 0;
         for (let i: utinyint = 0; i < entryCount; i++) {
             let offset: utinyint = i * 3;
@@ -369,14 +408,18 @@ export namespace raster {
                 lastLine = line;
             }
             entryPlan[i] = items - 1;
-            if (entries[offset + 1] == Slot.BORDER) {
+            let slot: utinyint = entries[offset + 1];
+            if (slot == Slot.BORDER) {
                 owned = owned | 0x07;
-            } else {
+            } else if (slot == Slot.BACKGROUND) {
                 owned = owned | 0xF0;
+            } else {
+                charset = true;
             }
             plannedEntries = i + 1;
         }
         keepMask = owned ^ 0xFF;
+        charsetOwned = charset;
         raster.recolor(items);
         // The hook only runs inside waitFrame(), never during this, so a
         // half-built plan is never read.
@@ -389,7 +432,7 @@ export namespace raster {
         listDirty = false;
     }
 
-    // Both stores' bytes for planned lines 0..items-1. Each slot the list
+    // All three stores' bytes for planned lines 0..items-1. Each slot the list
     // sets is carried forward from the entry that last set it, and the
     // lines above the first entry for a slot take the last one's value
     // (the frame wraps, as on the C64). The first store's background half
@@ -400,35 +443,52 @@ export namespace raster {
     function recolor(items: utinyint): void {
         let border: utinyint = 0;
         let background: utinyint = 0;
+        let charset: utinyint = Video.MEMORY_POINTER_UPPERCASE;
         for (let e: utinyint = 0; e < plannedEntries; e++) {
             let at: utinyint = e * 3;
-            if (entries[at + 1] == Slot.BORDER) {
+            let slot: utinyint = entries[at + 1];
+            if (slot == Slot.BORDER) {
                 border = entries[at + 2];
-            } else {
+            } else if (slot == Slot.BACKGROUND) {
                 background = entries[at + 2];
+            } else {
+                charset = entries[at + 2];
             }
         }
+        charsetTop = charset;
         let entry: utinyint = 0;
         for (let p: utinyint = 0; p < items; p++) {
             let above: utinyint = background;
             while (entry < plannedEntries && entryPlan[entry] == p) {
                 let at: utinyint = entry * 3;
-                if (entries[at + 1] == Slot.BORDER) {
+                let slot: utinyint = entries[at + 1];
+                if (slot == Slot.BORDER) {
                     border = entries[at + 2];
-                } else {
+                } else if (slot == Slot.BACKGROUND) {
                     background = entries[at + 2];
+                } else {
+                    charset = entries[at + 2];
                 }
                 entry = entry + 1;
             }
             planFirst[p] = border | above;
             planSecond[p] = border | background;
+            planCharset[p] = charset;
         }
     }
 
-    // A slot's value as its bits in $900F: border 0-2, background 4-7.
+    // A slot's value as the bits it stores: border $900F 0-2, background
+    // $900F 4-7, CHARSET the whole $9005 byte — this build's screen base
+    // (a geometry constant, folded) and character base 0 or 2.
     function bits(slot: utinyint, value: utinyint): utinyint {
         if (slot == Slot.BORDER) {
             return value & 7;
+        }
+        if (slot == Slot.CHARSET) {
+            if ((value & 1) == 0) {
+                return Video.MEMORY_POINTER_UPPERCASE;
+            }
+            return Video.MEMORY_POINTER_LOWERCASE;
         }
         return (value & 15) << 4;
     }
