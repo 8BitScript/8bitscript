@@ -605,6 +605,37 @@ test('the loader splits a tall resizable grid below line 255, identically to ren
   assert.deepEqual(framePixel(frame, BORDER_PX + 100, BORDER_PX + 300), rgb[6]);
 });
 
+// A CHARSET band switches the loader to its ALT_GLYPHS table at the same
+// line renderFrame switches glyphRows() to the alternate set.
+test('the loader applies a CHARSET band, identically to renderFrame, on the default and PET skins', () => {
+  for (const layout of [DEFAULT_LAYOUT, agreementFor({
+    cols: 40, rows: 25, palette: PET_PALETTE, aspect: '4/3', colorPerCell: false, font: 'pet',
+  })]) {
+    const mem = new Uint8Array(65536);
+    for (let cell = 0; cell < layout.cols * 6; cell += 1) {
+      mem[layout.charBase + cell] = 97 + ((cell % layout.cols) % 26);
+      mem[layout.colorBase + cell] = 1;
+    }
+    storeEntry(mem, layout, 0, 16, Slot.CHARSET, 1);
+    storeEntry(mem, layout, 1, 36, Slot.CHARSET, 0);
+    mem[layout.rasterCountOffset] = 2;
+    mem[layout.rasterControlOffset] = 1;
+    const frame = assertPaintParity(layout, mem);
+    // Cell row 2 is inside the band and cell row 0 above it; both hold the
+    // same letters, so they must draw differently — and row 5, below the
+    // switch back at line 36, the same as row 0.
+    const rowPixels = (cellRow) => {
+      const out = [];
+      for (let y = 0; y < 8; y += 1) {
+        for (let x = 0; x < 26 * 8; x += 1) out.push(...framePixel(frame, BORDER_PX + x, BORDER_PX + cellRow * 8 + y));
+      }
+      return out;
+    };
+    assert.notDeepEqual(rowPixels(2), rowPixels(0), 'the band draws the alternate set');
+    assert.deepEqual(rowPixels(5), rowPixels(0), 'below the switch back, the boot set again');
+  }
+});
+
 test('the loader writes HOST_OFFSET from maxTouchPoints and pointer:coarse, and loads a sidecar', () => {
   const source = renderLoader({ frameRate: 60 });
   assert.match(source, /HOST_OFFSET/);
