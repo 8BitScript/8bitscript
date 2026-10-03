@@ -15,9 +15,9 @@
 // and gets this file on a C64. It names *what the picture does at a line*
 // — a slot — where ./raster.8bs, which stays directly importable and is
 // what this file is a thin translation onto, names *which register to
-// write*. A C64 program that wants any register beyond the three slots
-// (sprite multiplexing, $D018 switches, $D011) wants ./raster itself, and
-// is a C64 program from then on.
+// write*. A C64 program that wants any register beyond the four slots
+// (sprite multiplexing, a $D018 screen move, $D011) wants ./raster itself,
+// and is a C64 program from then on.
 //
 // ---- the portable surface ------------------------------------------------
 //
@@ -27,7 +27,8 @@
 // program's raster branch folds away on a machine without one):
 //
 //   - `Slot`: BORDER, BACKGROUND, SCROLL_X — the three per-line effects
-//     that mean the same thing everywhere.
+//     that mean the same thing everywhere — and CHARSET, the machine's
+//     alternate character set where it has one.
 //   - `raster.ENTRIES` — the list's capacity: 63 here, 0 in a stub.
 //   - `raster.STRIDE` — the bytes one entry takes, the unit `setValue`
 //     names an entry in: 4 here, 3 on the web and the VIC-20, 0 in a
@@ -37,6 +38,8 @@
 //     true here and on the web, false on the VIC-20 (splits, but no fine
 //     scroll) and in a stub. A compile-time constant, so a wobble behind
 //     it folds away where the list would refuse its entries.
+//   - `raster.COLORS`, `raster.CHARSET` — the same kind of constant for
+//     BORDER/BACKGROUND and for CHARSET: both true here.
 //   - `clear()`, `at(line, slot, value)`, `insert(line, slot, value)`,
 //     `setValue(entry, value)`, `count()`, `commit()`, `enable()`,
 //     `disable()` — the same list operations ./raster.8bs documents,
@@ -69,12 +72,31 @@
 // split. A program that wants to CHANGE CSEL or MCM at a line writes
 // Register.CONTROL_2 through ./raster.
 //
+// `Slot.CHARSET`'s value is 0 or 1 (only bit 0 is read), the same meaning
+// as the PET's: 0 is the set the machine boots in — upper case and
+// graphics — and 1 the other one, lower and upper case. This package
+// copies the whole 4K character ROM to $D000 in bank 3 (setupVideo), so
+// both sets are always in VIC-visible RAM and the switch is $D018 bit 1
+// alone: Video.MEMORY_POINTER_UPPERCASE ($84, the set at bank+$1000) or
+// Video.MEMORY_POINTER_LOWERCASE ($86, bank+$1800) — the Programmer's
+// Reference Guide's POKE 53272,21 / 23 ($15 / $17) moved to this
+// package's bank. The entry's byte is one of those two constants, never a
+// read of $D018, so the screen-pointer bits 4-7 it carries are the text
+// screen's at $E000 whatever $D018 holds at the moment the entry is
+// stored. A charset means nothing over a bitmap, and writing either byte
+// there would point the VIC at the text screen mid-picture, so CHARSET
+// entries are refused (false) while videoMode is VideoMode.BITMAP — and a
+// program that goes to bitmap after building a list with CHARSET entries
+// rebuilds the list first. No other slot writes $D018, so nothing else in
+// the list clobbers a charset split.
+//
 // There is no `apply(table)` taking a whole list at once: array parameters
 // are not lowered by the 6502 backend yet, so a program loops over its own
 // `const` table calling `at()` — or, for a per-frame effect whose lines
 // stand, `setValue()` per entry — itself.
 import { raster as addressList, Register } from "./raster.8bs";
-import { control2 } from "./index.8bs";
+import { control2, videoMode, VideoMode } from "./index.8bs";
+import { Video } from "./geometry.8bs";
 
 // What the picture does at a line, named without an address. The numbers
 // are arbitrary and the same in all nine rasterline files.
@@ -82,7 +104,7 @@ export namespace Slot {
     const BORDER: utinyint = 0;     // the border's color
     const BACKGROUND: utinyint = 1; // the playfield's background color
     const SCROLL_X: utinyint = 2;   // the horizontal fine scroll, 0-7
-    const CHARSET: utinyint = 3;    // the machine's alternate character set, where one exists
+    const CHARSET: utinyint = 3;    // 0 = upper case/graphics ($D018 $84), 1 = lower/upper case ($86)
 }
 
 export namespace raster {
@@ -90,7 +112,7 @@ export namespace raster {
     const STRIDE: utinyint = 4;   // bytes per entry: line, address low, address high, value
     const FINE_SCROLL: bool = true; // Slot.SCROLL_X entries are accepted: $D016's XSCROLL
     const COLORS: bool = true;     // Slot.BORDER/BACKGROUND entries are accepted
-    const CHARSET: bool = false;   // Slot.CHARSET entries are refused
+    const CHARSET: bool = true;    // Slot.CHARSET entries are accepted: $D018 bit 1, text mode only
     const TOP: utinyint = 50;     // picture line 0 is raster line 50
     const LINES: utinyint = 200;  // visible picture lines, 0-199
     const KEEP: utinyint = 0xF8;  // $D016 bits 3-7 — CSEL, MCM — kept in every SCROLL_X byte
@@ -102,7 +124,8 @@ export namespace raster {
 
     // Append: at picture line `line`, give `slot` the value `value`.
     // False, and nothing added, if the line is past the visible picture,
-    // the slot is not one of the three, or the underlying list refuses it
+    // the slot is not one of the four (or is CHARSET over a bitmap), or the
+    // underlying list refuses it
     // (full, or a line below the last entry's).
     function at(line: utinyint, slot: utinyint, value: utinyint): bool {
         if (line >= raster.LINES) {
@@ -116,6 +139,9 @@ export namespace raster {
         }
         if (slot == Slot.SCROLL_X) {
             return addressList.at(line + raster.TOP, Register.CONTROL_2, (control2 & raster.KEEP) | (value & 7));
+        }
+        if (slot == Slot.CHARSET && videoMode == VideoMode.TEXT) {
+            return addressList.at(line + raster.TOP, Register.MEMORY_POINTER, charsetPointer(value));
         }
         return false;
     }
@@ -137,6 +163,9 @@ export namespace raster {
         if (slot == Slot.SCROLL_X) {
             return addressList.insert(line + raster.TOP, Register.CONTROL_2, (control2 & raster.KEEP) | (value & 7));
         }
+        if (slot == Slot.CHARSET && videoMode == VideoMode.TEXT) {
+            return addressList.insert(line + raster.TOP, Register.MEMORY_POINTER, charsetPointer(value));
+        }
         return false;
     }
 
@@ -157,10 +186,15 @@ export namespace raster {
     // the 0-7 scroll amount and is re-encoded here with $D016's current
     // CSEL and MCM bits — the byte `at` would store — so a per-frame
     // wobble never handles the register encoding. Other slots' values are
-    // the byte to write, as they are in `at`.
+    // the byte to write, as they are in `at`. A CHARSET entry takes 0 or 1
+    // and is re-encoded as `at` would encode it.
     function setValue(entry: utinyint, value: utinyint): bool {
-        if (addressList.addressOf(entry) == Register.CONTROL_2) {
+        let address: usmallint = addressList.addressOf(entry);
+        if (address == Register.CONTROL_2) {
             return addressList.setValue(entry, (control2 & raster.KEEP) | (value & 7));
+        }
+        if (address == Register.MEMORY_POINTER) {
+            return addressList.setValue(entry, charsetPointer(value));
         }
         return addressList.setValue(entry, value);
     }
@@ -174,4 +208,13 @@ export namespace raster {
     function disable(): void {
         addressList.disable();
     }
+}
+
+// Slot.CHARSET's 0/1 as the $D018 byte the list writes: the text screen
+// at $E000 over the upper-case set ($84) or the lower-case one ($86).
+function charsetPointer(value: utinyint): utinyint {
+    if ((value & 1) != 0) {
+        return Video.MEMORY_POINTER_LOWERCASE;
+    }
+    return Video.MEMORY_POINTER_UPPERCASE;
 }

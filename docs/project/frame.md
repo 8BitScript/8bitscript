@@ -27,7 +27,8 @@ machine answers it, and a written degradation for machines that cannot.
 - **`@8bitscript/raster`** — *what the picture does at a picture line*:
   `Slot.BORDER`, `BACKGROUND`, `SCROLL_X`; `at(line, slot, value)`,
   `setValue(entry, value)`, `enable()`. Real on the C64 (an IRQ-driven
-  write list in `native/6502/raster.s`), the web, and the VIC-20 (border
+  write list in `native/6502/raster.s`; `Slot.CHARSET` too, `$D018`
+  between the two ROM sets), the web, and the VIC-20 (border
   and background only, `raster.FINE_SCROLL` false: `waitFrame()`'s frame
   hook busy-waits down the frame and writes `$900F` at each line —
   `packages/vic20/AGENTS.md`, "Raster splits"); an honest zero-cost stub
@@ -74,7 +75,7 @@ way — or no way — to change something while it does:
 
 | Machine | The "at a line" mechanism | Objects are | Colour per line |
 | --- | --- | --- | --- |
-| C64 / C128 (VIC-II) | raster IRQ → a write list; an entry lands at the end of its line | 8 live register sets, reusable down the frame | `$D020`/`$D021` per line: free |
+| C64 / C128 (VIC-II) | raster IRQ → a write list; an entry lands at the end of its line — on the C64 `Slot.CHARSET` is `$D018` bit 1 through it (`packages/c64/AGENTS.md`, `@8bitscript/c64/rasterline`) | 8 live register sets, reusable down the frame | `$D020`/`$D021` per line: free |
 | MEGA65 (VIC-IV) | the same, plus a fine raster and a per-row rewrite buffer (RRB) | the 8, up to 64 px wide; RRB "pixies" unlimited | palette registers, any time |
 | VIC-20 (VIC-I) | no raster IRQ; `waitFrame()`'s frame hook re-syncs on `$9004`/`$9003` bit 7 before every planned line (built; a VIA timer synced once is the untried alternative) | none — redefined characters | `$900F` per line: two stores a line, every second line at most |
 | PET | a 50/60 Hz retrace IRQ, the only sync point in a frame; a mid-frame character-ROM-select write (`$E84C`) splits the picture, applied by `waitFrame()`'s own frame hook — built and verified for the 3032 and 4032 model tags (`packages/pet/AGENTS.md`, "Raster: character-set switching"), every other model still the honest stub | none — PETSCII cells | none |
