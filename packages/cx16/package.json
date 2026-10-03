@@ -52,7 +52,7 @@
         "video.bitmap": true,
         "video.layers": 2,
         "video.scroll": true,
-        "video.raster": false,
+        "video.raster": true,
         "video.colorBlend": false,
         "video.sprites": 128,
         "video.spritesPerLine": 46,

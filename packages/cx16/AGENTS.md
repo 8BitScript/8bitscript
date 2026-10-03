@@ -80,6 +80,14 @@ Do not describe more than this as working:
   1184 bytes of program and 25 of RAM; Studio with the pointer layer is
   1571 bytes and 35 of RAM, 318 and 5 above the same program with it
   taken out. Those Studio numbers predate the keyboard/pad scan.
+- **Raster splits** (`src/rasterline.8bs`, behind `@8bitscript/raster`):
+  all four slots — `BORDER` (`DC_BORDER`), `BACKGROUND` (the background's
+  palette entry rewritten), `SCROLL_X` (`L1_HSCROLL`) and `CHARSET` (the
+  KERNAL's PETSCII set at VRAM `$1A800`, through `L1_TILEBASE`) — on
+  VERA's line interrupt, every split landing on its own picture line,
+  whole, frame after frame. `#fact(video.raster)` is true and
+  `raster.COLORS`, `FINE_SCROLL` and `CHARSET` all are. The section
+  "Raster splits" below is the mechanism and the measurements.
 - There is no `--profile` for the X16 yet — no banked-RAM size, no
   video-output (VGA/composite) profile, no expansion-card capabilities.
 - `8bs setup cx16` builds the emulator and ROM together from upstream and
@@ -277,49 +285,143 @@ at all.
 - The line IRQ has interlace quirks (bit 0 ignored, readings alternate by
   field). Same rule: scheduler code, not application code.
 
-**A VERA line-IRQ raster driver was attempted (2026-09-29) and reverted —
-read this before trying again.** The memory-safety question this
-package's own zero-page section already answers cleanly: `$A9`-`$FF` is
-proven-safe RAM (no `@address` pinning needed anywhere else), a stock
-program's KERNAL never touches it, and unlike the C64 there is no
-VIC-idle-graphics reason to pin the handler at a special address — VERA
-shares no CPU-visible fetch with program RAM the way VIC-II bank 3 does
-(`packages/c64/AGENTS.md`, "Idle graphics and the ghost byte"), so a
-native routine can live wherever the linker puts it. `mos/startup/
-waitframe.ts`'s `FlagSync.keepsInterrupts` (mirroring `RasterSync`'s own,
-built for the Atari 8-bit) is the one line a real driver needs flipped to
-stop the compiler's own SEI from undoing `raster.enable()`'s CLI —
-already wired through `waitFrameKeepsInterrupts()` and `flagSetup()`, just
-not turned on for `cx16` today.
+- `@8bitscript/cx16/rasterline` is that scheduler: a program names a
+  picture line and a slot, never a scanline or a register.
 
-What actually blocked it: `$9F26` (IEN) and `$9F27` (ISR) behave exactly
-as documented, verified directly against the real emulator's own model,
-not recalled — `~/.cache/8bitscript/setup/x16-emulator/src/video.c`,
-`video_write` (search `case 0x06`/`case 0x07`): `IEN`'s write sets
-`irq_line`'s 9th bit from bit 7 and the enable mask from bits 0-3; `ISR`'s
-write is a plain `isr &= value ^ 0xff` (write-1-to-clear); the LINE
-condition (`update_isr_and_coll`, search `LINE IRQ`) sets `isr`'s bit 1
-with a plain `if (y == compare)` — once per frame, not continuously. A
-handler that installs on `$0314`/`$0315` (CINV — the KERNAL's own
-indirect vector, confirmed compatible with the C64's), arms `IRQLINE_L`
-for line 0, sets `IEN = 0x02`, and `cli`s: **runs into x16emu's debugger
-break screen** (a static register/flags HUD, captured in a `--screenshot`
-run) as soon as the handler acknowledges the interrupt with the *correct*
-value (`STA 0x9F27` with `#0x02`) — bisected with `node --test`-free,
-by-hand builds down to that one instruction. Leaving the interrupt
-unacknowledged (or acknowledging the wrong bit) does not crash; neither
-does the same instruction from ordinary (non-interrupt) code; the
-interrupt firing was confirmed to be real (VERA's own edge condition, not
-some other pending source — a bare `cli` with no vector change at all is
-also fine). The crash reproduces with `waitFrame()` entirely removed from
-the program, so it is not an interaction with this package's own frame
-pacing. This is as far as this session's tools (screenshot diffing, the
-assembly listing, reading the emulator's own C source) could narrow it —
-a real debugger attached to a running x16emu (or a report to
-X16Community, since this may be an emulator bug rather than a wrong
-assumption on this project's part) is the next step, not another guess
-at the register semantics, which are now about as verified as they can be
-without one.
+## Raster splits
+
+`src/rasterline.8bs` is the X16 behind `@8bitscript/raster`. Everything
+here was measured under x16emu r50 (`77f2bab3`) with ROM `fbe32a60`, from
+`test/raster-probe.8bs` and scratch probes, 2026-10-03; none of it has
+been checked on a real X16, whose VERA may raise the line interrupt at a
+different point of the line than the emulator does. Read it before
+changing a cycle in the handler.
+
+### Who applies the list
+
+`enable()` puts a handler on CINV (`$0314`), keeps the vector and IEN it
+found for `disable()`, and sets IEN to the LINE source alone — so the
+KERNAL's VSYNC work stops, as it already has in every program that calls
+`waitFrame()` (which runs under `sei` from start-up and polls VSYNC
+itself; VERA still sets ISR bit 0 with the interrupt disabled, so that
+poll is unaffected). `waitFrame()`'s setup runs before `main()`
+(`mos/index.ts` puts `waitFrameSetupProgram` ahead of the entry), so
+`enable()`'s `cli` is never undone and `FlagSync.keepsInterrupts` stays
+off. The handler:
+
+- acknowledges ISR bit 1 only (write-1-to-clear, `video.c` `isr &= value
+  ^ 0xff`) and passes any other source to the vector it found;
+- saves CTRL and sets it to 0 (DCSEL 0 for `DC_BORDER`, ADDRSEL 0), and
+  saves and restores ADDR0 around the palette write — text.8bs parks both
+  ports between calls, so a program's port state must survive;
+- returns through the KERNAL's own frame: `__irq` (kernal/drivers/x16/
+  memory.s) pushes A, the ROM bank and an RTI frame to `__irq_ret`, then
+  A, X, Y, and `jmp (cinv)`; the KERNAL's own handler ends `ply / plx /
+  pla / rti` (kernal/cbm/irq.s), spelled `pla / tay / pla / tax / pla /
+  rti` here because `asm6502` takes NMOS opcodes only.
+
+`input.poll()` and `mouse.poll()` used to `sei` before their KERNAL
+calls and never `cli`: harmless under `waitFrame()`, fatal to a live
+raster handler (the probe's setValue never showed). They now `php / sei
+… plp`, so the I flag comes back as it was — off in a `waitFrame()`
+program, on with the handler installed. With the raster list enabled the
+KERNAL IRQ cannot run, so the calls are still never re-entered.
+
+The attempt of 2026-09-29 (which hit x16emu's break screen the moment
+its handler acknowledged the interrupt) did not reproduce with this
+handler; what it got wrong was not found again, so the three things
+above are the ones to check first if it ever does.
+
+### Two timings, one arming line
+
+VERA applies its registers at two points (x16emu `render_line`, which
+copies the composer and layer state into a two-line history at the start
+of each line):
+
+| Register | A write during scanline Y shows | Verified |
+| --- | --- | --- |
+| `L1_HSCROLL`, `L1_TILEBASE` (layer) | from Y + 2, the whole line | probe: scroll and charset change exactly on their lines |
+| `DC_BORDER` (composer) | at the beam, mid-line | `ldy` sweep below: early writes split the line above |
+| palette (VRAM `$1FA00`) | at the next render of the line — mid-line on hardware | as above, in the background strip |
+
+So every planned line is armed **two scanlines above its target**. The
+layer writes go out at once; the border and palette writes wait for the
+scanline to change (a 7-cycle `cmp $9F28 / beq` loop) and then for the
+horizontal blank of that line — 640-800 of the 800-pixel line, about
+cycles 203-254 of the 254-cycle line at 8 MHz — by a `ldy #40 / dey /
+bne` delay. A border-only line with no border change still rewrites
+`DC_BORDER` with its own value: x16emu renders the active part of the line
+when a DC register is written, which is what keeps a palette-only change
+from reaching back over the whole line above.
+
+The delay was swept (`8bs run cx16 --screenshot --frames 300`, both side
+borders and the background strip read per row):
+
+| `ldy` | Result |
+| --- | --- |
+| 1-34 | the border write lands in the picture of the line above: its left border old, right border new |
+| 36 | clean, except the late-path entry's right border |
+| 38-44 | clean on every slot |
+| 46 | lands in the target line's left border |
+| 50+ | a whole line late, the line before it split |
+
+40 is the middle of the clean window: about 25 cycles each side.
+
+### What a line is, and what it costs
+
+- **Picture line 0 is the first scanline of text row 0**: `DC_VSTART × 2`,
+  read by `commit()` — 16 once `screen.8bs` has inset the display. Text
+  is 1:1 on a 640×480 output, so a picture line is one scanline and a
+  text row is 8, as on every other machine. `line` is a byte: lines 0-255,
+  text rows 0-31 of the 56 the inset shows. A target in the first two
+  scanlines of the frame (no inset) is armed at 0 and lands late.
+- **Two planned lines closer than the handler** — a composer line keeps
+  it about two scanlines — take the late path: after arming the next
+  line, the handler compares the scanline against it and, if already
+  there, applies it at once. The probe's entries at lines 100 and 101
+  show the second a line late (red from row 118, not 117), every frame.
+  Layer-only lines (a wobble) are about a hundred cycles each and keep
+  up at two scanlines' pitch: `examples/fancy`'s twelve-entry wobble
+  draws on every line it names.
+- **BACKGROUND rewrites a palette entry**, the one text cell 0's attribute
+  names at `commit()`, to the stock VERA color the value names (0-15,
+  `PALETTE_LOW/HIGH`). Anything drawn in that entry follows it — the
+  border if it names the same entry, text in the background's color —
+  and a program that repaints the background with another color must
+  commit again. The frame wraps: lines above the first BACKGROUND entry
+  show the last one's color, as on the C64.
+- **SCROLL_X moves the picture right**, as on the C64 and the web:
+  `L1_HSCROLL = 1024 − value`. The 1024-pixel map wraps its column 127
+  into the gap, so `commit()` paints that column as spaces with each
+  row's column-0 attribute when the list has a SCROLL_X entry.
+- **CHARSET 1** is the KERNAL's PETSCII upper case / graphics set — the
+  X16's own power-on set — put in VRAM `$1A800` (the 2K under the text
+  map at `$1B000`; the KERNAL's sprite data is at `$13000`) the first
+  time a list names it: `$FF62` with A = 2 loads it at `$1F000`, both
+  data ports copy it across, `$FF62` with A = 1 puts ISO back. About
+  three frames, once. CHARSET 0 is `L1_TILEBASE` as the first `commit()`
+  found it.
+- **RAM**: none of the program image. The list, both plans and the
+  entry-to-line map are in Golden RAM, `$0401`-`$077F` (no ROM segment in
+  `cfg/x16.cfginc` reaches past `$03FF`; the program loads at `$0801`);
+  the file's header has the map. **Program**: a program that enables a
+  two-entry list is 1716 bytes against 465 for the same program without
+  the import (+1251: `commit` 377, the install routine and handler 298,
+  `place` 173, `paintGap` 90, `at` 87, `copyAlternateSet` 80, `copyLine`
+  60); `examples/fancy` is 5206 against 3692 when the effect folded away
+  (+1514 program, +7 RAM — the wobble's sine table and per-frame rewrite
+  included). `8bs build cx16 --size`, 2026-10-03.
+
+### Troubleshooting
+
+- **No splits at all, or splits for one frame**: something set the I flag
+  and left it. `test/raster.test.mjs`'s `input.poll()` mutation (the
+  `plp` removed) fails on the setValue'd border above line 40.
+- **A split one line early, its line split left/right**: the composer
+  delay is short — re-run the `ldy` sweep. The test's `ldy #20` mutation
+  fails at line 39's right border.
+- **A split one line late**: two planned lines closer than two scanlines,
+  or a program holding `sei` across the arming line.
 
 ### Audio
 
@@ -360,6 +462,9 @@ packages/cx16/test/input.test.mjs        KERNAL $FF53/$FF9F/$FF56; SNES bits aga
 packages/cx16/src/pointer.8bs            @8bitscript/cx16/pointer: the firmware arrow; update() empty unless recovering from hide()
 packages/cx16/test/mouse-probe.8bs       run under x16emu: green border when present(); test/mouse.test.mjs reads it
 packages/cx16/src/text.8bs               @8bitscript/cx16/text: text.print/printNumber/setColor/setReverse/putChar/putColor, CELL_COUNT 4256, COLUMNS 76, TextColor
+packages/cx16/src/rasterline.8bs         @8bitscript/cx16/rasterline (behind @8bitscript/raster): the list and plan in Golden RAM ($0401-$077F), the VERA line-IRQ handler on CINV
+packages/cx16/test/raster-probe.8bs      the probe: every slot at a known line, an adjacent pair, setValue after sixty frames
+packages/cx16/test/raster.test.mjs       links the probe; under x16emu, each split on its line, whole, and live through input.poll()
 packages/cx16/test/text.test.mjs         locate() widens before * 28 / * 76; reverse is black glyphs on the fill colour
 packages/compiler/src/mos/index.ts       FRAME_SYNC.cx16 (VERA ISR poll; the backend refuses to build)
 packages/cli/src/setup/cx16.mjs          8bs setup cx16: emulator+ROM pair, macOS launcher wrapper

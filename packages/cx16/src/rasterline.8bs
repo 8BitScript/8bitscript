@@ -1,68 +1,699 @@
-// @8bitscript/cx16/rasterline — the per-scanline raster surface, on a
-// machine that cannot answer it.
+// @8bitscript/cx16/rasterline — per-line border, background, fine scroll
+// and character-set splits, on VERA's line interrupt.
 //
 // Named by "8bitscript".exports["./rasterline"] in this package's
 // package.json, and by "8bitscript".entry.cx16 in @8bitscript/raster's,
 // so a portable program's `import { raster, Slot } from
 // "@8bitscript/raster"` gets this file on a Commander X16.
-//
-// VERA has a line IRQ (documented, not measured here), so a real
-// implementation is possible — nobody has written it: no handler, no
-// list for one to apply. Until someone does, this machine honestly
-// answers nothing.
+// packages/cx16/AGENTS.md, "Raster splits", is the long form of
+// everything below and the measurements behind it; read it before
+// changing a cycle in the handler.
 //
 // ---- the portable surface ------------------------------------------------
 //
-// The same Slot names and raster calls as every rasterline file, answering
-// nothing: ENTRIES is 0, at() and setValue() return false, count() returns
-// 0, and clear()/enable()/disable() do nothing. #fact(video.raster) is
-// false on this machine, so a program that keeps its raster effect behind
-// that fact folds the whole branch away and this file costs it nothing; a
-// call that reaches this file anyway is inert — the "answers nothing but
-// still compiles and costs zero" rule packages/input/AGENTS.md documents.
-
+// The same Slot names and raster calls as every rasterline file: `clear`,
+// `at`, `insert`, `setValue`, `count`, `commit`, `enable`, `disable`, and
+// the ENTRIES / STRIDE / FINE_SCROLL / COLORS / CHARSET constants. Entries
+// go in ascending line order (`insert` slides one into place); a list built
+// once and `enable()`d shows every frame, a rebuilt one from the `commit()`
+// that hands it over; lines above the first entry for a slot show the last
+// entry's value, because the frame wraps (as on the C64).
+//
+// ---- what a line is -------------------------------------------------------
+//
+// `line` is a **picture line**: 0 is the first scanline of text row 0, and
+// a text row is 8 lines, as on every other machine (examples/fancy puts
+// its bands at row * 8). VERA's text mode here is 1:1 — 80×60 cells of 8×8
+// on a 640×480 output — so a picture line is one VGA scanline, and picture
+// line 0 is scanline DC_VSTART × 2: 16 once @8bitscript/cx16/screen has
+// inset the display (index.8bs's two-line VSCROLL correction makes text
+// row 0's first pixel line that scanline), read by `commit()` rather than
+// assumed. `line` is a byte, so the list reaches picture lines 0-255 —
+// text rows 0-31 of the 56 the inset leaves visible. The rows below 31
+// keep whatever the last entry set.
+//
+// ---- who applies the list ---------------------------------------------------
+//
+// VERA raises a LINE interrupt (ISR bit 1) once a frame when its scanline
+// counter equals IRQLINE ($9F28, bit 8 in IEN bit 7). `enable()` puts a
+// handler on the KERNAL's CINV vector ($0314) and takes VERA's interrupt
+// enable for the LINE source alone, so the KERNAL's own VSYNC work stops —
+// as it already has in any program that calls waitFrame(), which runs
+// under `sei` and polls VSYNC itself (FRAME_SYNC.cx16). The handler
+// acknowledges only the LINE bit, applies the planned line's writes, arms
+// the next planned line and returns through the KERNAL's own exit frame
+// (`ply / plx / pla / rti` there, written `pla / tay / pla / tax / pla /
+// rti` here: kernal/cbm/irq.s); any other source goes on to
+// the vector it found. It saves VERA's CTRL around every pass, and ADDR0
+// around the palette write that needs the data port, so a program's own
+// port state survives an interrupt — the courtesy packages/cx16/AGENTS.md
+// asks of any interrupt code.
+//
+// Two timings, because VERA applies its registers at two different points
+// (x16emu's render_line, and the VERA reference's "renders one line
+// ahead"): a layer register — L1_HSCROLL, L1_TILEBASE — is latched through
+// a two-line history, so a write anywhere in scanline Y shows from Y + 2,
+// whole; a composer register — DC_BORDER — and the palette show at the
+// beam, so a write mid-line splits that line. Each planned line is armed
+// two scanlines above its target: the layer writes go out at once, and
+// the border and palette writes wait for the next scanline to start and
+// then for its horizontal blank (640-800 of 800 pixels, about cycles
+// 203-254 of the 254-cycle line at 8 MHz), so the target is the first
+// whole line in the new state on every slot. Two planned lines closer
+// than two scanlines cannot both be on time: the later one is applied
+// as soon as the handler finishes the earlier (a line or two late).
+//
+// ---- what a Slot means here -------------------------------------------------
+//
+// BORDER is DC_BORDER, a palette index (0-255; 0-15 are the colors
+// screen.8bs names). BACKGROUND has no register: every text cell carries
+// its own background nibble (screen.setBackground paints them all). So a
+// BACKGROUND entry rewrites the RGB of the palette entry the background
+// uses — read from text cell 0's attribute at `commit()` — to the stock
+// VERA color `value` names (0-15). Everything drawn in that palette entry
+// follows it: text whose foreground is the background's color (invisible
+// either way), and the border if it names the same entry. SCROLL_X is the
+// 0-7 fine scroll, moving the picture right as on the C64 and the web:
+// L1_HSCROLL = 1024 - value, the 1024-pixel map wrapping its last column
+// into the gap (commit() paints map column 127 as background spaces so the
+// gap is background-colored). CHARSET 0 is the boot set (ISO, the set
+// this toolchain starts in); anything else is the KERNAL's PETSCII upper
+// case / graphics set — the X16's own power-on set — which `commit()`
+// copies once into VRAM $1A800, the 2K under the text map at $1B000, and
+// points L1_TILEBASE at.
+//
+// ---- where things live ------------------------------------------------------
+//
+// Golden RAM, $0400-$07FF (this file uses $0401-$077F): no KERNAL, BASIC or DOS segment touches it
+// (x16-rom cfg/x16.cfginc stops at $03FF) and the program loads at $0801,
+// so the list and its plan cost the program image nothing. The handler
+// and the asm blocks name these as numbers (a block cannot name a
+// global: globals are link-renamed), so a change here is a change to
+// their operands.
+//
+//   $0401  the planned line the handler applies next
+//   $0402  how many planned lines are live
+//   $0403  low byte of the background's palette address ($1FA00 + 2n)
+//   $0404  IEN as enable() found it, for disable()
+//   $0405  CINV as enable() found it (2 bytes), for other IRQ sources
+//   $0407  the I flag as enable() found it (4 = interrupts were off)
+//   $0410  the list: 32 entries of line, slot, value
+//   $0480  the live plan, nine 32-byte tables (below), to $059F — the
+//          handler's
+//   $0600  the plan commit() builds, the same nine tables, to $071F —
+//          the committed plan's copy until the list next changes
+//   $0720  which planned line each entry went to, at its byte offset (96)
+//
+// The plan's tables, at +$00 IRQLINE low, +$20 IRQLINE bit 8 (as IEN's
+// bit 7), +$40 which writes (1 border, 2 palette, 4 scroll, 8 charset),
+// +$60 border, +$80/+$A0 palette low/high, +$C0/+$E0 HSCROLL low/high,
+// +$100 TILEBASE.
+//
+// Measured under x16emu r50 (77f2bab3) with ROM fbe32a60; not checked
+// on a real X16.
 // What the picture does at a line, named without an address. The numbers
-// are arbitrary and the same in all nine rasterline files; nothing here
-// consumes them.
+// are arbitrary and the same in all nine rasterline files.
 export namespace Slot {
-    const BORDER: utinyint = 0;     // the border's color
-    const BACKGROUND: utinyint = 1; // the playfield's background color
-    const SCROLL_X: utinyint = 2;   // the horizontal fine scroll
-    const CHARSET: utinyint = 3;    // the machine's alternate character set, where one exists
+    const BORDER: utinyint = 0;     // DC_BORDER, a palette index
+    const BACKGROUND: utinyint = 1; // the background's palette entry, set to stock color 0-15
+    const SCROLL_X: utinyint = 2;   // the horizontal fine scroll, 0-7
+    const CHARSET: utinyint = 3;    // 0 the boot (ISO) set, else PETSCII upper case / graphics
 }
 
+// VERA's power-on palette, entries 0-15 (x16-emulator video.c
+// default_palette; the VERA reference's table): GGGGBBBB, then 0000RRRR.
+const PALETTE_LOW: array<utinyint, 16> = [
+    0x00, 0xFF, 0x00, 0xFE, 0x4C, 0xC5, 0x0A, 0xE7,
+    0x85, 0x40, 0x77, 0x33, 0x77, 0xF6, 0x8F, 0xBB,
+];
+const PALETTE_HIGH: array<utinyint, 16> = [
+    0x0, 0xF, 0x8, 0xA, 0xC, 0x0, 0x0, 0xE,
+    0xD, 0x6, 0xF, 0x3, 0x7, 0xA, 0x0, 0xB,
+];
+
+@address(0x0410)
+let entries: array<utinyint, 96>;
+@address(0x0720)
+let entryPlan: array<utinyint, 96>;
+
+// The plan commit() builds — and, once committed, a copy of the live one
+// that setValue edits a line of before copying that line over.
+@address(0x0600)
+let planLine: array<utinyint, 32>;      // IRQLINE low
+@address(0x0620)
+let planLineHigh: array<utinyint, 32>;  // IRQLINE bit 8, as IEN bit 7
+@address(0x0640)
+let planMask: array<utinyint, 32>;      // 1 border, 2 palette, 4 scroll, 8 charset
+@address(0x0660)
+let planBorder: array<utinyint, 32>;
+@address(0x0680)
+let planPaletteLow: array<utinyint, 32>;
+@address(0x06A0)
+let planPaletteHigh: array<utinyint, 32>;
+@address(0x06C0)
+let planScrollLow: array<utinyint, 32>;
+@address(0x06E0)
+let planScrollHigh: array<utinyint, 32>;
+@address(0x0700)
+let planTiles: array<utinyint, 32>;
+
+let entryCount: utinyint = 0;
+// True between a change to the list and the commit that hands it over:
+// setValue then edits only the list.
+let listDirty: bool = false;
+let enabled: bool = false;
+// L1_TILEBASE as the program had it at the first commit() — the boot set —
+// and the alternate set's, once copied (0 until then).
+let bootTiles: utinyint = 0;
+let altTiles: utinyint = 0;
+
 export namespace raster {
-    const ENTRIES: utinyint = 0; // the list's capacity: there is no list
-    const STRIDE: utinyint = 0;  // bytes per entry: none
-    const FINE_SCROLL: bool = false; // Slot.SCROLL_X entries are refused
-    const COLORS: bool = false;     // Slot.BORDER/BACKGROUND entries are accepted
-    const CHARSET: bool = false;   // Slot.CHARSET entries are refused
+    const ENTRIES: utinyint = 32;    // the list's capacity
+    const STRIDE: utinyint = 3;      // bytes per entry: line, slot, value
+    const FINE_SCROLL: bool = true;  // Slot.SCROLL_X entries are accepted: L1_HSCROLL
+    const COLORS: bool = true;       // Slot.BORDER/BACKGROUND entries are accepted
+    const CHARSET: bool = true;      // Slot.CHARSET entries are accepted: L1_TILEBASE
+    const ALT_TILEBASE: utinyint = 0xD4; // the alternate set at $1A800: ($1A800 >> 11) << 2
 
+    // Empty the list. What shows keeps showing until the next commit().
     function clear(): void {
+        entryCount = 0;
+        listDirty = true;
     }
 
+    // Append: at picture line `line`, give `slot` the value `value`. False,
+    // and nothing added, if the slot is unknown, the list is full, or the
+    // line is above the last entry's.
     function at(line: utinyint, slot: utinyint, value: utinyint): bool {
-        return false;
+        if (slot > Slot.CHARSET || entryCount >= raster.ENTRIES) {
+            return false;
+        }
+        let offset: utinyint = entryCount * 3;
+        if (entryCount > 0 && line < entries[offset - 3]) {
+            return false;
+        }
+        entries[offset] = line;
+        entries[offset + 1] = slot;
+        entries[offset + 2] = value;
+        entryCount = entryCount + 1;
+        listDirty = true;
+        return true;
     }
 
+    // In order: the same as `at`, at any line — the entries below it slid
+    // down a place. False, and nothing added, if the slot is unknown or the
+    // list is full.
     function insert(line: utinyint, slot: utinyint, value: utinyint): bool {
-        return false;
+        if (slot > Slot.CHARSET || entryCount >= raster.ENTRIES) {
+            return false;
+        }
+        let offset: utinyint = entryCount * 3;
+        while (offset > 0 && entries[offset - 3] > line) {
+            entries[offset] = entries[offset - 3];
+            entries[offset + 1] = entries[offset - 2];
+            entries[offset + 2] = entries[offset - 1];
+            offset = offset - 3;
+        }
+        entries[offset] = line;
+        entries[offset + 1] = slot;
+        entries[offset + 2] = value;
+        entryCount = entryCount + 1;
+        listDirty = true;
+        return true;
     }
 
-    function setValue(entry: utinyint, value: utinyint): bool {
-        return false;
-    }
-
-    function commit(): void {
-    }
-
+    // How many entries the list holds.
     function count(): utinyint {
-        return 0;
+        return entryCount;
     }
 
+    // Hand the list over: the plan is worked out here — scanlines, which
+    // registers, the bytes to write — so the handler does no arithmetic.
+    // Live from the next frame (from the next armed line, if the list was
+    // committed above the first of them).
+    function commit(): void {
+        // Picture line 0's scanline: DC_VSTART (DCSEL 1) is bits 8-1.
+        memory.write(0x9F25, 0x02);
+        let top: usmallint = memory.read(0x9F2B);
+        memory.write(0x9F25, 0x00);
+        top = top * 2;
+        if (bootTiles == 0) {
+            bootTiles = memory.read(0x9F36);
+        }
+        // The background's palette entry: text cell 0's attribute (map
+        // base + 1, L1_MAPBASE being address bits 16-9), high nibble, as
+        // the palette address's low byte, $1FA00 + 2n.
+        asm6502 {
+            lda #1
+            sta $9F20
+            lda $9F35
+            asl a
+            sta $9F21
+            lda #0
+            rol a
+            sta $9F22
+            lda $9F23
+            lsr a
+            lsr a
+            lsr a
+            and #$1E
+            sta $0403
+        }
+
+        let items: utinyint = 0;
+        let lastLine: utinyint = 0;
+        let scrolls: bool = false;
+        let end: utinyint = entryCount * 3;
+        for (let offset: utinyint = 0; offset < end; offset = offset + 3) {
+            let line: utinyint = entries[offset];
+            if (items == 0 || line != lastLine) {
+                // Armed two scanlines above the target (the header's two
+                // timings); a target in the first two scanlines of the
+                // frame is armed at 0 and lands late.
+                let arm: usmallint = top + line;
+                if (arm >= 2) {
+                    arm = arm - 2;
+                } else {
+                    arm = 0;
+                }
+                planLine[items] = arm & 0xFF;
+                planLineHigh[items] = 0;
+                if (arm >= 256) {
+                    planLineHigh[items] = 128;
+                }
+                planMask[items] = 0;
+                items = items + 1;
+                lastLine = line;
+            }
+            entryPlan[offset] = items - 1;
+            let slot: utinyint = entries[offset + 1];
+            if (slot == Slot.SCROLL_X) {
+                scrolls = true;
+            }
+            raster.place(items - 1, slot, entries[offset + 2]);
+        }
+        if (scrolls) {
+            raster.paintGap();
+        }
+        listDirty = false;
+        // The plan goes live whole: copied with the interrupt held off
+        // across every line, the handler restarted at the first one.
+        asm6502 {
+            php
+            sei
+        }
+        for (let p: utinyint = 0; p < items; p++) {
+            raster.copyLine(p);
+        }
+        asm6502 {
+            lda items
+            sta $0402
+            lda #0
+            sta $0401
+            plp
+        }
+        if (enabled) {
+            asm6502 {
+                php
+                sei
+                lda $0402
+                beq cx16rl_quiet
+                lda $0480
+                sta $9F28
+                lda $04A0
+                ora #$02
+                sta $9F26
+                jmp cx16rl_armed
+            cx16rl_quiet:
+                lda #0
+                sta $9F26
+            cx16rl_armed:
+                lda #$02
+                sta $9F27
+                plp
+            }
+        }
+        return;
+    }
+
+    // Planned line `p` of the build plan into the live one, with the
+    // interrupt held off so the handler never reads half a line.
+    function copyLine(p: utinyint): void {
+        asm6502 {
+            php
+            sei
+            ldx p
+            lda $0600,x
+            sta $0480,x
+            lda $0620,x
+            sta $04A0,x
+            lda $0640,x
+            sta $04C0,x
+            lda $0660,x
+            sta $04E0,x
+            lda $0680,x
+            sta $0500,x
+            lda $06A0,x
+            sta $0520,x
+            lda $06C0,x
+            sta $0540,x
+            lda $06E0,x
+            sta $0560,x
+            lda $0700,x
+            sta $0580,x
+            plp
+        }
+        return;
+    }
+
+    // One entry's writes into planned line `p` of the build plan: the
+    // bytes for its slot, and the slot's bit in the line's mask.
+    function place(p: utinyint, slot: utinyint, value: utinyint): void {
+        if (slot == Slot.BORDER) {
+            planBorder[p] = value;
+            planMask[p] = planMask[p] | 1;
+        } else if (slot == Slot.BACKGROUND) {
+            planPaletteLow[p] = PALETTE_LOW[value & 15];
+            planPaletteHigh[p] = PALETTE_HIGH[value & 15];
+            planMask[p] = planMask[p] | 2;
+        } else if (slot == Slot.SCROLL_X) {
+            // 1024 - value: the map moved right by `value` pixels.
+            let low: utinyint = (0 - (value & 7)) & 0xFF;
+            planScrollLow[p] = low;
+            planScrollHigh[p] = 0;
+            if (low != 0) {
+                planScrollHigh[p] = 3;
+            }
+            planMask[p] = planMask[p] | 4;
+        } else {
+            if (value != 0) {
+                raster.copyAlternateSet();
+                planTiles[p] = altTiles;
+            } else {
+                planTiles[p] = bootTiles;
+            }
+            planMask[p] = planMask[p] | 8;
+        }
+        return;
+    }
+
+    // The KERNAL's PETSCII upper case / graphics set ($FF62
+    // screen_set_charset, A = 2, which loads it at the text layer's own
+    // $1F000), copied through both data ports to $1A800, then the ISO set
+    // put back (A = 1). Once per program, the first time a list names it.
+    function copyAlternateSet(): void {
+        if (altTiles != 0) {
+            return;
+        }
+        asm6502 {
+            lda #2
+            jsr $FF62
+            lda #$01
+            sta $9F25
+            lda #$00
+            sta $9F20
+            lda #$F0
+            sta $9F21
+            lda #$11
+            sta $9F22
+            lda #$00
+            sta $9F25
+            sta $9F20
+            lda #$A8
+            sta $9F21
+            lda #$11
+            sta $9F22
+            ldx #8
+            ldy #0
+        cx16rl_glyphs:
+            lda $9F24
+            sta $9F23
+            iny
+            bne cx16rl_glyphs
+            dex
+            bne cx16rl_glyphs
+            lda #1
+            jsr $FF62
+        }
+        altTiles = raster.ALT_TILEBASE | (bootTiles & 3);
+        return;
+    }
+
+    // Map column 127 — what a right shift brings into the left edge — as
+    // background spaces: a space down the column (ADDR0, a 256-byte step
+    // per map row), then each row's column 0 attribute copied beside it
+    // (ADDR1 reading down column 0).
+    function paintGap(): void {
+        asm6502 {
+            lda #$01
+            sta $9F25
+            lda #$01
+            sta $9F20
+            lda $9F35
+            asl a
+            sta $9F21
+            lda #0
+            rol a
+            ora #$90
+            sta $9F22
+            lda #$00
+            sta $9F25
+            lda #$FE
+            sta $9F20
+            lda $9F35
+            asl a
+            sta $9F21
+            lda #0
+            rol a
+            ora #$90
+            sta $9F22
+            ldx #64
+            lda #32
+        cx16rl_spaces:
+            sta $9F23
+            dex
+            bne cx16rl_spaces
+            lda #$FF
+            sta $9F20
+            lda $9F35
+            asl a
+            sta $9F21
+            lda #0
+            rol a
+            ora #$90
+            sta $9F22
+            ldx #64
+        cx16rl_attributes:
+            lda $9F24
+            sta $9F23
+            dex
+            bne cx16rl_attributes
+        }
+        return;
+    }
+
+    // Rewrite one entry's value, leaving its line and slot: `entry` is the
+    // entry's byte offset (index * STRIDE). Live from the next armed line
+    // with no commit, when the list has not changed since the last one:
+    // the entry's planned line is rebuilt in the build plan (which is the
+    // committed plan until the list next changes) and copied over whole.
+    // False, and nothing written, if the offset is not a multiple of 3 or
+    // names no entry.
+    function setValue(entry: utinyint, value: utinyint): bool {
+        if (entry % 3 != 0 || entry >= entryCount * 3) {
+            return false;
+        }
+        entries[entry + 2] = value;
+        if (!listDirty) {
+            let p: utinyint = entryPlan[entry];
+            raster.place(p, entries[entry + 1], value);
+            raster.copyLine(p);
+        }
+        return true;
+    }
+
+    // Install the handler and start applying: commits the list, which
+    // shows from the next armed line.
     function enable(): void {
+        if (enabled) {
+            return;
+        }
+        asm6502 {
+            php
+            pla
+            and #$04
+            sta $0407
+            sei
+            lda $0314
+            sta $0405
+            lda $0315
+            sta $0406
+            lda $9F26
+            and #$0F
+            sta $0404
+            lda #<cx16rl_irq
+            sta $0314
+            lda #>cx16rl_irq
+            sta $0315
+            jmp cx16rl_installed
+
+            ; ---- the handler -------------------------------------------
+            ; Entered from CINV with A, X, Y pushed and the KERNAL's bank
+            ; frame under them (kernal/drivers/x16/memory.s __irq).
+        cx16rl_irq:
+            lda $9F27
+            and #$02
+            bne cx16rl_line
+            jmp ($0405)
+        cx16rl_line:
+            lda #$02
+            sta $9F27
+            lda $9F25
+            pha
+            lda #0
+            sta $9F25
+            ldx $0401
+        cx16rl_entry:
+            ; layer writes: from two scanlines on, whole
+            lda $04C0,x
+            and #$04
+            beq cx16rl_noscroll
+            lda $0540,x
+            sta $9F37
+            lda $0560,x
+            sta $9F38
+        cx16rl_noscroll:
+            lda $04C0,x
+            and #$08
+            beq cx16rl_nochar
+            lda $0580,x
+            sta $9F36
+        cx16rl_nochar:
+            lda $04C0,x
+            and #$03
+            beq cx16rl_next
+            ; composer writes: in the horizontal blank of the next scanline
+            lda $9F20
+            pha
+            lda $9F21
+            pha
+            lda $9F22
+            pha
+            lda $0403
+            sta $9F20
+            lda #$FA
+            sta $9F21
+            lda #$11
+            sta $9F22
+            lda $9F28
+        cx16rl_edge:
+            cmp $9F28
+            beq cx16rl_edge
+            ldy #40
+        cx16rl_delay:
+            dey
+            bne cx16rl_delay
+            lda $04C0,x
+            and #$01
+            beq cx16rl_keep
+            lda $04E0,x
+            sta $9F2C
+            jmp cx16rl_palette
+        cx16rl_keep:
+            lda $9F2C
+            sta $9F2C
+        cx16rl_palette:
+            lda $04C0,x
+            and #$02
+            beq cx16rl_restore
+            lda $0500,x
+            sta $9F23
+            lda $0520,x
+            sta $9F23
+        cx16rl_restore:
+            pla
+            sta $9F22
+            pla
+            sta $9F21
+            pla
+            sta $9F20
+        cx16rl_next:
+            inx
+            cpx $0402
+            bcc cx16rl_arm
+            ; the pass is over: the first planned line, next frame
+            ldx #0
+            lda $0480
+            sta $9F28
+            lda $04A0
+            ora #$02
+            sta $9F26
+            jmp cx16rl_out
+        cx16rl_arm:
+            lda $0480,x
+            sta $9F28
+            lda $04A0,x
+            ora #$02
+            sta $9F26
+            ; already there? (two planned lines closer than the handler)
+            lda $9F26
+            and #$40
+            asl a
+            cmp $04A0,x
+            bcc cx16rl_out
+            bne cx16rl_late
+            lda $9F28
+            cmp $0480,x
+            bcc cx16rl_out
+        cx16rl_late:
+            lda #$02
+            sta $9F27
+            jmp cx16rl_entry
+        cx16rl_out:
+            stx $0401
+            pla
+            sta $9F25
+            pla
+            tay
+            pla
+            tax
+            pla
+            rti
+
+        cx16rl_installed:
+        }
+        enabled = true;
+        raster.commit();
+        asm6502 {
+            cli
+        }
+        return;
     }
 
+    // Stop applying: the vector and VERA's interrupt enable put back as
+    // enable() found them, and the I flag too. The list is kept, and the
+    // registers keep whatever the last write left, as on every machine
+    // with a raster list.
     function disable(): void {
+        if (!enabled) {
+            return;
+        }
+        enabled = false;
+        asm6502 {
+            sei
+            lda $0405
+            sta $0314
+            lda $0406
+            sta $0315
+            lda $0404
+            sta $9F26
+            lda #$02
+            sta $9F27
+            lda $0407
+            bne cx16rl_stayoff
+            cli
+        cx16rl_stayoff:
+        }
+        return;
     }
 }

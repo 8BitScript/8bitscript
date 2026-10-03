@@ -159,11 +159,18 @@ export namespace input {
 
     // Once a frame, right after waitFrame(), and never twice.
     function poll(): void {
+        // Interrupts off for the KERNAL calls (none of them is re-entrant),
+        // and back as they were after the last one: off in a waitFrame()
+        // program, on while @8bitscript/cx16/rasterline's handler is
+        // installed — a bare `sei` here used to leave it silenced for good.
+        asm6502 {
+            php
+            sei
+        }
         if (HAS_MOUSE) {
             mouse.poll();
         } else {
             asm6502 {
-                sei
                 lda #8
                 jsr $FEAB
             }
@@ -199,6 +206,7 @@ export namespace input {
             sta $85
             stx $86
             sty $87
+            plp
         }
         if (joyY == 0) {
             lo = lo & joyA;

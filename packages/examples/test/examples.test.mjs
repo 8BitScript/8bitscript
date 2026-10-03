@@ -155,10 +155,10 @@ test('fancy keeps its raster effect behind #fact(video.raster), and its wobble b
   const main = readFileSync(join(ROOT, 'fancy', 'src', 'main.8bs'), 'utf8');
   assert.match(main, /#fact\(video\.raster\)/, 'the splits are guarded by the capability fact');
   assert.match(main, /raster\.FINE_SCROLL/, 'the wobble is guarded by the fine-scroll constant');
-  for (const target of ['c64', 'web', 'vic20']) {
+  for (const target of ['c64', 'web', 'vic20', 'cx16']) {
     assert.equal(stockFacts(target)['video.raster'], true, `${target} answers the raster capability`);
   }
-  for (const target of ['pet', 'cx16']) {
+  for (const target of ['pet']) {
     assert.equal(stockFacts(target)['video.raster'], false, `${target} has no per-scanline hook`);
   }
 });
