@@ -514,6 +514,52 @@ test('a run\'s runtime is read from the task: tab, browser or native', () => {
   assert.equal(runId(1, { target: 'c64', runtime: 'browser' }), '1:c64:browser:', 'a task that names its runtime wins');
 });
 
+// ── named systems ───────────────────────────────────────────────────────────
+
+/** A fake CLI that answers `targets --json` with project systems from each origin. */
+function systemsCli(dir) {
+  const cli = path.join(dir, 'fake-8bs.mjs');
+  fs.writeFileSync(cli, `console.log(JSON.stringify({ targets: [
+    { id: 'pet', title: 'Commodore PET', emulator: 'xpet' }, { id: 'c64', title: 'Commodore 64', emulator: 'x64sc' },
+    { id: 'vic20', title: 'Commodore VIC-20', emulator: 'xvic' }, { id: 'web', title: 'Web', emulator: null } ],
+    systems: [
+      { name: 'C64 with a mouse', target: 'c64', label: 'mouse', origin: 'project', profile: null, hardware: { mouse: 'on' }, region: 'ntsc' },
+      { name: 'My PET', target: 'pet', label: 'stock', origin: 'user', profile: '3032', hardware: {}, region: null },
+      { name: 'Advertised VIC', target: 'vic20', label: '8k', origin: 'advertised', profile: null, hardware: {}, region: 'pal' } ] }));\n`);
+  return cli;
+}
+
+test('named systems are offered by origin above the machines, and an empty selection is the machine id', async () => {
+  await withLauncher(async ({ first }) => {
+    const named = first.systems.filter((s) => s.group !== 'Machines');
+    assert.deepEqual(named.map((s) => [s.group, s.name]), [['This clone', 'C64 with a mouse'], ['This machine', 'My PET'], ['Advertised', 'Advertised VIC']]);
+    assert.equal(first.systems.findIndex((s) => s.group === 'Machines') > 2, true, 'machines come after the named systems');
+    assert.equal(first.system, 'web', 'no named system fits: the machine id, never a blank');
+    assert.equal(named[0].spec, 'c64 · mouse');
+    assert.equal(named[1].spec, 'pet', 'a stock system just names its machine');
+  }, { settings: { system: 'web' }, configure: (project, dir) => { project.toolchain = systemsCli(dir); } });
+});
+
+test('picking a named system fits its machine, hardware and region together, and the picker then shows it', async () => {
+  await withLauncher(async ({ view }) => {
+    const state = await send(view, { type: 'select', system: 'C64 with a mouse' });
+    assert.equal(vscode.__mock.configStore.get('namedSystem'), 'C64 with a mouse');
+    assert.equal(vscode.__mock.configStore.get('system'), 'c64');
+    assert.equal(vscode.__mock.configStore.get('region'), 'ntsc');
+    assert.deepEqual(vscode.__mock.configStore.get('hardware').c64, { profile: null, options: { mouse: 'on' } });
+    assert.equal(state.system, 'C64 with a mouse', 'the named system, not the bare machine');
+    assert.match(state.summary.name, /C64 with a mouse/);
+    assert.match(state.command, /--system C64 with a mouse|run --system/);
+  }, { configure: (project, dir) => { project.toolchain = systemsCli(dir); } });
+});
+
+test('picking a project with systems of its own starts on the first of them', async () => {
+  await withLauncher(async ({ view, dir }) => {
+    await send(view, { type: 'select', project: dir });
+    assert.equal(vscode.__mock.configStore.get('namedSystem'), 'C64 with a mouse');
+  }, { configure: (project, dir) => { project.toolchain = systemsCli(dir); } });
+});
+
 // ── notices and the toolchain's own answers ─────────────────────────────────
 
 test('a project without a toolchain says so and offers the install', async () => {
