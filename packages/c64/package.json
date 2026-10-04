@@ -16,7 +16,11 @@
       "screenshot": "vice",
       "framesUnit": "cycles",
       "defaultFrames": 5000000,
-      "installer": "vice"
+      "installer": "vice",
+      "wasm": {
+        "available": false,
+        "reason": "the C64 package pins arrays at fixed addresses (screenRam is the first the wasm backend meets), which it does not lower yet"
+      }
     },
     "media": "./media/index.cjs",
     "entry": "./src/index.8bs",

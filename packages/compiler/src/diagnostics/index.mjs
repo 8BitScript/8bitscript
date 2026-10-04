@@ -138,6 +138,14 @@ export const Codes = {
   // `i18n.format` could not fold: a missing param, a non-const argument, or a
   // record used somewhere other than as its second argument.
   I18N_FORMAT: '8BS1046',
+  // `#define(...)` that is not a name in quotes (UPPER_SNAKE) and a default
+  // that is an integer, a true/false, or a string literal (see the fold pass).
+  INVALID_DEFINE: '8BS1047',
+  // A value handed to `#define("NAME", ...)` from `--define NAME=...` or the
+  // config's `define` block that is not the kind of value its default is.
+  DEFINE_TYPE_MISMATCH: '8BS1048',
+  // Two `#define("NAME", ...)` calls in one program whose defaults differ.
+  DEFINE_CONFLICT: '8BS1049',
 
   UNRESOLVED_PACKAGE: '8BS2001',
   NOT_AN_8BS_PACKAGE: '8BS2002',

@@ -1,0 +1,114 @@
+// `8bs targets --json` says, per machine, how it can be run: natively, as a
+// wasm page, as the vendored real emulator in wasm, and booted bare. The
+// editor builds its runtime buttons from that and keeps no table of its own,
+// so the claim has to be true. The wasm claim is declared by each machine
+// package (`emulator.wasm`) and held to a real build here: if the C64 gains
+// a wasm port this fails until its package says so, and if a machine loses
+// one the editor stops offering it.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { execFile } from 'node:child_process';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
+
+import { RELEASE_MACHINES } from '@8bitscript/compiler';
+
+import { describeTargets } from '../src/targets.mjs';
+
+const exec = promisify(execFile);
+const BIN = fileURLToPath(new URL('../bin/8bs.mjs', import.meta.url));
+const CHECKOUT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
+
+const byId = () => Object.fromEntries(describeTargets(null).map((t) => [t.id, t.runtime]));
+
+test('every machine carries the four runtimes, each with an availability and a reason when not', () => {
+  for (const [id, runtime] of Object.entries(byId())) {
+    for (const kind of ['native', 'wasm', 'wasmEmulator', 'boot']) {
+      assert.equal(typeof runtime[kind]?.available, 'boolean', `${id}.${kind}`);
+      if (!runtime[kind].available) assert.equal(typeof runtime[kind].reason, 'string', `${id}.${kind} says why`);
+    }
+    assert.ok(runtime.native.installed === null || typeof runtime.native.installed === 'boolean', id);
+  }
+});
+
+test('the release machines: native where there is an emulator, wasm where the package says so', () => {
+  const runtime = byId();
+  for (const id of ['pet', 'vic20', 'c64', 'cx16']) {
+    assert.equal(runtime[id].native.available, true, id);
+    assert.equal(runtime[id].boot.available, true, id);
+    assert.equal(typeof runtime[id].native.emulator, 'string', id);
+  }
+  assert.equal(runtime.pet.native.emulator, 'xpet');
+  assert.equal(runtime.c64.native.emulator, 'x64sc');
+  assert.equal(runtime.cx16.native.emulator, 'x16emu');
+  for (const id of ['pet', 'vic20', 'cx16', 'web']) assert.equal(runtime[id].wasm.available, true, id);
+  assert.equal(runtime.c64.wasm.available, false);
+  assert.match(runtime.c64.wasm.reason, /pins arrays at fixed addresses/);
+});
+
+test('the real x16emu as WebAssembly is the X16\'s alone', () => {
+  const runtime = byId();
+  assert.equal(runtime.cx16.wasmEmulator.available, true);
+  for (const id of ['pet', 'vic20', 'c64', 'web']) assert.equal(runtime[id].wasmEmulator.available, false, id);
+});
+
+test('the web has no native emulator and no bare machine to boot, and says so', () => {
+  const { web } = byId();
+  assert.equal(web.native.available, false);
+  assert.equal(web.native.emulator, null);
+  assert.equal(web.native.installed, null, 'nothing to look for');
+  assert.match(web.native.reason, /runs in the browser/);
+  assert.equal(web.boot.available, false);
+  assert.equal(web.wasm.available, true);
+});
+
+test('a machine this release does not build is parked in every runtime, with that reason', () => {
+  const runtime = byId();
+  const parked = Object.keys(runtime).filter((id) => !RELEASE_MACHINES.includes(id));
+  assert.ok(parked.length > 0);
+  for (const id of parked) {
+    for (const kind of ['native', 'wasm', 'wasmEmulator', 'boot']) {
+      assert.equal(runtime[id][kind].available, false, `${id}.${kind}`);
+    }
+    assert.equal(runtime[id].native.reason, 'not built in this release', id);
+    assert.equal(runtime[id].wasm.reason, 'not built in this release', id);
+  }
+});
+
+test('8bs targets --json carries the runtime object on every machine', async () => {
+  const dir = mkdtempSync(join(tmpdir(), '8bs-runtime-'));
+  const { stdout } = await exec(process.execPath, [BIN, 'targets', '--json', '--checkout', CHECKOUT], { cwd: dir });
+  const targets = JSON.parse(stdout).targets;
+  assert.ok(targets.length > 5);
+  for (const t of targets) assert.ok(t.runtime?.native && t.runtime.wasm && t.runtime.wasmEmulator && t.runtime.boot, t.id);
+});
+
+test('the declared wasm claim is the truth: each release machine builds through the wasm backend if and only if it says so', async () => {
+  const dir = mkdtempSync(join(tmpdir(), '8bs-wasm-truth-'));
+  mkdirSync(join(dir, 'src'));
+  writeFileSync(join(dir, 'src', 'main.8bs'), `import { screen } from "@8bitscript/screen";
+import { text } from "@8bitscript/text";
+export function main(): void {
+    screen.blank();
+    text.print(0, "HELLO");
+    text.releaseCursor();
+}
+`);
+  writeFileSync(join(dir, '8bitscript.config.8bs'), "export default { entry: 'src/main.8bs' };\n");
+  const runtime = byId();
+  for (const id of RELEASE_MACHINES) {
+    let built = true;
+    try {
+      await exec(process.execPath, [BIN, 'build', '--target', id, '--web', '--checkout', CHECKOUT], { cwd: dir });
+    } catch {
+      built = false;
+    }
+    assert.equal(
+      built, runtime[id].wasm.available,
+      `${id}: the package says wasm.available is ${runtime[id].wasm.available}, but a build ${built ? 'succeeds' : 'fails'}`,
+    );
+  }
+});

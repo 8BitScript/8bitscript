@@ -77,6 +77,7 @@ import { join, resolve } from 'node:path';
 import { readFile, writeFile } from 'node:fs/promises';
 
 import { compile } from './build.mjs';
+import { defineArgs } from './defines.mjs';
 import { programArg } from './programs.mjs';
 import { CONTROLLERS_FILE, controllerInvocation, controllerPlayers, setConfigKey } from './controllers.mjs';
 import { applyCheckoutFromArgs } from './checkout.mjs';
@@ -589,12 +590,18 @@ export async function run(args) {
     process.stderr.write(`8bs run: ${localeOpt.error}\n`);
     return 2;
   }
+  const defineOpt = defineArgs(args);
+  if (!defineOpt.ok) {
+    process.stderr.write(`8bs run: ${defineOpt.error}\n`);
+    return 2;
+  }
   const consumed = new Set([
     ...hw.consumed,
     ...checkout.consumed,
     ...cx16Window.consumed,
     ...programOpt.consumed,
     ...localeOpt.consumed,
+    ...defineOpt.consumed,
     ...[screenshotIndex, framesIndex, portIndex].flatMap((i) => (i >= 0 ? [i, i + 1] : [])),
   ]);
   const positionals = args.filter((a, i) => !consumed.has(i) && !a.startsWith('-'));
@@ -623,6 +630,7 @@ export async function run(args) {
       + '                [--pal]\n'
       + HARDWARE_USAGE
       + '                [--size] [--no-open] [--lan] [--local] [--port <n>] [--program <name>] [--locale <name>] [entry.8bs]\n'
+      + '                [--define NAME=VALUE]...  hand the program a value its #define("NAME", …) reads\n'
       + '                [--web]  in the browser: pet/vic20/c64/cx16 build through the wasm\n'
       + '                         backend — a real machine module, not a chip emulator, and\n'
       + '                         only as complete as that machine\'s own modules are ported\n'
@@ -663,7 +671,7 @@ export async function run(args) {
   const buildForWeb = web && !(target === 'cx16' && x16emu) && !screenshotPath;
   const { ok, outFile, frameRate, hardware } = await compile(target, entry, {
     pal, profile: launch.profile, hardware: launch.overrides, report, checkout: checkout.checkout,
-    program: programOpt.program, locale: localeOpt.locale, web: buildForWeb,
+    program: programOpt.program, locale: localeOpt.locale, web: buildForWeb, defines: defineOpt.defines,
   });
   if (!ok) return 1;
 

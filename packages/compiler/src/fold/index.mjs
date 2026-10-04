@@ -147,8 +147,8 @@ function compileTimeCallName(n) {
   return n.callee.compileTime ? n.callee.name : null;
 }
 
-const KNOWN_COMPILE_TIME = () => [...[...DURATION_CLOCKS.keys()].map((name) => `#${name}(...)`), '#system()', '#fact(...)', '#locale(...)', '#package(...)'].join(', ');
-const BUILTIN = (name) => DURATION_CLOCKS.has(name) || name === 'system' || name === 'fact' || name === 'locale' || name === 'package';
+const KNOWN_COMPILE_TIME = () => [...[...DURATION_CLOCKS.keys()].map((name) => `#${name}(...)`), '#system()', '#fact(...)', '#locale(...)', '#package(...)', '#define(...)'].join(', ');
+const BUILTIN = (name) => DURATION_CLOCKS.has(name) || name === 'system' || name === 'fact' || name === 'locale' || name === 'package' || name === 'define';
 
 /**
  * Round `numerator/denominator` (both BigInt, denominator > 0) to the
@@ -207,6 +207,7 @@ const exampleCalls = (name) => {
   if (name === 'fact') return '#fact(video.columns) or #fact(memory.ram)';
   if (name === 'locale') return '#locale("de") or #locale("pt-br")';
   if (name === 'package') return '#package("version") or #package("name")';
+  if (name === 'define') return '#define("SEED", 10), #define("FORCE_BONUS", false) or #define("THEME", "classic")';
   return `#${name}(1, seconds) or #${name}(0.5, seconds)`;
 };
 
@@ -381,6 +382,98 @@ function foldPackageCall(n, file, diagnostics) {
   replaceWithString(n, field, found.json[field]);
 }
 
+/** What a `#define` name looks like: UPPER_SNAKE, like every compile-time value (AGENTS.md, "Names say which side they are on"). */
+export const DEFINE_NAME = /^[A-Z][A-Z0-9_]*$/;
+
+/** The kind of a value a define can hold: an integer, a true/false, or a string. */
+export const defineKind = (value) => (typeof value === 'boolean' ? 'bool' : typeof value === 'number' ? 'int' : 'string');
+
+const KIND_WORDS = { int: 'a number', bool: 'true or false', string: 'a string' };
+
+/**
+ * `#define("SEED", 10)`: a value the build is handed. The second argument
+ * is the default, required, so a plain build — and `8bs check`, and the
+ * editor — never fails for want of a value; `--define SEED=42` on the
+ * command line, or a program's `define: { SEED: 42 }` in the config,
+ * replaces it for one build. The call folds to a literal of the value's
+ * kind, the way `#fact` and `#package` do, so a different value is a
+ * different build and the machine never sees the question.
+ *
+ * The default is a whole number (not negative), `true`/`false`, or a string
+ * literal; the name is UPPER_SNAKE in quotes (`8BS1047` otherwise). A value
+ * handed in of another kind than the default is `8BS1048`. Every call is
+ * recorded in the optional `sites` array — name, kind, default, where — so
+ * `8bs project --json` and the CLI's typo guard can say which names a
+ * program reads without searching its source; two calls for one name with
+ * different defaults are `8BS1049`, because one value cannot be two.
+ */
+function foldDefineCall(n, file, defines, sites, diagnostics) {
+  const args = n.args ?? [];
+  const name = args[0]?.type === NodeType.StringLiteral ? args[0].value : null;
+  const fallback = args[1];
+  let defaultValue = null;
+  if (fallback?.type === NodeType.IntegerLiteral && Number.isSafeInteger(fallback.value) && fallback.value >= 0) defaultValue = fallback.value;
+  else if (fallback?.type === NodeType.BooleanLiteral) defaultValue = fallback.value;
+  else if (fallback?.type === NodeType.StringLiteral) defaultValue = fallback.value;
+  if (args.length !== 2 || name === null || !DEFINE_NAME.test(name) || defaultValue === null) {
+    diagnostics.push(diagnostic(
+      Codes.INVALID_DEFINE,
+      args.length === 2 && name !== null && !DEFINE_NAME.test(name)
+        ? `'${name}' is not a define name: capital letters, digits and '_', starting with a letter (SEED, START_CREDITS)`
+        : `#define(...) takes a name in quotes and a default — ${exampleCalls('define')}; the default is a whole number, true or false, or a string, and is required so a build that is handed nothing still has a value`,
+      file, n.start, n.length,
+    ));
+    replaceWithDefine(n, name ?? '?', 0);
+    return;
+  }
+  const kind = defineKind(defaultValue);
+  const given = defines && Object.hasOwn(defines, name) ? defines[name] : undefined;
+  let value = defaultValue;
+  if (given !== undefined) {
+    if (defineKind(given) === kind) {
+      value = given;
+    } else {
+      diagnostics.push(diagnostic(
+        Codes.DEFINE_TYPE_MISMATCH,
+        `${name} was given ${KIND_WORDS[defineKind(given)]} (${JSON.stringify(given)}), but its default, ${JSON.stringify(defaultValue)}, is ${KIND_WORDS[kind]}; a define keeps the kind its default has`,
+        file, n.start, n.length,
+      ));
+    }
+  }
+  if (sites) {
+    const earlier = sites.find((site) => site.name === name);
+    if (!earlier) {
+      sites.push({ name, kind, default: defaultValue, file, start: n.start });
+    } else if (earlier.kind !== kind || earlier.default !== defaultValue) {
+      diagnostics.push(diagnostic(
+        Codes.DEFINE_CONFLICT,
+        `#define(${JSON.stringify(name)}, ...) has the default ${JSON.stringify(defaultValue)} here and ${JSON.stringify(earlier.default)} in ${earlier.file}; one name is one value, so give both the same default`,
+        file, n.start, n.length,
+      ));
+    }
+  }
+  replaceWithDefine(n, name, value);
+}
+
+// A `#define(...)` folds to the literal of its value's kind.
+function replaceWithDefine(n, name, value) {
+  delete n.callee;
+  delete n.args;
+  if (typeof value === 'boolean') {
+    n.type = NodeType.BooleanLiteral;
+    n.value = value;
+    delete n.radix;
+  } else if (typeof value === 'number') {
+    n.type = NodeType.IntegerLiteral;
+    n.value = value;
+    n.radix = 10;
+  } else {
+    n.type = NodeType.StringLiteral;
+    n.value = value;
+  }
+  n.raw = `#define(${JSON.stringify(name)})`;
+}
+
 /**
  * `#system()`: the machine this build is for, as its number in SYSTEMS.
  * Takes no arguments. With no machine in hand — `8bs check` and the editor
@@ -495,9 +588,13 @@ function foldClockCall(n, clockName, file, frameRate, diagnostics) {
  *   folds from; required whenever `machine` is given and a fact is read
  *   (see foldFactCall). `locale` is the build's locale, if any; every
  *   `#locale("xx")` folds to whether it is that one (see foldLocaleCall).
+ *   `defines` is the values the build was handed, name → number | boolean |
+ *   string, that every `#define("NAME", default)` takes over its default;
+ *   `defineSites`, when given, collects one { name, kind, default, file,
+ *   start } per name read (see foldDefineCall).
  * @returns {object[]} diagnostics
  */
-export function foldCompileTime(ast, file = '<unknown>', { frameRate = 60, machine, facts, locale } = {}) {
+export function foldCompileTime(ast, file = '<unknown>', { frameRate = 60, machine, facts, locale, defines, defineSites } = {}) {
   const diagnostics = [];
   if (!ast) return diagnostics;
 
@@ -518,6 +615,10 @@ export function foldCompileTime(ast, file = '<unknown>', { frameRate = 60, machi
       }
       if (name === 'package') {
         foldPackageCall(n, file, diagnostics);
+        return;
+      }
+      if (name === 'define') {
+        foldDefineCall(n, file, defines, defineSites, diagnostics);
         return;
       }
       if (!DURATION_CLOCKS.has(name)) {

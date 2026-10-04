@@ -87,7 +87,7 @@ With this extension enabled, the default file icon theme is **8BitScript**
   and `{ … }` expressions inside them, which color as 8BitScript again;
   text between tags stays plain
 - **Snippets** for the constructs that compile — `program`, `loop`,
-  `countdown`, `print`, `#frames`, `#package`, `const`, `let`, `for`, `array`,
+  `countdown`, `print`, `#frames`, `#package`, `#define`, `const`, `let`, `for`, `array`,
   `table`, `address`, `namespace`, `asm6502`, `poke`/`peek`. Nothing is offered that the compiler would
   reject, and the compiler's own test suite is what holds that
 - `//` line comments and `/* */` blocks, so comment-toggling works, and a
@@ -100,7 +100,7 @@ With this extension enabled, the default file icon theme is **8BitScript**
     constructs (`string`, `volatile`, `ptr`, `array`, `asm6502`,
     `@address`, `memory.read`/`memory.write`, `port.read`/`port.write`), the builtins
     `#frames(...)` and its `seconds` unit, `#system()`, `#fact(...)`,
-    `#package("version")`, and `waitFrame()`, and a member of
+    `#package("version")`, `#define("NAME", default)`, and `waitFrame()`, and a member of
     a named import's own namespace — `screen.blank(...)` shows its
     signature and doc comment, read from whichever module the import
     actually resolves to

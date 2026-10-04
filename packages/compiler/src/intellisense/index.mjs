@@ -208,6 +208,15 @@ const PACKAGE_DOC = [
   'One field name in quotes, `"version"` or `"name"`; anything else is `8BS1041`. No `package.json` above the file, one that does not parse, or one without the field is `8BS1042`, naming the file. `8bs check` and this editor resolve it from the file exactly as a build does.',
 ].join('\n');
 
+/** `#define("SEED", 10)`: a value the build is handed (packages/compiler/src/fold/index.mjs, foldDefineCall). */
+const DEFINE_DOC = [
+  '**#define("NAME", default)**',
+  '',
+  'Compile-time: a value this build is handed, with the default written right here so a plain build, `8bs check` and this editor always have one. `const SEED: utinyint = #define("SEED", 10);` is `10` until a build says otherwise — `8bs run c64 --define SEED=42`, or `define: { SEED: 42 }` on the program in `8bitscript.config.8bs` — and then it is `42`. Once folded it *is* the literal: the same bytes as writing the number, so a program that reads no defines costs nothing, and a different value is a different build.',
+  '',
+  'The name is in quotes, in capitals (`SEED`, `START_CREDITS`); the default is a whole number, `true`/`false`, or a string, and it is required. A value handed in keeps the kind its default has — a number for `10`, true or false for `false`. A malformed call is `8BS1047`, a value of the wrong kind is `8BS1048`, and one name with two different defaults in one program is `8BS1049`.',
+].join('\n');
+
 /** One fact key's hover, inside a `#fact(...)`. */
 const factKeyDoc = (key) => {
   const fact = FACTS.get(key);
@@ -229,6 +238,7 @@ const COMPILE_TIME_DOCS = {
   system: { detail: 'Compile-time: the machine this build is for.', documentation: SYSTEM_DOC, insert: 'system()' },
   fact: { detail: 'Compile-time: one fact about the machine this build is for.', documentation: FACT_DOC, insert: 'fact' },
   package: { detail: 'Compile-time: a field of the program\'s own package.json.', documentation: PACKAGE_DOC, insert: 'package("version")' },
+  define: { detail: 'Compile-time: a value the build is handed, with a default.', documentation: DEFINE_DOC, insert: 'define("NAME", 0)' },
 };
 
 /** The units a `#frames(...)` duration can be written in, keyed as DURATION_UNITS is. */
@@ -889,6 +899,9 @@ function hoverAt(tokens, offset, text, filePath, resolverOptions = {}, machine =
   }
   if (token.kind === TokenKind.CompileTime && token.text === '#package') {
     return { start: token.start, length: token.length, markdown: PACKAGE_DOC };
+  }
+  if (token.kind === TokenKind.CompileTime && token.text === '#define') {
+    return { start: token.start, length: token.length, markdown: DEFINE_DOC };
   }
   // A fact key's words are not reserved either — `video.columns` only
   // means the fact inside `#fact(...)` — so the hover finds the whole key

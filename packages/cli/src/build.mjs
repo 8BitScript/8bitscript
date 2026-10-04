@@ -60,6 +60,7 @@ import {
 import { applyCheckoutFromArgs, setActiveCheckout } from './checkout.mjs';
 
 import { loadConfig, localeArg, resolveFrameRate, resolveI18n, resolveLocale, retiredOptionWarnings } from './config.mjs';
+import { checkDefines, defineArgs, effectiveDefines } from './defines.mjs';
 import {
   HARDWARE_USAGE, REGION_MACHINES, catalogTags, hardwareArgs, listedTargets, loadCatalog, projectBaseline,
   projectHardware, projectProfiles, projectRequires, resolveHardware, whatSatisfies,
@@ -181,13 +182,15 @@ export function checkEntryKind(entry) {
  *   file — that file, as its own one-off program. `locale` is `--locale`
  *   (or a `release` entry's), over the config's own — see config.mjs's
  *   resolveLocale; the locale's twin files are read and the artifact's
- *   name carries it.
- * @returns {Promise<{ ok: boolean, outFile?: string, frameRate?: number, hardware?: object, memory?: object, sizeReport?: object[], locale?: string }>}
+ *   name carries it. `defines` is `--define NAME=VALUE` (name → value):
+ *   what each `#define("NAME", default)` the program reads takes over the
+ *   program's own `define` block and the default (see defines.mjs).
+ * @returns {Promise<{ ok: boolean, outFile?: string, frameRate?: number, hardware?: object, memory?: object, sizeReport?: object[], locale?: string, defines?: Record<string, number|boolean|string> }>}
  *   `hardware` is the resolved hardware the program was built for, for
  *   whoever runs it next. `memory` / `sizeReport` are what the last-run
  *   file and `--size` print; they are absent when the compile failed.
  */
-export async function compile(target, entryArg, { pal = false, profile, hardware: overrides = {}, report = false, debug = false, remarks = false, checkout = undefined, program: programName, locale: localeArgument, web = false } = {}) {
+export async function compile(target, entryArg, { pal = false, profile, hardware: overrides = {}, report = false, debug = false, remarks = false, checkout = undefined, program: programName, locale: localeArgument, web = false, defines: handed = {} } = {}) {
   if (checkout !== undefined) setActiveCheckout(checkout);
   const config = await loadConfig(process.cwd(), '8bs build');
 
@@ -207,7 +210,10 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
       process.stderr.write(`8bs build: --program ${programName} and an entry file (${entryArg}) name two programs; give one\n`);
       return { ok: false };
     }
-    program = { name: basename(entryArg), entry: entryArg, stemFromFilename: true, targets: null, requires: programs[0].requires };
+    program = {
+      name: basename(entryArg), entry: entryArg, stemFromFilename: true, targets: null, requires: programs[0].requires,
+      title: null, description: null, group: null, define: [],
+    };
   } else {
     const selected = selectProgram(programs, programName);
     if (!selected.ok) {
@@ -386,11 +392,27 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
   // declares — folds to this build's value, and the
   // hardware's tags (plus `webTag` above) so a file with a
   // `.<machine>.<tag>.8bs` twin resolves to that.
-  const { ir, diagnostics, sources, factsTested } = link(text, entry, {
+  // What `#define("NAME", default)` takes over its default: the program's
+  // own `define` block, under whatever `--define` said (defines.mjs).
+  const defines = effectiveDefines(program, handed);
+  const { ir, diagnostics, sources, factsTested, defineSites } = link(text, entry, {
     machine: target, tags: [...hardware.tags, ...webTag], facts: hardware.facts, frameRate, checkout, bx: config?.bx, locale, i18n, importAliases,
+    defines,
   });
   // A warning is printed and the build goes on; an error stops it.
   if (diagnostics.length > 0) printDiagnostics(diagnostics, sources);
+  // A name handed to a program that never reads it is a typo until proven
+  // otherwise — said before anything else, so it is not buried under the
+  // build's output.
+  const defineProblems = checkDefines(program, defineSites, handed);
+  for (const warning of defineProblems.warnings) process.stderr.write(`8bs build: ${warning}\n`);
+  if (defineProblems.errors.length > 0) {
+    for (const error of defineProblems.errors) process.stderr.write(`8bs build: ${error}\n`);
+    return { ok: false };
+  }
+  // What this build's `#define`s came to, by name — a handed value or the
+  // source default — for the last-run report and whoever reads it.
+  const reportedDefines = Object.fromEntries(defineSites.map((site) => [site.name, defines[site.name] ?? site.default]));
   if (!ir) {
     process.stdout.write(`${diagnostics.length} problem(s); not building.\n`);
     return { ok: false };
@@ -462,9 +484,9 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
     // target keeps its plain one regardless (lastRunPath's own rule,
     // not recomputed here) — see its header for the collision this avoids.
     await writeLastRun(target, compileReport(target, {
-      outFile, hardware, memory, sizeReport: result.sizeReport, frameRate, program: program.name, locale,
+      outFile, hardware, memory, sizeReport: result.sizeReport, frameRate, program: program.name, locale, defines: reportedDefines,
     }), undefined, web);
-    return { ok: true, outFile, frameRate, hardware, webDir, memory, sizeReport: result.sizeReport, program: program.name, locale, factsTested };
+    return { ok: true, outFile, frameRate, hardware, webDir, memory, sizeReport: result.sizeReport, program: program.name, locale, factsTested, defines: reportedDefines };
   }
 
   const family = cpuFamily(target);
@@ -519,9 +541,9 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
     process.stdout.write(`debug map: ${debugJsonFile}\n`);
   }
   await writeLastRun(target, compileReport(target, {
-    outFile, hardware, memory: result.memory, sizeReport: result.sizeReport, frameRate, program: program.name, locale,
+    outFile, hardware, memory: result.memory, sizeReport: result.sizeReport, frameRate, program: program.name, locale, defines: reportedDefines,
   }));
-  return { ok: true, outFile, frameRate, hardware, memory: result.memory, sizeReport: result.sizeReport, program: program.name, locale, factsTested };
+  return { ok: true, outFile, frameRate, hardware, memory: result.memory, sizeReport: result.sizeReport, program: program.name, locale, factsTested, defines: reportedDefines };
 }
 
 /**
@@ -735,13 +757,18 @@ export async function build(args) {
     process.stderr.write(`8bs build: ${localeOpt.error}\n`);
     return 2;
   }
+  const defineOpt = defineArgs(args);
+  if (!defineOpt.ok) {
+    process.stderr.write(`8bs build: ${defineOpt.error}\n`);
+    return 2;
+  }
   const config = await loadConfig(process.cwd(), '8bs build');
   let launch = resolveNamedLaunch(hw, { config });
   if (!launch.ok) {
     process.stderr.write(`8bs build: ${launch.error}\n`);
     return 2;
   }
-  const consumed = new Set([...hw.consumed, ...checkout.consumed, ...programOpt.consumed, ...localeOpt.consumed]);
+  const consumed = new Set([...hw.consumed, ...checkout.consumed, ...programOpt.consumed, ...localeOpt.consumed, ...defineOpt.consumed]);
   const positionals = args.filter((a, i) => {
     if (targetIndex >= 0 && (i === targetIndex || i === targetIndex + 1)) return false;
     if (consumed.has(i)) return false;
@@ -777,6 +804,7 @@ export async function build(args) {
       + releaseUsageNote()
       + '                  no --target builds the `baseline` 8bitscript.config.8bs names, when it names one)\n'
       + '                 [--pal] [--size] [--debug] [--remarks] [--program <name>] [--locale <name>]\n'
+      + '                 [--define NAME=VALUE]...  hand the program a value its #define("NAME", …) reads\n'
       + HARDWARE_USAGE
       + '                 [--web]  pet/vic20/c64/cx16: that machine\'s own package, through the\n'
       + '                          wasm backend, instead of a native build — see `8bs run --web`\n'
@@ -787,7 +815,7 @@ export async function build(args) {
   const web = args.includes('--web');
   const { ok } = await compile(target, entry, {
     pal, profile: launch.profile, hardware: launch.overrides, report, debug, remarks, checkout: checkout.checkout,
-    program: programOpt.program, locale: localeOpt.locale, web,
+    program: programOpt.program, locale: localeOpt.locale, web, defines: defineOpt.defines,
   });
   return ok ? 0 : 1;
 }

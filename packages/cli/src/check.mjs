@@ -12,10 +12,12 @@ import { loadConfig, resolveFrameRate, resolveI18n, resolveLocale } from './conf
 
 /**
  * @param {string[]} files
- * @param {{ checkout?: string|null }} [options]
+ * @param {{ checkout?: string|null, defines?: Record<string, number|boolean|string> }} [options]
+ *   `defines` is `--define NAME=VALUE`: what each `#define("NAME", default)`
+ *   in the files folds to, so the check sees the build it is checking.
  * @returns {Promise<number>} process exit code
  */
-export async function check(files, { checkout } = {}) {
+export async function check(files, { checkout, defines } = {}) {
   if (files.length === 0) {
     process.stderr.write('8bs check: no files given\n\nUsage: 8bs check <file.8bs|.8bx|.8bg|.8ba> [...]\n');
     return 2;
@@ -68,7 +70,7 @@ export async function check(files, { checkout } = {}) {
     // Resolution needs the real path; the display path is only for printing.
     for (const d of analyze(text, path, {
       resolveImports: true, frameRate, checkout, bx: config?.bx,
-      locale: localeResult.locale, i18n: i18nResult.i18n, importAliases,
+      locale: localeResult.locale, i18n: i18nResult.i18n, importAliases, defines,
     })) {
       const { line, column } = positionAt(text, d.start);
       process.stdout.write(`${display}:${line}:${column}\n`);
