@@ -18,6 +18,10 @@
 //     palette offset 8 + N, so a sprite shows its picture's own colors
 //     rather than whatever the default palette holds at 1, 2 and 3. Entries
 //     0..127 (the KERNAL text colors and the default ramps) are not touched.
+//   - a copy of that palette is kept at $C000 + N * 32 (bank 0, past the
+//     sprites' windows and short of the KERNAL's own sprite data at $13000),
+//     so color() can tint the live block and put the picture's own colors
+//     back.
 //
 // Sprites are switched on in DC_VIDEO the first time one is placed; before
 // that the machine looks exactly as it did.
@@ -40,6 +44,11 @@ const PALETTE_LOW: usmallint = 0xFB00;   // bank 1: palette entry 128
 const ATTR_LOW: usmallint = 0xFC00;      // bank 1: sprite 0's attributes
 const DATA_LOW: usmallint = 0x4000;      // bank 0: sprite 0's window
 const WINDOW: usmallint = 0x1000;        // bytes of pixels a sprite may hold
+const BACKUP_LOW: usmallint = 0xC000;    // bank 0: a copy of sprite 0's palette block
+const DEFAULT_PALETTE_LOW: usmallint = 0xFA00; // bank 1: palette entry 0
+const OWN_COLORS: utinyint = 16;         // color(): from here up, the picture's own palette
+const SCREEN_X: usmallint = 640;         // VERA's X and Y are ten bits: a position at or past
+const SCREEN_Y: usmallint = 480;         // the screen's size is off it, and must not wrap to the left
 const FIRST_PALETTE_OFFSET: utinyint = 8;
 const IN_FRONT: utinyint = 0x0C;         // z-depth 3: in front of both layers
 
@@ -110,12 +119,19 @@ function showSprite(slot: utinyint): void {
     let at: usmallint = attrAddress(slot);
     let x: usmallint = px[slot];
     let y: usmallint = py[slot] + rise;
+    // VERA keeps ten bits of each coordinate, so 1020 would come back in at
+    // the left edge: a sprite placed off the screen is switched off (z-depth
+    // 0) instead, and place() writes it back on when it is on again.
+    let z: utinyint = IN_FRONT;
+    if (x >= SCREEN_X || y >= SCREEN_Y) {
+        z = 0;
+    }
     setVramAddress(1, at + 2, 1);
     memory.write(0x9F23, x % 256);
     memory.write(0x9F23, x / 256);
     memory.write(0x9F23, y % 256);
     memory.write(0x9F23, y / 256);
-    memory.write(0x9F23, IN_FRONT);
+    memory.write(0x9F23, z);
     memory.write(0x9F23, sizeBits[slot]);
 }
 
@@ -126,7 +142,7 @@ export namespace graphics {
     const WIDTH: utinyint = 64;               // VERA's largest sprite
     const HEIGHT: utinyint = 64;
     const COLORS: utinyint = 15;              // 4 bpp: its own palette block, transparent aside
-    const RECOLORS: bool = false;             // color() is a no-op: not yet
+    const RECOLORS: bool = true;              // color(): the object in one of the 16 default colors, or its own again
     const STEP_X: utinyint = 1;               // a pixel
     const STEP_Y: utinyint = 1;
     const RESTORES: bool = true;              // a sprite draws over the layers and leaves them whole
@@ -139,6 +155,7 @@ export namespace graphics {
         let wide: usmallint = slot;
         if (index < PALETTE_BYTES) {
             vramWrite(1, PALETTE_LOW + wide * 32 + index, value);
+            vramWrite(0, BACKUP_LOW + wide * 32 + index, value);
             return;
         }
         vramWrite(0, DATA_LOW + wide * WINDOW + index - PALETTE_BYTES, value);
@@ -210,9 +227,39 @@ export namespace graphics {
         }
     }
 
-    // Not yet: the sprite's colours are its own palette block, and
-    // re-tinting one is the X16 fork's job. graphics.RECOLORS is false.
+    // The object in machine color c (0..15, the first sixteen entries of the
+    // palette — what the KERNAL's text colors are): every opaque pixel takes
+    // that color, so a picture becomes a silhouette of it. That is the
+    // portable meaning (the C64 sets the sprite's ink the same way). The
+    // X16 can also give the picture's own colors back, which no other
+    // machine has to remember: any c from OWN_COLORS (16) up. Both rewrite
+    // only the object's own palette block — fifteen entries, or the copy
+    // bind() kept — so other objects, the text and the raster list are not
+    // touched. Entry 0 is the transparent index and is left alone.
     function color(slot: utinyint, c: utinyint): void {
+        if (slot >= SLOTS) {
+            return;
+        }
+        let wide: usmallint = slot;
+        let block: usmallint = PALETTE_LOW + wide * 32;
+        if (c >= OWN_COLORS) {
+            for (let i: utinyint = 2; i < PALETTE_BYTES; i++) {
+                let at: usmallint = i;
+                setVramAddress(0, BACKUP_LOW + wide * 32 + at, 0);
+                let byte: utinyint = memory.read(0x9F23);
+                vramWrite(1, block + at, byte);
+            }
+            return;
+        }
+        let entry: usmallint = c;
+        setVramAddress(1, DEFAULT_PALETTE_LOW + entry * 2, 1);
+        let low: utinyint = memory.read(0x9F23);
+        let high: utinyint = memory.read(0x9F23);
+        setVramAddress(1, block + 2, 1);
+        for (let i: utinyint = 1; i < 16; i++) {
+            memory.write(0x9F23, low);
+            memory.write(0x9F23, high);
+        }
     }
 
     function update(): void {
