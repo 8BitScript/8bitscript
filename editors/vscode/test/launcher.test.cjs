@@ -25,6 +25,21 @@ test('the page announces itself once and draws nothing until it has a state', ()
   assert.equal(page.app.children.length, 0);
 });
 
+test('a state is accepted only from the editor: its own origin or the frame that embeds the page', () => {
+  const page = mountLauncher();
+  const state = vegas();
+  const send = (from) => page.sendFrom(from, { type: 'state', state });
+  send({ origin: 'https://evil.example', source: { name: 'another window' } });
+  assert.equal(page.app.children.length, 0, 'a foreign origin from a foreign window draws nothing');
+  send({ origin: undefined, source: undefined });
+  assert.equal(page.app.children.length, 0, 'a message with no origin and no source draws nothing');
+  send({ origin: 'https://evil.example', source: page.host });
+  assert.ok(page.app.children.length > 0, 'the embedding frame is trusted whatever origin it reports');
+  const second = mountLauncher();
+  second.sendFrom({ origin: second.window.location.origin, source: { name: 'a same-origin frame' } }, { type: 'state', state });
+  assert.ok(second.app.children.length > 0, 'and so is the page\'s own origin');
+});
+
 test('loading draws a busy skeleton and nothing else', () => {
   const page = mount({ phase: 'loading', notices: [] });
   const skeleton = page.one('.skeleton');

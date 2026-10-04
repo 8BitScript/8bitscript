@@ -650,7 +650,16 @@
     closeMenu();
   });
 
+  // Only the editor, which embeds this page, may send it a state: a message must
+  // come from this page's own origin or from the frame that contains it. Anything
+  // else — another window, another origin — is not the extension and is ignored.
+  function fromHost(event) {
+    const own = window.location ? window.location.origin : undefined;
+    return (own !== undefined && event.origin === own) || event.source === window.parent;
+  }
+
   window.addEventListener('message', (event) => {
+    if (!fromHost(event)) return;
     const data = event.data;
     if (!data || data.type !== 'state') return;
     state = fill(data.state || {});

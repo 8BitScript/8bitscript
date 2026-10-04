@@ -33,6 +33,11 @@ function mountLauncher({ saved = {} } = {}) {
     p.blur = blurOff;
   }
 
+  // linkedom has no location and no embedding frame; the page checks both.
+  const host = { name: 'the editor' };
+  window.location = { origin: 'vscode-webview://launcher' };
+  window.parent = host;
+
   const posted = [];
   let persisted = saved;
   const sandbox = {
@@ -54,10 +59,17 @@ function mountLauncher({ saved = {} } = {}) {
     state: () => persisted,
     /** Send the page a state, as the extension does. */
     send(state) {
+      this.sendFrom({ origin: window.location.origin, source: host }, { type: 'state', state: JSON.parse(JSON.stringify(state)) });
+    },
+    /** A message from anywhere: `from` is `{ origin, source }`. The editor's frame is `host`. */
+    sendFrom(from, data) {
       const event = new window.Event('message');
-      event.data = { type: 'state', state: JSON.parse(JSON.stringify(state)) };
+      event.data = data;
+      event.origin = from.origin;
+      event.source = from.source;
       window.dispatchEvent(event);
     },
+    host,
     /** Every element matching a CSS selector, as an array. */
     all: (selector) => Array.from(app.querySelectorAll(selector)),
     one: (selector) => app.querySelector(selector),

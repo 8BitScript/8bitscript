@@ -55,7 +55,7 @@ function pageFor({ state, ui, width }) {
 <body><div id="sb"><div class="vsc-title">8BitScript</div><main id="app" data-logo="${logo}" aria-label="8BitScript launcher"></main></div>
 <script>window.acquireVsCodeApi = () => ({ postMessage() {}, getState: () => (${JSON.stringify(ui)}), setState() {} });</script>
 <script>${js}</script>
-<script>{ const e = new Event('message'); e.data = { type: 'state', state: ${JSON.stringify(state)} }; window.dispatchEvent(e); }</script>
+<script>{ const e = new Event('message'); e.origin = window.location.origin; e.data = { type: 'state', state: ${JSON.stringify(state)} }; window.dispatchEvent(e); }</script>
 </body></html>`;
 }
 
