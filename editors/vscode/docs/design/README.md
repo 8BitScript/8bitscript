@@ -269,3 +269,53 @@ uppercase section labels at 0.06em; one icon family (codicons, as in native view
 `--vscode-*` variables, so any theme works. Primary = `button.background`; secondary =
 `button.secondaryBackground`; selection = `list.activeSelectionBackground`; running = `testing.iconPassed`;
 errors = `errorForeground`. The side-bar title row and its icons are native chrome, drawn only for context.
+
+## 12. As built
+
+The approved direction is **B with A's card for the selected program**. It is built in
+`media/launcher.{css,js}` (the page), `src/launcherView.cjs` (the extension side) and
+`src/launcherState.cjs` (the contract and the rules); `wired/` holds the real page
+rendered beside these prototypes (`node scripts/render-launcher.mjs`, Dark and Light Modern).
+
+**The contract.** One `state` message down, typed messages up. The shapes are documented at
+the top of `src/launcherState.cjs`; the table in §5 above is what each message does, and the
+extension maps them like this:
+
+| Message | Becomes |
+| --- | --- |
+| `run {runtime, program, system, inputs}` | `8bitscript.runUnit` when the extension has it, else `8bitscript.run` (`web: false` for Native, `true` for Editor; Browser says it cannot yet) |
+| `build {program}` / `boot {}` | `8bitscript.build` / `8bitscript.boot`, the program chosen first |
+| `select {project\|program\|system}` | the settings the old pickers wrote (`project`, `program`, `system`, `namedSystem`, `hardware`) |
+| `selectRuntime`, `input`, `inputsReset` | the workspace state (`launcher.runtime`, `launcher.inputs`), never `settings.json` |
+| `openSource {program}` | opens that program's entry file (it used to open `main`'s, whatever was picked) |
+| `stop {runId}` | ends exactly that run |
+
+**Keyboard.** The program list is one tab stop. Inside it: ↑ ↓ move between rows and group
+headers, ← → move between a row's name and its three buttons, Home / End jump to the first and
+last, Enter on a name runs that program's primary runtime, Space or click selects it, Enter on
+a group header folds it. A disabled runtime button stays in the walk; using it moves focus to
+the reason in the card. Menus open with focus on their first item, ↑ ↓ Home End move, Escape
+closes and returns to the trigger.
+
+**Where it differs from the prototype, and why.**
+
+- **Real availability, not drawn availability.** The prototype showed the C64 with all three
+  runtimes. The extension's own list says the C64 has no WASM build yet, so Editor and Browser
+  are off there with that reason until the CLI's runtime report says otherwise. When WASM and the
+  emulator are *both* unavailable the note gives each reason once and offers the fix only.
+- **The summary line** reads the hardware and region the extension knows; it has no language
+  yet (the extension does not track a locale).
+- **Programs have no title, description, group or inputs** until the toolchain's
+  `8bs project --json` feeds them in (the page and the host already handle them). Without
+  them a project's programs are listed by name in one unnamed group.
+- **Groups named "Test…" start folded**, as the owner chose for "Test rigs"; which groups
+  fold first is a rule in `launcherView.cjs`, not a config key yet.
+- **Disclosures, folds and the filter** are remembered by the page itself (the webview's own
+  state), not in the workspace state §7 names — they are conveniences of one view, and
+  survive the view being hidden and reopened. The last runtime and the inputs *are* in the
+  workspace state.
+- **Recent** is drawn when the extension provides history; it does not keep any yet.
+- **The view's title-bar icons** (Examples toggle, Launch Studio) are left as they were; moving
+  them into the project picker and Tools is a `package.json` change for the command pass.
+- **Studio's "open on another system" menu** is gone: Tools → Studio opens it on its default
+  system, as the design shows.
