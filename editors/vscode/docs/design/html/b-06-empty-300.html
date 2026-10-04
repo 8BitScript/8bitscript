@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Direction B — program list · 06-empty · 300px</title>
+<script>document.write('<link rel="stylesheet" href="../themes/' + (new URLSearchParams(location.search).get('theme') === 'light' ? 'light' : 'dark') + '-modern.css">');</script>
+<link rel="stylesheet" href="../src/design.css">
+<style>:root { --w: 300px; }</style></head>
+<body><div class="sidebar" id="sb">
+  <div class="vsc-title"><span>8BitScript</span><span class="acts"><i class="codicon" aria-hidden="true">&#60215;</i><i class="codicon" aria-hidden="true">&#60209;</i><i class="codicon" aria-hidden="true">&#60028;</i></span></div>
+  <main class="view"><div class="empty"><img src="../../../media/8bitscript-icon.svg" alt="">
+    <h2>No 8BitScript project here</h2>
+    <p>Open a folder that has an <span class="mono">8bitscript.config.8bs</span>, or start from an example.</p>
+    <button class="btn primary"><i class="codicon" aria-hidden="true">&#60151;</i>Open Folder…</button>
+    <button class="btn"><i class="codicon" aria-hidden="true">&#60228;</i>Try an example…</button>
+    <button class="link" style="font-size:12px">What is 8BitScript?</button></div></main>
+</div>
+<script>
+document.addEventListener('click', (e) => {
+  const t = e.target.closest('[data-toggle]');
+  const el = t && document.getElementById(t.dataset.toggle);
+  if (el) { const open = el.hasAttribute('hidden'); el.toggleAttribute('hidden', !open); t.setAttribute('aria-expanded', String(open)); }
+  const r = e.target.closest('[role=radio]:not([disabled])');
+  if (r) { r.parentElement.querySelectorAll('[role=radio]').forEach((x) => { x.setAttribute('aria-checked', String(x === r)); x.tabIndex = x === r ? 0 : -1; }); }
+});
+const hint = document.getElementById('hint');
+document.querySelectorAll('[data-hint]').forEach((b) => {
+  const set = () => { if (hint) hint.textContent = b.dataset.hint; };
+  b.addEventListener('mouseenter', set); b.addEventListener('focus', set);
+});
+document.fonts.ready.then(() => { document.body.dataset.h = Math.ceil(document.getElementById('sb').getBoundingClientRect().height); });
+</script></body></html>
