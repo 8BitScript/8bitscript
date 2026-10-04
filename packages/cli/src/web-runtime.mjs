@@ -196,8 +196,12 @@ const HEADERS_FILE = `/*
  * breaks, this breaks too, and it is the page we look at every day.
  *
  * @param {number} frameRate
+ * @param {string} [wasmFile] the program's file beside the page. `program.wasm`
+ *   unless the bundle was written under another name — a build for tagged
+ *   hardware (the VIC-20 with 8K is `program-expanded.wasm`) — in which case a
+ *   page that still asked for `program.wasm` would be a bundle that cannot load.
  */
-export function renderHtml(frameRate) {
+export function renderHtml(frameRate, wasmFile = 'program.wasm') {
   return `<!doctype html>
 <html>
 <head>
@@ -248,7 +252,7 @@ function postStatus(body) {
 }
 
 var screen = EightBitScript.mount(document.body, {
-  src: 'program.wasm',
+  src: '${wasmFile}',
   frameRate: ${frameRate},
   fullPage: true,
   hud: false,
@@ -289,8 +293,10 @@ if (window.visualViewport) {
  * Deliberately a page that is mostly *not* the game — text above and below a
  * screen sitting in an article column — because that is the case index.html
  * cannot demonstrate and the case that actually goes wrong.
+ *
+ * @param {string} [wasmFile] as for renderHtml.
  */
-export function renderEmbedExample() {
+export function renderEmbedExample(wasmFile = 'program.wasm') {
   return `<!doctype html>
 <html>
 <head>
@@ -316,14 +322,14 @@ export function renderEmbedExample() {
   the frame.
 </p>
 
-<${ELEMENT_NAME} src="program.wasm" hint="swipe or tap to play"></${ELEMENT_NAME}>
+<${ELEMENT_NAME} src="${wasmFile}" hint="swipe or tap to play"></${ELEMENT_NAME}>
 
 <p>That is this, in full:</p>
 <pre>&lt;script src="8bitscript.js"&gt;&lt;/script&gt;
-&lt;${ELEMENT_NAME} src="program.wasm"&gt;&lt;/${ELEMENT_NAME}&gt;</pre>
+&lt;${ELEMENT_NAME} src="${wasmFile}"&gt;&lt;/${ELEMENT_NAME}&gt;</pre>
 
 <p>
-  Copy <code>8bitscript.js</code>, <code>program.wasm</code> and (if your host
+  Copy <code>8bitscript.js</code>, <code>${wasmFile}</code> and (if your host
   will not send COOP/COEP headers) <code>coi.js</code> next to your page. The
   <code>_headers</code> file in this bundle is the Cloudflare Pages and Netlify
   form of those headers; <code>docs/web-embedding.md</code> has Apache, nginx
@@ -386,8 +392,8 @@ export async function writeWebBundle(dir, wasmBytes, {
 } = {}) {
   await mkdir(dir, { recursive: true });
   if (shell) {
-    await writeFile(join(dir, 'index.html'), renderHtml(frameRate));
-    await writeFile(join(dir, 'embed.html'), renderEmbedExample());
+    await writeFile(join(dir, 'index.html'), renderHtml(frameRate, `${wasmName}.wasm`));
+    await writeFile(join(dir, 'embed.html'), renderEmbedExample(`${wasmName}.wasm`));
     await writeFile(join(dir, '8bitscript.js'), renderLoader({ frameRate, layout }));
     await writeFile(join(dir, 'worker.js'), renderWorker());
     await writeFile(join(dir, 'coi.js'), renderCoiServiceWorker());

@@ -37,6 +37,25 @@ Full byte-by-byte accounting is in
 [docs/compiler.md](../../docs/compiler.md#what-a-call-costs-on-a-6502-measured);
 the project overview is in the [root README](../../README.md).
 
+## Where a program runs
+
+Each program in the launcher has three run buttons, and none needs another
+first:
+
+- **Editor** runs the program's **WASM build** in a tab inside the editor. This
+  is the primary way to run a program: it is 8BitScript's own implementation of
+  the machine, compiled straight from your source, and it is the same build you
+  can host, share or embed.
+- **Browser** runs the same WASM build in your web browser.
+- **Native** runs the real emulator (VICE, `x16emu`, …) with the program
+  loaded. It is the second opinion — what the real machine shows — and the way
+  to check that the WASM build is telling the truth (`8bs conform` does that
+  comparison for you). Where a machine's WASM build cannot yet do something
+  (a sprite layer, sound, a raster list), the launcher says so beside the
+  button, and
+  [docs/project/wasm-primary.md](../../docs/project/wasm-primary.md) has the
+  full list.
+
 ## File icons (`.8bs`, `.8bx`, `.8bg`, `.8ba`)
 
 Most file icon themes (Seti, Material, and so on) do not know our extensions,

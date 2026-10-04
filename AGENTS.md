@@ -254,6 +254,21 @@ without opening an interactive window or requiring a human at the keyboard —
 see [`docs/setup/verify.md`](docs/setup/verify.md#screenshots) for the
 mechanism and `--frames` semantics on each target.
 
+## WASM is the primary runtime
+
+A program is developed, debugged and shared on its **wasm build**: the machine's
+own package, compiled by the wasm backend and painted by the web runtime
+(`8bs run <machine> --web`, the editor's **Editor** tab, a hosted page). A native
+emulator is the second opinion, not the way you run a program. The rule that
+follows for anyone adding a feature to a machine package: **a feature with no wasm
+path is a bug or a documented limit** — the limit goes in the machine package's
+`emulator.wasm.limits` (it comes out of `8bs targets --json` and the editor shows
+it), never silence, and a build that compiles and draws nothing is worse than one
+that fails. "The wasm build mirrors the machine" is measured by `8bs conform`, and
+each machine package's `test/conform.test.mjs` pins how many cells are known to
+differ; that number only goes down. The audit, the parity matrix and the backlog are
+in [`docs/project/wasm-primary.md`](docs/project/wasm-primary.md).
+
 ## Changing a core part of the language
 
 The compiler is the single source of truth for what the language is, but it

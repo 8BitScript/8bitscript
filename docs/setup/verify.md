@@ -29,3 +29,37 @@ you want after that.
 
 A missing emulator skips the test that would have captured it. A
 present-but-broken emulator fails the capture.
+
+## The wasm build's screenshot
+
+`8bs run <machine> --web --screenshot <file.png>` captures the machine's **wasm
+build** instead: run for `--frames` `waitFrame()` calls in Node's WebAssembly, then
+painted by the same per-scanline compositor and memory map the editor's Editor tab
+and the browser use. No emulator is needed, so it is how to see headlessly what a
+program looks like where most people will run it. Add `--program <name>` for a
+project with several programs.
+
+## Does the wasm build look like the machine? `8bs conform`
+
+```
+8bs conform [<machine>...] [--program grid] [--frames 300] [--out dist/conform] [--strict-colour]
+```
+
+For `pet`, `vic20`, `c64` and `cx16` (the machines with both a native emulator and a
+wasm build), `conform` builds a probe program twice — through the machine's
+emulator and through the wasm backend — captures one frame of each and compares
+them cell by cell. The `grid` probe draws four solid corner cells (they locate the
+picture in each capture, whatever the emulator's border), the printable ASCII
+ramp in normal and reverse video, and one cell per text colour, then holds still.
+
+A cell whose **bitmap** differs is a *structure* difference and fails the run
+(exit 1); a cell whose glyph agrees but whose **ink colour** differs by more than
+`--colour-tolerance` (default 48 a channel) is a *colour* difference and warns,
+unless `--strict-colour`. `<out>/grid-<machine>.diff.png` shows the native capture,
+the wasm capture and the differing cells (red: structure; amber: colour). The
+numbers each machine is known to get wrong are pinned in
+`packages/<machine>/test/conform.test.mjs`, and
+[`docs/project/wasm-primary.md`](../project/wasm-primary.md) says what they are.
+
+It compares a settled text screen. It does not yet see sprites, bitmap or
+multicolour modes, scrolling or raster timing.

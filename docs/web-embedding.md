@@ -23,6 +23,14 @@ dist/web/
   _headers        COOP/COEP, in the form Cloudflare Pages and Netlify read
 ```
 
+A build for hardware that carries a tag (the VIC-20 with 8K, `expanded`; a hardware
+model that picks a different program) writes `program-<tag>.wasm` and
+`program-<tag>.json` instead, so several can sit side by side in one directory, and
+`index.html` and `embed.html` name the file that build wrote. A real machine's wasm
+build (`8bs build --target c64 --web`) is hosted the same way; see
+[WASM is the primary runtime](project/wasm-primary.md#distribution) for what it
+needs from the host.
+
 `index.html` is not special. It calls the same `EightBitScript.mount()` any
 page calls — it is a shell of about forty lines around the loader. If
 embedding breaks, the page we look at every day breaks with it.

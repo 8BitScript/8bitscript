@@ -48,13 +48,28 @@ test('the release machines: native where there is an emulator, wasm where the pa
 });
 
 test('the C64 runs in the browser as a model, and says in `limits` what the page does not model yet', () => {
-  const { c64, pet } = byId();
+  const { c64, web } = byId();
   assert.equal(c64.wasm.available, true);
   assert.equal(c64.wasm.reason, null);
   assert.ok(c64.wasm.limits.length > 0, 'a wasm C64 is text mode only today, and the editor shows why');
   assert.ok(c64.wasm.limits.some((line) => /sprites/.test(line)), 'sprites are not drawn');
   assert.ok(c64.wasm.limits.some((line) => /sound/.test(line)), 'there is no sound');
-  assert.deepEqual(pet.wasm.limits, [], 'a machine that declares no limits has none to show');
+  assert.deepEqual(web.wasm.limits, [], 'the web target is the runtime itself: nothing is missing from it to show');
+});
+
+// docs/project/wasm-primary.md: a feature without a wasm path is a bug or a
+// documented limit in the capability row. These are the gaps the audit and
+// `8bs conform` found; a limit comes off this list when its test below does.
+test('every machine whose wasm build has a known gap says so in `limits`, where the editor shows it', () => {
+  const runtime = byId();
+  const says = (id, pattern) => assert.ok(runtime[id].wasm.limits.some((line) => pattern.test(line)), `${id}: ${pattern}`);
+  says('pet', /reverse video/);
+  says('vic20', /reverse video/);
+  for (const id of ['pet', 'vic20', 'cx16']) says(id, /graphics object|sprites/);
+  says('vic20', /raster does not build/);
+  says('cx16', /input does not build/);
+  says('cx16', /raster does not build/);
+  for (const id of ['pet', 'vic20', 'c64', 'cx16']) says(id, /sound/);
 });
 
 test('the X16 runs in the browser on our own backend, and says what its flat model of VERA leaves out', () => {

@@ -25,6 +25,16 @@ The web target is a fourth case —
 > specification lives in the layout agreement and the catalog, never as
 > "the target with no constraints".**
 
+This package is half of a larger commitment: **WASM is the primary runtime**
+for every release machine, not only for the `web` target. A machine's own package
+compiled through the wasm backend and painted by this runtime is how a program is
+developed and shared; the native emulator is the second opinion
+([`docs/project/wasm-primary.md`](../../docs/project/wasm-primary.md): the policy,
+the audit, the parity matrix, `8bs conform`). When you change `web-layout.mjs`,
+`web-scanline.mjs`, `font8x8.mjs` or the manifest, you are changing what every
+machine's wasm build looks like — keep each machine's `emulator.wasm.limits` and
+its `test/conform.test.mjs` number true in the same commit.
+
 One consequence of "no hardware" to state plainly: rendering is
 **idealized**. A raster-list entry takes effect exactly at its picture line
 and holds from there down, with no simulated write-to-visible delay and no

@@ -1,0 +1,90 @@
+// The text-mode conformance probe: what `8bs conform` draws on every machine.
+//
+//   - Four solid cells, one in each corner of the text grid. They are the
+//     fiducials: the bounding box of the lit pixels is the picture, so the
+//     comparison needs no table of where each emulator puts its border.
+//   - The printable ASCII characters (33..126), row after row, in the
+//     machine's own character ROM: the ASCII-to-screen-code mapping and the
+//     glyphs themselves.
+//   - The same ramp in reverse video.
+//   - One reverse cell per text colour, 0..15: the colour RAM, where a
+//     machine has one.
+//
+// Then it holds still. A program that returns hands the screen back to
+// BASIC on a real machine (the native capture would show READY.), and the
+// two captures are only comparable while nothing moves.
+import { screen } from "@8bitscript/screen";
+import { text } from "@8bitscript/text";
+
+const COLS: utinyint = text.COLUMNS;
+const ROWS: utinyint = text.ROWS;
+const FIRST: utinyint = 33;   // '!'
+const LAST: utinyint = 126;   // '~'
+const WHITE: utinyint = 1;
+const COLOURS: utinyint = 16;
+
+// cell = row * COLS + col, summed rather than multiplied: the grid can be
+// 76 x 56 (the X16), and a product of two bytes would wrap at 8 bits.
+function cellOf(col: utinyint, row: utinyint): usmallint {
+    let cell: usmallint = col;
+    for (let r: utinyint = 0; r < row; r++) {
+        cell = cell + COLS;
+    }
+    return cell;
+}
+
+function solid(cell: usmallint): void {
+    text.setReverse(true);
+    text.fill(cell, 1, 32);
+    text.setReverse(false);
+}
+
+// The ramp from `row` down, one character a cell, 1 column in from each edge.
+// Returns the first row below it.
+function ramp(row: utinyint, reverse: bool): utinyint {
+    let col: utinyint = 1;
+    let y: utinyint = row;
+    text.setReverse(reverse);
+    for (let code: utinyint = FIRST; code <= LAST; code++) {
+        text.fill(cellOf(col, y), 1, code);
+        col++;
+        if (col >= COLS - 1) {
+            col = 1;
+            y++;
+        }
+    }
+    text.setReverse(false);
+    if (col != 1) {
+        y++;
+    }
+    return y;
+}
+
+export function main(): void {
+    screen.blank();
+    text.setColor(WHITE);
+
+    solid(cellOf(0, 0));
+    solid(cellOf(COLS - 1, 0));
+    solid(cellOf(0, ROWS - 1));
+    solid(cellOf(COLS - 1, ROWS - 1));
+
+    let row: utinyint = ramp(2, false);
+    row = ramp(row + 1, true);
+
+    row++;
+    text.setReverse(true);
+    for (let c: utinyint = 0; c < COLOURS; c++) {
+        if (c + 1 < COLS - 1) {
+            text.setColor(c);
+            text.fill(cellOf(c + 1, row), 1, 32);
+        }
+    }
+    text.setReverse(false);
+    text.setColor(WHITE);
+    text.releaseCursor();
+
+    while (true) {
+        waitFrame();
+    }
+}

@@ -44,9 +44,9 @@
       ...raw,
       phase: raw.phase || 'ready',
       runtimes: list(raw.runtimes).length ? raw.runtimes : [
-        { id: 'editor', label: 'Editor', icon: 'open-preview', long: 'Editor tab', what: 'Runs the WASM build in a tab inside the editor.' },
-        { id: 'browser', label: 'Browser', icon: 'globe', long: 'Web browser', what: 'Runs the WASM build in your web browser.' },
-        { id: 'native', label: 'Native', icon: 'device-desktop', long: 'Native emulator', what: 'Runs the real emulator for this machine.' },
+        { id: 'editor', label: 'Editor', icon: 'open-preview', long: 'Editor tab', what: 'Runs the WASM build in a tab inside the editor. The primary way to run a program.' },
+        { id: 'browser', label: 'Browser', icon: 'globe', long: 'Web browser', what: 'Runs the WASM build in your web browser: the page you can share.' },
+        { id: 'native', label: 'Native', icon: 'device-desktop', long: 'Native emulator (verification)', what: 'Runs the real emulator for this machine: the second opinion on what the WASM build shows.' },
       ],
       notices: list(raw.notices), projects: list(raw.projects), systems: list(raw.systems), programs: list(raw.programs),
       collapsedGroups: list(raw.collapsedGroups), running: list(raw.running), history: list(raw.history),
@@ -265,7 +265,7 @@
       }, icon(r.icon), h('span', null, r.label));
     });
     const lead = state.runtimes.find((r) => r.id === p.primary);
-    const hint = lead ? (lead.id === 'native' && sys.emulator ? `Runs the real ${sys.emulator} emulator with ${p.title} loaded.` : lead.what) : 'Nothing can run this combination.';
+    const hint = lead ? (lead.id === 'native' && sys.emulator ? `Runs the real ${sys.emulator} emulator with ${p.title} loaded. The second opinion on what the WASM build shows.` : lead.what) : 'Nothing can run this combination.';
     return [h('div', { class: 'runs', role: 'group', 'aria-label': 'Run in' }, buttons), h('p', { class: 'hint', id: 'hint', 'aria-live': 'polite' }, hint)];
   }
 
