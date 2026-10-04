@@ -429,7 +429,8 @@ class Projects {
         },
       );
     });
-    pending.then((rows) => { if (rows) this.targetRows.set(project.dir, rows); });
+    // Remembered for the code that cannot wait on the promise; `pending` itself never rejects.
+    void pending.then((rows) => { if (rows) this.targetRows.set(project.dir, rows); });
     this.targetsPromises.set(project.dir, pending);
     return pending;
   }
