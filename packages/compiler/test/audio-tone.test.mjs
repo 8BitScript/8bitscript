@@ -19,7 +19,8 @@
 //      twins give the measurement).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -145,7 +146,7 @@ test('PET: one bit has two levels, and level 0 mutes tone and blip', () => {
   const src = readFileSync(join(SRC, 'index.pet.8bs'), 'utf8');
   assert.match(src, /const LEVEL_MAX: utinyint = 1;/);
   assert.match(src, /muted = amount == 0;/);
-  assert.match(src, /function tone\(note: utinyint, frames: utinyint\): void \{\s*songs\.stop\(\);\s*decayLeft = 0;\s*if \(muted\) \{\s*return;/);
+  assert.match(src, /function tone\(note: utinyint, frames: utinyint\): void \{\s*if \(songsOn\) \{\s*songs\.stop\(\);\s*\}\s*decayLeft = 0;\s*if \(muted\) \{\s*return;/);
   assert.match(src, /function blip\([^)]*\): void \{\s*audio\.tone\(note, frames\);/);
 });
 
@@ -228,3 +229,63 @@ test('X16: the PSG voice writes the channel-enable bits and a waveform (the old 
   assert.match(src, /writePsg\(base \+ 2, 0xC0 \| \(\(volume & 15\) \* 4\)\);/, 'volume with both channel bits');
   assert.match(src, /writePsg\(base \+ 3, \(\(wave & 3\) << 6\) \| 63\);/, 'waveform in bits 7:6');
 });
+
+// ---- a program that never plays a song does not pay for songs --------------------------------
+
+import { optimizeReachable } from '../src/linker/optimize.mjs';
+
+const TONE_ONLY = `import { audio } from "@8bitscript/audio";
+export function main(): void {
+    audio.setLevel(audio.LEVEL_MAX);
+    audio.tone(57, 10);
+    audio.blip(60, 3);
+    while (true) {
+        waitFrame();
+        audio.update();
+        if (audio.busy()) {
+            audio.silence();
+        }
+    }
+}
+`;
+
+const PLAYS_A_SONG = `import { win } from "./songs.8ba";
+import { audio } from "@8bitscript/audio";
+export function main(): void {
+    audio.play(win);
+    while (true) {
+        waitFrame();
+        audio.update();
+    }
+}
+`;
+
+const ONE_SONG = 'song win { speed 3 loop false pattern p length 4 { track t { row 0 { note C4; length 2; } } } }\n';
+
+function kept(target, source, files = {}) {
+  const dir = mkdtempSync(join(tmpdir(), '8bs-songs-prune-'));
+  try {
+    for (const [name, text] of Object.entries(files)) writeFileSync(join(dir, name), text);
+    const { ir, diagnostics } = link(source, join(dir, 'main.8bs'), { machine: target, facts: stockFacts(target), checkout: CHECKOUT });
+    assert.deepEqual(diagnostics.filter((d) => d.severity === 'error'), [], target);
+    const live = optimizeReachable(ir, {});
+    return { functions: live.functions.map((f) => f.name), globals: live.globals.map((g) => g.name) };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+// AGENTS.md: a byte a program spends on something it never uses is a byte wasted. The sequencer and its
+// 256-byte bank are linked only if the program plays a song; the drivers keep a `songsOn` flag only
+// audio.play and audio.music of a song set, and test it before every use, so the optimizer folds it
+// for a program that plays tones alone. (The web backend keeps its globals whatever the program reaches.)
+for (const target of ['pet', 'vic20', 'c64', 'cx16']) {
+  test(`${target}: a program that plays only tones links no song sequencer and no bank; one that plays a song links both`, () => {
+    const tones = kept(target, TONE_ONLY);
+    assert.deepEqual(tones.functions.filter((n) => n.startsWith('songs_')), [], `${target}: no songs_* function`);
+    assert.ok(!tones.globals.includes('bank'), `${target}: no bank`);
+    const song = kept(target, PLAYS_A_SONG, { 'songs.8ba': ONE_SONG });
+    assert.ok(song.functions.includes('songs_step') && song.functions.includes('songs_start'), `${target}: the sequencer`);
+    assert.ok(song.globals.includes('bank'), `${target}: the bank`);
+  });
+}

@@ -4,6 +4,11 @@ import { sid, Waveform } from "@8bitscript/c64/sid";
 import { songs } from "./songs.8bs";
 
 let sfxLeft: utinyint = 0;
+// True once the program has asked for a song (audio.play or audio.music of one). Nothing but
+// those two calls assigns it, so in a program that never plays a song the linker's optimizer
+// inlines it as false, every `songsOn` test below folds away, and the sequencer and its 256-byte
+// bank are not linked at all: a program that only plays tones pays nothing for songs.
+let songsOn: bool = false;
 let ready: bool = false;
 // The master volume, 0..15, and whether the envelope is the plucked one (see blip).
 let level: utinyint = 15;
@@ -76,6 +81,14 @@ function apply(event: utinyint): void {
     }
 }
 
+// One frame of a song that is playing: a note's decay, then the sequencer's next step.
+function songFrame(): void {
+    if (!songs.active()) {
+        return;
+    }
+    apply(songs.step());
+}
+
 export namespace audio {
     // The playable notes (the .8ba index, C0 = 0, A4 = 57): the SID's
     // table is C0..B6, so nothing folds.
@@ -95,6 +108,7 @@ export namespace audio {
     // last row, and is silent after. A new sound replaces whatever is sounding.
     function play(slot: utinyint): void {
         if (songs.isSong(slot)) {
+            songsOn = true;
             ensure();
             sfxLeft = 0;
             apply(songs.start(slot, false));
@@ -104,7 +118,9 @@ export namespace audio {
             return;
         }
         ensure();
-        songs.stop();
+        if (songsOn) {
+            songs.stop();
+        }
         sid.release(0);
         sid.setWaveform(0, waveOf(songs.sampleWave(slot)));
         sid.play(0, songs.sampleNote(slot));
@@ -117,7 +133,9 @@ export namespace audio {
     // once) so the pitch is right. Nothing else blocks.
     function tone(note: utinyint, frames: utinyint): void {
         ensure();
-        songs.stop();
+        if (songsOn) {
+            songs.stop();
+        }
         if (plucked) {
             sid.setEnvelope(0, 0, 9, 8, 6);
             plucked = false;
@@ -134,7 +152,9 @@ export namespace audio {
 
     // Stop now: the tone, the sample and the song, and put the volume back.
     function silence(): void {
-        songs.stop();
+        if (songsOn) {
+            songs.stop();
+        }
         if (ready) {
             sid.release(0);
             sid.setVolume(level);
@@ -144,7 +164,13 @@ export namespace audio {
 
     // True while a tone, a sample or a song is sounding (a song's rests count).
     function busy(): bool {
-        return sfxLeft != 0 || songs.active();
+        if (sfxLeft != 0) {
+            return true;
+        }
+        if (songsOn) {
+            return songs.active();
+        }
+        return false;
     }
 
     // The master volume the SID plays at, 0 (silent) to LEVEL_MAX; a level above
@@ -166,7 +192,9 @@ export namespace audio {
     // another retriggers.
     function blip(note: utinyint, frames: utinyint): void {
         ensure();
-        songs.stop();
+        if (songsOn) {
+            songs.stop();
+        }
         let slow: utinyint = frames;
         if (slow > 9) {
             slow = 9;
@@ -186,6 +214,7 @@ export namespace audio {
     // A song, repeated for ever if its file says `loop true` (the default), until the next sound
     // or audio.silence().
     function music(slot: utinyint): void {
+        songsOn = true;
         ensure();
         sfxLeft = 0;
         apply(songs.start(slot, true));
@@ -199,8 +228,8 @@ export namespace audio {
             }
             return;
         }
-        if (songs.active()) {
-            apply(songs.step());
+        if (songsOn) {
+            songFrame();
         }
     }
 }

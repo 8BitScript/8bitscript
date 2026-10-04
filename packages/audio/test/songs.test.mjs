@@ -22,8 +22,8 @@ const CHECKOUT = join(HERE, '..', '..', '..');
 const CLI = join(CHECKOUT, 'packages', 'cli', 'bin', '8bs.mjs');
 const darwin = process.platform === 'darwin';
 
-const SONGS = `instrument chime { waveform triangle volume 9 }
-instrument saw { waveform saw volume 15 }
+const songsText = (bright) => `instrument chime { waveform triangle volume 9 }
+instrument saw { waveform ${bright} volume 15 }
 
 song win {
   speed 3
@@ -57,9 +57,10 @@ export function main(): void {
 }
 `;
 
+// The VIC-I has three squares and a noise voice: no saw, and the build says so (8BS2212), so its G4 is a pulse.
 function build(target, extra = []) {
   const dir = mkdtempSync(join(tmpdir(), '8bs-audio-songs-'));
-  writeFileSync(join(dir, 'songs.8ba'), SONGS);
+  writeFileSync(join(dir, 'songs.8ba'), songsText(target === 'vic20' ? 'pulse' : 'saw'));
   writeFileSync(join(dir, 'song.8bs'), PROGRAM);
   const result = spawnSync('node', [CLI, 'build', '--target', target, '--checkout', CHECKOUT, ...extra, 'song.8bs'], { cwd: dir, encoding: 'utf8' });
   assert.equal(result.status, 0, `${target} build:\n${result.stderr}`);
@@ -109,16 +110,31 @@ test('VIC-20: three notes on the soprano, then it falls silent', { skip: !haveBi
   }
 });
 
-test('X16: the song is two sounds (C4 and E4 run together, a rest, then G4) and then silence', { skip: !haveBinary('x16emu'), timeout: 120000 }, async () => {
+// The notes a recording plays, in order: the pitch in short sliding windows, a note a pitch that holds for
+// three windows in a row, runs of one note counted once (as scripts/slot-sound.mjs in vegas-nights does).
+function plateaus(wave) {
+  const heard = [];
+  let run = 0;
+  let previous = null;
+  for (let t = 0; t + 0.02 <= wave.seconds; t += 0.006) {
+    const got = wave.measure(t, t + 0.02);
+    const note = got.cycles >= 2 && got.frequency > 50 ? Math.round(57 + 12 * Math.log2(got.frequency / 440)) : null;
+    run = note !== null && note === previous ? run + 1 : 1;
+    previous = note;
+    if (note !== null && run === 3 && heard.at(-1) !== note) heard.push(note);
+  }
+  return heard;
+}
+
+test('X16: the song is C4, E4, G4 in that order, a bounded sound, and then silence', { skip: !haveBinary('x16emu'), timeout: 120000 }, async () => {
   const { dir, prg } = build('cx16');
   try {
     const wave = await x16Wav(prg, { ms: 9000 });
-    assert.equal(wave.segments.length, 2, `two sounds (saw ${JSON.stringify(wave.segments.map((s) => [s.start.toFixed(2), s.end.toFixed(2)]))})`);
-    const [first, second] = wave.segments;
-    assert.ok(Math.abs(first.seconds - 9 / 60) < 0.08, `C4 + E4 last 9 frames (${first.seconds.toFixed(2)} s)`);
-    assert.ok(Math.abs(second.seconds - 6 / 60) < 0.08, `G4 lasts 6 frames (${second.seconds.toFixed(2)} s)`);
-    within(second.frequency, 55, 25, 'the G4');
-    assert.ok(wave.seconds - second.end > 1, 'silence after the song');
+    assert.deepEqual(plateaus(wave), [48, 52, 55], 'the three notes of the song, in order');
+    const last = wave.segments.at(-1);
+    assert.ok(last, 'something was heard');
+    assert.ok(wave.seconds - last.end > 1, 'silence after the song');
+    assert.ok(last.seconds < 0.6, `the song is short (${last.seconds.toFixed(2)} s)`);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

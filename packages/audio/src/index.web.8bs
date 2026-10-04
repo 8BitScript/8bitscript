@@ -8,6 +8,11 @@ import { voice } from "@8bitscript/web/voice";
 import { songs } from "./songs.8bs";
 
 let sfxLeft: utinyint = 0;
+// True once the program has asked for a song (audio.play or audio.music of one). Nothing but
+// those two calls assigns it, so in a program that never plays a song the linker's optimizer
+// inlines it as false, every `songsOn` test below folds away, and the sequencer and its 256-byte
+// bank are not linked at all: a program that only plays tones pays nothing for songs.
+let songsOn: bool = false;
 // The level the game asked for (0..15), the volume sounding now, how much a plucked tone or a
 // song note loses a frame (0 for a plain one), and the frames a song note has left to sound.
 let level: utinyint = 15;
@@ -77,6 +82,28 @@ function apply(event: utinyint): void {
     }
 }
 
+// One frame of a song that is playing: a note's decay, then the sequencer's next step.
+function songFrame(): void {
+    if (!songs.active()) {
+        return;
+    }
+    if (decayLeft != 0) {
+        decayLeft = decayLeft - 1;
+        if (decayLeft == 0) {
+            voice.off();
+            fade = 0;
+        } else if (fade != 0) {
+            if (shown > fade) {
+                shown = shown - fade;
+            } else {
+                shown = 0;
+            }
+            voice.volume(shown);
+        }
+    }
+    apply(songs.step());
+}
+
 export namespace audio {
     // The playable notes (the .8ba index, C0 = 0, A4 = 57). A note outside
     // moves by whole octaves into the range.
@@ -95,7 +122,9 @@ export namespace audio {
     // tone is sounding. Nothing blocks. The page reads the voice once a paint,
     // so a tone of one frame can fall between two and not be heard.
     function tone(note: utinyint, frames: utinyint): void {
-        songs.stop();
+        if (songsOn) {
+            songs.stop();
+        }
         let n: utinyint = note;
         while (n < 24) {
             n = n + 12;
@@ -117,7 +146,9 @@ export namespace audio {
 
     // Stop now: the tone, the sample and the song.
     function silence(): void {
-        songs.stop();
+        if (songsOn) {
+            songs.stop();
+        }
         voice.off();
         voice.volume(level);
         sfxLeft = 0;
@@ -127,7 +158,13 @@ export namespace audio {
 
     // True while a tone, a sample or a song is sounding (a song's rests count).
     function busy(): bool {
-        return sfxLeft != 0 || songs.active();
+        if (sfxLeft != 0) {
+            return true;
+        }
+        if (songsOn) {
+            return songs.active();
+        }
+        return false;
     }
 
     // The oscillator's gain, 0 (silent) to 15 for every tone; a level above the
@@ -160,6 +197,7 @@ export namespace audio {
     // last row, and is silent after. A new sound replaces whatever is sounding.
     function play(slot: utinyint): void {
         if (songs.isSong(slot)) {
+            songsOn = true;
             sfxLeft = 0;
             apply(songs.start(slot, false));
             return;
@@ -167,7 +205,9 @@ export namespace audio {
         if (!songs.isSample(slot)) {
             return;
         }
-        songs.stop();
+        if (songsOn) {
+            songs.stop();
+        }
         voice.setShape(shapeOf(songs.sampleWave(slot)));
         voice.on(songs.sampleNote(slot));
         voice.volume(level);
@@ -180,6 +220,7 @@ export namespace audio {
     // A song, repeated for ever if its file says `loop true` (the default), until the next sound
     // or audio.silence().
     function music(slot: utinyint): void {
+        songsOn = true;
         sfxLeft = 0;
         apply(songs.start(slot, true));
     }
@@ -202,22 +243,8 @@ export namespace audio {
             }
             return;
         }
-        if (songs.active()) {
-            if (decayLeft != 0) {
-                decayLeft = decayLeft - 1;
-                if (decayLeft == 0) {
-                    voice.off();
-                    fade = 0;
-                } else if (fade != 0) {
-                    if (shown > fade) {
-                        shown = shown - fade;
-                    } else {
-                        shown = 0;
-                    }
-                    voice.volume(shown);
-                }
-            }
-            apply(songs.step());
+        if (songsOn) {
+            songFrame();
         }
     }
 }
