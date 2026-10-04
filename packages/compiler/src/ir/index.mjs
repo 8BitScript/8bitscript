@@ -350,7 +350,8 @@ class Lowering {
     }
 
     this.namespaces.push({
-      name, exported: node.exported ?? false, functions, consts, constTypes,
+      name, exported: node.exported ?? false, functions, consts,
+      constTypes,
       start: node.name.start, length: node.name.length,
     });
   }
