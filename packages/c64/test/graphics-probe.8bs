@@ -1,0 +1,41 @@
+// @8bitscript/graphics on the C64, end to end: fifteen graphics sprites (more
+// than the VIC-II's eight, so the multiplexer reuses hardware sprites), one
+// of them at X = 300 (past 255, so the ninth X bit) and one animating.
+// Twelve graphics.update() calls advance the walker six times at `every 2`,
+// so it ends on frame 2 of 4 and the screenshot does not depend on timing;
+// after that the sprites are only redrawn.
+import { screen } from "@8bitscript/screen";
+import { graphics } from "@8bitscript/graphics";
+import { sprites } from "@8bitscript/sprites";
+import { walker, wide, corner, dot0, dot1, dot2, dot3, dot4, dot5, dot6, dot7, dot8, dot9, dot10, dot11 } from "./graphics-probe.8bg";
+
+export function main(): void {
+    screen.blank();
+    graphics.place(walker, sprites.ORIGIN_X + 40, sprites.ORIGIN_Y + 20);
+    graphics.place(wide, 300, sprites.ORIGIN_Y + 60);
+    graphics.place(corner, sprites.ORIGIN_X, sprites.ORIGIN_Y);
+    graphics.place(dot0, sprites.ORIGIN_X + 16, sprites.ORIGIN_Y + 90);
+    graphics.place(dot1, sprites.ORIGIN_X + 36, sprites.ORIGIN_Y + 98);
+    graphics.place(dot2, sprites.ORIGIN_X + 56, sprites.ORIGIN_Y + 106);
+    graphics.place(dot3, sprites.ORIGIN_X + 76, sprites.ORIGIN_Y + 114);
+    graphics.place(dot4, sprites.ORIGIN_X + 96, sprites.ORIGIN_Y + 122);
+    graphics.place(dot5, sprites.ORIGIN_X + 116, sprites.ORIGIN_Y + 130);
+    graphics.place(dot6, sprites.ORIGIN_X + 136, sprites.ORIGIN_Y + 138);
+    graphics.place(dot7, sprites.ORIGIN_X + 156, sprites.ORIGIN_Y + 146);
+    graphics.place(dot8, sprites.ORIGIN_X + 176, sprites.ORIGIN_Y + 154);
+    graphics.place(dot9, sprites.ORIGIN_X + 196, sprites.ORIGIN_Y + 162);
+    graphics.place(dot10, sprites.ORIGIN_X + 216, sprites.ORIGIN_Y + 170);
+    // Past 255 the sum has to be a usmallint: `sprites.ORIGIN_X + 236` is
+    // two untyped small numbers and wraps at 8 bits to 4, under the border.
+    let far: usmallint = sprites.ORIGIN_X;
+    far = far + 236;
+    graphics.place(dot11, far, sprites.ORIGIN_Y + 178);
+    for (let n: utinyint = 0; n < 12; n++) {
+        waitFrame();
+        graphics.update();
+    }
+    while (true) {
+        waitFrame();
+        sprites.update();
+    }
+}

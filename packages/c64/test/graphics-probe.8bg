@@ -1,0 +1,97 @@
+// The sprites graphics-probe.8bs places: a four-frame walker, a full-size
+// sprite for the VIC-II's ninth X bit, a corner marker, and twelve dots that
+// need more than the VIC's eight hardware sprites. The PNGs come from
+// graphics-probe-assets.mjs.
+sprite walker {
+  source "./graphics-probe-walker.png"
+  size 16x16
+  transparent auto
+  animation walk {
+    frames 0, 1, 2, 3
+    every 2
+  }
+}
+
+sprite wide {
+  source "./graphics-probe-wide.png"
+  size 24x21
+  transparent auto
+}
+
+sprite corner {
+  source "./graphics-probe-corner.png"
+  size 8x8
+  transparent auto
+}
+
+sprite dot0 {
+  source "./graphics-probe-dot-red.png"
+  size 8x8
+  transparent auto
+}
+
+sprite dot1 {
+  source "./graphics-probe-dot-green.png"
+  size 8x8
+  transparent auto
+}
+
+sprite dot2 {
+  source "./graphics-probe-dot-red.png"
+  size 8x8
+  transparent auto
+}
+
+sprite dot3 {
+  source "./graphics-probe-dot-green.png"
+  size 8x8
+  transparent auto
+}
+
+sprite dot4 {
+  source "./graphics-probe-dot-red.png"
+  size 8x8
+  transparent auto
+}
+
+sprite dot5 {
+  source "./graphics-probe-dot-green.png"
+  size 8x8
+  transparent auto
+}
+
+sprite dot6 {
+  source "./graphics-probe-dot-red.png"
+  size 8x8
+  transparent auto
+}
+
+sprite dot7 {
+  source "./graphics-probe-dot-green.png"
+  size 8x8
+  transparent auto
+}
+
+sprite dot8 {
+  source "./graphics-probe-dot-red.png"
+  size 8x8
+  transparent auto
+}
+
+sprite dot9 {
+  source "./graphics-probe-dot-green.png"
+  size 8x8
+  transparent auto
+}
+
+sprite dot10 {
+  source "./graphics-probe-dot-red.png"
+  size 8x8
+  transparent auto
+}
+
+sprite dot11 {
+  source "./graphics-probe-dot-green.png"
+  size 8x8
+  transparent auto
+}
