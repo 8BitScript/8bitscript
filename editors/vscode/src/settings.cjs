@@ -44,6 +44,30 @@ function getProject() {
 const setProject = (dir) => update('project', dir ?? '');
 
 /**
+ * The program the launcher acts on inside a project that has several
+ * (`programs` in its config): the name last chosen for that project, or ''
+ * for "its `main`". Kept per project, by directory, so picking a lab in one
+ * project does not change another's.
+ *
+ * @param {string} dir the project's directory
+ * @returns {string}
+ */
+function getProgram(dir) {
+  const all = config().get('program');
+  const value = all && typeof all === 'object' ? all[dir] : undefined;
+  return typeof value === 'string' ? value : '';
+}
+
+/** Store one project's chosen program, leaving the other projects' as they are. */
+async function setProgram(dir, name) {
+  const all = config().get('program');
+  const next = { ...(all && typeof all === 'object' ? all : {}) };
+  if (name) next[dir] = name;
+  else delete next[dir];
+  await update('program', next);
+}
+
+/**
  * The named system the launcher runs, or '' for a bare machine id
  * (`8bitscript.system`).
  *
@@ -237,7 +261,7 @@ async function setHardware(system, selection) {
 
 /** True when a change event touches any of the run settings. */
 function affectsAny(event) {
-  return ['region', 'system', 'project', 'hardware', 'webLan', 'namedSystem', 'checkout', 'cx16.captureMouse', 'cx16.fullscreen', 'doctorEmulators'].some((key) =>
+  return ['region', 'system', 'project', 'program', 'hardware', 'webLan', 'namedSystem', 'checkout', 'cx16.captureMouse', 'cx16.fullscreen', 'doctorEmulators'].some((key) =>
     event.affectsConfiguration(`${SECTION}.${key}`),
   );
 }
@@ -261,6 +285,7 @@ module.exports = {
   getHardware,
   getNamedSystem,
   getPreferWebPreview,
+  getProgram,
   getProject,
   getRegion,
   getShowExamples,
@@ -273,6 +298,7 @@ module.exports = {
   setHardware,
   setNamedSystem,
   setPreferWebPreview,
+  setProgram,
   setProject,
   setRegion,
   setShowExamples,

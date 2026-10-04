@@ -27,6 +27,7 @@ const vscode = require('vscode');
 
 const {
   ALL_TARGETS, MACHINE_TARGETS, NO_BARE_EMULATOR, WEB_PREVIEW_READY, byKind, commandArgs, emulatorIsReady, groupedMachineOptions,
+  hasSeveralPrograms, programTargets, resolveProgram,
 } = require('./projects.cjs');
 const { labelOf, whereLabel } = require('./runner.cjs');
 const settings = require('./settings.cjs');
@@ -191,6 +192,20 @@ class LauncherViewProvider {
         }
         break;
       }
+      case 'program': {
+        // Which of the selected project's programs Run and Build act on. The
+        // machine follows the program the way it follows a project: kept
+        // when the program targets it, the program's first otherwise.
+        const project = this.selectedProject();
+        if (!project || !project.programs.some((p) => p.name === message.value)) break;
+        await settings.setProgram(project.dir, message.value);
+        const fits = programTargets(project, message.value);
+        if (!fits.includes(settings.getSystem()) && fits.length > 0) {
+          await settings.setNamedSystem('');
+          await settings.setSystem(fits[0]);
+        }
+        break;
+      }
       case 'system': {
         // One dropdown, two kinds of entry: a machine on its own, or a
         // whole machine the project has been set up for, which sets the
@@ -233,7 +248,12 @@ class LauncherViewProvider {
     const machine = MACHINE_TARGETS.has(system);
     const emulatorReady = emulatorIsReady(doctor, system);
     const bootable = !NO_BARE_EMULATOR.has(system) && emulatorReady;
-    const buildable = Boolean(project?.targets.includes(system) && project.toolchain);
+    const several = hasSeveralPrograms(project);
+    const program = several ? resolveProgram(project, settings.getProgram(project.dir)) : null;
+    // The machines this program is set up for; a project with several
+    // programs and none chosen still offers the project's own list.
+    const fits = project ? programTargets(project, program) : [];
+    const buildable = Boolean(fits.includes(system) && project?.toolchain);
     const runnable = buildable && emulatorReady;
     const fitted = named
       ? (targets?.systems ?? []).find((entry) => entry.name === named)
@@ -249,7 +269,7 @@ class LauncherViewProvider {
       setting,
       managed: this.projects.managedDir,
     });
-    const systems = systemOptions(targets, project, doctor);
+    const systems = systemOptions(targets, project, doctor, program);
     const postedSystem = selectedSystemId(fitted, named, system);
     const studio = await studioOptions(this.projects, all);
     if (!this.view) return;
@@ -264,6 +284,8 @@ class LauncherViewProvider {
       projects: projectOptions(listed),
       project: project?.dir ?? '',
       projectLabel: project ? labelOf(project) : '',
+      programs: several ? programOptions(project) : [],
+      program: program ?? '',
       installed: project ? project.installed : true,
       packageManager: project?.packageManager ?? 'pnpm',
       systems,
@@ -347,6 +369,23 @@ function projectOptions(projects) {
 }
 
 /**
+ * The Entry dropdown's options: the project's own programs, each with where
+ * its entry file is. Empty for a project with one program — the dropdown is
+ * hidden then, and Run names no program. When none is chosen and none is
+ * called `main`, a first "Choose a program" entry stands for "ask me".
+ */
+function programOptions(project) {
+  const options = project.programs.map((p) => ({
+    id: p.name,
+    label: p.name,
+    where: path.relative(project.dir, p.entry),
+  }));
+  return resolveProgram(project, settings.getProgram(project.dir))
+    ? options
+    : [{ id: '', label: 'Choose a program…' }, ...options];
+}
+
+/**
  * The System dropdown's selected value. A named system's name when one is
  * fitted or chosen; otherwise the bare machine id. `named` is stored as
  * '' when nothing named is selected, so empty must fall through — `??`
@@ -395,7 +434,7 @@ async function studioOptions(projects, all) {
   };
 }
 
-function systemOptions(targets, project, doctor = null) {
+function systemOptions(targets, project, doctor = null, program = null) {
   // Only the machines the selected program has been set up for — its
   // project's `targets` block, which `readProject` already narrows to (and
   // which is every release machine when the config names none). The whole
@@ -403,7 +442,8 @@ function systemOptions(targets, project, doctor = null) {
   // marked un-runnable, which made the list long enough to be read past:
   // a machine a program was never written for is not a choice, and the way
   // to get one is to add it to 8bitscript.config.8bs.
-  const fitted = project?.targets?.length > 0 ? project.targets : ALL_TARGETS;
+  const own = project ? programTargets(project, program) : [];
+  const fitted = own.length > 0 ? own : ALL_TARGETS;
   const systems = targets?.systems ?? [];
   // A target already offered as a named system (below) is not repeated here
   // as a bare machine — only what the systems block does not cover falls
@@ -413,8 +453,8 @@ function systemOptions(targets, project, doctor = null) {
     id,
     machine: MACHINE_TARGETS.has(id),
     label: targets?.get(id)?.title ? `${id} — ${targets.get(id).title}` : id,
-    runnable: Boolean(project?.targets.includes(id)),
-    muted: Boolean(project?.targets.includes(id)) && !emulatorIsReady(doctor, id),
+    runnable: Boolean(own.includes(id)),
+    muted: Boolean(own.includes(id)) && !emulatorIsReady(doctor, id),
   }));
   if (systems.length === 0) return machines;
   const groups = [
@@ -562,6 +602,12 @@ function html(webview) {
           <button class="icon" id="details" title="Show project details">${ICONS.file}</button>
         </div>
       </div>
+      <div class="field" id="program-field" hidden>
+        <label class="field-label" for="program">Entry</label>
+        <div class="control">
+          <select id="program" title="Which of this project's programs Run and Build act on (8bs --program)"></select>
+        </div>
+      </div>
     </div>
     <button class="link fitted" id="fitted" title="Open the system builder"></button>
     <div class="split">
@@ -613,5 +659,5 @@ function registerLauncherView(context, projects, devReload) {
 }
 
 module.exports = {
-  registerLauncherView, selectedSystemId, warningFor, emulatorIsReady, systemOptions,
+  registerLauncherView, programOptions, selectedSystemId, warningFor, emulatorIsReady, systemOptions,
 };
