@@ -70,6 +70,8 @@ function sumBoard(t: array<utinyint, 16>): utinyint {
 }
 ```
 
+An array of 2-byte elements (`usmallint`, `smallint`) holds any number of elements up to its type's limit, but up to 128 of them index in one byte and more than 128 index in 16 bits, which costs code: on the C64 a read and a write of one such element are about 42 bytes bigger together. A byte array indexes in one byte up to 256 elements.
+
 Local arrays and pointers are not part of the compiled subset yet — a construct the compiler can't lower is refused by name, never silently miscompiled (see [§8.1](not-yet.md#81-what-doesnt-exist-yet-dont-reach-for-these)).
 
 ## §1.4 Work with strings and templates

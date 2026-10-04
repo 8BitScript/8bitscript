@@ -209,8 +209,8 @@ export interface LowerOptions {
   params: { name: string; type: string; address: number }[];
   /** Every function in the linked program, by name — a call site's only source for where to store its arguments and which label to `JSR`. Built once before any function is lowered, precisely so a callee's address is always known regardless of lowering order. */
   functions: Map<string, FunctionSite>;
-  /** Every array global this build's data section (mos/data.ts) will place — const data and mutable `let` arrays alike as of 0.2.2, string<N> buffers included — by name: an `index`/`storeIndex` node's only source for its element width, its mutability, and its data-section label (mos/data.ts's arrayLabel(name)). A name absent here (an array parameter, or no array at all) is refused by name rather than guessed at. */
-  arrays: Map<string, { elementType: string; mutable?: boolean }>;
+  /** Every array global this build's data section (mos/data.ts) will place — const data and mutable `let` arrays alike as of 0.2.2, string<N> buffers included — by name: an `index`/`storeIndex` node's only source for its element width, its mutability, its length (optional: a hand-built test fixture may omit it, and is then taken to be a small array), and its data-section label (mos/data.ts's arrayLabel(name)). A name absent here (an array parameter, or no array at all) is refused by name rather than guessed at. */
+  arrays: Map<string, { elementType: string; mutable?: boolean; length?: number }>;
   /** The shared 16-bit multiply routine's operand/result cells (mos/startup/multiply.ts), placed by mos/index.ts exactly when a runtime `*` survives the optimizer's strength reduction anywhere in the program — null (or absent) otherwise, and a `*` reaching this pass with no cells is the placement scan disagreeing with the tree, a build() bug rather than a missing rule. */
   multiply?: { a: number; b: number; result: number } | null;
   /** This function's own 16-bit return pair (its FunctionSite.returnPair), when it has one — where its `return <value>` statements store the result. Absent for an 8-bit or void function, whose `return` keeps the accumulator convention. */
@@ -470,7 +470,7 @@ class Lowerer {
   frame: Map<string, number> = new Map();
   locals: LocalAllocator;
   functions: Map<string, FunctionSite>;
-  arrays: Map<string, { elementType: string; mutable?: boolean }>;
+  arrays: Map<string, { elementType: string; mutable?: boolean; length?: number }>;
   multiply: { a: number; b: number; result: number } | null;
   returnPair: number | null;
   loops: { continueLabel: string; breakLabel: string }[] = [];
@@ -1122,16 +1122,16 @@ class Lowerer {
   // index * 2 — a constant doubles at compile time, a runtime index by
   // ASL — and the low byte lands at label,y, the high byte one further
   // along after INY, matching the read side's "low, then INY, then high".
-  // Y is eight bits, so this is exact only while index * 2 <= 255 — the
-  // same limit indexRead16 states, and the same one every 2-byte array
-  // this backend has placed is nowhere near. A 16-bit-typed index that
-  // is not a constant is refused by name rather than truncated: the read
-  // side reaches such an index through arrayPointer for 1-byte elements
-  // and has no 2-byte rule for it either, and a silent low byte is the
-  // 40-column collapse arrayPointer's own comment records.
+  // Y is eight bits, so that short form is exact only while index * 2 <=
+  // 255, i.e. an array of at most 128 elements (wideElements below). A
+  // longer array — or a constant past element 127 — takes the long form:
+  // the byte offset is computed in 16 bits (arrayPointer16), because
+  // doubling in A silently dropped the carry, so element 185 of a
+  // usmallint ring landed on element 57 (the 8032 PET's marquee).
   storeIndex16(node: IrStatement, name: string): void {
     const index = node.index!;
-    if (index.type !== undefined && index.type !== null && storageBytes(index.type) === 2 && !isConstNum(index)) {
+    const wide = this.wideElements(name);
+    if (!wide && index.type !== undefined && index.type !== null && storageBytes(index.type) === 2 && !isConstNum(index)) {
       throw new LowerError(`storing into '${name}': a 2-byte element under a 16-bit index isn't written yet — an array of 2-byte elements has at most 128 of them, so index it with a utinyint`);
     }
     const mark = this.locals.mark();
@@ -1141,6 +1141,24 @@ class Lowerer {
     // source and copies a 16-bit one, the way a 16-bit assignment does.
     const value = this.alloc16(`a temporary for the value stored into '${name}[...]'`);
     this.store16Into(node.value! as IrExpr, value);
+    if (isConstNum(index) && index.value! * 2 + 1 > 0xff) {
+      // Past byte 255 of the array: Y stays 0/1 and the offset folds into the address.
+      this.emit(instr('LDY', 'immediate', 0));
+      this.emit(ldaZp(value), indexed('STA', arrayLabel(name), index.value! * 2));
+      this.emit(instr('INY', 'implied'));
+      this.emit(ldaZp(value + 1), indexed('STA', arrayLabel(name), index.value! * 2));
+      this.locals.release(mark);
+      return;
+    }
+    if (wide && !isConstNum(index)) {
+      const pointer = this.arrayPointer16(arrayLabel(name), index);
+      this.emit(instr('LDY', 'immediate', 0));
+      this.emit(ldaZp(value), instr('STA', '(indirect),y', pointer));
+      this.emit(instr('INY', 'implied'));
+      this.emit(ldaZp(value + 1), instr('STA', '(indirect),y', pointer));
+      this.locals.release(mark);
+      return;
+    }
     if (isConstNum(index)) {
       this.emit(instr('LDY', 'immediate', (index.value! * 2) & 0xff));
     } else {
@@ -1151,6 +1169,29 @@ class Lowerer {
     this.emit(instr('INY', 'implied'));
     this.emit(ldaZp(value + 1), instr('STA', 'absolute,y', undefined, arrayLabel(name)));
     this.locals.release(mark);
+  }
+
+  /** Whether `name`'s 2-byte elements can lie past byte 255 of the array — more than 128 of them — so Y cannot hold an element's byte offset. A fixture that never states a length is taken to be small, which is every array a test builds by hand. */
+  wideElements(name: string): boolean {
+    const length = this.arrays.get(name)?.length;
+    return length !== undefined && length > 128;
+  }
+
+  /**
+   * `base + 2 * index` in a zero-page pointer, for 2-byte elements the 8-bit
+   * Y cannot reach. The index is widened to 16 bits first (an 8-bit one is
+   * zero-extended, a 16-bit one copied), doubled with ASL/ROL so the carry
+   * survives, and added to the array's address.
+   */
+  arrayPointer16(label: string, index: IrExpr): number {
+    const pointer = this.alloc16(`'${label}'s own address plus a doubled 16-bit index`);
+    const doubled = this.alloc16(`the byte offset of an element of '${label}'`);
+    this.store16Into(index, doubled);
+    this.emit(instr('ASL', 'zeropage', doubled), instr('ROL', 'zeropage', doubled + 1));
+    this.emit(instr('CLC', 'implied'));
+    this.emit(immByte(label, 'lo', 0), instr('ADC', 'zeropage', doubled), staZp(pointer));
+    this.emit(immByte(label, 'hi', 0), instr('ADC', 'zeropage', doubled + 1), staZp(pointer + 1));
+    return pointer;
   }
 
   /** The index straight into Y — LDY #const / LDY zp for the simple shapes, sparing A and the TAY; everything else evaluates into A and transfers. */
@@ -1209,20 +1250,40 @@ class Lowerer {
   // first (ASL — a plain shift left, exact as long as index*2 fits in Y's
   // 8 bits), then read low byte, then high byte one further along. Y stays
   // an 8-bit index throughout (the 6502 has no wider index register), so
-  // this is only exact while index*2 <= 255 — every const array this
-  // backend has ever placed (DIGIT_PLACES, length 5) is nowhere close. A
-  // 2-byte-element array past 127 elements isn't refused by name yet;
-  // nothing on the PET's own critical path is anywhere near that size.
+  // that short form is exact only for an array of at most 128 elements
+  // (wideElements). An array of more takes the long form, where the byte
+  // offset is a 16-bit sum in a zero-page pointer (arrayPointer16) — and a
+  // constant past element 127 folds its offset into the address instead.
+  // Before this, ASL in A dropped the carry out of bit 7, so element 185
+  // read element 57: the 8032 PET's 185-place marquee ring.
   indexRead16(node: IrExpr): number {
     const target = this.arrayTarget(node);
-    if (isConstNum(node.index as IrExpr)) {
+    const index = node.index as IrExpr;
+    const result = this.alloc16(`a temporary for reading '${node.array!.name}'`);
+    if (isConstNum(index) && index.value! * 2 + 1 > 0xff) {
+      this.emit(instr('LDY', 'immediate', 0));
+      this.emit(indexed('LDA', target, index.value! * 2), staZp(result));
+      this.emit(instr('INY', 'implied'));
+      this.emit(indexed('LDA', target, index.value! * 2), staZp(result + 1));
+      return result;
+    }
+    if (!isConstNum(index) && this.wideElements(node.array!.name!)) {
+      const mark = this.locals.mark();
+      const pointer = this.arrayPointer16(target, index);
+      this.emit(instr('LDY', 'immediate', 0));
+      this.emit(instr('LDA', '(indirect),y', pointer), staZp(result));
+      this.emit(instr('INY', 'implied'));
+      this.emit(instr('LDA', '(indirect),y', pointer), staZp(result + 1));
+      this.locals.release(mark);
+      return result;
+    }
+    if (isConstNum(index)) {
       // A constant index doubles at compile time; Y takes it directly.
-      this.emit(instr('LDY', 'immediate', ((node.index as IrExpr).value! * 2) & 0xff));
+      this.emit(instr('LDY', 'immediate', (index.value! * 2) & 0xff));
     } else {
-      this.indexValue(node.index as IrExpr);
+      this.indexValue(index);
       this.emit(instr('ASL', 'accumulator'), instr('TAY', 'implied'));
     }
-    const result = this.alloc16(`a temporary for reading '${node.array!.name}'`);
     this.emit(instr('LDA', 'absolute,y', undefined, target), staZp(result));
     this.emit(instr('INY', 'implied'));
     this.emit(instr('LDA', 'absolute,y', undefined, target), staZp(result + 1));
