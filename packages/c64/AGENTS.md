@@ -803,6 +803,40 @@ Bauer says the compare is tested "in cycle 0 of every line"; whether a
 write in the line itself fires is not stated, so the handler does not
 depend on it either way.
 
+### graphics.update() and a raster list of your own
+
+`sprites.update()` (and so the portable `graphics.update()`) is
+`raster.clear()`, the multiplexer's plan, then `raster.commit()` — on every
+call; the list belongs to whoever opens it, and only one caller can. A program
+that builds its own list once with `raster.at()` (colour bands, a wobble,
+`Slot.CHARSET`) and then calls `graphics.update()` each frame loses the whole
+list on the first frame: the handler is still running, the entries are simply
+gone. Nothing warns. `examples/fancy` shipped like that from the four-pillars
+release (2026-09-24) until 2026-10-04 — a black border and a still title on the
+C64 while the VIC-20, X16 and web showed the bands — found from a screenshot,
+bisected to `499c62d` (`53c655a` works), and pinned now by
+`test/layers.test.mjs` under VICE and `packages/examples/test/examples.test.mjs`
+where CI runs.
+
+What works today:
+
+- **A still sprite beside your list:** call `graphics.update()` once, *before*
+  the list is built, and not in the loop. The first `update()` installs the
+  handler and commits; the sprite's registers stay as the frame table left them,
+  so a sprite that never moves stays drawn (verified: `fancy`, yellow border
+  rows 49-88 and the Mark sprite together, NTSC).
+- **Sprites that move, and a list of your own:** open and commit the list
+  yourself — `raster.clear()`, your entries, `sprites.plan()`, `raster.commit()`
+  — as `test/multiplex-probe.8bs` does, and call `raster.enable()` once. That is
+  C64-only code (`@8bitscript/c64/raster`, not the portable `@8bitscript/raster`).
+
+What does not exist yet: a portable program that both animates sprites with
+`graphics.update()` every frame **and** keeps its own `raster.at()` entries. That
+needs the portable raster layer to own the program's entries (a shadow list
+`update()` merges in with `insert()`, and `setValue` aware of the merge) — a
+design of its own, recorded in the Vegas Nights plan as a prerequisite for
+sprite-plus-raster slot machines on the C64, not a patch.
+
 ### What the handler's timing allows, and what it does not
 
 An entry's first write lands 58-64 cycles into its line (7 for the
