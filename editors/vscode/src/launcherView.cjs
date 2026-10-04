@@ -1,63 +1,87 @@
-// The 8BitScript side bar: package status plus named-system quick launch.
+// The 8BitScript side bar: pick a program, pick a system, run it where you want.
 //
-// Hardware fitting and project details are editor tabs (systemView,
-// projectView) — Controller Setup is the template. The hardware matrix
-// used to live in a disclosure here; it does not any more.
+// The page (media/launcher.{css,js}) holds no truth. This file builds one
+// LauncherState (the shape is documented at the top of launcherState.cjs),
+// posts it, and maps each typed message the page sends back onto a command.
+// What it shows comes from the unit model (units.cjs, reached through the
+// runner): the project's programs and their inputs, which runtimes work on
+// which machine and why not, which one is the default, and what is running.
+// Every choice that matters to a run is written straight to the extension's
+// settings (settings.cjs) or the workspace state (unitState.cjs) and read
+// back, so what the page shows and what a run does cannot disagree, and the
+// command the page shows is built by the same functions the run uses.
 //
-// Studio, Doctor and Refresh are icons in the view's title bar rather than
-// buttons in the page, which is where an editor puts a view's actions; the
-// palette has them too. What is running is a Running machines tree at the
-// bottom: a run expands to the compile's own size breakdown and the
-// hardware it launched, with a Stop on each row.
-//
-// The panel holds no state. Every choice is written straight to the
-// extension's settings (settings.cjs) and read back, so what the page
-// shows and what a run does cannot disagree, and Run here runs exactly the
-// `8bs run` line the hint at the bottom prints.
-//
-// The page itself lives in media/launcher.{css,js} and is read in here. It
-// used to be inlined in this file as a template literal; `\n` inside that
-// template became a real newline in the generated script, which failed to
-// parse, so every dropdown that is filled from JS stayed empty.
+// Run is three buttons, not one: Editor (the WASM build in an editor tab),
+// Browser (the WASM build in the system browser) and Native (the machine's
+// real emulator). Each is its own message and its own command; none is a
+// default hidden behind another, and none needs another to be running.
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
 const vscode = require('vscode');
 
-const {
-  ALL_TARGETS, MACHINE_TARGETS, NO_BARE_EMULATOR, WEB_PREVIEW_READY, byKind, commandArgs, emulatorIsReady, groupedMachineOptions,
-  hasSeveralPrograms, programTargets, resolveProgram,
-} = require('./projects.cjs');
+const { MACHINE_TARGETS, byKind, commandArgs } = require('./projects.cjs');
 const { labelOf, whereLabel } = require('./runner.cjs');
 const settings = require('./settings.cjs');
-const {
-  effectiveFacts, matchesSystem, selectionLabel,
-} = require('./hardwareCatalog.cjs');
+const { effectiveFacts, matchesSystem, selectionLabel } = require('./hardwareCatalog.cjs');
 const { machineTree, readLastRun, rowKey } = require('./runningMachines.cjs');
-const { resolveCheckoutRoot } = require('./checkout.cjs');
 const { installRoots } = require('./projectInfo.cjs');
 const { quietly } = require('./quietly.cjs');
+const units = require('./units.cjs');
+const {
+  RUNTIMES, availabilityFromMatrix, inputRow, movedNote, normalizeState,
+} = require('./launcherState.cjs');
 
 const VIEW_ID = '8bitscript.launcher';
 const CSS = fs.readFileSync(path.join(__dirname, '..', 'media', 'launcher.css'), 'utf8');
 const JS = fs.readFileSync(path.join(__dirname, '..', 'media', 'launcher.js'), 'utf8');
 
+const DOCS_URL = 'https://8bitscript.org/';
+
+/** The short names the System picker shows; anything else shows its id. */
+const SHORT = { pet: 'PET', c64: 'C64', vic20: 'VIC-20', cx16: 'X16', web: 'Web', c128: 'C128', mega65: 'MEGA65', atari8: 'Atari 8-bit', nes: 'NES' };
+
+/** Page messages that run a command of the extension, by the message's own `type`. */
+const COMMANDS = {
+  doctor: '8bitscript.doctor',
+  details: '8bitscript.showProject',
+  configureSystem: '8bitscript.configureSystem',
+  saveSystem: '8bitscript.saveSystem',
+  studio: '8bitscript.openStudio',
+  tryExample: '8bitscript.launchExample',
+  rebuildExtension: '8bitscript.rebuildExtension',
+};
+
+/**
+ * A run's runtime, whatever the task says. A boot has none and is the machine's
+ * own emulator; the synthetic web target is itself the browser.
+ */
+function runtimeOfRow(row) {
+  if (row.runtime) return row.runtime;
+  if (row.web) return 'editor';
+  return row.target === 'web' ? 'browser' : 'native';
+}
+
 class LauncherViewProvider {
   /**
    * @param {import('./runner.cjs').Projects} projects
    * @param {ReturnType<import('./devReload.cjs').registerDevReload> | null} [devReload]
+   * @param {import('vscode').ExtensionContext | null} [context]
    */
-  constructor(projects, devReload) {
+  constructor(projects, devReload, context) {
     this.projects = projects;
     this.devReload = devReload ?? null;
+    this.context = context ?? null;
     this.view = undefined;
+    this.loaded = false;
   }
 
   resolveWebviewView(view) {
     this.view = view;
-    view.webview.options = { enableScripts: true };
-    view.webview.html = html(view.webview);
+    const media = this.context?.extensionUri ? vscode.Uri.joinPath(this.context.extensionUri, 'media') : null;
+    view.webview.options = { enableScripts: true, ...(media ? { localResourceRoots: [media] } : {}) };
+    view.webview.html = html(view.webview, media);
 
     const subscriptions = [
       view.webview.onDidReceiveMessage((message) => this.apply(message)),
@@ -94,69 +118,168 @@ class LauncherViewProvider {
       ?? this.projects.visible[0] ?? all[0] ?? null;
   }
 
+  /** Whether a machine takes a region: the CLI's word once it has given it, else the fixed set (as the run does). */
+  regionalOf(project, id) {
+    return this.projects.regional(project.dir, id) ?? MACHINE_TARGETS.has(id);
+  }
+
+  /** The program the panel acts on: the chosen one if the project has it, else its main, else its first. */
+  chosenProgram(unit, project) {
+    const chosen = settings.getProgram(project.dir);
+    return units.programNamed(unit, chosen) ?? units.programNamed(unit, unit.main) ?? unit.programs[0] ?? null;
+  }
+
+  // ── messages from the page ────────────────────────────────────────────────
   async apply(message) {
+    const project = this.selectedProject();
     switch (message?.type) {
       case 'ready':
         await this.post();
         return;
-      case 'launch': {
-        const project = this.selectedProject();
-        if (!project) return;
-        const commandId = { build: '8bitscript.build', boot: '8bitscript.boot' }[message.action] ?? '8bitscript.run';
-        await vscode.commands.executeCommand(commandId, {
-          project,
-          target: settings.getSystem(),
-          system: settings.getNamedSystem() || undefined,
-          // The Run sliver's own "Run in emulator" entry: an explicit
-          // override on top of 8bitscript.run's own default (runner.cjs's
-          // WEB_PREVIEW_READY/preferWebPreview check) — undefined here
-          // (plain Run) leaves that default in charge, exactly as before
-          // this field existed.
-          ...(message.web !== undefined ? { web: message.web } : {}),
-        });
+      case 'run':
+        await this.run(project, message);
         return;
-      }
+      case 'build':
+        if (project) await this.withProgram(project, message.program, () => vscode.commands.executeCommand('8bitscript.build', this.args(project, message.program)));
+        return;
+      case 'boot':
+        if (project) await vscode.commands.executeCommand('8bitscript.openBareEmulator', this.args(project));
+        return;
+      case 'select':
+        await this.select(message);
+        return;
+      case 'selectRuntime':
+        if (project) await this.projects.unitState.setRuntime(project.dir, message.program, message.runtime);
+        await this.post();
+        return;
+      case 'input':
+        await this.setInput(project, message);
+        return;
+      case 'inputsReset':
+        if (project) await this.projects.unitState.resetInputs(project.dir, message.program ?? '');
+        await this.post();
+        return;
+      case 'openSource':
+        await this.openSource(project, message.program);
+        return;
+      case 'reveal':
+        await this.openSource(project, message.program, true);
+        return;
+      case 'copy':
+        if (typeof message.text === 'string') await vscode.env.clipboard.writeText(message.text);
+        return;
       case 'stop':
-        await vscode.commands.executeCommand('8bitscript.stop', { dir: message.dir, target: message.target });
+        this.projects.running.stopRun(message.runId);
+        return;
+      case 'focus':
+        await vscode.commands.executeCommand('8bitscript.previewTab.show');
+        return;
+      case 'openInBrowser':
+        await this.openInBrowser(message.runId);
+        return;
+      case 'fix':
+        await this.fix(project, message);
+        return;
+      case 'openFolder':
+        await vscode.commands.executeCommand('workbench.action.files.openFolder');
+        return;
+      case 'learn':
+        await vscode.env.openExternal(vscode.Uri.parse(DOCS_URL));
         return;
       case 'reloadWindow':
         await vscode.commands.executeCommand('workbench.action.reloadWindow');
         return;
-      case 'rebuildExtension':
-        await vscode.commands.executeCommand('8bitscript.rebuildExtension');
-        return;
-      case 'command':
-        // Only the ids the page can name, so a message cannot run anything else.
-        if ([
-          '8bitscript.refresh', '8bitscript.doctor', '8bitscript.install',
-          '8bitscript.openEntry', '8bitscript.openConfig',
-          '8bitscript.showProject', '8bitscript.configureSystem',
-          '8bitscript.useLocal', '8bitscript.usePublished',
-          '8bitscript.openStudio', '8bitscript.openStudioTab',
-        ].includes(message.id)) {
-          const project = this.selectedProject();
-          await vscode.commands.executeCommand(message.id, {
-            project,
-            dir: message.dir,
-            name: message.name,
-            packageManager: message.packageManager,
-            toolchain: message.toolchain,
-            // Open Studio's sliver menu: the system to open it on.
-            system: message.system,
-          });
-        }
-        return;
-      case 'set':
-        await this.set(message);
-        return;
       default:
+        // Only the ids the page can name, so a message cannot run anything else.
+        if (Object.prototype.hasOwnProperty.call(COMMANDS, message?.type)) {
+          await vscode.commands.executeCommand(COMMANDS[message.type], { project, system: message.system });
+        }
     }
   }
 
-  /** One of the selected project's systems, by name, or null for a machine id. */
-  async namedSystem(name) {
-    const targets = await this.projects.loadTargets(this.selectedProject()?.dir);
-    return targets?.systems?.find((system) => system.name === name) ?? null;
+  /**
+   * `{ project, program }` plus the system the settings say. The page only ever
+   * displays the system, so a `system` it sends is a label and not an input.
+   */
+  args(project, program) {
+    return {
+      project,
+      target: settings.getSystem(),
+      system: settings.getNamedSystem() || undefined,
+      ...(program ? { program } : {}),
+    };
+  }
+
+  /** Make `program` the chosen one for the duration of a command that reads the setting. */
+  async withProgram(project, program, action) {
+    const unit = await this.projects.unitProject(project);
+    if (program && units.programNamed(unit, program)) await settings.setProgram(project.dir, program);
+    return action();
+  }
+
+  async run(project, message) {
+    if (!project || !RUNTIMES.some((r) => r.id === message.runtime)) return;
+    await vscode.commands.executeCommand('8bitscript.runUnit', {
+      ...this.args(project, message.program),
+      runtime: message.runtime,
+      inputs: message.inputs ?? {},
+    });
+    await this.post();
+  }
+
+  async select(message) {
+    if (message.project !== undefined) {
+      await settings.setProject(message.project);
+      // Picking a project loads what it is set up for: the first of its
+      // systems, hardware and region and all. A project with none keeps
+      // the current machine when it targets it, and takes its first
+      // otherwise — the panel never leaves a machine selected that the
+      // project cannot be run on.
+      const project = this.projects.all.find((p) => p.dir === message.project);
+      if (project) {
+        const unit = await this.projects.unitProject(project);
+        const targets = await this.projects.loadTargets(project.dir);
+        const first = targets?.systems?.[0];
+        if (first) await this.applySystem(first);
+        else {
+          await settings.setNamedSystem('');
+          if (!unit.targets.includes(settings.getSystem())) {
+            await settings.setSystem(unit.targets[0] ?? settings.getSystem());
+          }
+        }
+      }
+    } else if (message.program !== undefined) {
+      // Which of the selected project's programs Run and Build act on. The
+      // machine follows the program the way it follows a project: kept when
+      // the program targets it, the program's first otherwise.
+      const project = this.selectedProject();
+      const unit = project ? await this.projects.unitProject(project) : null;
+      const program = unit ? units.programNamed(unit, message.program) : null;
+      if (program) {
+        await settings.setProgram(project.dir, program.name);
+        if (program.targets.length > 0 && !program.targets.includes(settings.getSystem())) {
+          await settings.setNamedSystem('');
+          await settings.setSystem(program.targets[0]);
+        }
+      }
+    } else if (message.system !== undefined) {
+      // One picker, two kinds of entry: a machine on its own, or a whole
+      // machine the project has been set up for, which sets the hardware and
+      // the region with it.
+      const project = this.selectedProject();
+      const named = (await this.projects.loadTargets(project?.dir))?.systems?.find((s) => s.name === message.system);
+      const unit = project ? await this.projects.unitProject(project) : null;
+      if (named) await this.applySystem(named);
+      else if (unit?.targets.includes(message.system)) {
+        await settings.setNamedSystem('');
+        await settings.setSystem(message.system);
+        // A bare machine, picked on its own, means its project's own
+        // config-declared stock — never whatever hardware a previous named
+        // pick left stored for it.
+        await settings.setHardware(message.system, {});
+      }
+    }
+    await this.post();
   }
 
   /** Fit a whole system: its machine, its region, and its hardware, in one write. */
@@ -164,330 +287,273 @@ class LauncherViewProvider {
     await settings.setNamedSystem(system.name);
     await settings.setSystem(system.target);
     if (system.region) await settings.setRegion(system.region);
-    await settings.setHardware(system.target, {
-      profile: system.profile ?? null,
-      options: system.hardware ?? {},
-    });
+    await settings.setHardware(system.target, { profile: system.profile ?? null, options: system.hardware ?? {} });
   }
 
-  async set(message) {
-    switch (message.key) {
-      case 'project': {
-        await settings.setProject(message.value);
-        // Picking a project loads what it is set up for: the first of its
-        // systems, hardware and region and all. A project with none keeps
-        // the current machine when it targets it, and takes its first
-        // otherwise — the panel never leaves a machine selected that the
-        // project cannot be run on.
-        const project = this.projects.all.find((p) => p.dir === message.value);
-        if (!project) break;
-        const targets = await this.projects.loadTargets(project.dir);
-        const first = targets?.systems?.[0];
-        if (first) await this.applySystem(first);
-        else {
-          await settings.setNamedSystem('');
-          if (!project.targets.includes(settings.getSystem())) {
-            await settings.setSystem(project.targets[0] ?? settings.getSystem());
-          }
-        }
-        break;
-      }
-      case 'program': {
-        // Which of the selected project's programs Run and Build act on. The
-        // machine follows the program the way it follows a project: kept
-        // when the program targets it, the program's first otherwise.
-        const project = this.selectedProject();
-        if (!project || !project.programs.some((p) => p.name === message.value)) break;
-        await settings.setProgram(project.dir, message.value);
-        const fits = programTargets(project, message.value);
-        if (!fits.includes(settings.getSystem()) && fits.length > 0) {
-          await settings.setNamedSystem('');
-          await settings.setSystem(fits[0]);
-        }
-        break;
-      }
-      case 'system': {
-        // One dropdown, two kinds of entry: a machine on its own, or a
-        // whole machine the project has been set up for, which sets the
-        // hardware and the region with it.
-        const system = await this.namedSystem(message.value);
-        if (system) {
-          await this.applySystem(system);
-        } else if (ALL_TARGETS.includes(message.value)) {
-          await settings.setNamedSystem('');
-          await settings.setSystem(message.value);
-          // A bare machine, picked on its own, means its project's own
-          // config-declared stock — never whatever hardware a *previous*
-          // named-system pick (applySystem, above) or an older build of
-          // this panel left stored for it. Without this, choosing "PET"
-          // here could stay pinned to a profile picked weeks and configs
-          // ago, no matter what 8bitscript.config.8bs says now.
-          await settings.setHardware(message.value, {});
-        }
-        break;
-      }
-      default:
+  /** Remember an input for a program, or forget it when it is back to what a plain run uses. */
+  async setInput(project, { program, name, value }) {
+    if (!project || typeof name !== 'string') return;
+    const unit = await this.projects.unitProject(project);
+    const input = units.programNamed(unit, program)?.defines.find((d) => d.name === name);
+    const base = input ? (input.value ?? input.default) : undefined;
+    await this.projects.unitState.setInput(project.dir, program ?? '', name, value === base ? undefined : value);
+    await this.post();
+  }
+
+  // ── actions on a program or a run ─────────────────────────────────────────
+  async openSource(project, program, reveal = false) {
+    if (!project) return;
+    const unit = await this.projects.unitProject(project);
+    const entry = units.programNamed(unit, program)?.entry || project.entry;
+    if (!entry) return;
+    const uri = vscode.Uri.file(entry);
+    if (reveal) await vscode.commands.executeCommand('revealInExplorer', uri);
+    else await vscode.window.showTextDocument(uri);
+  }
+
+  async openInBrowser(id) {
+    const row = this.projects.running.list().find((r) => r.runId === id);
+    if (!row) return;
+    const url = readLastRun(row.dir, row.target, row.web === true)?.url;
+    if (url) await vscode.env.openExternal(vscode.Uri.parse(url));
+  }
+
+  async fix(project, message) {
+    if (message.kind === 'emulator') await vscode.commands.executeCommand('8bitscript.doctorSetup');
+    else if (message.kind === 'packages') {
+      await vscode.commands.executeCommand('8bitscript.install', {
+        project, dir: message.dir, name: message.name, packageManager: message.packageManager,
+      });
     }
   }
 
+  // ── the state ─────────────────────────────────────────────────────────────
   /** Push the current settings to the page; it never keeps its own copy. */
   async post() {
     if (!this.view) return;
-    const system = settings.getSystem();
-    const named = settings.getNamedSystem();
+    if (!this.loaded) this.view.webview.postMessage({ type: 'state', state: normalizeState({ phase: 'loading' }) });
+    const state = await this.buildState();
+    this.loaded = true;
+    if (!this.view) return;
+    this.view.webview.postMessage({ type: 'state', state });
+  }
+
+  async buildState() {
     const all = this.projects.all;
     const project = this.selectedProject(all);
     const offered = this.projects.visible;
     const listed = project && !offered.includes(project) ? [...offered, project] : offered;
-    const targets = await this.projects.loadTargets(project?.dir);
-    const doctor = await this.projects.loadDoctor();
-    if (!this.view) return;
-    const target = targets?.get(system) ?? null;
-    const selection = settings.getEffectiveHardware(system, target);
-    const region = settings.getRegion();
-    const machine = MACHINE_TARGETS.has(system);
-    const emulatorReady = emulatorIsReady(doctor, system);
-    const bootable = !NO_BARE_EMULATOR.has(system) && emulatorReady;
-    const several = hasSeveralPrograms(project);
-    const program = several ? resolveProgram(project, settings.getProgram(project.dir)) : null;
-    // The machines this program is set up for; a project with several
-    // programs and none chosen still offers the project's own list.
-    const fits = project ? programTargets(project, program) : [];
-    const buildable = Boolean(fits.includes(system) && project?.toolchain);
-    const runnable = buildable && emulatorReady;
-    const fitted = named
-      ? (targets?.systems ?? []).find((entry) => entry.name === named)
-      : (targets?.systems ?? []).find((entry) => entry.target === system && matchesSystem(entry, target, selection, region));
-    const extras = {
-      system: fitted?.name || named || undefined,
-      checkout: this.projects.checkoutFlag() || undefined,
-    };
     const folders = (vscode.workspace.workspaceFolders ?? []).map((folder) => folder.uri.fsPath);
     const setting = settings.getCheckout() || null;
-    const resolved = resolveCheckoutRoot({
-      folders,
-      setting,
-      managed: this.projects.managedDir,
+    const notices = this.noticesFor({ folders, setting });
+
+    if (!project) return normalizeState({ phase: 'empty', notices });
+
+    const machine = settings.getSystem();
+    const named = settings.getNamedSystem();
+    const [rows, unit, doctor] = await Promise.all([
+      this.projects.loadTargets(project.dir), this.projects.unitProject(project), this.projects.loadDoctor(),
+    ]);
+    if (!this.view) return normalizeState({ phase: 'empty' });
+    const target = rows?.get(machine) ?? null;
+    const selection = settings.getEffectiveHardware(machine, target);
+    const region = settings.getRegion();
+    const fitted = named
+      ? (rows?.systems ?? []).find((entry) => entry.name === named)
+      : (rows?.systems ?? []).find((entry) => entry.target === machine && matchesSystem(entry, target, selection, region));
+    const systemId = fitted?.name || named || machine;
+    const extras = { system: fitted?.name || named || undefined, checkout: this.projects.checkoutFlag() || undefined };
+    const runtimeRow = units.normalizeRuntime(target?.runtime) ?? units.legacyRuntime(machine);
+    const emulator = runtimeRow.native.emulator ?? target?.emulator ?? null;
+    const preferEditor = settings.getPreferWebPreview();
+
+    // Warnings that are about the project, not about one program or runtime.
+    for (const text of [shortfall(rows, target, selection), rows?.systemsError, rows?.requiresError, unit.configError].filter(Boolean)) {
+      notices.push({ id: `w${notices.length}`, kind: 'warn', icon: 'warning', text, actions: [] });
+    }
+    for (const [i, problem] of unit.problems.entries()) {
+      notices.push({ id: `p${i}`, kind: 'warn', icon: 'warning', text: `${problem.scope}: ${problem.message}`, actions: [] });
+    }
+    if (!project.toolchain) {
+      notices.push({
+        id: 'toolchain', kind: 'warn', icon: 'warning', title: 'No 8bs toolchain.', text: `Run ${project.packageManager} install in ${labelOf(project)}.`,
+        actions: [{ label: 'Install packages', icon: 'package', msg: { type: 'fix', kind: 'packages', dir: project.dir, name: labelOf(project), packageManager: project.packageManager } }],
+      });
+    }
+
+    const live = this.projects.running.list().filter((r) => r.dir === project.dir && r.command === 'run');
+    const selected = this.chosenProgram(unit, project);
+    const programs = unit.programs.map((p) => {
+      const onSystem = p.targets.length === 0 || p.targets.includes(machine);
+      const matrix = units.runtimeMatrix({ runtime: runtimeRow, target: machine, program: p, doctor });
+      const availability = availabilityFromMatrix(matrix, { emulator });
+      const remembered = this.projects.unitState.runtime(project.dir, p.name);
+      const primary = onSystem ? units.defaultRuntime({ matrix, remembered, preferEditor }) : null;
+      const overrides = this.projects.unitState.inputs(project.dir, p.name);
+      const note = primary ? movedNote(remembered, primary, availability) : '';
+      return {
+        id: p.name,
+        title: p.label,
+        group: p.group ?? '',
+        description: p.description ?? '',
+        entry: p.entryRelative,
+        onSystem,
+        // A project whose 8bs cannot list its inputs shows none: they are
+        // unknown, not empty (the model says so with `definesRead`).
+        inputs: unit.legacy || !p.definesRead ? [] : p.defines.map((d) => inputRow(d, overrides)),
+        runtimes: availability,
+        primary,
+        ...(note ? { primaryMoved: note } : {}),
+        live: [...new Set(live.filter((r) => (r.program ?? unit.main) === p.name).map(runtimeOfRow))],
+      };
     });
-    const systems = systemOptions(targets, project, doctor, program);
-    const postedSystem = selectedSystemId(fitted, named, system);
-    const studio = await studioOptions(this.projects, all);
-    if (!this.view) return;
-    this.view.webview.postMessage({
-      type: 'state',
-      packages: packageRows({
-        folders,
-        setting,
-        managed: this.projects.managedDir,
-        projects: this.projects.projects,
+
+    const current = programs.find((p) => p.id === selected?.name) ?? programs[0];
+    const command = selected ? this.commandFor({ unit, program: selected, project, machine, region, selection, extras, runtime: current?.primary ?? 'native' }) : '';
+
+    const reachable = new Set(selected?.targets ?? unit.targets);
+    const systems = [
+      ...(rows?.systems ?? []).map((entry) => ({
+        id: entry.name,
+        short: entry.name,
+        name: entry.name,
+        spec: entry.label === 'stock' ? entry.target : `${entry.target} · ${entry.label}`,
+        region: this.regionalOf(project, entry.target) ? settings.regionShort(entry.region ?? region) : '—',
+        group: { project: 'This clone', user: 'This machine', advertised: 'Advertised' }[entry.origin] ?? 'Systems',
+        emulator: units.normalizeRuntime(rows?.get(entry.target)?.runtime)?.native.emulator ?? null,
+        enabled: reachable.has(entry.target),
+      })),
+      ...unit.targets.map((id) => {
+        const t = rows?.get(id);
+        const hw = id === machine ? selection : settings.getEffectiveHardware(id, t);
+        const row = units.normalizeRuntime(t?.runtime) ?? units.legacyRuntime(id);
+        const regional = this.regionalOf(project, id);
+        return {
+          id, short: SHORT[id] ?? id, name: t?.title ?? id,
+          spec: selectionLabel(hw) || 'stock machine',
+          region: regional ? settings.regionShort(region) : (id === 'web' ? '—' : ''),
+          group: (rows?.systems?.length ?? 0) > 0 ? 'Machines' : '',
+          emulator: row.native.emulator ?? null,
+          enabled: reachable.has(id),
+        };
       }),
+    ];
+
+    return normalizeState({
+      phase: 'ready',
+      notices,
       projects: projectOptions(listed),
-      project: project?.dir ?? '',
-      projectLabel: project ? labelOf(project) : '',
-      programs: several ? programOptions(project) : [],
-      program: program ?? '',
-      installed: project ? project.installed : true,
-      packageManager: project?.packageManager ?? 'pnpm',
+      project: { id: project.dir, name: labelOf(project), sub: whereLabel(project) },
       systems,
-      system: postedSystem,
-      studio,
-      systemTitle: fitted?.name ?? target?.title ?? system,
-      // Whether the plain Run button (its own sub-label, and the "Run in
-      // emulator" wording in its sliver) currently means a --web build or
-      // a native emulator window — the same WEB_PREVIEW_READY/
-      // preferWebPreview check 8bitscript.run's own default makes, so the
-      // panel never shows a mode Run will not actually take.
-      runMode: WEB_PREVIEW_READY.has(system) && settings.getPreferWebPreview() ? 'web' : 'native',
-      emulatorLabel: target?.emulator ?? system,
-      region,
-      regionLabel: machine ? settings.regionShort(region) : '',
-      machine,
-      bootable,
-      runnable,
-      buildable,
-      warning: [
-        warningFor(project, system, { doctor, emulator: target?.emulator }),
-        shortfall(targets, target, selection),
-        targets?.systemsError,
-        targets?.requiresError,
-      ].filter(Boolean).join('  ') || null,
-      fitted: selectionLabel(selection) || 'stock machine',
-      subtitle: fitted
-        ? [target?.title ?? system, selectionLabel(selection) || 'stock machine']
-          .concat(machine ? [settings.regionShort(region)] : []).join(' · ')
-        : null,
-      checkout: extras.checkout ?? null,
-      checkoutAvailable: Boolean(resolved),
-      running: this.runningRows(all),
-      devReload: {
-        phase: this.devReload?.phase ?? 'idle',
-        error: this.devReload?.error ?? null,
+      system: systemId,
+      summary: {
+        name: fitted?.name ?? target?.title ?? machine,
+        text: [selectionLabel(selection) || 'stock machine'].concat(this.regionalOf(project, machine) ? [settings.regionShort(region)] : []).join(' · '),
       },
-      command: `8bs ${commandArgs('run', system, region, extras.system ? undefined : selection, extras).concat(
-        system === 'web' ? ['--port', '0'] : [],
-        system === 'web' && !settings.getWebLan() ? ['--local'] : [],
-        system === 'cx16' ? settings.cx16NativeWindowCliArgs({ studio: project?.name === '@8bitscript/studio' }) : [],
-      ).join(' ')}`,
+      programs,
+      program: selected?.name ?? null,
+      collapsedGroups: [...new Set(programs.map((p) => p.group))].filter((g) => /^test\b/i.test(g)),
+      command,
+      running: this.runningRows(all, unit),
     });
+  }
+
+  /**
+   * The exact `8bs` line a click on the program's primary runtime runs: the
+   * same functions the run uses, in the same order, so what is shown is what
+   * happens.
+   */
+  commandFor({ unit, program, project, machine, region, selection, extras, runtime }) {
+    const overrides = this.projects.unitState.inputs(project.dir, program.name);
+    const inputs = unit.legacy || !program.definesRead ? { args: [] } : units.inputArgs(program, overrides);
+    const args = commandArgs('run', machine, region, extras.system ? undefined : selection, {
+      ...extras,
+      ...(unit.several ? { program: program.name } : {}),
+      defines: inputs.args,
+      regional: this.regionalOf(project, machine),
+    });
+    args.push(...units.runtimeArgs(runtime, machine, { webLan: settings.getWebLan() }));
+    if (machine === 'cx16' && runtime === 'native') args.push(...settings.cx16NativeWindowCliArgs({ studio: project.name === '@8bitscript/studio' }));
+    return units.formatCommand(args);
   }
 
   /** What is running, named the way the panel's rows read. */
-  runningRows(all) {
-    return this.projects.running.list().map((row) => {
+  runningRows(all, unit) {
+    const rows = [];
+    for (const row of this.projects.running.list()) {
+      if (row.command !== 'run' && row.command !== 'boot') continue;
       const project = all.find((p) => p.dir === row.dir);
-      const report = row.target ? readLastRun(row.dir, row.target, row.web) : null;
-      const live = this.projects.live.get(rowKey(row.dir, row.target, row.web)) ?? null;
-      return {
-        dir: row.dir,
-        target: row.target,
-        command: row.command,
-        label: project ? labelOf(project) : path.basename(row.dir || '8bs'),
-        detail: row.target ? `${row.command} · ${row.target}` : row.command,
-        machine: machineTree(row, report, live),
-      };
-    });
-  }
-}
-
-/**
- * The program dropdown's entries, grouped into Programs / Examples / Apps.
- */
-function projectOptions(projects) {
-  const entry = (project) => ({
-    id: project.dir,
-    label: labelOf(project),
-    where: whereLabel(project),
-  });
-  const sections = byKind(projects);
-  if (!sections) return projects.map(entry);
-  const options = [];
-  for (const { label, projects: group } of sections) {
-    options.push({ group: label });
-    for (const project of group) options.push(entry(project));
-  }
-  return options;
-}
-
-/**
- * The Entry dropdown's options: the project's own programs, each with where
- * its entry file is. Empty for a project with one program — the dropdown is
- * hidden then, and Run names no program. When none is chosen and none is
- * called `main`, a first "Choose a program" entry stands for "ask me".
- */
-function programOptions(project) {
-  const options = project.programs.map((p) => ({
-    id: p.name,
-    label: p.name,
-    where: path.relative(project.dir, p.entry),
-  }));
-  return resolveProgram(project, settings.getProgram(project.dir))
-    ? options
-    : [{ id: '', label: 'Choose a program…' }, ...options];
-}
-
-/**
- * The System dropdown's selected value. A named system's name when one is
- * fitted or chosen; otherwise the bare machine id. `named` is stored as
- * '' when nothing named is selected, so empty must fall through — `??`
- * would keep '' and the page would select its first option (pet).
- *
- * @param {{ name: string } | null | undefined} fitted
- * @param {string} named
- * @param {string} machine
- */
-function selectedSystemId(fitted, named, machine) {
-  return fitted?.name || named || machine;
-}
-
-/**
- * The System dropdown's entries. A project whose config declares a
- * `systems` block gets those first, in a group of their own — one choice
- * that fits the machine, its hardware and its region together — with the
- * bare machines under them for anything the block does not cover. A
- * project with no block gets the machine list it always had.
- *
- * A system's id is its name, which cannot collide with a machine id: the
- * CLI would have refused a target it did not recognize long before here.
- */
-/**
- * The Studio button's sliver menu: the same list the System chooser
- * below offers, built for Studio — its named systems by origin, then the
- * bare machines — so a pick launches Studio there and then. Null when
- * Studio is not installed, and the page says so.
- */
-async function studioOptions(projects, all) {
-  const studio = all.find((p) => p.kind === 'app' && p.name === '@8bitscript/studio');
-  if (!studio) return null;
-  const targets = await projects.loadTargets(studio.dir);
-  const doctor = await projects.loadDoctor();
-  // First in the menu: the editor's own tab, which only the X16 can fill
-  // (the one machine with a WebAssembly emulator — `8bs run cx16 --web
-  // --x16emu`, Studio's own fixed choice, not the lightweight preview
-  // cx16 --web means everywhere else now). `command` names what a pick
-  // runs; every other entry runs openStudio.
-  return {
-    systems: [
-      { group: 'In an editor tab' },
-      { id: 'tab', command: '8bitscript.openStudioTab', label: 'Commander X16', where: 'x16emu in the editor', machine: true, runnable: studio.targets.includes('cx16') },
-      ...systemOptions(targets, studio, doctor),
-    ],
-  };
-}
-
-function systemOptions(targets, project, doctor = null, program = null) {
-  // Only the machines the selected program has been set up for — its
-  // project's `targets` block, which `readProject` already narrows to (and
-  // which is every release machine when the config names none). The whole
-  // roster used to be listed here with the ones outside the project merely
-  // marked un-runnable, which made the list long enough to be read past:
-  // a machine a program was never written for is not a choice, and the way
-  // to get one is to add it to 8bitscript.config.8bs.
-  const own = project ? programTargets(project, program) : [];
-  const fitted = own.length > 0 ? own : ALL_TARGETS;
-  const systems = targets?.systems ?? [];
-  // A target already offered as a named system (below) is not repeated here
-  // as a bare machine — only what the systems block does not cover falls
-  // through to this list.
-  const covered = new Set(systems.map((system) => system.target));
-  const machines = groupedMachineOptions(ALL_TARGETS.filter((id) => fitted.includes(id) && !covered.has(id)), (id) => ({
-    id,
-    machine: MACHINE_TARGETS.has(id),
-    label: targets?.get(id)?.title ? `${id} — ${targets.get(id).title}` : id,
-    runnable: Boolean(own.includes(id)),
-    muted: Boolean(own.includes(id)) && !emulatorIsReady(doctor, id),
-  }));
-  if (systems.length === 0) return machines;
-  const groups = [
-    ['project', 'This clone'],
-    ['user', 'This machine'],
-    ['advertised', 'Advertised'],
-  ];
-  const options = [];
-  for (const [origin, label] of groups) {
-    const rows = systems.filter((system) => system.origin === origin);
-    if (rows.length === 0) continue;
-    options.push({ group: label });
-    for (const system of rows) {
-      options.push({
-        id: system.name,
-        machine: MACHINE_TARGETS.has(system.target),
-        label: system.name,
-        where: system.label === 'stock' ? system.target : `${system.target} · ${system.label}`,
-        runnable: Boolean(project?.targets.includes(system.target)),
-        muted: Boolean(project?.targets.includes(system.target)) && !emulatorIsReady(doctor, system.target),
-        short: (system.unmet ?? []).length > 0,
+      const report = row.target ? readLastRun(row.dir, row.target, row.web === true) : null;
+      const live = this.projects.live.get(rowKey(row.dir, row.target, row.web === true)) ?? null;
+      const tree = machineTree({ command: row.command, target: row.target, startedAt: row.startedAt }, report, live);
+      const program = row.program ? units.programNamed(unit, row.program) : null;
+      const title = program?.label ?? (project ? labelOf(project) : path.basename(row.dir || '8bs'));
+      const details = [];
+      if (tree?.fitted) details.push({ label: 'Hardware', value: tree.fitted });
+      if (tree?.emulator) details.push({ label: 'Emulator', value: tree.emulator });
+      if (tree?.outFile) details.push({ label: 'Image', value: tree.outFile, mono: true });
+      if (tree?.memory?.line) details.push({ label: 'Memory', value: tree.memory.line });
+      if (tree?.url) details.push({ label: 'Local URL', value: tree.url, mono: true });
+      if (tree?.lanUrl) details.push({ label: 'Network URL', value: tree.lanUrl, mono: true });
+      rows.push({
+        id: row.runId,
+        programId: row.program ?? null,
+        title,
+        system: row.target ?? '',
+        runtime: runtimeOfRow(row),
+        elapsed: tree?.elapsed ?? '',
+        fps: typeof tree?.live?.fps === 'number' ? `${Math.round(tree.live.fps)} fps` : '',
+        detail: tree?.url ?? tree?.emulator ?? '',
+        url: tree?.url ?? null,
+        error: tree?.live?.error ?? null,
+        command: row.commandLine ?? '',
+        details,
+        size: (tree?.size ?? []).map((s) => ({ name: s.name, text: `${s.bytes} B · ${s.pct}%` })),
+        qrSvg: tree?.qrSvg ?? null,
       });
     }
+    return rows;
   }
-  options.push(...machines);
-  return options;
+
+  /** Dev-reload and package notices, shown above everything else. */
+  noticesFor({ folders, setting }) {
+    const notices = [];
+    const phase = this.devReload?.phase ?? 'idle';
+    if (phase !== 'idle') {
+      const text = {
+        dirty: 'The local 8BitScript extension has changed.',
+        building: 'Rebuilding the local extension…',
+        ready: 'The local 8BitScript extension was rebuilt successfully.',
+        error: this.devReload?.error || 'The local extension did not build.',
+      }[phase] ?? '';
+      const actions = [];
+      if (phase === 'dirty' || phase === 'error') actions.push({ label: 'Rebuild the local extension', icon: 'tools', msg: { type: 'rebuildExtension' } });
+      if (phase === 'ready') actions.push({ label: 'Reload this window', icon: 'refresh', msg: { type: 'reloadWindow' } });
+      notices.push({ id: 'dev-reload', kind: phase === 'error' ? 'error' : 'info', icon: 'tools', text, actions });
+    }
+    const missing = packageRows({ folders, setting, managed: this.projects.managedDir, projects: this.projects.projects });
+    for (const row of missing) {
+      notices.push({
+        id: `pkg-${row.dir}`, kind: 'warn', icon: 'package', title: 'Packages need installing.', text: `${row.label} is missing ${row.detail ?? 'its packages'}.`,
+        actions: [{ label: 'Install packages', icon: 'package', msg: { type: 'fix', kind: 'packages', dir: row.dir, name: row.label, packageManager: row.packageManager } }],
+      });
+    }
+    return notices;
+  }
+}
+
+/** The project picker's entries, grouped into Projects / Examples / Apps. */
+function projectOptions(projects) {
+  const entry = (project, group) => ({ id: project.dir, label: labelOf(project), where: whereLabel(project), group });
+  const sections = byKind(projects);
+  if (!sections) return projects.map((project) => entry(project, ''));
+  return sections.flatMap(({ label, projects: group }) => group.map((project) => entry(project, label)));
 }
 
 /**
  * The rows the packages block shows: only a root that needs installing.
- * The view's title already says 8BitScript, and a row that only offers
- * an update nobody asked for is a row to read past; the palette's
- * "8BitScript: Install Dependencies" updates on request.
+ * A row that only offers an update nobody asked for is a row to read past;
+ * the palette's "8BitScript: Install Dependencies" updates on request.
  */
 function packageRows({ folders, setting, managed, projects }) {
   return installRoots({ folders, setting, managed, projects }).filter((status) => !status.installed).map((status) => ({
@@ -496,8 +562,6 @@ function packageRows({ folders, setting, managed, projects }) {
     label: status.label,
     detail: status.detail,
     packageManager: status.packageManager,
-    installed: status.installed,
-    action: status.action,
   }));
 }
 
@@ -505,11 +569,8 @@ function packageRows({ folders, setting, managed, projects }) {
  * What this machine, fitted this way, gives the program less of than it
  * asked for — the config's `requires` block, checked against the sheet the
  * build will resolve to. The same answer `8bs build` refuses with, said
- * before the build rather than after it.
- *
- * Run is not greyed out for it: the build is the authority, and a fact
- * sheet the panel computed is a good enough reason to warn and not a good
- * enough reason to refuse.
+ * before the build rather than after it. A warning, not a refusal: the build
+ * is the authority.
  */
 function shortfall(targets, target, selection) {
   const requires = Object.entries(targets?.requires ?? {});
@@ -522,122 +583,26 @@ function shortfall(targets, target, selection) {
     .join('; ')}.`;
 }
 
-/** Why Run is greyed out, in the words the panel shows instead of the command line. */
-function warningFor(project, system, { doctor = null, emulator = null } = {}) {
-  if (!project) return 'No project here yet. A project is a directory with an 8bitscript.config.8bs in it.';
-  if (!project.targets.includes(system)) return `${labelOf(project)} does not target ${system}.`;
-  if (!project.toolchain) return `No 8bs toolchain for ${labelOf(project)}. Run ${project.packageManager} install.`;
-  if (doctor?.failed?.includes(system)) {
-    return `${emulator ?? system} is installed but cannot boot. Run 8bs doctor.`;
-  }
-  if (doctor?.notInstalled?.includes(system)) {
-    return `${emulator ?? system} is not installed. Run 8bs doctor.`;
-  }
-  return null;
-}
-
-// Codicon shapes, inline rather than the codicon font: a webview does not
-// get the editor's icon font for free, and four paths are cheaper than
-// shipping one.
-const ICONS = {
-  play: '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M4 2.5v11l9-5.5-9-5.5z"/></svg>',
-  build: '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M10 1a4 4 0 0 0-3.8 5.2L1.4 11a1.4 1.4 0 0 0 2 2l4.8-4.8A4 4 0 1 0 10 1zm0 1.5c.4 0 .8.1 1.1.3L9.3 4.6l1.1 1.1 1.8-1.8A2.5 2.5 0 0 1 10 7.5c-.4 0-.8-.1-1.1-.3l-.6-.3-5 5a.4.4 0 0 1-.5-.5l5-5-.3-.6A2.5 2.5 0 0 1 10 2.5z"/></svg>',
-  file: '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M9.5 1H3.8C3.4 1 3 1.4 3 1.9v12.2c0 .5.4.9.8.9h8.4c.4 0 .8-.4.8-.9V4.8L9.5 1zm0 1.6L11.9 5H9.5V2.6zM4 14V2h4.5v3.5c0 .3.2.5.5.5h3v8H4z"/></svg>',
-  stop: '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M4 4h8v8H4z"/></svg>',
-  // A small down-pointing chevron: the sliver on a split button.
-  chevron: '<svg viewBox="0 0 16 16" width="10" height="10" aria-hidden="true"><path fill="currentColor" d="M2.5 5.5 8 11l5.5-5.5-1.4-1.4L8 8.2 3.9 4.1z"/></svg>',
-  // Studio: a screen on a stand, with a brush across it — the asset
-  // editor, as opposed to `play`'s run of the project.
-  studio: '<svg viewBox="0 0 16 16" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M1.5 2h13a.5.5 0 0 1 .5.5v8a.5.5 0 0 1-.5.5H9v1.5h2.5V14h-7v-1.5H7V11H1.5a.5.5 0 0 1-.5-.5v-8a.5.5 0 0 1 .5-.5zM2 3v7h12V3H2zm8.6 1.2 1.2 1.2-3.6 3.6-1.6.4.4-1.6 3.6-3.6z"/></svg>',
-  // A bare chip: the body, and pins — the hardware with nothing running on
-  // it yet, as opposed to `build`'s wrench (turning source into bytes).
-  chip: '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M5 1h1v2H5V1zm5 0h1v2h-1V1zM5 13h1v2H5v-2zm5 0h1v2h-1v-2zM1 5h2v1H1V5zm0 5h2v1H1v-1zm12-5h2v1h-2V5zm0 5h2v1h-2v-1zM4 4h8v8H4V4z"/></svg>',
-};
-
-function html(webview) {
+/**
+ * The page. `media` is the extension's media directory as a Uri; without one
+ * (a unit test with no extension context) the files are named relatively.
+ */
+function html(webview, media) {
   const nonce = crypto.randomBytes(16).toString('hex');
+  const asset = (name) => (media && webview.asWebviewUri ? String(webview.asWebviewUri(vscode.Uri.joinPath(media, name))) : name);
+  const css = CSS.replace('{{CODICON}}', asset('codicon.woff2'));
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy"
-  content="default-src 'none'; style-src ${webview.cspSource} 'nonce-${nonce}'; script-src 'nonce-${nonce}';">
+  content="default-src 'none'; style-src ${webview.cspSource} 'nonce-${nonce}'; font-src ${webview.cspSource}; img-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<style nonce="${nonce}">${CSS}</style>
+<style nonce="${nonce}">${css}</style>
 <title>8BitScript</title>
 </head>
 <body>
-  <div class="dev-reload" id="dev-reload" hidden>
-    <p class="notice" id="dev-reload-msg"></p>
-    <button class="wide secondary" id="rebuild-extension" hidden>Rebuild the local extension</button>
-    <button class="wide" id="reload-window" hidden>Reload this window</button>
-  </div>
-
-  <section class="packages" id="packages-block" hidden>
-    <div id="package-rows"></div>
-  </section>
-
-  <section class="studio-block">
-    <h2 class="section-label">Studio</h2>
-    <div class="split">
-      <button class="launch studio" id="studio" title="Open Studio — the asset editor that ships with the toolchain — on the Commander X16, the machine it is designed on; not a run of this project">
-        ${ICONS.studio}
-        <span class="launch-text">
-          <span class="launch-title">Open Studio</span>
-          <span class="launch-sub" id="studio-sub">on the Commander X16</span>
-        </span>
-      </button>
-      <button class="launch studio-more" id="studio-more" title="Open Studio on another system" aria-haspopup="menu" aria-expanded="false">${ICONS.chevron}</button>
-    </div>
-    <div class="menu" id="studio-menu" role="menu" hidden></div>
-  </section>
-
-  <section class="launch-block">
-    <h2 class="section-label">Quick launch</h2>
-    <div class="fields" id="fields">
-      <div class="field">
-        <label class="field-label" for="project">Program</label>
-        <div class="control">
-          <select id="project" title="The program Run and Build act on"></select>
-          <button class="icon" id="details" title="Show project details">${ICONS.file}</button>
-        </div>
-      </div>
-      <div class="field" id="program-field" hidden>
-        <label class="field-label" for="program">Entry</label>
-        <div class="control">
-          <select id="program" title="Which of this project's programs Run and Build act on (8bs --program)"></select>
-        </div>
-      </div>
-    </div>
-    <button class="link fitted" id="fitted" title="Open the system builder"></button>
-    <div class="split">
-      <button class="launch" id="run" title="Run this project on the selected system">
-        ${ICONS.play}
-        <span class="launch-text">
-          <span class="launch-title" id="run-title">Run</span>
-          <span class="launch-sub" id="run-sub"></span>
-        </span>
-      </button>
-      <button class="launch run-more" id="run-more" title="Run in an emulator instead, or pick a different system" aria-haspopup="menu" aria-expanded="false">${ICONS.chevron}</button>
-    </div>
-    <div class="menu" id="run-menu" role="menu" hidden></div>
-    <p class="notice" id="notice" hidden></p>
-    <div class="control launch-actions">
-      <button class="wide secondary" id="build" title="Build this project for the selected system">${ICONS.build} Build</button>
-      <button class="wide secondary" id="boot" title="Boot the selected system's emulator with nothing loaded — just the hardware">
-        ${ICONS.chip} <span id="boot-label">Boot</span>
-      </button>
-      <button class="icon" id="open" title="Open this project's entry file">${ICONS.file}</button>
-    </div>
-  </section>
-
-  <section class="running" id="running" hidden>
-    <h2 class="section-label">Running machines</h2>
-    <div id="running-rows"></div>
-  </section>
-
-  <div class="hint" id="hint"></div>
-  <script nonce="${nonce}">const ICON_STOP = ${JSON.stringify(ICONS.stop)};</script>
+  <main id="app" data-logo="${asset('8bitscript-icon.svg')}" aria-label="8BitScript launcher"></main>
   <script nonce="${nonce}">${JS}</script>
 </body>
 </html>`;
@@ -649,7 +614,7 @@ function html(webview) {
  * @param {ReturnType<import('./devReload.cjs').registerDevReload> | null} [devReload]
  */
 function registerLauncherView(context, projects, devReload) {
-  const provider = new LauncherViewProvider(projects, devReload);
+  const provider = new LauncherViewProvider(projects, devReload, context);
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(VIEW_ID, provider, {
       webviewOptions: { retainContextWhenHidden: true },
@@ -658,6 +623,4 @@ function registerLauncherView(context, projects, devReload) {
   return provider;
 }
 
-module.exports = {
-  registerLauncherView, programOptions, selectedSystemId, warningFor, emulatorIsReady, systemOptions,
-};
+module.exports = { registerLauncherView, runtimeOfRow };

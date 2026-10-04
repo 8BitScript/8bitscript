@@ -98,3 +98,40 @@ the two stay in step.
   wall of purple blocks.
 - **Check it before asking anyone to reload.** `rsvg-convert` renders a sheet
   at both sizes in seconds, which is faster and more honest than a reload.
+
+## The launcher
+
+The side-bar launcher (`src/launcherView.cjs`, `src/launcherState.cjs`,
+`media/launcher.{css,js}`) holds **no truth of its own**: the extension builds one
+`LauncherState`, posts it, and the page draws it; every click goes back as one typed
+message. The state and message shapes are documented at the top of
+`src/launcherState.cjs`; the design they implement, and the reasons behind it, are in
+`docs/design/README.md`.
+
+Rules that are easy to break without noticing:
+
+- **Never build markup from strings.** The page makes elements with `createElement`
+  (`h()` in `launcher.js`), so a program called `<img onerror=…>` is text. The one
+  `innerHTML` is the QR code, which the extension generates itself.
+- **No inline `style` attributes** and no hard-coded colours. The webview's policy
+  blocks the first, and the second breaks every theme but the one you looked at. Use a
+  class and a `--vscode-*` variable.
+- **A runtime that cannot work is `aria-disabled`, never `disabled`**, so a keyboard
+  can reach it and hear why. Clicking one only moves focus to the reason.
+- **Every control that posts is a `<button>`** with a name a screen reader can read;
+  icons are `aria-hidden`.
+- **The launcher never decides what runs.** Whether a runtime works, which is the default
+  and which inputs a program has are the unit model's (`units.cjs`, reached through the
+  runner); `launcherState.cjs` only says how the page is told. Do not add a rule here that
+  the model should own.
+- **The icon font is a subset.** `media/codicon.woff2` holds exactly the glyphs in the
+  `CP` table at the top of `launcher.js`. To add an icon, add its codepoint there *and*
+  regenerate the subset from `@vscode/codicons` (fonttools: `pyftsubset … --unicodes=…`);
+  both licences ship beside it (`CODICON-LICENSE-*.txt`).
+
+Test it over a real DOM, not as strings: `test/support/launcherDom.cjs` runs the page
+in a vm over linkedom (adding the focus and keyboard events it lacks), and
+`test/support/launcherFixtures.cjs` has the states the design draws. To *see* the real
+page, `node scripts/render-launcher.mjs` writes `docs/design/wired/<theme>/<state>-<width>.png`
+in Dark and Light Modern through a headless browser (set `DESIGN_BROWSER` if it is not
+Brave) — look at them beside `docs/design/shots/` after any visual change.

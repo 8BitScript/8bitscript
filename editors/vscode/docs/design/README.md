@@ -269,3 +269,55 @@ uppercase section labels at 0.06em; one icon family (codicons, as in native view
 `--vscode-*` variables, so any theme works. Primary = `button.background`; secondary =
 `button.secondaryBackground`; selection = `list.activeSelectionBackground`; running = `testing.iconPassed`;
 errors = `errorForeground`. The side-bar title row and its icons are native chrome, drawn only for context.
+
+## 12. As built
+
+The approved direction is **B with A's card for the selected program**. It is built in
+`media/launcher.{css,js}` (the page), `src/launcherView.cjs` (the extension side) and
+`src/launcherState.cjs` (the contract and the rules); `wired/` holds the real page
+rendered beside these prototypes (`node scripts/render-launcher.mjs`, Dark and Light Modern).
+
+**The contract.** One `state` message down, typed messages up. The shapes are documented at
+the top of `src/launcherState.cjs`; the table in §5 above is what each message does, and the
+extension maps them like this:
+
+| Message | Becomes |
+| --- | --- |
+| `run {runtime, program, system, inputs}` | `8bitscript.runUnit`, which runs exactly that runtime (Editor, Browser or Native) and remembers it for the program |
+| `build {program}` / `boot {}` | `8bitscript.build` (the program chosen first) / `8bitscript.openBareEmulator` |
+| `select {project\|program\|system}` | the settings the old pickers wrote (`project`, `program`, `system`, `namedSystem`, `hardware`) |
+| `selectRuntime`, `input`, `inputsReset` | the unit model's workspace state (`launcher.runtime`, `launcher.inputs`), never `settings.json`; an input set back to what a plain run uses is forgotten |
+| `openSource {program}` | opens that program's entry file (it used to open `main`'s, whatever was picked) |
+| `stop {runId}` | `projects.running.stopRun`: ends exactly that run, and the same program's other runtimes live on |
+
+**Keyboard.** The program list is one tab stop. Inside it: ↑ ↓ move between rows and group
+headers, ← → move between a row's name and its three buttons, Home / End jump to the first and
+last, Enter on a name runs that program's primary runtime, Space or click selects it, Enter on
+a group header folds it. A disabled runtime button stays in the walk; using it moves focus to
+the reason in the card. Menus open with focus on their first item, ↑ ↓ Home End move, Escape
+closes and returns to the trigger.
+
+**Where it differs from the prototype, and why.**
+
+- **Real availability, not drawn availability.** The prototype showed the C64 with all three
+  runtimes. The launcher draws what the CLI's own runtime report (`8bs targets --json`) and
+  Doctor say, through the unit model's matrix, in the CLI's words ("No wasm build for x64sc
+  yet."). When WASM and the emulator are *both* unavailable the note gives each reason once and
+  offers the fix only — never a switch to a runtime that is itself unavailable.
+- **The summary line** reads the hardware and region the extension knows; it has no language
+  yet (the extension does not track a locale).
+- **Programs without a title, description, group or inputs** (an older toolchain, or a
+  config that sets none) are listed by name in one unnamed group, and a toolchain that cannot
+  list a program's inputs (the model's `definesRead`) shows no Inputs rather than an empty form.
+  Titles, groups, descriptions and inputs come from `8bs project --json`.
+- **Groups named "Test…" start folded**, as the owner chose for "Test rigs"; which groups
+  fold first is a rule in `launcherView.cjs`, not a config key yet.
+- **Disclosures, folds and the filter** are remembered by the page itself (the webview's own
+  state), not in the workspace state §7 names — they are conveniences of one view, and
+  survive the view being hidden and reopened. The last runtime and the inputs *are* in the
+  workspace state.
+- **Recent** is drawn when the extension provides history; it does not keep any yet.
+- **The view's title-bar icons** (Examples toggle, Launch Studio) are left as they were; moving
+  them into the project picker and Tools is a `package.json` change for the command pass.
+- **Studio's "open on another system" menu** is gone: Tools → Studio opens it on its default
+  system, as the design shows.

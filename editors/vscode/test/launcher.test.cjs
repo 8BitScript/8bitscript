@@ -1,354 +1,588 @@
-// The launcher page is a real .js file, not a template literal, so `\n` in
-// a string stays a two-character escape and the page actually parses. This
-// is the regression for the blank System / Hardware dropdowns: the old
-// inlined script died on the first newline inside a tooltip string.
-//
-// The rest of these hold the shape of the panel the side bar was reduced
-// to — one launch button that says what it will do, the two choices it
-// depends on, everything else folded away, and a Running section that can
-// stop what the panel started.
+// The launcher page, end to end over a real DOM: media/launcher.js runs in a
+// vm context against linkedom (test/support/launcherDom.cjs), is sent the
+// states in test/support/launcherFixtures.cjs, and is clicked and typed at the
+// way a person would. What it draws, what it lets the keyboard reach, and every
+// message it posts is asserted — not strings of HTML.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
-const vm = require('node:vm');
 
-const ROOT = path.join(__dirname, '..');
-const JS = fs.readFileSync(path.join(ROOT, 'media', 'launcher.js'), 'utf8');
-const CSS = fs.readFileSync(path.join(ROOT, 'media', 'launcher.css'), 'utf8');
-const MANIFEST = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+const { mountLauncher } = require('./support/launcherDom.cjs');
+const { vegas, single, RUNNING, HISTORY } = require('./support/launcherFixtures.cjs');
 
-test('launcher webview script is valid JavaScript', () => {
-  new vm.Script(JS, { filename: 'launcher.js' });
-  assert.ok(JS.includes("type: 'ready'"), 'the page asks for state once it can receive it');
+const mount = (state, saved) => {
+  const page = mountLauncher({ saved });
+  page.send(state);
+  return page;
+};
+const keys = (page, selector) => page.all(selector).map((el) => el.getAttribute('data-key'));
+// Text as a person reads it: icon glyphs (private-use codepoints) are not words.
+const norm = (el) => el.textContent.replace(/[\uE000-\uF8FF]/g, '').replace(/\s+/g, ' ').trim();
+const pick = (select, value) => { Array.from(select.querySelectorAll('option')).forEach((o) => { o.selected = o.getAttribute('value') === value; }); };
+
+test('the page announces itself once and draws nothing until it has a state', () => {
+  const page = mountLauncher();
+  assert.deepEqual(page.posted, [{ type: 'ready' }]);
+  assert.equal(page.app.children.length, 0);
 });
 
-test('launcher stylesheet names the panel it lays out', () => {
-  assert.match(CSS, /button\.launch\b/, 'the primary action');
-  assert.match(CSS, /button\.icon\b/, 'Open and details icons');
-  assert.match(CSS, /\.packages\b/, 'package status sits above quick launch');
-  assert.match(CSS, /\.pkg-row\b/);
-  assert.match(CSS, /\.run-row\b/, 'the Running rows');
-  assert.match(CSS, /\.run-machine\b/, 'a running machine is an expandable tree');
-  assert.match(CSS, /\.lan-qr\b/, 'a web run’s LAN QR');
-  assert.match(CSS, /--vscode-/, 'every color is the editor theme’s');
-  assert.match(CSS, /\.dev-reload\b/, 'source-checkout rebuild prompt, then reload');
-  assert.match(CSS, /\[hidden\]\s*\{\s*display:\s*none\s*!important/);
+test('a state is accepted only from the editor: its own origin or the frame that embeds the page', () => {
+  const page = mountLauncher();
+  const state = vegas();
+  const send = (from) => page.sendFrom(from, { type: 'state', state });
+  send({ origin: 'https://evil.example', source: { name: 'another window' } });
+  assert.equal(page.app.children.length, 0, 'a foreign origin from a foreign window draws nothing');
+  send({ origin: undefined, source: undefined });
+  assert.equal(page.app.children.length, 0, 'a message with no origin and no source draws nothing');
+  send({ origin: 'https://evil.example', source: page.host });
+  assert.ok(page.app.children.length > 0, 'the embedding frame is trusted whatever origin it reports');
+  const second = mountLauncher();
+  second.sendFrom({ origin: second.window.location.origin, source: { name: 'a same-origin frame' } }, { type: 'state', state });
+  assert.ok(second.app.children.length > 0, 'and so is the page\'s own origin');
 });
 
-test('the side bar updates 8BitScript and workspace programs, not each example', () => {
-  const view = fs.readFileSync(path.join(ROOT, 'src', 'launcherView.cjs'), 'utf8');
-  // The view's title already says 8BitScript; the packages block has no
-  // label of its own, and is hidden until a root needs installing.
-  assert.doesNotMatch(view, /8BitScript<\/h2>/);
-  assert.match(view, /<section class="packages" id="packages-block" hidden>/);
-  assert.match(view, /\.filter\(\(status\) => !status\.installed\)/, 'only what needs doing is a row');
-  assert.match(JS, /\$\('packages-block'\)\.hidden = rows\.length === 0/);
-  assert.match(view, />Program</);
-  assert.doesNotMatch(view, />Project</);
-  assert.doesNotMatch(view, /Projects and packages/);
-  assert.match(JS, /entry\.kind === 'toolchain'/);
-  assert.match(JS, /Install' : 'Update'/);
-  const kinds = fs.readFileSync(path.join(ROOT, 'src', 'projects.cjs'), 'utf8');
-  assert.match(kinds, /label: 'Programs'/);
-  assert.match(kinds, /label: 'Examples'/);
-  const runner = fs.readFileSync(path.join(ROOT, 'src', 'runner.cjs'), 'utf8');
-  assert.match(runner, /updateToolchain/);
-  assert.match(runner, /managedUpdateCommand/);
-  assert.doesNotMatch(runner, /setCheckout\(managedDir\)/, 'Install does not silently rewrite a consumer onto the clone');
-  const extension = fs.readFileSync(path.join(ROOT, 'src', 'extension.cjs'), 'utf8');
-  assert.match(extension, /managed: null/);
+test('loading draws a busy skeleton and nothing else', () => {
+  const page = mount({ phase: 'loading', notices: [] });
+  const skeleton = page.one('.skeleton');
+  assert.equal(skeleton.getAttribute('aria-busy'), 'true');
+  assert.equal(page.all('.prow').length, 0);
 });
 
-test('packages sit above quick launch, and the hardware matrix is not in the side bar', () => {
-  const view = fs.readFileSync(path.join(ROOT, 'src', 'launcherView.cjs'), 'utf8');
-  const body = view.slice(view.indexOf('id="packages-block"'));
-  // No more for="system": the System dropdown folded into Run's own
-  // sliver menu (id="run-menu") — see the split-button test below.
-  const order = ['id="packages-block"', 'for="project"', 'id="fitted"', 'id="run"', 'id="run-more"', 'id="run-menu"']
-    .map((mark) => body.indexOf(mark));
-  assert.deepEqual([...order].sort((a, b) => a - b), order);
-  assert.ok(order.every((i) => i > -1));
-  assert.doesNotMatch(view, /id="system"/, 'System is Run\'s own sliver menu now, not a separate dropdown');
-  assert.doesNotMatch(view, /id="profile"/);
-  assert.doesNotMatch(view, /id="options"/);
-  assert.doesNotMatch(view, /details\.more/);
+test('no project draws the empty state, and its three buttons post their messages', () => {
+  const page = mount({ phase: 'empty' });
+  assert.match(norm(page.app), /No 8BitScript project here/);
+  page.click(page.byKey('empty:open'));
+  page.click(page.byKey('empty:example'));
+  page.click(page.byKey('empty:learn'));
+  assert.deepEqual(page.posted.slice(1).map((m) => m.type), ['openFolder', 'tryExample', 'learn']);
 });
 
-test('Open Studio is the largest button on the panel, above quick launch: a split button whose sliver opens a menu of Studio\'s systems', () => {
-  const view = fs.readFileSync(path.join(ROOT, 'src', 'launcherView.cjs'), 'utf8');
-  const runner = fs.readFileSync(path.join(ROOT, 'src', 'runner.cjs'), 'utf8');
-  const body = view.slice(view.indexOf('id="packages-block"'));
-  // Packages, then Studio, then the project's own quick launch.
-  const order = ['id="packages-block"', 'id="studio"', 'for="project"', 'id="run"'].map((mark) => body.indexOf(mark));
-  assert.deepEqual([...order].sort((a, b) => a - b), order);
-  assert.ok(order.every((i) => i > -1));
-  assert.match(body, /class="launch studio" id="studio"/, 'the same launch shape as Run, marked as Studio');
-  assert.match(CSS, /\.split > button\.launch\.studio \{[^}]*padding: 8px 12px/, 'the same size as Run, in the secondary style so Run stays the one primary button');
-  assert.match(CSS, /\.split > button\.launch\.studio-more \{[\s\S]*?background: var\(--vscode-button-secondaryBackground\)/, 'no color of its own');
-  assert.match(body, /class="launch studio-more" id="studio-more"[^>]*aria-haspopup="menu"/, 'the sliver on its right edge');
-  assert.match(CSS, /\.split > button\.launch\.studio-more \{[^}]*width: 24px/, 'is a sliver');
-  assert.match(body, /<div class="menu" id="studio-menu" role="menu" hidden>/, 'and opens a menu');
-  assert.match(JS, /id: option\.command \|\| '8bitscript\.openStudio', system: option\.id/, 'whose items launch Studio on that system — or, for the first entry, in the editor\'s own tab');
-  assert.match(view, /\{ group: 'In an editor tab' \},\n\s+\{ id: 'tab', command: '8bitscript\.openStudioTab', label: 'Commander X16'/, 'the tab is the first entry, X16 only');
-  assert.ok(MANIFEST.contributes.commands.some((c) => c.command === '8bitscript.openStudioTab'), 'and on the palette');
-  assert.ok(MANIFEST.contributes.menus.commandPalette.some((m) => m.command === '8bitscript.studioTab.show' && m.when === 'false'), 'the show step is not');
-  assert.equal(MANIFEST.contributes.configuration.properties['8bitscript.studioSystem'], undefined, 'nothing to remember: a pick is a launch');
-  // The page names the command, the view allows it, and the command runs
-  // Studio on cx16 — its baseline — with no picker and no change to the
-  // panel's selection.
-  assert.match(JS, /id: '8bitscript\.openStudio'/);
-  assert.match(view, /'8bitscript\.openStudio', '8bitscript\.openStudioTab',\n\s+\]\.includes\(message\.id\)/);
-  assert.match(runner, /command\('8bitscript\.openStudio'/);
-  assert.match(runner, /p\.name === '@8bitscript\/studio'\);\n\s+if \(!studio\)/);
-  assert.match(runner, /execute\('run', \{ project: studio, target: 'cx16' \}\)/);
-  assert.match(runner, /execute\('run', \{ project: studio, target: 'cx16', web: true, x16emu: true \}\)/, 'missing x16emu falls back to the tab, not another machine');
-  assert.doesNotMatch(runner.slice(runner.indexOf("command('8bitscript.openStudio'"), runner.indexOf("command('8bitscript.launchApp'")), /showQuickPick|setProject|setSystem/);
-  assert.ok(MANIFEST.contributes.commands.some((c) => c.command === '8bitscript.openStudio'), 'and it is on the palette');
+test('a project with several programs draws the strip, the legend and the grouped list', () => {
+  const page = mount(vegas());
+  assert.equal(page.all('.strip .picker').length, 2, 'Project and System pickers');
+  assert.match(norm(page.one('.strip')), /Vegas Nights/);
+  assert.match(norm(page.one('.strip')), /C64\s*NTSC/);
+  assert.match(norm(page.one('.summary')), /Commodore 64 · 64 KB · NTSC · English/);
+  assert.deepEqual(page.all('.legend .lbl').map((el) => el.textContent), ['Editor', 'Browser', 'Native'], 'three runtimes, always in this order');
+  assert.deepEqual(page.all('.group-head').map((el) => el.getAttribute('data-group')), ['Slots', 'Labs', 'Test rigs']);
+  assert.deepEqual(page.all('.prow .name').map((el) => el.textContent), ['3×3 Slot', '5×5 Ways Slot', 'Lobby', 'Hello Reels', 'Sound Test', 'Tile Test'], 'Test rigs start folded');
+  assert.equal(page.one('[data-group="Test rigs"]').getAttribute('aria-expanded'), 'false');
+  assert.equal(page.one('[data-group="Slots"]').getAttribute('aria-expanded'), 'true');
+  assert.equal(page.all('.prow').length, 6);
 });
 
-test('Run is a split button too: the primary half runs (web by default where that already works), the sliver picks a system or forces the native emulator', () => {
-  const view = fs.readFileSync(path.join(ROOT, 'src', 'launcherView.cjs'), 'utf8');
-  const body = view.slice(view.indexOf('id="packages-block"'));
-  // The System dropdown is gone — this sliver is where picking a system
-  // lives now, the same list systemOptions() always built.
-  assert.doesNotMatch(body, /<select id="system"/);
-  assert.match(body, /<button class="launch" id="run"/, 'Run keeps its own primary style — unlike Studio, no secondary class');
-  assert.match(body, /class="launch run-more" id="run-more"[^>]*aria-haspopup="menu"/, 'the sliver on its right edge');
-  assert.match(body, /<div class="menu" id="run-menu" role="menu" hidden>/, 'and opens a menu');
-  assert.match(CSS, /\.split > button\.launch\.run-more \{[^}]*background: var\(--vscode-button-secondaryBackground\)/, 'the sliver is secondary-styled, same as Studio\'s');
-  assert.doesNotMatch(CSS, /button#run \{[^}]*background: var\(--vscode-button-secondaryBackground\)/, 'Run\'s own half is not — it stays the plain primary .launch color');
-  // The sliver: "Run in emulator" first (an explicit override of Run's
-  // own default), then the same grouped system list the old dropdown had.
-  assert.match(JS, /function renderRunMenu/);
-  assert.match(JS, /'Run in emulator'/);
-  assert.match(JS, /web: false/, 'forces the native path regardless of what Run itself would default to');
-  assert.match(JS, /type: 'set', key: 'system', value: option\.id/, 'a system pick still writes the same setting the dropdown did');
-  assert.doesNotMatch(JS, /\$\('system'\)/, 'nothing left reaching for the removed dropdown');
-  // Plain Run posts no web field at all — 8bitscript.run's own default
-  // (WEB_PREVIEW_READY, preferWebPreview) decides, exactly as it does for
-  // every other caller of that command.
-  assert.match(JS, /\$\('run'\)\.addEventListener\('click', \(\) => vscode\.postMessage\(\{ type: 'launch', action: 'run' \}\)\)/);
-  const runner = fs.readFileSync(path.join(ROOT, 'src', 'runner.cjs'), 'utf8');
-  assert.match(runner, /WEB_PREVIEW_READY/, 'the same allowlist the panel reads to show the current mode');
-  assert.match(view, /message\.web !== undefined \? \{ web: message\.web \} : \{\}/, 'the sliver\'s override reaches the command, a plain launch leaves the default alone');
+test('every row has three labelled run buttons, in the order Editor, Browser, Native', () => {
+  const page = mount(vegas({ system: 'vic20' }));
+  const row = page.all('.prow')[0];
+  const buttons = Array.from(row.querySelectorAll('[data-action="run"]'));
+  assert.deepEqual(buttons.map((b) => b.getAttribute('data-runtime')), ['editor', 'browser', 'native']);
+  assert.equal(row.querySelector('[role="group"]').getAttribute('aria-label'), 'Run 3×3 Slot in');
+  assert.match(buttons[0].getAttribute('aria-label'), /^Run 3×3 Slot on Commodore VIC-20 in editor tab/);
+  assert.match(buttons[2].getAttribute('aria-label'), /native emulator$/);
 });
 
-test('Running machines is an expandable tree, not a one-line list', () => {
-  const view = fs.readFileSync(path.join(ROOT, 'src', 'launcherView.cjs'), 'utf8');
-  assert.match(view, /Running machines/);
-  assert.match(view, /machineTree/);
-  assert.match(JS, /function renderMachineTree/);
-  assert.match(JS, /FPS /);
-  assert.match(JS, /lan-qr/, 'a web run shows a QR of the LAN URL');
-  assert.match(JS, /machine.qrSvg/);
+test('only the selected row fills its primary runtime, and it is the last one used', () => {
+  const page = mount(vegas({ system: 'vic20', remembered: { slot3x3: 'native' } }));
+  const filled = page.all('.ibtn.primary');
+  assert.equal(filled.length, 1);
+  assert.equal(filled[0].getAttribute('data-key'), 'run:slot3x3:native');
+  const fresh = mount(vegas({ system: 'vic20' }));
+  assert.equal(fresh.all('.ibtn.primary')[0].getAttribute('data-key'), 'run:slot3x3:editor', 'with nothing remembered the default is the Editor tab');
 });
 
-test('examples can be hidden, but ship visible by default', () => {
-  const runner = fs.readFileSync(path.join(ROOT, 'src', 'runner.cjs'), 'utf8');
-  assert.match(runner, /get visible\(\)/, 'what the picker offers');
-  assert.match(runner, /getShowExamples\(\)/);
-  assert.match(runner, /hasExamples\(\)/, 'and whether the toggle is worth offering');
-  const props = MANIFEST.contributes.configuration.properties['8bitscript.showExamples'];
-  assert.equal(props.default, true);
+test('clicking a run button posts that runtime for that program, the system and only the changed inputs', () => {
+  const page = mount(vegas({ system: 'vic20', program: 'slot5x5', values: { slot5x5: { SEED: 10, FORCE_BONUS: true } } }));
+  page.click(page.byKey('run:slot5x5:browser'));
+  assert.deepEqual(page.last(), { type: 'run', runtime: 'browser', program: 'slot5x5', system: 'vic20', inputs: { SEED: 10, FORCE_BONUS: true } });
+  page.click(page.byKey('run:slot3x3:native'));
+  assert.deepEqual(page.last(), { type: 'run', runtime: 'native', program: 'slot3x3', system: 'vic20', inputs: {} }, 'another program carries none of those');
 });
 
-test('a native cx16 run from the launcher includes capture and fullscreen flags by default', () => {
-  const runner = fs.readFileSync(path.join(ROOT, 'src', 'runner.cjs'), 'utf8');
-  assert.match(runner, /cx16NativeWindowCliArgs/);
-  const view = fs.readFileSync(path.join(ROOT, 'src', 'launcherView.cjs'), 'utf8');
-  assert.match(view, /system === 'cx16' \? settings\.cx16NativeWindowCliArgs\(/);
-  const props = MANIFEST.contributes.configuration.properties;
-  assert.equal(props['8bitscript.cx16.captureMouse'].default, true);
-  assert.equal(props['8bitscript.cx16.fullscreen'].default, false);
+test('Native does not need Editor: it posts on its own, and the others are separate messages', () => {
+  const page = mount(vegas({ system: 'cx16' }));
+  page.click(page.byKey('run:slot3x3:native'));
+  page.click(page.byKey('run:slot3x3:editor'));
+  page.click(page.byKey('run:slot3x3:browser'));
+  assert.deepEqual(page.messages('run').map((m) => m.runtime), ['native', 'editor', 'browser']);
 });
 
-test('a web run from the launcher listens on the LAN by default', () => {
-  const runner = fs.readFileSync(path.join(ROOT, 'src', 'runner.cjs'), 'utf8');
-  assert.match(runner, /getWebLan\(\)/);
-  // The flags a runtime adds are one function now (units.runtimeArgs), which
-  // the runner calls with the LAN setting.
-  const units = fs.readFileSync(path.join(ROOT, 'src', 'units.cjs'), 'utf8');
-  assert.match(units, /\['--port', '0', \.\.\.local\]/, 'an ephemeral port so two web runs can coexist');
-  assert.match(units, /const local = webLan \? \[\] : \['--local'\]/);
-  const settings = fs.readFileSync(path.join(ROOT, 'src', 'settings.cjs'), 'utf8');
-  assert.match(settings, /function getWebLan/);
-  const view = fs.readFileSync(path.join(ROOT, 'src', 'launcherView.cjs'), 'utf8');
-  assert.match(view, /--port', '0'/);
-  assert.match(view, /--local/);
-  const props = MANIFEST.contributes.configuration.properties['8bitscript.webLan'];
-  assert.equal(props.default, true);
-  assert.equal(props.type, 'boolean');
+test('a runtime that cannot work stays focusable, says why, and does not run', () => {
+  const page = mount(vegas({ system: 'c64' }));
+  const editor = page.byKey('run:slot3x3:editor');
+  assert.equal(editor.getAttribute('aria-disabled'), 'true');
+  assert.equal(editor.hasAttribute('disabled'), false, 'aria-disabled, never disabled, so a keyboard can reach it');
+  assert.match(editor.getAttribute('aria-label'), /unavailable/);
+  assert.match(editor.getAttribute('title'), /No wasm build for c64 yet/);
+  page.click(editor);
+  assert.equal(page.messages('run').length, 0, 'clicking it runs nothing');
+  assert.equal(page.active().getAttribute('data-key'), 'reason:slot3x3', 'it moves focus to the reason instead');
+  assert.match(norm(page.active()), /Editor and Browser are unavailable/);
 });
 
-test('Install/Refresh runs an absolute package manager, not a bare `pnpm` the task shell cannot see', () => {
-  const runner = fs.readFileSync(path.join(ROOT, 'src', 'runner.cjs'), 'utf8');
-  assert.match(runner, /resolvePackageManager\(manager\)/);
-  assert.match(runner, /packageManagerPath\(\)/);
-  assert.match(runner, /path\.isAbsolute\(bin\)/, 'refuse to spawn a name that would 127');
-  assert.match(runner, /env: \{ PATH: pathEnv \}/);
-  assert.match(runner, /Run 8BitScript: Doctor to install it/);
-  assert.match(runner, /'Run Doctor'/);
+test('using a disabled button on another row selects that row and focuses its reason', () => {
+  const page = mount(vegas({ system: 'c64', program: 'slot3x3' }));
+  page.click(page.byKey('run:slot5x5:editor'));
+  assert.deepEqual(page.messages('select').at(-1), { type: 'select', program: 'slot5x5' });
+  assert.equal(page.active().getAttribute('data-key'), 'reason:slot5x5');
+  assert.equal(page.one('.prow.sel .name').textContent, '5×5 Ways Slot');
 });
 
-test('the panel launches, picks, and stops', () => {
-  assert.match(JS, /type: 'launch', action: 'run'/);
-  assert.match(JS, /type: 'launch', action: 'build'/);
-  assert.match(JS, /key: 'project'/, 'the project is a dropdown, not a tree');
-  assert.match(JS, /type: 'stop', dir: entry\.dir/, 'a Running row can end its own task');
-  assert.match(JS, /run-machine/, 'a run is an expandable machine, not a one-line row');
-  assert.match(JS, /entry\.machine/, 'size, hardware, and live data ride on the row');
+test('the Web system disables Native with the right reason and offers Editor instead', () => {
+  const page = mount(vegas({ system: 'web' }));
+  assert.equal(page.byKey('run:slot3x3:native').getAttribute('aria-disabled'), 'true');
+  const reason = page.byKey('reason:slot3x3');
+  assert.match(norm(reason), /Native is unavailable\. The browser has no native emulator; it runs in the browser\./);
+  assert.equal(page.byKey('use:editor'), null, 'Editor is already the primary, so there is nothing to switch to');
 });
 
-test('the primary button says what it will do', () => {
-  assert.match(JS, /run-title.*'Run ' \+ data\.projectLabel/s);
-  assert.match(JS, /run-sub/, 'and on what, fitted how');
+test('a missing emulator is a fixable, amber note with an install button and Doctor', () => {
+  const page = mount(vegas({ system: 'vic20', missing: ['xvic'], remembered: { slot3x3: 'native' } }));
+  const reason = page.byKey('reason:slot3x3');
+  assert.match(reason.className, /warn/);
+  assert.match(norm(reason), /xvic is not installed/);
+  assert.match(norm(page.app), /Native is unavailable here, so Editor is the default/, 'and the primary moved, saying so');
+  page.click(page.byKey('fix:emulator'));
+  page.click(page.byKey('fix:doctor'));
+  assert.deepEqual(page.posted.slice(-2), [{ type: 'fix', kind: 'emulator' }, { type: 'doctor' }]);
 });
 
-test('every panel draws in the editor\'s own theme: no color of its own outside the QR code', () => {
-  // Light, dark and high-contrast come from VS Code's --vscode-* variables;
-  // a literal color would be right in one theme and wrong in the others.
-  // The one exception is the LAN QR code, which a phone's camera has to
-  // read: black on white whatever the theme.
-  const media = path.join(ROOT, 'media');
-  for (const file of fs.readdirSync(media).filter((name) => name.endsWith('.css'))) {
-    const source = fs.readFileSync(path.join(media, file), 'utf8');
-    const literal = [...source.matchAll(/#[0-9a-fA-F]{3,8}\b|rgba?\(|\bhsla?\(/g)].map((m) => m.index);
-    const allowed = literal.filter((at) => source.slice(Math.max(0, at - 120), at).includes('.lan-qr'));
-    assert.deepEqual(literal, allowed, `${file} names a color the theme does not`);
-  }
-  const qr = fs.readFileSync(path.join(ROOT, 'src', 'qr.cjs'), 'utf8');
-  assert.match(qr, /fill="#fff"/, 'the QR is drawn black on white by design');
-});
-
-test('the side bar is one view, and it says 8BitScript', () => {
-  const views = MANIFEST.contributes.views['8bitscript'];
-  assert.equal(views.length, 1, 'one launcher, no second pane');
-  assert.equal(views[0].id, '8bitscript.launcher');
-  assert.equal(views[0].name, '8BitScript');
-  assert.equal(views[0].type, 'webview');
-  assert.equal(MANIFEST.contributes.viewsContainers.activitybar[0].title, '8BitScript');
-});
-
-test('the title bar carries the view\u2019s actions, examples first and only where there are any', () => {
-  const title = MANIFEST.contributes.menus['view/title'];
-  const navigation = title.filter((item) => item.group?.startsWith('navigation')).map((item) => item.command);
-  assert.deepEqual(navigation, [
-    '8bitscript.toggleExamples',
-    '8bitscript.launchStudio',
-    '8bitscript.doctor',
-    '8bitscript.refresh',
+test('when WASM and the emulator are both unavailable the note says each reason once and offers the fix, not a switch to the broken one', () => {
+  const page = mount(vegas({ system: 'c64', missing: ['x64sc'] }));
+  const reason = page.byKey('reason:slot3x3');
+  const lines = Array.from(reason.querySelectorAll('.why-line')).map(norm);
+  assert.deepEqual(lines, [
+    'Editor and Browser are unavailable. No wasm build for c64 yet.',
+    'Native is unavailable. x64sc is not installed.',
   ]);
-  // The toggle is pointless where the toolchain brought no examples along.
-  assert.equal(
-    title.find((item) => item.command === '8bitscript.toggleExamples').when,
-    'view == 8bitscript.launcher && 8bitscript.hasExamples',
-  );
-  for (const item of title) assert.match(item.when, /^view == 8bitscript\.launcher/);
+  assert.ok(page.byKey('fix:emulator'), 'the install is offered');
+  assert.equal(page.byKey('use:native'), null, 'and so is no switch to the runtime that is itself unavailable');
+  assert.equal(page.byKey('use:editor'), null);
 });
 
-test('Reload this window is hidden until a local rebuild the user triggered has finished', () => {
-  const view = fs.readFileSync(path.join(ROOT, 'src', 'launcherView.cjs'), 'utf8');
-  const reload = fs.readFileSync(path.join(ROOT, 'src', 'devReload.cjs'), 'utf8');
-  assert.match(view, /id="dev-reload" hidden/);
-  assert.match(view, /id="rebuild-extension" hidden/);
-  assert.match(view, /id="reload-window" hidden/);
-  assert.match(JS, /type: 'rebuildExtension'/);
-  assert.match(JS, /type: 'reloadWindow'/);
-  assert.match(JS, /The local 8BitScript extension has changed/);
-  assert.match(JS, /Rebuilding the local extension/);
-  assert.match(JS, /The local 8BitScript extension was rebuilt successfully/);
-  assert.match(JS, /phase !== 'ready'/);
-  assert.match(reload, /createDevReloadState/);
-  assert.doesNotMatch(reload, /createReloadQueue/);
-  const rebuild = MANIFEST.contributes.commands.find((c) => c.command === '8bitscript.rebuildExtension');
-  assert.ok(rebuild, 'the palette command exists');
-  const rebuildPalette = MANIFEST.contributes.menus.commandPalette.find((m) => m.command === '8bitscript.rebuildExtension');
-  assert.equal(rebuildPalette.when, '8bitscript.localRebuildNeeded');
-  const command = MANIFEST.contributes.commands.find((c) => c.command === '8bitscript.reloadWindow');
-  assert.ok(command, 'the palette command exists');
-  const palette = MANIFEST.contributes.menus.commandPalette.find((m) => m.command === '8bitscript.reloadWindow');
-  assert.equal(palette.when, '8bitscript.localReloadPending');
+test('a program that does not target the system is dimmed and explained', () => {
+  const page = mount(vegas({ system: 'web', program: 'tile-test' }));
+  assert.ok(page.one('.name.dim'), 'the row is dimmed');
+  assert.equal(page.byKey('run:tile-test:editor').getAttribute('aria-disabled'), 'true');
+  assert.match(norm(page.byKey('reason:tile-test')), /Not on this system\. Tile Test doesn't target Web\./);
 });
 
-test('every contributed menu names a command that exists', () => {
-  const declared = new Set(MANIFEST.contributes.commands.map((c) => c.command));
-  for (const items of Object.values(MANIFEST.contributes.menus)) {
-    for (const item of items) assert.ok(declared.has(item.command), `${item.command} is not declared`);
+test('selecting a row posts select, opens its drawer, and keeps focus on the row', () => {
+  const page = mount(vegas());
+  page.click(page.byKey('row:slot5x5'));
+  assert.deepEqual(page.messages('select').at(-1), { type: 'select', program: 'slot5x5' });
+  assert.equal(page.all('.drawer').length, 1);
+  assert.equal(page.one('.drawer').getAttribute('aria-label'), '5×5 Ways Slot details');
+  assert.equal(page.active().getAttribute('data-key'), 'row:slot5x5');
+  assert.equal(page.byKey('row:slot5x5').getAttribute('aria-expanded'), 'true');
+  assert.equal(page.byKey('row:slot5x5').getAttribute('aria-current'), 'true');
+});
+
+test('the drawer names the source file, and clicking it opens THAT program\'s entry', () => {
+  const page = mount(vegas({ program: 'slot5x5' }));
+  const source = page.byKey('source:slot5x5');
+  assert.equal(norm(source), 'src/labs/slot5x5/main.8bs');
+  assert.match(source.getAttribute('aria-label'), /Open source file src\/labs\/slot5x5\/main\.8bs/);
+  page.click(source);
+  assert.deepEqual(page.last(), { type: 'openSource', program: 'slot5x5' });
+});
+
+test('Build says what it produces, and posts the selected program', () => {
+  const page = mount(vegas({ program: 'slot5x5' }));
+  const build = page.byKey('build:slot5x5');
+  assert.match(build.getAttribute('title'), /Compile slot5x5 to dist\/slot5x5\.prg and show the size report\. Nothing runs\./);
+  page.click(build);
+  assert.deepEqual(page.last(), { type: 'build', program: 'slot5x5', system: 'c64' });
+});
+
+test('Inputs: a count, a form per kind, and what changed', () => {
+  const page = mount(vegas({ program: 'slot5x5', values: { slot5x5: { SEED: 10 } } }), { open: { 'inputs:slot5x5': true } });
+  assert.match(norm(page.byKey('dis:inputs:slot5x5')), /^Inputs41 changed$/);
+  assert.equal(page.one('input[data-kind="number"]').getAttribute('type'), 'number');
+  assert.equal(page.one('input[data-kind="bool"]').getAttribute('type'), 'checkbox');
+  assert.equal(page.one('select[data-kind="select"]').getAttribute('data-input'), 'THEME');
+  assert.equal(page.all('.chg').length, 1, 'only SEED differs from its default');
+  assert.ok(page.byKey('reset:slot5x5'), 'and there is a way back');
+});
+
+test('Inputs stay hidden until opened, and the disclosure remembers it', () => {
+  const page = mount(vegas({ program: 'slot5x5' }));
+  assert.equal(page.all('input[data-input]').length, 0);
+  assert.equal(page.byKey('dis:inputs:slot5x5').getAttribute('aria-expanded'), 'false');
+  page.focus(page.byKey('dis:inputs:slot5x5'));
+  page.click(page.byKey('dis:inputs:slot5x5'));
+  assert.equal(page.all('input[data-input], select[data-input]').length, 4);
+  assert.equal(page.state().open['inputs:slot5x5'], true, 'persisted for the next time the view opens');
+  assert.equal(page.active().getAttribute('data-key'), 'dis:inputs:slot5x5', 'focus stays on the disclosure');
+});
+
+test('editing an input posts it, draws it as changed, and the next run carries it', () => {
+  const page = mount(vegas({ program: 'slot5x5' }), { open: { 'inputs:slot5x5': true } });
+  const seed = page.one('input[data-input="SEED"]');
+  seed.value = '42';
+  page.change(seed);
+  assert.deepEqual(page.messages('input').at(-1), { type: 'input', program: 'slot5x5', name: 'SEED', value: 42 }, 'a number, not text');
+  assert.equal(page.all('.chg').length, 1);
+  const bonus = page.one('input[data-input="FORCE_BONUS"]');
+  bonus.checked = true;
+  page.change(bonus);
+  assert.deepEqual(page.messages('input').at(-1), { type: 'input', program: 'slot5x5', name: 'FORCE_BONUS', value: true });
+  const theme = page.one('select[data-input="THEME"]');
+  pick(theme, 'cosmic');
+  page.change(theme);
+  assert.deepEqual(page.messages('input').at(-1), { type: 'input', program: 'slot5x5', name: 'THEME', value: 'cosmic' });
+  page.click(page.byKey('run:slot5x5:native'));
+  assert.deepEqual(page.last().inputs, { SEED: 42, FORCE_BONUS: true, THEME: 'cosmic' });
+});
+
+test('a number input cleared to nothing falls back to its default instead of posting NaN', () => {
+  const page = mount(vegas({ program: 'slot5x5' }), { open: { 'inputs:slot5x5': true } });
+  const seed = page.one('input[data-input="SEED"]');
+  seed.value = '';
+  page.change(seed);
+  assert.equal(page.messages('input').at(-1).value, 7);
+});
+
+test('Reset to defaults posts and clears every changed mark', () => {
+  const page = mount(vegas({ program: 'slot5x5', values: { slot5x5: { SEED: 10, START_CREDITS: 5000 } } }), { open: { 'inputs:slot5x5': true } });
+  assert.equal(page.all('.chg').length, 2);
+  page.click(page.byKey('reset:slot5x5'));
+  assert.deepEqual(page.last(), { type: 'inputsReset', program: 'slot5x5' });
+  assert.equal(page.all('.chg').length, 0);
+  assert.equal(page.byKey('reset:slot5x5'), null);
+});
+
+test('Command shows the exact line, wraps between flags, and copies it', () => {
+  const page = mount(vegas({ program: 'slot5x5', values: { slot5x5: { SEED: 10 } }, system: 'c64' }), { open: { 'command:slot5x5': true } });
+  assert.equal(norm(page.one('.code .cmd')), '8bs run c64 --program slot5x5 --define SEED=10 --size');
+  assert.ok(page.all('.code .nb').length >= 4, 'every flag is its own unbreakable chunk');
+  page.click(page.byKey('copy:slot5x5'));
+  assert.deepEqual(page.last(), { type: 'copy', text: '8bs run c64 --program slot5x5 --define SEED=10 --size' });
+});
+
+test('the ⋯ menu offers a bare emulator, copying the command and revealing the file, and closes on Escape', () => {
+  const page = mount(vegas());
+  page.click(page.byKey('more:slot3x3'));
+  assert.equal(page.byKey('more:slot3x3').getAttribute('aria-expanded'), 'true');
+  const items = page.all('[data-menu="more"] [role="menuitem"]');
+  assert.deepEqual(items.map(norm), ['Open bare emulator', 'Copy command', 'Reveal in Explorer']);
+  assert.equal(page.active(), items[0], 'focus moves into the menu');
+  page.key(items[0], 'ArrowDown');
+  assert.equal(page.active(), items[1]);
+  page.key(items[1], 'End');
+  assert.equal(page.active(), items[2]);
+  page.key(items[2], 'Home');
+  assert.equal(page.active(), items[0]);
+  const esc = page.key(items[0], 'Escape');
+  assert.equal(esc.defaultPrevented, true);
+  assert.equal(page.one('[data-menu="more"]'), null, 'closed');
+  assert.equal(page.active().getAttribute('data-key'), 'more:slot3x3', 'and focus returns to the trigger');
+});
+
+test('each ⋯ item posts its own message', () => {
+  const page = mount(vegas());
+  page.click(page.byKey('more:slot3x3'));
+  page.click(page.byKey('more:boot'));
+  assert.deepEqual(page.last(), { type: 'boot', system: 'c64' });
+  page.click(page.byKey('more:slot3x3'));
+  page.click(page.byKey('more:copy'));
+  assert.deepEqual(page.last(), { type: 'copy', text: '8bs run c64 --program slot3x3 --size' });
+  page.click(page.byKey('more:slot3x3'));
+  page.click(page.byKey('more:reveal'));
+  assert.deepEqual(page.last(), { type: 'reveal', program: 'slot3x3' });
+});
+
+test('Open bare emulator is unavailable for the Web, which has no emulator', () => {
+  const page = mount(vegas({ system: 'web' }));
+  page.click(page.byKey('more:slot3x3'));
+  assert.equal(page.byKey('more:boot').getAttribute('aria-disabled'), 'true');
+});
+
+test('the System menu lists machines, disables ones the program does not target, and selects', () => {
+  const state = vegas({ program: 'tile-test' });
+  const page = mount(state);
+  page.click(page.one('[data-action="menu-system"]'));
+  const menu = page.one('[data-menu="system"]');
+  const items = Array.from(menu.querySelectorAll('[role="menuitemradio"]'));
+  assert.deepEqual(items.map((el) => el.getAttribute('data-system')), ['pet', 'vic20', 'c64', 'cx16', 'web']);
+  assert.equal(items.find((el) => el.getAttribute('data-system') === 'c64').getAttribute('aria-checked'), 'true');
+  const web = items.find((el) => el.getAttribute('data-system') === 'web');
+  assert.equal(web.getAttribute('aria-disabled'), 'true');
+  assert.match(web.getAttribute('title'), /doesn't target Web/);
+  page.click(web);
+  assert.equal(page.messages('select').filter((m) => m.system).length, 0, 'a disabled system cannot be picked');
+  page.click(items[0]);
+  assert.deepEqual(page.messages('select').at(-1), { type: 'select', system: 'pet' });
+  assert.equal(page.one('[data-menu="system"]'), null, 'a pick closes the menu');
+  assert.equal(page.active().getAttribute('data-key'), 'picker:System');
+});
+
+test('the System menu has the two actions the old Options had', () => {
+  const page = mount(vegas());
+  page.click(page.one('[data-action="menu-system"]'));
+  page.click(page.byKey('sm:configure'));
+  assert.equal(page.last().type, 'configureSystem');
+  page.click(page.one('[data-action="menu-system"]'));
+  page.click(page.byKey('sm:save'));
+  assert.equal(page.last().type, 'saveSystem');
+  page.click(page.byKey('summary:options'));
+  assert.equal(page.last().type, 'configureSystem', 'and the gear beside the summary does the same');
+});
+
+test('a click anywhere else closes an open menu', () => {
+  const page = mount(vegas());
+  page.click(page.one('[data-action="menu-system"]'));
+  assert.ok(page.one('[data-menu="system"]'));
+  page.document.dispatchEvent(new page.window.Event('click', { bubbles: true }));
+  assert.equal(page.one('[data-menu="system"]'), null);
+});
+
+test('the Project menu groups projects and posts the pick', () => {
+  const page = mount(vegas());
+  page.click(page.one('[data-action="menu-project"]'));
+  const items = page.all('[data-menu="project"] [role="menuitemradio"]');
+  assert.deepEqual(items.map(norm), ['Vegas Nights', '2048']);
+  assert.equal(items[0].getAttribute('aria-checked'), 'true');
+  page.click(items[1]);
+  assert.deepEqual(page.last(), { type: 'select', project: '/2048' });
+});
+
+test('folding a group persists, and a fold survives the next state', () => {
+  const page = mount(vegas());
+  page.click(page.one('[data-group="Labs"]'));
+  assert.deepEqual(page.all('.prow .name').map((el) => el.textContent), ['3×3 Slot', '5×5 Ways Slot', 'Lobby'], 'Labs folded');
+  assert.equal(page.state().collapsed.Labs, true);
+  page.click(page.one('[data-group="Test rigs"]'));
+  assert.equal(page.all('.prow .name').length, 3 + 4, 'Test rigs opened');
+  page.send(vegas());
+  assert.equal(page.one('[data-group="Labs"]').getAttribute('aria-expanded'), 'false', 'a new state does not unfold it');
+});
+
+test('a saved fold is restored when the view reopens', () => {
+  const page = mount(vegas(), { collapsed: { Slots: true } });
+  assert.equal(page.all('.prow .name').filter((el) => el.textContent === '3×3 Slot').length, 0);
+});
+
+test('the filter appears for a long list, narrows it across folds, and says when nothing matches', () => {
+  const page = mount(vegas());
+  const filter = page.byKey('filter');
+  assert.ok(filter, 'more than seven programs');
+  page.focus(filter);
+  page.type(filter, 'ruler');
+  assert.deepEqual(page.all('.prow .name').map((el) => el.textContent), ['slot3x3-ruler', 'slot5x5-retrigger-jackpot-seeded-ruler'], 'matches are shown even inside a folded group');
+  assert.equal(page.active().getAttribute('data-key'), 'filter', 'typing keeps focus in the field');
+  page.type(page.byKey('filter'), 'zzz');
+  assert.match(norm(page.one('.none')), /No programs match “zzz”\./);
+  page.type(page.byKey('filter'), '');
+  assert.equal(page.all('.prow').length, 6);
+  assert.equal(mount(single()).byKey('filter'), null, 'no filter for a single program');
+});
+
+test('a short list has no filter', () => {
+  const four = vegas({ programs: require('./support/launcherFixtures.cjs').PROGRAMS.slice(0, 4), program: 'slot3x3' });
+  assert.equal(mount(four).byKey('filter'), null);
+});
+
+test('the program list is one tab stop and the arrow keys move inside it', () => {
+  const page = mount(vegas());
+  const stops = page.all('[data-nav-row][tabindex="0"]');
+  assert.equal(stops.length, 1);
+  assert.equal(stops[0].getAttribute('data-key'), 'row:slot3x3');
+  assert.ok(page.all('[data-nav-row]').filter((el) => el !== stops[0]).every((el) => el.getAttribute('tabindex') === '-1'));
+  const name = page.byKey('row:slot3x3');
+  page.focus(name);
+  page.key(name, 'ArrowRight');
+  assert.equal(page.active().getAttribute('data-key'), 'run:slot3x3:editor');
+  page.key(page.active(), 'ArrowRight');
+  assert.equal(page.active().getAttribute('data-key'), 'run:slot3x3:browser');
+  page.key(page.active(), 'ArrowDown');
+  assert.equal(page.active().getAttribute('data-key'), 'run:slot5x5:browser', 'same column on the next row');
+  page.key(page.active(), 'ArrowLeft');
+  page.key(page.active(), 'ArrowLeft');
+  assert.equal(page.active().getAttribute('data-key'), 'row:slot5x5');
+  page.key(page.active(), 'ArrowUp');
+  assert.equal(page.active().getAttribute('data-key'), 'row:slot3x3');
+  page.key(page.active(), 'ArrowUp');
+  assert.equal(page.active().getAttribute('data-key'), 'group:Slots', 'headers are part of the walk');
+  assert.equal(page.all('[data-nav-row][tabindex="0"]')[0].getAttribute('data-key'), 'group:Slots', 'and the one tab stop follows focus');
+  page.key(page.active(), 'End');
+  assert.equal(page.active().getAttribute('data-key'), 'group:Test rigs');
+  page.key(page.active(), 'Home');
+  assert.equal(page.active().getAttribute('data-key'), 'group:Slots');
+});
+
+test('Enter on a program runs its primary runtime; Enter on a header folds it', () => {
+  const page = mount(vegas({ system: 'vic20', remembered: { slot3x3: 'native' } }));
+  const name = page.byKey('row:slot3x3');
+  const event = page.key(name, 'Enter');
+  assert.equal(event.defaultPrevented, true);
+  assert.deepEqual(page.last(), { type: 'run', runtime: 'native', program: 'slot3x3', system: 'vic20', inputs: {} });
+  page.click(page.one('[data-group="Labs"]'));
+  assert.equal(page.one('[data-group="Labs"]').getAttribute('aria-expanded'), 'false');
+});
+
+test('Enter on a program with nowhere to run does nothing but select', () => {
+  const page = mount(vegas({ system: 'web', program: 'tile-test' }));
+  const before = page.posted.length;
+  const event = page.key(page.byKey('row:tile-test'), 'Enter');
+  assert.equal(event.defaultPrevented, false);
+  assert.equal(page.posted.length, before);
+});
+
+test('the hint under the big buttons follows hover and focus', () => {
+  const page = mount(single({ system: 'c64' }));
+  assert.match(norm(page.one('#hint')), /Runs the real x64sc emulator with 2048 loaded\./);
+  const editor = page.byKey('big:main:editor');
+  page.focus(editor);
+  assert.equal(norm(page.one('#hint')), 'Runs the WASM build in a tab inside the editor.');
+  const over = new page.window.Event('pointerover', { bubbles: true });
+  page.byKey('big:main:browser').dispatchEvent(over);
+  assert.equal(norm(page.one('#hint')), 'Runs the WASM build in your web browser.');
+});
+
+test('a project with one program has no picker or list: the header, the system and big run buttons', () => {
+  const page = mount(single({ system: 'vic20' }));
+  assert.equal(page.all('.prow').length, 0);
+  assert.equal(page.all('.strip .picker').length, 1, 'just System');
+  assert.match(norm(page.one('.project')), /2048/);
+  const big = page.all('.runs .run');
+  assert.deepEqual(big.map((b) => b.getAttribute('data-runtime')), ['editor', 'browser', 'native']);
+  assert.equal(big.filter((b) => b.className.includes('primary')).length, 1);
+  assert.equal(page.one('.runs').getAttribute('aria-label'), 'Run in');
+  page.click(big[2]);
+  assert.deepEqual(page.last(), { type: 'run', runtime: 'native', program: 'main', system: 'vic20', inputs: {} });
+  page.click(page.byKey('project:details'));
+  assert.equal(page.last().type, 'details');
+});
+
+test('Running: one card per run with its own Stop, Show tab and Open in browser', () => {
+  const page = mount(vegas({ program: 'slot5x5', running: RUNNING, history: HISTORY, live: { slot5x5: ['editor', 'native'] } }));
+  assert.equal(page.all('.run-item').length, 2);
+  assert.match(norm(page.one('.sec + .items, .items')), /5×5 Ways Slot/);
+  assert.match(norm(page.all('.run-item')[0]), /C64Native50 fps/);
+  assert.match(norm(page.all('.run-item')[1]), /C64Editor60 fps/);
+  assert.equal(page.byKey('show:r1'), null, 'a native run has no tab to show');
+  page.click(page.byKey('show:r2'));
+  page.click(page.byKey('ob:r2'));
+  page.click(page.byKey('stop:r1'));
+  page.click(page.byKey('stop:r2'));
+  assert.deepEqual(page.posted.slice(-4), [
+    { type: 'focus', runId: 'r2' }, { type: 'openInBrowser', runId: 'r2' }, { type: 'stop', runId: 'r1' }, { type: 'stop', runId: 'r2' },
+  ]);
+  assert.ok(page.all('.prow .st.live').length === 1, 'and the program row shows a live dot');
+});
+
+test('a run\'s Command and Details open independently and show what was kept', () => {
+  const page = mount(vegas({ program: 'slot5x5', running: RUNNING, live: { slot5x5: ['native'] } }));
+  page.click(page.byKey('rcb:r1'));
+  assert.equal(norm(page.one('.rc .cmd')), '8bs run c64 --program slot5x5 --size');
+  page.click(page.byKey('dis:rm:r1'));
+  const facts = norm(page.one('.facts'));
+  assert.match(facts, /Hardwarestock machine/);
+  assert.match(facts, /Imagedist\/slot5x5\.prg/);
+  assert.match(facts, /Memory105 bytes RAM/);
+  assert.match(norm(page.one('.sizes')), /program10899 B · 100\.0%reel tables2840 B · 26\.1%/);
+});
+
+test('a run can carry a QR code for the network address, drawn from the host\'s SVG', () => {
+  const run = { ...RUNNING[1], qrSvg: '<svg viewBox="0 0 1 1"><rect width="1" height="1"/></svg>' };
+  const page = mount(vegas({ running: [run] }), { open: { 'rm:r2': true } });
+  const qr = page.one('.qr');
+  assert.equal(qr.getAttribute('role'), 'img');
+  assert.match(qr.getAttribute('aria-label'), /QR code/);
+  assert.ok(qr.querySelector('svg'));
+});
+
+test('Recent lists past runs with a failure in words and a way to run it again', () => {
+  const page = mount(vegas({ running: RUNNING, history: HISTORY }));
+  const rows = page.all('.hist-row');
+  assert.equal(rows.length, 2);
+  assert.match(norm(rows[1]), /Tile TestVIC-20 · NativeBuild failed · 2 errors · 13:48/);
+  page.click(page.byKey('again:h2'));
+  assert.deepEqual(page.last(), { type: 'rerun', historyId: 'h2' });
+});
+
+test('Tools: Studio, Doctor and Project details each post their own message', () => {
+  const page = mount(vegas());
+  page.click(page.byKey('tool:studio'));
+  page.click(page.byKey('tool:doctor'));
+  page.click(page.byKey('tool:details'));
+  assert.deepEqual(page.posted.slice(-3).map((m) => m.type), ['studio', 'doctor', 'details']);
+});
+
+test('notices render by kind with their actions, and an action posts its own message', () => {
+  const page = mount(vegas({ notices: [
+    { id: 'pkg', kind: 'warn', icon: 'package', title: 'Packages need installing.', text: 'Vegas Nights is missing node_modules.', actions: [{ label: 'Install packages', icon: 'package', msg: { type: 'fix', kind: 'packages', dir: '/v' } }] },
+    { id: 'dev', kind: 'error', text: 'It did not build.', actions: [{ label: 'Rebuild', msg: { type: 'rebuildExtension' } }] },
+    { id: 'i', kind: 'info', text: 'FYI', actions: [] },
+  ] }));
+  const notices = page.all('.notice');
+  assert.deepEqual(notices.map((n) => n.className.replace('notice ', '')), ['warn', 'error', 'info']);
+  assert.equal(notices[1].getAttribute('role'), 'alert');
+  assert.equal(notices[0].getAttribute('role'), 'status');
+  page.click(page.byKey('notice:pkg:0'));
+  page.click(page.byKey('notice:dev:0'));
+  assert.deepEqual(page.posted.slice(-2), [{ type: 'fix', kind: 'packages', dir: '/v' }, { type: 'rebuildExtension' }]);
+});
+
+test('"Use Native instead" changes what the primary button means', () => {
+  const page = mount(vegas({ system: 'web', program: 'slot3x3' }));
+  // On the Web, Editor is the default; on a machine where it cannot run the
+  // note offers the other runtime.
+  const wasm = mount(vegas({ system: 'c64', program: 'tile-test' }));
+  assert.equal(wasm.byKey('use:native'), null, 'Native is already the primary there');
+  const forced = mount((() => { const s = vegas({ system: 'vic20', program: 'tile-test' }); s.programs.find((p) => p.id === 'tile-test').primary = 'editor'; return s; })());
+  const use = forced.byKey('use:native');
+  assert.ok(use, 'a reason that points elsewhere offers the switch');
+  forced.click(use);
+  assert.deepEqual(forced.messages('selectRuntime').at(-1), { type: 'selectRuntime', program: 'tile-test', runtime: 'native' });
+  assert.ok(page.all('.prow.sel').length === 1);
+});
+
+test('every control that posts is a real button, and nothing is clickable but buttons and inputs', () => {
+  const page = mount(vegas({ program: 'slot5x5', running: RUNNING, history: HISTORY }), { open: { 'inputs:slot5x5': true, 'command:slot5x5': true } });
+  for (const el of page.all('[data-action]')) {
+    assert.equal(el.tagName, 'BUTTON', `${el.getAttribute('data-action')} should be a button`);
   }
 });
 
-test('the tree view and the settings only it needed are gone', () => {
-  const text = JSON.stringify(MANIFEST);
-  for (const gone of ['8bitscript.projects', 'projectsView', 'viewMode']) {
-    assert.ok(!text.includes(gone), `${gone} outlived the tree`);
+test('every icon-only button has an accessible name', () => {
+  const page = mount(vegas({ program: 'slot5x5', running: RUNNING, history: HISTORY }));
+  for (const el of page.all('.ibtn')) {
+    assert.ok(el.getAttribute('aria-label') || norm(el), `${el.getAttribute('data-key')} has no name`);
   }
-  assert.ok(!('viewsWelcome' in MANIFEST.contributes), 'the empty state is the panel’s own');
-  assert.ok(!fs.existsSync(path.join(ROOT, 'src', 'projectsView.cjs')));
-  assert.ok(!fs.existsSync(path.join(ROOT, 'media', 'controls.js')));
 });
 
-test('an empty named system selects the machine id, not a blank the dropdown would turn into pet', () => {
-  const { installVscodeMock } = require('./support/vscodeMock.cjs');
-  installVscodeMock();
-  const { selectedSystemId } = require('../src/launcherView.cjs');
-  assert.equal(selectedSystemId(null, '', 'c64'), 'c64');
-  assert.equal(selectedSystemId(undefined, '', 'vic20'), 'vic20');
-  assert.equal(selectedSystemId({ name: 'PET 3032' }, 'PET 3032', 'pet'), 'PET 3032');
-  assert.equal(selectedSystemId(null, 'Commodore 64', 'c64'), 'Commodore 64');
+test('icons are decoration: hidden from assistive technology', () => {
+  const page = mount(vegas());
+  for (const icon of page.all('i.codicon')) assert.equal(icon.getAttribute('aria-hidden'), 'true');
 });
 
-test('named systems are grouped by origin above the machines', () => {
-  const view = fs.readFileSync(path.join(ROOT, 'src', 'launcherView.cjs'), 'utf8');
-  assert.match(view, /This clone/, 'project-personal first');
-  assert.match(view, /This machine/, 'then user');
-  assert.match(view, /Advertised/, 'then the config');
-  assert.match(view, /groupedMachineOptions/, 'bare machines are grouped by family');
-  assert.match(view, /applySystem/, 'picking one fits machine, hardware and region together');
-  assert.match(view, /targets\?\.systems\?\.\[0\]/);
+test('untrusted text is never read as markup', () => {
+  const state = vegas();
+  state.programs[0].title = '<img src=x onerror=alert(1)>';
+  state.programs[0].description = '<b>bold</b>';
+  const page = mount(state);
+  assert.equal(page.all('img[src="x"]').length, 0);
+  assert.match(page.text(), /<img src=x onerror=alert\(1\)>/, 'it is shown as text');
 });
 
-test('Doctor: Choose Emulators is a first-class panel, defaulting to all emulators', () => {
-  const runner = fs.readFileSync(path.join(ROOT, 'src', 'runner.cjs'), 'utf8');
-  assert.match(runner, /getDoctorEmulators/);
-  assert.match(runner, /doctorWantFromSelection/);
-  const props = MANIFEST.contributes.configuration.properties['8bitscript.doctorEmulators'];
-  assert.equal(props.default, null);
-  const declared = MANIFEST.contributes.commands.map((c) => c.command);
-  assert.ok(declared.includes('8bitscript.doctorSetup'));
-  assert.ok(MANIFEST.contributes.menus['view/title'].some((m) => m.command === '8bitscript.doctorSetup'));
+test('a state with a project but no programs says so instead of drawing an empty list', () => {
+  const state = vegas();
+  state.programs = [];
+  state.program = null;
+  const page = mount(state);
+  assert.match(norm(page.one('.none')), /No programs found in this project/);
 });
 
-test('Configure System and Show Project are first-class commands', () => {
-  const declared = MANIFEST.contributes.commands.map((c) => c.command);
-  assert.ok(declared.includes('8bitscript.configureSystem'));
-  assert.ok(declared.includes('8bitscript.showProject'));
-  assert.ok(declared.includes('8bitscript.useLocal'));
-  assert.ok(declared.includes('8bitscript.usePublished'));
-  assert.ok(MANIFEST.contributes.menus['view/title'].some((m) => m.command === '8bitscript.configureSystem'));
-  assert.ok(MANIFEST.contributes.menus['view/title'].some((m) => m.command === '8bitscript.showProject'));
+test('narrow and wide are one layout: the markup does not change with width (CSS container queries do the work)', () => {
+  const css = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'media', 'launcher.css'), 'utf8');
+  assert.match(css, /@container \(max-width: 256px\)[\s\S]*\.runs \.run \{[^}]*flex-direction: column/, 'icon-over-label when narrow');
+  assert.match(css, /container-type: inline-size/);
 });
 
-test('every element the page script reaches for is on the page', () => {
-  const view = fs.readFileSync(path.join(ROOT, 'src', 'launcherView.cjs'), 'utf8');
-  const ids = [...new Set([...JS.matchAll(/\$\('([^']+)'\)/g)].map((m) => m[1]))];
-  assert.ok(ids.length > 0, 'the page addresses elements by id');
-  for (const id of ids) assert.match(view, new RegExp(`id="${id}"`), `no #${id} in the page`);
-});
-
-test('the 8bs task type names a machine by any id the CLI lists, and says where a run goes', () => {
-  const definition = MANIFEST.contributes.taskDefinitions.find((d) => d.type === '8bs');
-  // The machines are the toolchain's to list (`8bs targets`), not a
-  // hand-kept enum that goes stale the day one is added.
-  assert.equal(definition.properties.target.type, 'string');
-  assert.equal(definition.properties.target.enum, undefined, 'no hand-kept list of machines');
-  assert.deepEqual(definition.properties.runtime.enum, ['editor', 'browser', 'native']);
-  // `web` was declared as "run --web" and is the browser runtime, said so.
-  assert.equal(definition.properties.web?.type, 'boolean');
-  assert.match(definition.properties.web.description, /browser/);
-  for (const key of ['system', 'define', 'locale', 'profile', 'hardware']) {
-    assert.ok(definition.properties[key], `${key} is part of the declared definition, not a private extra`);
-  }
-  assert.equal(definition.properties.define.type, 'object');
-  assert.ok(definition.properties.command.enum.includes('boot'));
+test('the stylesheet uses theme variables, not colours, and respects reduced motion and high contrast', () => {
+  const css = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'media', 'launcher.css'), 'utf8');
+  assert.doesNotMatch(css.replace(/#fff/g, ''), /#[0-9a-fA-F]{3,8}\b/, 'no hard-coded colours (the QR background is the one white)');
+  assert.match(css, /prefers-reduced-motion: reduce/);
+  assert.match(css, /forced-colors: active/);
+  assert.match(css, /\{\{CODICON\}\}/, 'the icon font url is filled in by the view');
 });
