@@ -18,6 +18,7 @@
       "framesUnit": "frames",
       "defaultFrames": 180
     },
+    "media": "./media/index.cjs",
     "entry": "./src/index.8bs",
     "exports": {
       "./screen": "./src/screen.8bs",
@@ -140,7 +141,8 @@
     }
   },
   "files": [
-    "src"
+    "src",
+    "media"
   ],
   "publishConfig": {
     "access": "public"

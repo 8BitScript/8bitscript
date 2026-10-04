@@ -50,7 +50,9 @@ Host decode lives in `@8bitscript/graphics-tools` (PNG, no Aseprite, GIF,
 or SVG). The compiler never shells out. Lowering belongs to the machine:
 C64, NES, PET, Atari 8-bit, and VIC-20 each export a `"8bitscript".media` module.
 Every other machine uses the glyph path `@8bitscript/sprites` already has,
-with `8BS2111` naming the adaptation.
+with `8BS2111` naming the adaptation. The web exports one too, because its
+font draws only ASCII and the sixteen 2×2 block codes: the default glyph
+codes (reverse space, a ball) are PETSCII and draw nothing there.
 
 ## How the four stress machines differ
 
@@ -62,6 +64,7 @@ with `8BS2111` naming the adaptation.
 | Atari 8-bit | A software glyph; frames collapsed (`8BS2111`). Player/missile shapes are a later slice. |
 | VIC-20 | Quadrant-block characters from the ROM, worked out at build time: one cell for a source of 8 pixels or fewer, 2×2 cells for anything larger (scaled down), one screen code a cell a frame, the animation's frames (the first 8) stepping every `every` updates; a picture with almost no ink becomes one glyph (`8BS2111` either way). Moving an object blanks the cells it left; cells off the screen are not drawn. |
 | Commander X16 | The glyph path, quantized to 8×8 cells (`8BS2111`). |
+| Web | One cell as a 2×2 quadrant-block glyph (codes 128–143) per animation step, up to eight steps, stepped every `every` calls to `graphics.update()`; colours dropped (`8BS2111`). A 16×16 picture is four quadrants of 8×8 source pixels. A true sprite layer is a later item for the web runtime (`packages/web/AGENTS.md`). |
 | every other machine | The same glyph path, quantized to that machine's cell size. |
 
 ### On the PET
@@ -128,6 +131,13 @@ with a user-port speaker so the VIA song actually plays.
 | C64 | 4276 | 45 |
 | VIC-20 8K | 2455 | 49 |
 | Commander X16 | 2918 | 58 |
+| Web (wasm module bytes) | 1797 | 259 |
+
+The web row is `examples/media-walk` built with `8bs build --target web
+--size` on 2026-10-03: the module's byte count, and the declared RAM for
+variables. It was 1610 and 235 with the default glyph path, which also drew
+nothing for that example's picture; the 187 bytes are mostly the animation
+stepper in `graphics.update()`.
 
 The VIC-20 row was measured again on 2026-10-03, after its twin changed: it
 was 2383 and 41 on the same example before, and the 256-byte glyph table it

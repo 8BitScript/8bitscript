@@ -1,0 +1,110 @@
+// @8bitscript/graphics on the web: a picture is one cell, drawn as a 2×2
+// quadrant-block glyph (codes 128-143), and an animated picture steps
+// through up to eight of them.
+//
+//     import { player } from "./player.8bg";
+//     import { graphics } from "@8bitscript/graphics";
+//     graphics.place(player, x, y);
+//     graphics.update();
+//
+// packages/web/media/index.cjs lowers each animation step to one block
+// code while the program is being built, so what reaches here is a byte
+// per step: nothing is sampled, scaled or looked up at run time. The cell
+// layer draws it (@8bitscript/sprites, the glyph path): the position is in
+// stage pixels and lands on the cell at x >> 3, y >> 3, so STEP_X and
+// STEP_Y are 8, and a picture does not restore what it covers (RESTORES is
+// false).
+//
+// ---- what the web shows, and does not -------------------------------------
+//
+// One cell is 8×8 pixels of 2×2 quadrants. A 16×16 picture therefore
+// becomes four lit-or-dark quadrants of 8×8 source pixels each, which is
+// the whole picture — the lowering says so with 8BS2111. Colour is dropped
+// (the glyph is drawn in the sprite layer's default tint), and an
+// animation longer than STEPS steps keeps the first STEPS.
+//
+// The web has no sprite hardware to be honest about: #fact(video.sprites)
+// is 0, and a true pixel sprite layer is a later item in
+// packages/web/AGENTS.md ("What a superset runtime would add", item 7),
+// behind the redefinable character set. This file is the glyph path until
+// then, and `update()` below is the part the generic twin (index.8bs) never
+// had: it advances each picture's animation, once per call.
+//
+// ---- the numbers a program can fold on -------------------------------------
+//
+// MAX pictures at once (a program's .8bg files, in the order it declares
+// them), STEPS animation steps each. `bind()` and `meta()` are called by
+// the compiler's generated binders before main() runs; a program never
+// calls them.
+import { sprites } from "@8bitscript/sprites";
+
+const MAX: utinyint = 8;
+const STEPS: utinyint = 8;
+let codes: array<u8, 64>;  // STEPS block codes per picture: slot << 3 | step
+let counts: array<u8, 8>;  // steps in this picture's animation
+let every: array<u8, 8>;   // update() calls between steps
+let tick: array<u8, 8>;    // update() calls since the last step
+let step: array<u8, 8>;    // the step on show
+let animated: utinyint = 0; // pictures with more than one step
+let started: bool = false;
+
+function ensure(): void {
+    if (!started) {
+        sprites.begin(MAX);
+        started = true;
+    }
+}
+
+export namespace graphics {
+    function bind(slot: utinyint, index: utinyint, value: utinyint): void {
+        if (slot >= MAX || index >= STEPS) {
+            return;
+        }
+        codes[(slot << 3) + index] = value;
+    }
+
+    function meta(slot: utinyint, frameCount: utinyint, interval: utinyint, kind: utinyint, width: utinyint, height: utinyint): void {
+        if (slot >= MAX) {
+            return;
+        }
+        counts[slot] = frameCount;
+        every[slot] = interval;
+        tick[slot] = 0;
+        step[slot] = 0;
+        if (frameCount > 1) {
+            animated = animated + 1;
+        }
+    }
+
+    function place(slot: utinyint, x: usmallint, y: usmallint): void {
+        if (slot >= MAX) {
+            return;
+        }
+        ensure();
+        sprites.setShape(slot, codes[(slot << 3) + step[slot]]);
+        sprites.place(slot, x, y);
+    }
+
+    function update(): void {
+        if (!started) {
+            return;
+        }
+        if (animated > 0) {
+            for (let i: utinyint = 0; i < MAX; i++) {
+                if (counts[i] > 1) {
+                    tick[i] = tick[i] + 1;
+                    if (tick[i] >= every[i]) {
+                        tick[i] = 0;
+                        let next: utinyint = step[i] + 1;
+                        if (next >= counts[i]) {
+                            next = 0;
+                        }
+                        step[i] = next;
+                        sprites.setShape(i, codes[(i << 3) + next]);
+                    }
+                }
+            }
+        }
+        sprites.update();
+    }
+}
