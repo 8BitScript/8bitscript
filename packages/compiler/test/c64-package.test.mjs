@@ -201,11 +201,14 @@ test('setupVideo copies the character ROM in place with HIRAM set and CHAREN cle
   assert.ok(out.body.some((s) => isAsm(s, 'sei')));
   const outPort = assignsTo(out.body, 'processorPort')[0].value;
   assert.equal(outPort.operator, '&');
-  assert.deepEqual(outPort.right, { kind: 'const', value: 251, type: 'utinyint' });
+  // LORAM clear ($FE: %101 -> %100, RAM everywhere). Clearing CHAREN ($FB)
+  // gave %001, where the CPU's reads see the character ROM — see
+  // c64-charset-width.test.mjs.
+  assert.deepEqual(outPort.right, { kind: 'const', value: 254, type: 'utinyint' });
   const back = fn(ir, 'bankIoIn');
   const backPort = assignsTo(back.body, 'processorPort')[0].value;
   assert.equal(backPort.operator, '|');
-  assert.deepEqual(backPort.right, { kind: 'const', value: 4, type: 'utinyint' });
+  assert.deepEqual(backPort.right, { kind: 'const', value: 1, type: 'utinyint' });
   const backCli = back.body.find((s) => s.kind === 'if' && s.test.name === 'interruptsOn');
   assert.ok(backCli.then.some((s) => isAsm(s, 'cli')));
 });
@@ -488,11 +491,19 @@ test('charset.define writes eight rows at $D000 + 8 * code in one window; restor
     'export function main(): void { charset.define(1, 255, 129, 129, 129, 129, 129, 129, 255); charset.copy(2, 1); charset.restore(); }',
   ].join('\n');
   const ir = linked(src);
-  const offset = fn(ir, 'charset_offset').body[0].value;
+  // The code is widened to a usmallint local first, then shifted by 3: a
+  // `code * 8` on the utinyint was an eight-bit product that wrapped for
+  // glyph 32 and up.
+  const offsetBody = fn(ir, 'charset_offset').body;
+  assert.equal(offsetBody[0].kind, 'local');
+  assert.equal(offsetBody[0].type, 'usmallint');
+  const offset = offsetBody[1].value;
   assert.equal(offset.operator, '+');
   assert.deepEqual(offset.left, { kind: 'const', type: 'usmallint', value: 53248 });
-  assert.equal(offset.right.operator, '*');
-  assert.deepEqual(offset.right.right, { kind: 'const', value: 8, type: 'utinyint' });
+  assert.equal(offset.right.operator, '<<');
+  assert.equal(offset.right.type, 'usmallint');
+  assert.equal(offset.right.left.type, 'usmallint');
+  assert.deepEqual(offset.right.right, { kind: 'const', value: 3, type: 'utinyint' });
   const define = fn(ir, 'charset_define');
   assert.ok(calls(define.body, 'bankIoOut').length === 1);
   const writes = define.body.filter((s) => s.kind === 'memoryWrite');

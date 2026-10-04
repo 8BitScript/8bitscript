@@ -309,7 +309,12 @@ Do not describe more than this as working:
     r0..r7)`, `setRow`, `readRow`, `copy(target, source)`, `fill(code,
     bits)`, `restore()` (the ROM copy again), `setMulticolor(on)` +
     `setSharedColors`, `useLowercase()`/`useUppercase()`; `offset(code)`
-    = `$D000 + 8 * code`. Every write is a window under I/O.
+    = `$D000 + 8 * code`, computed at 16 bits so any code 0–255 works.
+    Every write is a window under I/O. The `define` family writes the
+    **upper-case** set; `@8bitscript/text` prints in the mixed-case set and
+    selects it at the start of every print, so after a `text.print` call
+    `charset.useUppercase()` to see the glyphs you defined (`screen.blank()`
+    and a fresh start leave the upper-case set selected).
   - `@8bitscript/c64/scroll` (`src/scroll.8bs`): `scroll.setX(0-7)`,
     `setY(0-7)` (bit 7 of `$D011` kept clear), `setNarrow(on)` (38
     columns), `setShort(on)` (24 rows), `shiftLeft/Right/Up/Down(code,
@@ -427,6 +432,7 @@ under x64sc (VICE 3.10, Homebrew), not recalled.
 | **Twenty sprites from eight.** Four rows of five solid blocks 40 lines apart, one hidden, every sprite moving a pixel a frame for 32 frames with the list cleared, rebuilt and committed each frame: all twenty at their final positions in their row's color, 21 lines tall, the hidden one's spot playfield, `SHOWN 20 DROPPED 00`. The probe's loop took several frames per iteration (its `text.print`s cost ~60 raster lines per nine characters under the compiler's code — see "What the text routines cost") and the picture is still whole, because the eight topmost are restored by the handler's frame table rather than by program code that has to run every frame — the first draft wrote them from `update()` and lost them on every frame it did not run. A list of ~45 entries at three-line intervals (`test/zz-dense`, since deleted) ran at full frame rate: the handler's late catch-up does not storm. | `test/multiplex-probe.8bs` under `test/layers.test.mjs` (`--frames 450`), the two captures |
 | Sizes (`8bs build c64`, the memory line): a program with `screen.blank` and `waitFrame()` is 415 bytes; with the raster list rebuilt and committed each frame 1021; plus `border.top()`/`bottom()` 1477; plus the multiplexer (sixteen sprites) instead 2308. | scratch programs, 2026-09-19 |
 | A binop computes at its operands' own width (`packages/compiler/src/mos`'s exact-width design): `block * 64` with `block: utinyint` wraps at 8 bits, so `sprites.setShapeByte`'s bitmap branch wrote block 96's bytes into program RAM at `$C000` and sprite 0 drew the lowercase charset copy that lives at `$D800` instead of the shape — glyph noise on screen, not a diagnostic. Widen through a `usmallint` local before the multiply (`blockOffset` had the same shape; `bitmap.8bs` avoids it with its `ROW_OFFSET` table). | `test/bitmap-probe.8bs` under x64sc (the sprite drew glyphs until the widening), `src/sprites.8bs` |
+| **`charset.offset` had the same shape, and the I/O window read the ROM.** `Video.CHARSET + code * 8` with `code: utinyint` wrapped at 8 bits, so `define`/`setRow`/`copy`/`fill`/`readRow` on any glyph of 32 or up hit the glyph 32·k lower (define(40) and define(200) both landed on glyph 8, so the probe's cells 0–3 showed ROM glyphs instead of the blocks it defined and glyph 8 ('H') was overwritten). It is `usmallint` and a shift now: `charset_offset` 25 → 42 bytes, one more byte of RAM (922 → 939 bytes, 21 → 22 on the probe). Separately, `bankIoOut()` cleared CHAREN (`& $FB`: `%101` → `%001`), where the CPU's WRITES reach the RAM under `$D000` but its READS see the character ROM, so `copy` and `readRow` returned the ROM's glyph, never the program's own (copy(130, 40) of a solid glyph 40 drew the ROM's `(`). The window now clears LORAM (`& $FE`: `%100`, RAM everywhere; `bankIoIn` sets it back), which the comment above it already claimed. Writers are unaffected; the sprite shapes and the bitmap color matrix only write. | `test/charset-probe.8bs` under x64sc (`test/charset.test.mjs`, pixel-exact; fails on the old `offset` and on the old window), `packages/compiler/test/c64-charset-width.test.mjs` (the linked IR, run by CI) |
 
 ## From the sources, not verified here
 
