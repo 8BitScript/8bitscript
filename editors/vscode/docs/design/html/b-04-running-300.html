@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Direction B — program list · 04-running · 300px</title>
+<script>document.write('<link rel="stylesheet" href="../themes/' + (new URLSearchParams(location.search).get('theme') === 'light' ? 'light' : 'dark') + '-modern.css">');</script>
+<link rel="stylesheet" href="../src/design.css">
+<style>:root { --w: 300px; }</style></head>
+<body><div class="sidebar" id="sb">
+  <div class="vsc-title"><span>8BitScript</span><span class="acts"><i class="codicon" aria-hidden="true">&#60215;</i><i class="codicon" aria-hidden="true">&#60209;</i><i class="codicon" aria-hidden="true">&#60028;</i></span></div>
+  <main class="view"><div class="strip">
+    <div class="sel"><span class="field-label" id="pl">Project</span><button class="picker" aria-labelledby="pl"><span class="t">Vegas Nights</span><i class="codicon" aria-hidden="true">&#60084;</i></button></div>
+    <div class="sel"><span class="field-label" id="sl">System</span><button class="picker" aria-labelledby="sl" aria-haspopup="menu" aria-expanded="false" data-toggle="sysmenu"><span class="t">C64<span class="sm">NTSC</span></span><i class="codicon" aria-hidden="true">&#60084;</i></button></div>
+  </div><div class="filter"><i class="codicon" aria-hidden="true">&#60013;</i><input class="input" placeholder="Filter programs" aria-label="Filter programs"></div><div class="legend" aria-hidden="true"><span class="lead">Programs</span><span><i class="codicon" aria-hidden="true">&#60200;</i><span class="lbl">Editor</span></span><span><i class="codicon" aria-hidden="true">&#60161;</i><span class="lbl">Browser</span></span><span><i class="codicon" aria-hidden="true">&#60026;</i><span class="lbl">Native</span></span></div><div role="list" aria-label="Programs"><div role="group" aria-label="Slots"><button class="group-head" aria-expanded="true"><i class="codicon" aria-hidden="true">&#60084;</i><span>Slots</span><span class="grow"></span><span class="n">3</span></button><div class="prow" role="listitem">
+    <span class="st" title=""></span>
+    <span class="name" title="3×3 Slot">3×3 Slot</span><span class="acts" role="group" aria-label="Run 3×3 Slot in"><button class="ibtn"  title="Run 3×3 Slot on Commodore 64 in editor tab" aria-label="Run 3×3 Slot on Commodore 64 in editor tab"><i class="codicon" aria-hidden="true">&#60200;</i></button><button class="ibtn"  title="Run 3×3 Slot on Commodore 64 in web browser" aria-label="Run 3×3 Slot on Commodore 64 in web browser"><i class="codicon" aria-hidden="true">&#60161;</i></button><button class="ibtn"  title="Run 3×3 Slot on Commodore 64 in native emulator" aria-label="Run 3×3 Slot on Commodore 64 in native emulator"><i class="codicon" aria-hidden="true">&#60026;</i></button></span></div><div class="prow sel" role="listitem" aria-current="true">
+    <span class="st live" title="Running"></span>
+    <span class="name" title="5×5 Ways Slot">5×5 Ways Slot</span><span class="acts" role="group" aria-label="Run 5×5 Ways Slot in"><button class="ibtn live"  title="Editor tab: running. Click to focus it." aria-label="Editor tab: running. Click to focus it."><i class="codicon" aria-hidden="true">&#60200;</i></button><button class="ibtn"  title="Run 5×5 Ways Slot on Commodore 64 in web browser" aria-label="Run 5×5 Ways Slot on Commodore 64 in web browser"><i class="codicon" aria-hidden="true">&#60161;</i></button><button class="ibtn primary live"  title="Native emulator: running. Click to focus it." aria-label="Native emulator: running. Click to focus it."><i class="codicon" aria-hidden="true">&#60026;</i></button></span></div><div class="drawer">
+    <p class="desc">3,125 ways, a free-spin bonus and four jackpot meters. Needs the 8 KB VIC-20.</p>
+    <button class="source" title="Open the entry file of 5×5 Ways Slot" aria-label="Open source file src/labs/slot5x5/main.8bs"><i class="codicon" aria-hidden="true">&#60052;</i><span>src/labs/slot5x5/main.8bs</span></button>
+    
+    
+    <div class="subh"><div><button class="disclosure" data-toggle="inputs" aria-expanded="false" aria-controls="inputs"><i class="codicon" aria-hidden="true">&#60086;</i><span>Inputs</span><span class="badge">4</span><span class="grow"></span><span class="note">3 changed</span></button>
+    <div class="panel form" id="inputs" hidden><div class="changed"><div class="f-label"><label for="in-seed">Seed</label><span class="var">SEED</span></div><input class="input" id="in-seed" type="number" value="10"><div class="f-help">Fixes the random draws, so a run repeats exactly.</div></div><div class="changed"><label class="check"><input type="checkbox" id="in-force_bonus" checked><span class="box"><i class="codicon" aria-hidden="true">&#60082;</i></span><span>Start in the bonus round</span></label><div class="f-help f-split"><span>Begins inside a free-spin round.</span><span class="var mono">FORCE_BONUS</span></div></div><div class="changed"><div class="f-label"><label for="in-start_credits">Starting credits</label><span class="var">START_CREDITS</span></div><input class="input" id="in-start_credits" type="number" value="5000"><div class="f-help">Credits in the bank when the machine starts.</div></div><div class=""><div class="f-label"><label for="in-theme">Symbol theme</label><span class="var">THEME</span></div><div class="select-wrap"><select class="select" id="in-theme"><option selected>classic</option><option >cosmic</option></select><i class="codicon" aria-hidden="true">&#60084;</i></div><div class="f-help">Which tile art the reels use.</div></div>
+      <div><button class="btn ghost sm"><i class="codicon" aria-hidden="true">&#60114;</i>Reset to defaults</button></div></div></div></div>
+    <div class="tools-row">
+    <button class="btn ghost sm" title="Compile slot5x5 to dist/slot5x5.prg and show the size report. Nothing runs."><i class="codicon" aria-hidden="true">&#60269;</i>Build</button>
+    <button class="btn ghost sm" data-toggle="cmd" aria-expanded="false" aria-controls="cmd" title="Show the exact command a click runs"><i class="codicon" aria-hidden="true">&#60037;</i>Command</button>
+    <span class="grow"></span>
+    <button class="ibtn" title="More: open a bare emulator, copy the command, reveal in Explorer" aria-label="More actions" aria-haspopup="menu"><i class="codicon" aria-hidden="true">&#60028;</i></button></div><div class="panel" id="cmd" hidden><div class="code"><span class="cmd"><span class="nb">8bs run c64</span> <span class="nb">--program slot5x5</span> <span class="nb"><span class="dim">--define</span> SEED=10</span> <span class="nb"><span class="dim">--define</span> FORCE_BONUS=true</span> <span class="nb"><span class="dim">--define</span> START_CREDITS=5000</span></span><button class="ibtn" title="Copy command" aria-label="Copy command"><i class="codicon" aria-hidden="true">&#60364;</i></button></div></div>
+  </div><div class="prow" role="listitem">
+    <span class="st" title=""></span>
+    <span class="name" title="Lobby">Lobby</span><span class="acts" role="group" aria-label="Run Lobby in"><button class="ibtn"  title="Run Lobby on Commodore 64 in editor tab" aria-label="Run Lobby on Commodore 64 in editor tab"><i class="codicon" aria-hidden="true">&#60200;</i></button><button class="ibtn"  title="Run Lobby on Commodore 64 in web browser" aria-label="Run Lobby on Commodore 64 in web browser"><i class="codicon" aria-hidden="true">&#60161;</i></button><button class="ibtn"  title="Run Lobby on Commodore 64 in native emulator" aria-label="Run Lobby on Commodore 64 in native emulator"><i class="codicon" aria-hidden="true">&#60026;</i></button></span></div></div><div role="group" aria-label="Labs"><button class="group-head" aria-expanded="true"><i class="codicon" aria-hidden="true">&#60084;</i><span>Labs</span><span class="grow"></span><span class="n">3</span></button><div class="prow" role="listitem">
+    <span class="st" title=""></span>
+    <span class="name" title="Hello Reels">Hello Reels</span><span class="acts" role="group" aria-label="Run Hello Reels in"><button class="ibtn"  title="Run Hello Reels on Commodore 64 in editor tab" aria-label="Run Hello Reels on Commodore 64 in editor tab"><i class="codicon" aria-hidden="true">&#60200;</i></button><button class="ibtn"  title="Run Hello Reels on Commodore 64 in web browser" aria-label="Run Hello Reels on Commodore 64 in web browser"><i class="codicon" aria-hidden="true">&#60161;</i></button><button class="ibtn"  title="Run Hello Reels on Commodore 64 in native emulator" aria-label="Run Hello Reels on Commodore 64 in native emulator"><i class="codicon" aria-hidden="true">&#60026;</i></button></span></div><div class="prow" role="listitem">
+    <span class="st" title=""></span>
+    <span class="name" title="Sound Test">Sound Test</span><span class="acts" role="group" aria-label="Run Sound Test in"><button class="ibtn"  title="Run Sound Test on Commodore 64 in editor tab" aria-label="Run Sound Test on Commodore 64 in editor tab"><i class="codicon" aria-hidden="true">&#60200;</i></button><button class="ibtn"  title="Run Sound Test on Commodore 64 in web browser" aria-label="Run Sound Test on Commodore 64 in web browser"><i class="codicon" aria-hidden="true">&#60161;</i></button><button class="ibtn"  title="Run Sound Test on Commodore 64 in native emulator" aria-label="Run Sound Test on Commodore 64 in native emulator"><i class="codicon" aria-hidden="true">&#60026;</i></button></span></div><div class="prow" role="listitem">
+    <span class="st" title=""></span>
+    <span class="name" title="Tile Test">Tile Test</span><span class="acts" role="group" aria-label="Run Tile Test in"><button class="ibtn"  title="Run Tile Test on Commodore 64 in editor tab" aria-label="Run Tile Test on Commodore 64 in editor tab"><i class="codicon" aria-hidden="true">&#60200;</i></button><button class="ibtn"  title="Run Tile Test on Commodore 64 in web browser" aria-label="Run Tile Test on Commodore 64 in web browser"><i class="codicon" aria-hidden="true">&#60161;</i></button><button class="ibtn"  title="Run Tile Test on Commodore 64 in native emulator" aria-label="Run Tile Test on Commodore 64 in native emulator"><i class="codicon" aria-hidden="true">&#60026;</i></button></span></div></div><div role="group" aria-label="Test rigs"><button class="group-head" aria-expanded="false"><i class="codicon" aria-hidden="true">&#60086;</i><span>Test rigs</span><span class="grow"></span><span class="n">4</span></button></div></div><div class="sec"><span>Running</span><span class="count">2</span><span class="grow"></span></div><div class="items" role="list">
+    <div class="run-item" role="listitem">
+      <div class="top"><span class="dot" title="Running"></span><span class="ttl">5×5 Ways Slot</span><span class="time" title="Time running">02:14</span></div>
+      <div class="meta"><span class="tag">C64</span><span class="tag"><i class="codicon" aria-hidden="true">&#60026;</i>Native</span><span>50 fps</span></div>
+      <div class="meta detail">x64sc · pid 41872</div>
+      <div class="acts">
+        
+        
+        <button class="btn sm"><i class="codicon" aria-hidden="true">&#60119;</i>Stop</button>
+        <button class="btn ghost sm" data-toggle="rc-r1" aria-expanded="true" aria-controls="rc-r1"><i class="codicon" aria-hidden="true">&#60037;</i>Command</button>
+      </div>
+      <div class="panel rc" id="rc-r1" ><div class="code"><span class="cmd"><span class="nb">8bs run c64</span> <span class="nb">--program slot5x5</span> <span class="nb">--size</span></span><button class="ibtn" title="Copy command" aria-label="Copy command"><i class="codicon" aria-hidden="true">&#60364;</i></button></div></div>
+    </div>
+    <div class="run-item" role="listitem">
+      <div class="top"><span class="dot" title="Running"></span><span class="ttl">5×5 Ways Slot</span><span class="time" title="Time running">00:41</span></div>
+      <div class="meta"><span class="tag">C64</span><span class="tag"><i class="codicon" aria-hidden="true">&#60200;</i>Editor</span><span>60 fps</span></div>
+      <div class="meta detail">http://127.0.0.1:4173</div>
+      <div class="acts">
+        <button class="btn sm"><i class="codicon" aria-hidden="true">&#60200;</i>Show tab</button><button class="btn sm"><i class="codicon" aria-hidden="true">&#60180;</i>Open in browser</button>
+        
+        <button class="btn sm"><i class="codicon" aria-hidden="true">&#60119;</i>Stop</button>
+        <button class="btn ghost sm" data-toggle="rc-r2" aria-expanded="false" aria-controls="rc-r2"><i class="codicon" aria-hidden="true">&#60037;</i>Command</button>
+      </div>
+      <div class="panel rc" id="rc-r2" hidden><div class="code"><span class="cmd"><span class="nb">8bs run c64</span> <span class="nb">--program slot5x5</span> <span class="nb">--web</span> <span class="nb">--no-open</span> <span class="nb">--port 0</span></span><button class="ibtn" title="Copy command" aria-label="Copy command"><i class="codicon" aria-hidden="true">&#60364;</i></button></div></div>
+    </div></div><div class="sec"><span>Recent</span><span class="grow"></span></div><div class="hist" role="list">
+    <div class="hist-row" role="listitem"><span class="dot off"></span>
+      <div class="who"><div class="ttl">3×3 Slot</div><div class="meta">PET · Browser</div><div class="meta"><span class="">Stopped</span> · 14:02</div></div>
+      <button class="ibtn" title="Run again" aria-label="Run 3×3 Slot again"><i class="codicon" aria-hidden="true">&#60114;</i></button></div>
+    <div class="hist-row" role="listitem"><span class="dot bad"></span>
+      <div class="who"><div class="ttl">Tile Test</div><div class="meta">VIC-20 · Native</div><div class="meta"><span class="bad">Build failed · 2 errors</span> · 13:48</div></div>
+      <button class="ibtn" title="Run again" aria-label="Run Tile Test again"><i class="codicon" aria-hidden="true">&#60114;</i></button></div></div><div class="sec"><span>Tools</span><span class="grow"></span></div><div class="rows"><button class="row-btn"><i class="codicon" aria-hidden="true">&#60228;</i><span class="who"><div>Studio</div><div class="sub">Edit sprites, sound and tiles</div></span><i class="codicon" aria-hidden="true">&#60086;</i></button><button class="row-btn"><i class="codicon" aria-hidden="true">&#60209;</i><span class="who"><div>Doctor</div><div class="sub">Check the toolchains and emulators</div></span><i class="codicon" aria-hidden="true">&#60086;</i></button><button class="row-btn"><i class="codicon" aria-hidden="true">&#60020;</i><span class="who"><div>Project details</div><div class="sub">Config, packages, systems</div></span><i class="codicon" aria-hidden="true">&#60086;</i></button></div></main>
+</div>
+<script>
+document.addEventListener('click', (e) => {
+  const t = e.target.closest('[data-toggle]');
+  const el = t && document.getElementById(t.dataset.toggle);
+  if (el) { const open = el.hasAttribute('hidden'); el.toggleAttribute('hidden', !open); t.setAttribute('aria-expanded', String(open)); }
+  const r = e.target.closest('[role=radio]:not([disabled])');
+  if (r) { r.parentElement.querySelectorAll('[role=radio]').forEach((x) => { x.setAttribute('aria-checked', String(x === r)); x.tabIndex = x === r ? 0 : -1; }); }
+});
+const hint = document.getElementById('hint');
+document.querySelectorAll('[data-hint]').forEach((b) => {
+  const set = () => { if (hint) hint.textContent = b.dataset.hint; };
+  b.addEventListener('mouseenter', set); b.addEventListener('focus', set);
+});
+document.fonts.ready.then(() => { document.body.dataset.h = Math.ceil(document.getElementById('sb').getBoundingClientRect().height); });
+</script></body></html>

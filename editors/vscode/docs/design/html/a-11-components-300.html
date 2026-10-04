@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Direction A — launch card · 11-components · 300px</title>
+<script>document.write('<link rel="stylesheet" href="../themes/' + (new URLSearchParams(location.search).get('theme') === 'light' ? 'light' : 'dark') + '-modern.css">');</script>
+<link rel="stylesheet" href="../src/design.css">
+<style>:root { --w: 300px; }</style></head>
+<body><div class="sidebar" id="sb">
+  <div class="vsc-title"><span>8BitScript</span><span class="acts"><i class="codicon" aria-hidden="true">&#60215;</i><i class="codicon" aria-hidden="true">&#60209;</i><i class="codicon" aria-hidden="true">&#60028;</i></span></div>
+  <main class="view"><div class="sheet">
+    <h3>Buttons</h3>
+    <div class="line"><button class="btn primary"><i class="codicon" aria-hidden="true">&#60026;</i>Primary</button><button class="btn primary is-hover">Hover</button><button class="btn primary is-focus">Focus</button><button class="btn primary" disabled>Disabled</button></div>
+    <div class="line"><button class="btn"><i class="codicon" aria-hidden="true">&#60161;</i>Secondary</button><button class="btn is-hover">Hover</button><button class="btn is-focus">Focus</button><button class="btn" disabled>Disabled</button></div>
+    <div class="line"><button class="btn ghost sm"><i class="codicon" aria-hidden="true">&#60269;</i>Build</button><button class="btn ghost sm is-hover">Hover</button><button class="btn ghost sm is-focus">Focus</button><button class="ibtn"><i class="codicon" aria-hidden="true">&#60028;</i></button><button class="ibtn is-hover"><i class="codicon" aria-hidden="true">&#60020;</i></button></div>
+    <h3>System chips</h3>
+    <div class="chips" role="radiogroup" aria-label="System"><button class="chip" role="radio" aria-checked="true">C64</button><button class="chip" role="radio" aria-checked="false">PET</button><button class="chip is-hover" role="radio" aria-checked="false">VIC-20</button><button class="chip is-focus" role="radio" aria-checked="false">X16</button><button class="chip" role="radio" aria-checked="false" disabled>Web</button></div>
+    <h3>Runtime row</h3>
+    <div class="runs" role="group" aria-label="Run in"><button class="btn run" data-runtime="editor" data-hint="Runs the WASM build in a tab inside the editor."  title="Run 3×3 Slot on Commodore 64 in editor tab" aria-label="Run 3×3 Slot on Commodore 64 in editor tab"><i class="codicon" aria-hidden="true">&#60200;</i><span>Editor</span></button><button class="btn run" data-runtime="browser" data-hint="Runs the WASM build in your web browser."  title="Run 3×3 Slot on Commodore 64 in web browser" aria-label="Run 3×3 Slot on Commodore 64 in web browser"><i class="codicon" aria-hidden="true">&#60161;</i><span>Browser</span></button><button class="btn run primary" data-runtime="native" data-hint="Runs the real x64sc emulator with 3×3 Slot loaded."  title="Run 3×3 Slot on Commodore 64 in native emulator (default)" aria-label="Run 3×3 Slot on Commodore 64 in native emulator (default)"><i class="codicon" aria-hidden="true">&#60026;</i><span>Native</span></button></div><p class="hint" id="hint" aria-live="polite">Runs the real x64sc emulator with 3×3 Slot loaded.</p>
+    <h3>Fields</h3>
+    <div class="form"><div><div class="f-label"><label>Seed</label><span class="var">SEED</span></div><input class="input" type="number" value="7"></div>
+    <div><div class="f-label"><label>Seed</label><span class="var">SEED</span></div><input class="input is-focus" type="number" value="10"></div>
+    <div class="changed"><div class="f-label"><label>Starting credits</label><span class="var">START_CREDITS</span></div><input class="input" type="number" value="5000"></div></div>
+    <h3>Notices</h3>
+    <div class="notice warn" role="status"><i class="codicon" aria-hidden="true">&#60012;</i><div class="body"><b>x64sc isn't installed.</b> Native can't run.<div class="acts"><button class="btn sm primary">Install</button></div></div></div>
+    <div class="notice info" role="status"><i class="codicon" aria-hidden="true">&#60020;</i><div class="body">Editor runs use the WASM build.</div></div>
+    <h3>Status</h3>
+    <div class="line"><span class="tag"><i class="codicon" aria-hidden="true">&#60026;</i>Native</span><span class="tag"><i class="codicon" aria-hidden="true">&#60200;</i>Editor</span><span class="tag">C64</span><span class="dot"></span><span class="dot off"></span><span class="dot bad"></span></div>
+  </div></main>
+</div>
+<script>
+document.addEventListener('click', (e) => {
+  const t = e.target.closest('[data-toggle]');
+  const el = t && document.getElementById(t.dataset.toggle);
+  if (el) { const open = el.hasAttribute('hidden'); el.toggleAttribute('hidden', !open); t.setAttribute('aria-expanded', String(open)); }
+  const r = e.target.closest('[role=radio]:not([disabled])');
+  if (r) { r.parentElement.querySelectorAll('[role=radio]').forEach((x) => { x.setAttribute('aria-checked', String(x === r)); x.tabIndex = x === r ? 0 : -1; }); }
+});
+const hint = document.getElementById('hint');
+document.querySelectorAll('[data-hint]').forEach((b) => {
+  const set = () => { if (hint) hint.textContent = b.dataset.hint; };
+  b.addEventListener('mouseenter', set); b.addEventListener('focus', set);
+});
+document.fonts.ready.then(() => { document.body.dataset.h = Math.ceil(document.getElementById('sb').getBoundingClientRect().height); });
+</script></body></html>

@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Direction A — launch card · 10-program-picker · 300px</title>
+<script>document.write('<link rel="stylesheet" href="../themes/' + (new URLSearchParams(location.search).get('theme') === 'light' ? 'light' : 'dark') + '-modern.css">');</script>
+<link rel="stylesheet" href="../src/design.css">
+<style>:root { --w: 300px; }</style></head>
+<body><div class="sidebar" id="sb">
+  <div class="vsc-title"><span>8BitScript</span><span class="acts"><i class="codicon" aria-hidden="true">&#60215;</i><i class="codicon" aria-hidden="true">&#60209;</i><i class="codicon" aria-hidden="true">&#60028;</i></span></div>
+  <main class="view"><div class="project">
+    <img src="../../../media/8bitscript-icon.svg" alt="">
+    <div class="who"><div class="name">Vegas Nights</div><div class="sub">vegas-nights · @8bitscript/cli 0.24.0</div></div>
+    <button class="ibtn" title="Project details" aria-label="Project details"><i class="codicon" aria-hidden="true">&#60020;</i></button>
+  </div><div style="height:8px"></div>
+    <section class="card"><div class="part"><span class="field-label">Program</span><button class="picker" aria-expanded="true" aria-haspopup="listbox"><span class="t">3×3 Slot<span class="g">Slots</span></span><i class="codicon" aria-hidden="true">&#60087;</i></button><div class="menu" id="picker" role="listbox" aria-label="Program">
+    <div class="filter" style="margin:4px 4px 6px"><i class="codicon" aria-hidden="true">&#60013;</i><input class="input" placeholder="Filter programs" aria-label="Filter programs"></div><div class="grp">Slots <span style="font-weight:400;letter-spacing:0">3</span></div><button class="it is-hover" role="option"><span class="tick"><i class="codicon" aria-hidden="true">&#60082;</i></span><span class="who">3×3 Slot</span><span class="spec"></span></button><button class="it" role="option"><span class="tick"></span><span class="who">5×5 Ways Slot</span><span class="spec"></span></button><button class="it" role="option"><span class="tick"></span><span class="who">Lobby</span><span class="spec"></span></button><div class="grp">Labs <span style="font-weight:400;letter-spacing:0">3</span></div><button class="it" role="option"><span class="tick"></span><span class="who">Hello Reels</span><span class="spec"></span></button><button class="it" role="option"><span class="tick"></span><span class="who">Sound Test</span><span class="spec"></span></button><button class="it" role="option"><span class="tick"></span><span class="who">Tile Test</span><span class="spec">4 systems</span></button><div class="grp">Test rigs <span style="font-weight:400;letter-spacing:0">4</span></div><button class="it" role="option"><span class="tick"></span><span class="who">slot3x3-probe</span><span class="spec"></span></button><button class="it" role="option"><span class="tick"></span><span class="who">slot3x3-ruler</span><span class="spec"></span></button><button class="it" role="option"><span class="tick"></span><span class="who">slot3x3-glyphs</span><span class="spec"></span></button><button class="it" role="option"><span class="tick"></span><span class="who">slot5x5-retrigger-jackpot-seeded-ruler</span><span class="spec"></span></button></div></div></section></main>
+</div>
+<script>
+document.addEventListener('click', (e) => {
+  const t = e.target.closest('[data-toggle]');
+  const el = t && document.getElementById(t.dataset.toggle);
+  if (el) { const open = el.hasAttribute('hidden'); el.toggleAttribute('hidden', !open); t.setAttribute('aria-expanded', String(open)); }
+  const r = e.target.closest('[role=radio]:not([disabled])');
+  if (r) { r.parentElement.querySelectorAll('[role=radio]').forEach((x) => { x.setAttribute('aria-checked', String(x === r)); x.tabIndex = x === r ? 0 : -1; }); }
+});
+const hint = document.getElementById('hint');
+document.querySelectorAll('[data-hint]').forEach((b) => {
+  const set = () => { if (hint) hint.textContent = b.dataset.hint; };
+  b.addEventListener('mouseenter', set); b.addEventListener('focus', set);
+});
+document.fonts.ready.then(() => { document.body.dataset.h = Math.ceil(document.getElementById('sb').getBoundingClientRect().height); });
+</script></body></html>
