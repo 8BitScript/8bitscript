@@ -1,7 +1,7 @@
 {
   "name": "@8bitscript/graphics",
   "version": "0.24.0",
-  "description": "Play a sprite compiled from a .8bg file: place it, advance its animation once a frame. Hardware sprites on the C64, CHR/OAM on the NES, quadrant-blocks on the PET, a software glyph everywhere else.",
+  "description": "Play a sprite compiled from a .8bg file: place it, advance its animation once a frame. Hardware sprites on the C64, CHR/OAM on the NES, quadrant-blocks on the PET, a quadrant-block glyph on the web, a software glyph everywhere else.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -24,7 +24,8 @@
     "@8bitscript/vic20": "workspace:*",
     "@8bitscript/cx16": "workspace:*",
     "@8bitscript/sprites": "workspace:*",
-    "@8bitscript/system": "workspace:*"
+    "@8bitscript/system": "workspace:*",
+    "@8bitscript/web": "workspace:*"
   },
   "publishConfig": {
     "access": "public"
