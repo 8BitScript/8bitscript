@@ -1,90 +1,127 @@
-// VIC-20 media lowering. PNG → a 2×2 cell object, still packed here as four
-// 8×8 tiles; song → the three squares plus noise at $900A–$900D with one
-// shared volume at $900E.
+// VIC-20 media lowering. PNG → screen codes, worked out here: the sprite is
+// reduced to the ROM's quadrant-block characters while the program is being
+// built, so what reaches the machine is one byte per cell per frame and
+// nothing for it to compute. Song → the three squares plus noise at
+// $900A–$900D with one shared volume at $900E.
 //
-// The tiles were once written into a RAM character set and displayed from
-// there. They are not any more: that charset had nowhere to live that was
-// not inside the program (packages/vic20/AGENTS.md's own reservation rule,
-// and @8bitscript/graphics' index.vic20.8bs for what it cost), so the
-// runtime reduces each tile to the ROM quadrant block that describes it.
-// The packing below is unchanged — it is what the runtime reduces from.
+// The ROM has the sixteen 2×2 on/off patterns of a cell (screen codes 32,
+// 97–127 and their reverses — the table below, measured against this
+// machine's own character ROM under xvic, see @8bitscript/graphics'
+// index.vic20.8bs), which turn the 22 × 23 grid into 44 × 46
+// pseudo-pixels. A sprite is reduced onto that grid: one cell for a source
+// of 8 pixels or fewer in a direction, two for anything larger (larger
+// sources are scaled down to it, as the PET's are), and a pseudo-pixel is
+// lit when any opaque dark pixel of the source falls in it. A sprite with
+// almost no ink survives no better than one glyph, so it becomes one.
+//
+// An earlier version packed the four 8×8 tiles of a 16×16 and left the
+// reduction to the machine, which then held a 256-byte table of them in
+// RAM, ignored the sprite's size (an 8×8 drew three blank cells beside its
+// one) and used only its first frame.
 'use strict';
 
 const KIND_VIC20 = 4;
 const KIND_GLYPH = 0;
-const CODE0 = 128;
+const GLYPH = 0x51; // a ball, the screen code a faint sprite is drawn as
+// How many frames one sprite may carry. The driver's pool of codes is
+// fixed (index.vic20.8bs POOL); a sprite is cut to this and says so.
+const MAX_FRAMES = 8;
 
-function quantize1bit(rgba, width, height) {
-  const indices = new Uint8Array(width * height);
-  for (let i = 0; i < width * height; i += 1) {
-    const o = i * 4;
-    if (rgba[o + 3] < 16) {
-      indices[i] = 255;
-      continue;
-    }
-    const lum = rgba[o] + rgba[o + 1] + rgba[o + 2];
-    indices[i] = lum < 500 ? 1 : 255;
-  }
-  return indices;
+// Screen code for each 2×2 pattern, indexed by TL<<3 | TR<<2 | BL<<1 | BR.
+const QUAD = [32, 108, 123, 98, 124, 225, 255, 254, 126, 127, 97, 252, 226, 251, 236, 160];
+
+function isInk(rgba, o) {
+  return rgba[o + 3] >= 16 && rgba[o] + rgba[o + 1] + rgba[o + 2] < 500;
 }
 
-function packCharTile(indices, width, sx, sy) {
-  const out = [];
-  for (let y = 0; y < 8; y += 1) {
-    let b = 0;
-    for (let x = 0; x < 8; x += 1) {
-      const ix = sx + x;
-      const iy = sy + y;
-      if (ix < width && indices[iy * width + ix] === 1) {
-        b |= 0x80 >> x;
-      }
-    }
-    out.push(b);
+function inkCount(frame) {
+  let n = 0;
+  for (let i = 0; i < frame.width * frame.height; i += 1) {
+    if (isInk(frame.rgba, i * 4)) n += 1;
   }
-  return out;
+  return n;
+}
+
+// The frame's pseudo-pixels, `pw` × `ph`, each lit if any ink falls in the
+// part of the source it covers.
+function pseudoPixels(frame, pw, ph) {
+  const bits = [];
+  for (let y = 0; y < ph; y += 1) {
+    const y0 = Math.floor((y * frame.height) / ph);
+    const y1 = Math.max(y0 + 1, Math.floor(((y + 1) * frame.height) / ph));
+    for (let x = 0; x < pw; x += 1) {
+      const x0 = Math.floor((x * frame.width) / pw);
+      const x1 = Math.max(x0 + 1, Math.floor(((x + 1) * frame.width) / pw));
+      let on = 0;
+      for (let sy = y0; sy < y1 && sy < frame.height && !on; sy += 1) {
+        for (let sx = x0; sx < x1 && sx < frame.width; sx += 1) {
+          if (isInk(frame.rgba, (sy * frame.width + sx) * 4)) { on = 1; break; }
+        }
+      }
+      bits.push(on);
+    }
+  }
+  return bits;
+}
+
+function frameCodes(frame, cw, ch) {
+  const pw = cw * 2;
+  const bits = pseudoPixels(frame, pw, ch * 2);
+  const at = (x, y) => bits[y * pw + x];
+  const codes = [];
+  for (let cy = 0; cy < ch; cy += 1) {
+    for (let cx = 0; cx < cw; cx += 1) {
+      const x = cx * 2;
+      const y = cy * 2;
+      codes.push(QUAD[(at(x, y) << 3) | (at(x + 1, y) << 2) | (at(x, y + 1) << 1) | at(x + 1, y + 1)]);
+    }
+  }
+  return codes;
 }
 
 function lowerGraphics(sprite, frames, _facts, file, diagnostic) {
   const diagnostics = [];
-  const frame = frames[0];
   const anim = sprite.animations?.[0];
-  if (!frame) {
-    return {
-      kind: KIND_GLYPH, data: [0x2A], frames: 1, every: 8, width: 8, height: 8, chrPatches: [], diagnostics,
-    };
+  const every = anim?.every ?? 8;
+  const glyph = {
+    kind: KIND_GLYPH, data: [GLYPH], frames: 1, every, width: 8, height: 8, chrPatches: [], diagnostics,
+  };
+  if (!frames[0]) {
+    glyph.data = [0x2A];
+    return glyph;
   }
-  const indices = quantize1bit(frame.rgba, frame.width, frame.height);
-  let ink = 0;
-  for (let i = 0; i < indices.length; i += 1) {
-    if (indices[i] === 1) ink += 1;
-  }
-  if (ink < 4) {
+  const wanted = anim?.frames?.length ? anim.frames : [0];
+  const used = wanted.slice(0, MAX_FRAMES).map((index) => frames[index] ?? frames[0]);
+  if (wanted.length > MAX_FRAMES) {
     diagnostics.push(diagnostic(
       '8BS2111',
-      `sprite '${sprite.name}' has too little ink to survive as a 2×2 block object; using a software glyph`,
+      `sprite '${sprite.name}' has ${wanted.length} animation frames; the VIC-20 keeps the first ${MAX_FRAMES}`,
       file, sprite.start, sprite.length, 'warning',
     ));
-    return {
-      kind: KIND_GLYPH, data: [0x51], frames: 1, every: anim?.every ?? 8, width: 8, height: 8, chrPatches: [], diagnostics,
-    };
   }
+  if (used.reduce((n, frame) => n + inkCount(frame), 0) < 4) {
+    diagnostics.push(diagnostic(
+      '8BS2111',
+      `sprite '${sprite.name}' has too little ink to survive as quadrant blocks; using a software glyph`,
+      file, sprite.start, sprite.length, 'warning',
+    ));
+    return glyph;
+  }
+  const { width: w, height: h } = used[0];
+  const cw = w > 8 ? 2 : 1;
+  const ch = h > 8 ? 2 : 1;
   diagnostics.push(diagnostic(
     '8BS2111',
-    `sprite '${sprite.name}' is a 2×2 quadrant-block object on the VIC-20`,
+    `sprite '${sprite.name}' is a ${cw}×${ch}-cell quadrant-block object on the VIC-20`,
     file, sprite.start, sprite.length, 'warning',
   ));
-  const tiles = [];
-  for (const [sx, sy] of [[0, 0], [8, 0], [0, 8], [8, 8]]) {
-    tiles.push(...packCharTile(indices, frame.width, sx, sy));
-  }
-  const data = [CODE0, CODE0 + 1, CODE0 + 2, CODE0 + 3, ...tiles];
   return {
     kind: KIND_VIC20,
-    data,
-    frames: 1,
-    every: anim?.every ?? 8,
-    width: 16,
-    height: 16,
+    data: used.flatMap((frame) => frameCodes(frame, cw, ch)),
+    frames: used.length,
+    every,
+    width: cw * 8,
+    height: ch * 8,
     chrPatches: [],
     diagnostics,
   };

@@ -178,13 +178,14 @@ test('Atari 8-bit lowering reports a glyph and a POKEY song', () => {
   });
 });
 
-test('VIC-20 lowers four RAM glyphs and a VIC song; Odyssey 2 omits audio with no driver', () => {
+test('VIC-20 lowers four frames of quadrant-block codes and a VIC song; Odyssey 2 omits audio with no driver', () => {
   withProject((dir) => {
     const vic = linked(dir, 'vic20');
     assert.deepEqual(vic.diagnostics.filter((d) => d.severity !== 'warning'), []);
     assert.ok(vic.diagnostics.some((d) => d.code === Codes.GFX_ADAPTED || d.code === '8BS2111'));
     const gfx = vic.ir.globals.find((g) => g.name.includes('8bg') && Array.isArray(g.init));
-    assert.equal(gfx.init.length, 36);
+    // Four frames of a 2×2-cell object: one screen code a cell, nothing else.
+    assert.equal(gfx.init.length, 16);
     const song = vic.ir.globals.find((g) => Array.isArray(g.init) && g.init[0] === 120);
     assert.ok(song);
     assert.equal(song.init[5], 48);

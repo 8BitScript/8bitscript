@@ -208,7 +208,9 @@ function wrapDiagnostic(code, message, file, start, length, severity = 'error') 
 /**
  * @param {object} module  parseMediaModule's result (media.gir / media.air)
  * @param {object[]} diagnostics
- * @param {{ machine?: string, facts?: object, checkout?: string|null }} options
+ * @param {{ machine?: string, facts?: object, checkout?: string|null, mediaSlots?: { graphics: number } }} options
+ *   `mediaSlots` is one counter for the whole link, so sprites in different
+ *   .8bg files get different slots.
  */
 export function elaborateMedia(module, diagnostics, options = {}) {
   const { file, media } = module;
@@ -225,7 +227,12 @@ export function elaborateMedia(module, diagnostics, options = {}) {
       start: 0, length: 0,
     });
     const gir = media.gir;
-    gir.sprites.forEach((sprite, slot) => {
+    // A sprite's slot is its place among every sprite in the build, not
+    // among the ones in its own file: two .8bg files each start counting
+    // at zero, and a driver that keeps one object per slot would draw the
+    // second file's first sprite over the first file's.
+    gir.sprites.forEach((sprite) => {
+      const slot = options.mediaSlots ? options.mediaSlots.graphics++ : gir.sprites.indexOf(sprite);
       ir.consts.push(constHandle(sprite.name, slot, sprite));
       const frames = decodeSpriteSource(sprite, file, diagnostics);
       const result = lowering?.lowerGraphics

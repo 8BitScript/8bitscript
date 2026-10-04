@@ -48,7 +48,7 @@ shape as `sprites.update()`.
 
 Host decode lives in `@8bitscript/graphics-tools` (PNG, no Aseprite, GIF,
 or SVG). The compiler never shells out. Lowering belongs to the machine:
-C64, NES, PET, and Atari 8-bit each export a `"8bitscript".media` module.
+C64, NES, PET, Atari 8-bit, and VIC-20 each export a `"8bitscript".media` module.
 Every other machine uses the glyph path `@8bitscript/sprites` already has,
 with `8BS2111` naming the adaptation.
 
@@ -60,7 +60,7 @@ with `8BS2111` naming the adaptation.
 | NES | CHR tiles from `$E0` and an OAM sprite. |
 | PET | A 4×4 quadrant-block object, or a single glyph if the picture cannot survive that (`8BS2111` either way). |
 | Atari 8-bit | A software glyph; frames collapsed (`8BS2111`). Player/missile shapes are a later slice. |
-| VIC-20 | The glyph path, quantized to 8×8 cells (`8BS2111`). |
+| VIC-20 | Quadrant-block characters from the ROM, worked out at build time: one cell for a source of 8 pixels or fewer, 2×2 cells for anything larger (scaled down), one screen code a cell a frame, the animation's frames (the first 8) stepping every `every` updates; a picture with almost no ink becomes one glyph (`8BS2111` either way). Moving an object blanks the cells it left; cells off the screen are not drawn. |
 | Commander X16 | The glyph path, quantized to 8×8 cells (`8BS2111`). |
 | every other machine | The same glyph path, quantized to that machine's cell size. |
 
@@ -94,8 +94,14 @@ the 32K 3032 with a user-port speaker so the VIA song actually plays.
 | --- | --- | --- |
 | PET 3032 + speaker | 3493 | 46 |
 | C64 | 4276 | 45 |
-| VIC-20 8K | 1987 | 42 |
+| VIC-20 8K | 2455 | 49 |
 | Commander X16 | 2918 | 58 |
+
+The VIC-20 row was measured again on 2026-10-03, after its twin changed: it
+was 2383 and 41 on the same example before, and the 256-byte glyph table it
+then kept is gone. The example's arrays count in the program figure (they are
+zero-filled bytes in the image), not in the variables one. The unexpanded
+machine builds the same program at the same size.
 
 Later: tiles, tilemaps, fonts, vectors, raster blocks, Aseprite. The GIR
 has empty slots (`tiles`, `fonts`) so those land without reshaping the IR.
