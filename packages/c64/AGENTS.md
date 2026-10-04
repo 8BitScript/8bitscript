@@ -58,12 +58,18 @@ Do not describe more than this as working:
   slot a `.8bg` declared, so a program with three sprites does not pay the
   multiplexer for 24. Measured on `examples/media-walk`: 4485 → 4577 bytes of
   program, 45 → 46 of variables (`8bs build c64 --size`, 2026-10-03).
-  **X past 255 must be a `usmallint` sum**: `sprites.ORIGIN_X + 236` is two
-  untyped small numbers and wraps at 8 bits to 4, which is under the left
-  border (an imported namespace const's declared type is not tracked across
-  the import — `rewriteExpression`'s `namespaceConst` case in the linker); put
-  it in a `usmallint` variable (`let far: usmallint = sprites.ORIGIN_X; far =
-  far + 236;`) or write the literal, as `test/graphics-probe.8bs` does.
+  `graphics.place` takes **playfield pixels** (the portable contract,
+  docs/project/graphics.md): the twin adds `sprites.ORIGIN_X`/`ORIGIN_Y`
+  itself, so `place(slot, 0, 0)` is text cell (0, 0) and a position past 255
+  is the plain number `236` (sprite-chip X 260), as `test/graphics-probe.8bs`
+  writes it. **A sum a program builds from the origin itself must be a
+  `usmallint`**: `sprites.ORIGIN_X + 236` is two untyped small numbers and
+  wraps at 8 bits to 4, which is under the left border (an imported namespace
+  const's declared type is not tracked across the import —
+  `rewriteExpression`'s `namespaceConst` case in the linker); that is only
+  a program calling `sprites.place` directly now, and it puts the sum in a
+  `usmallint` variable (`let far: usmallint = sprites.ORIGIN_X; far = far +
+  236;`).
 
 - **The picture lives in VIC bank 3** (`src/geometry.8bs`, the `Video`
   namespace and the arrays over it): screen matrix `$E000`, sprite

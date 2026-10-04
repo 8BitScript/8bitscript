@@ -33,7 +33,7 @@
 // (0, 0) sits on the same pixel as the text grid's cell (0, 0).
 import { setVramAddress } from "@8bitscript/cx16";
 
-const MAX: utinyint = 8;
+const SLOTS: utinyint = 8;
 const KIND_CX16: utinyint = 5;
 const PALETTE_BYTES: utinyint = 32;
 const PALETTE_LOW: usmallint = 0xFB00;   // bank 1: palette entry 128
@@ -48,6 +48,7 @@ let interval: array<u8, 8>;
 let tick: array<u8, 8>;
 let frame: array<u8, 8>;
 let shown: array<u8, 8>;
+let paused: array<u8, 8>;    // 1: automatic stepping paused
 let sizeBits: array<u8, 8>;
 let frameBytes: array<u16, 8>;
 let px: array<u16, 8>;
@@ -119,8 +120,20 @@ function showSprite(slot: utinyint): void {
 }
 
 export namespace graphics {
+    // The portable contract (index.8bs): what this machine answers.
+    const MAX: utinyint = 8;                  // VERA sprites 1-8; sprite 0 is the KERNAL's mouse
+    const FRAMES: utinyint = 2;               // of a WIDTH x HEIGHT picture: a sprite's 4096-byte window holds 32 at 16x16, 8 at 32x16, 2 at 64x64
+    const WIDTH: utinyint = 64;               // VERA's largest sprite
+    const HEIGHT: utinyint = 64;
+    const COLORS: utinyint = 15;              // 4 bpp: its own palette block, transparent aside
+    const RECOLORS: bool = false;             // color() is a no-op: not yet
+    const STEP_X: utinyint = 1;               // a pixel
+    const STEP_Y: utinyint = 1;
+    const RESTORES: bool = true;              // a sprite draws over the layers and leaves them whole
+    const TRANSPARENT: bool = true;           // palette entry 0 of a sprite is clear
+
     function bind(slot: utinyint, index: usmallint, value: utinyint): void {
-        if (slot >= MAX) {
+        if (slot >= SLOTS) {
             return;
         }
         let wide: usmallint = slot;
@@ -132,7 +145,7 @@ export namespace graphics {
     }
 
     function meta(slot: utinyint, frames: utinyint, every: utinyint, kind: utinyint, width: utinyint, height: utinyint): void {
-        if (slot >= MAX) {
+        if (slot >= SLOTS) {
             return;
         }
         let w: usmallint = width;
@@ -142,12 +155,13 @@ export namespace graphics {
         tick[slot] = 0;
         frame[slot] = 0;
         shown[slot] = 0;
+        paused[slot] = 0;
         frameBytes[slot] = (w * h) / 2;
         sizeBits[slot] = sizeCode(height) * 64 + sizeCode(width) * 16 + FIRST_PALETTE_OFFSET + slot;
     }
 
     function place(slot: utinyint, x: usmallint, y: usmallint): void {
-        if (slot >= MAX) {
+        if (slot >= SLOTS) {
             return;
         }
         enableSprites();
@@ -158,12 +172,55 @@ export namespace graphics {
         showSprite(slot);
     }
 
+    // Z-depth 0 disables a sprite; the next place() writes it back.
+    function hide(slot: utinyint): void {
+        if (slot >= SLOTS) {
+            return;
+        }
+        shown[slot] = 0;
+        if (enabled) {
+            vramWrite(1, attrAddress(slot) + 6, 0);
+        }
+    }
+
+    function setFrame(slot: utinyint, n: utinyint): void {
+        if (slot >= SLOTS) {
+            return;
+        }
+        if (frameCount[slot] == 0) {
+            return;
+        }
+        if (n >= frameCount[slot]) {
+            n = frameCount[slot] - 1;
+        }
+        frame[slot] = n;
+        tick[slot] = 0;
+        if (shown[slot] != 0) {
+            writeFrame(slot);
+        }
+    }
+
+    function animate(slot: utinyint, on: bool): void {
+        if (slot >= SLOTS) {
+            return;
+        }
+        paused[slot] = 1;
+        if (on) {
+            paused[slot] = 0;
+        }
+    }
+
+    // Not yet: the sprite's colours are its own palette block, and
+    // re-tinting one is the X16 fork's job. graphics.RECOLORS is false.
+    function color(slot: utinyint, c: utinyint): void {
+    }
+
     function update(): void {
         if (!enabled) {
             return;
         }
-        for (let slot: utinyint = 0; slot < MAX; slot++) {
-            if (shown[slot] == 0 || frameCount[slot] < 2) {
+        for (let slot: utinyint = 0; slot < SLOTS; slot++) {
+            if (shown[slot] == 0 || frameCount[slot] < 2 || paused[slot] != 0) {
                 continue;
             }
             tick[slot] = tick[slot] + 1;

@@ -56,7 +56,7 @@
 //    updates and starts over after the last.
 import { Video } from "@8bitscript/vic20/geometry";
 
-const MAX: utinyint = 8;
+const SLOTS: utinyint = 8;
 const POOL: utinyint = 64;
 const INK: utinyint = 1; // white, the color text.8bs also defaults to
 const SPACE: utinyint = 32;
@@ -73,7 +73,9 @@ let tick: array<u8, 8>;      // updates since the frame last changed
 let frame: array<u8, 8>;     // the frame showing
 let col: array<u8, 8>;       // the cell the object is placed at; OFF past the screen
 let row: array<u8, 8>;
-let seen: array<u8, 8>;      // 1 once placed
+let ink: array<u8, 8>;       // the color RAM value its cells are drawn with
+let paused: array<u8, 8>;    // 1: automatic stepping paused
+let seen: array<u8, 8>;      // 1 once placed and not hidden
 let drawn: array<u8, 8>;     // 1 while cells of it are on the screen
 let drawnCol: array<u8, 8>;  // where they are
 let drawnRow: array<u8, 8>;
@@ -104,7 +106,7 @@ function paint(slot: utinyint, blank: bool): void {
                     memory.write(Video.SCREEN + cell, SPACE);
                 } else {
                     memory.write(Video.SCREEN + cell, pool[at]);
-                    memory.write(Video.COLOR + cell, INK);
+                    memory.write(Video.COLOR + cell, ink[slot]);
                 }
             }
             at = at + 1;
@@ -115,7 +117,7 @@ function paint(slot: utinyint, blank: bool): void {
 }
 
 function flush(): void {
-    let slot: utinyint = MAX;
+    let slot: utinyint = SLOTS;
     while (slot > 0) {
         slot = slot - 1;
         if (moved[slot] != 0 && drawn[slot] != 0) {
@@ -123,7 +125,7 @@ function flush(): void {
             drawn[slot] = 0;
         }
     }
-    while (slot < MAX) {
+    while (slot < SLOTS) {
         if (seen[slot] != 0) {
             paint(slot, false);
             drawn[slot] = 1;
@@ -136,8 +138,20 @@ function flush(): void {
 }
 
 export namespace graphics {
+    // The portable contract (index.8bs): what this machine answers.
+    const MAX: utinyint = 8;
+    const FRAMES: utinyint = 8;               // the lowering keeps the first eight; the 64-byte pool is shared
+    const WIDTH: utinyint = 16;               // 2 × 2 cells
+    const HEIGHT: utinyint = 16;
+    const COLORS: utinyint = 1;               // one color RAM value a cell
+    const RECOLORS: bool = true;              // color() sets what its cells are drawn with
+    const STEP_X: utinyint = 8;               // a cell
+    const STEP_Y: utinyint = 8;
+    const RESTORES: bool = false;             // moving blanks the cells; what was under is not put back
+    const TRANSPARENT: bool = false;          // a cell is drawn whole
+
     function bind(slot: utinyint, index: utinyint, value: utinyint): void {
-        if (slot >= MAX) {
+        if (slot >= SLOTS) {
             return;
         }
         if (index == 0) {
@@ -150,7 +164,7 @@ export namespace graphics {
     }
 
     function meta(slot: utinyint, count: utinyint, rate: utinyint, which: utinyint, width: utinyint, height: utinyint): void {
-        if (slot >= MAX) {
+        if (slot >= SLOTS) {
             return;
         }
         wide[slot] = width >> 3;
@@ -166,10 +180,12 @@ export namespace graphics {
         every[slot] = rate;
         tick[slot] = 0;
         frame[slot] = 0;
+        ink[slot] = INK;
+        paused[slot] = 0;
     }
 
     function place(slot: utinyint, x: usmallint, y: usmallint): void {
-        if (slot >= MAX) {
+        if (slot >= SLOTS) {
             return;
         }
         if (frames[slot] == 0) {
@@ -188,10 +204,52 @@ export namespace graphics {
         flush();
     }
 
+    function hide(slot: utinyint): void {
+        if (slot >= SLOTS) {
+            return;
+        }
+        seen[slot] = 0;
+        moved[slot] = 1;
+        flush();
+    }
+
+    // The frame shows from the next update().
+    function setFrame(slot: utinyint, n: utinyint): void {
+        if (slot >= SLOTS) {
+            return;
+        }
+        if (frames[slot] == 0) {
+            return;
+        }
+        if (n >= frames[slot]) {
+            n = frames[slot] - 1;
+        }
+        frame[slot] = n;
+        tick[slot] = 0;
+    }
+
+    function animate(slot: utinyint, on: bool): void {
+        if (slot >= SLOTS) {
+            return;
+        }
+        paused[slot] = 1;
+        if (on) {
+            paused[slot] = 0;
+        }
+    }
+
+    // The color shows from the next update().
+    function color(slot: utinyint, c: utinyint): void {
+        if (slot >= SLOTS) {
+            return;
+        }
+        ink[slot] = c;
+    }
+
     function update(): void {
         let slot: utinyint = 0;
-        while (slot < MAX) {
-            if (seen[slot] != 0 && frames[slot] > 1) {
+        while (slot < SLOTS) {
+            if (seen[slot] != 0 && frames[slot] > 1 && paused[slot] == 0) {
                 tick[slot] = tick[slot] + 1;
                 if (tick[slot] >= every[slot]) {
                     tick[slot] = 0;

@@ -14,26 +14,39 @@
 // picture costs one shape, a four-frame walk four.
 import { sprites } from "@8bitscript/sprites";
 
-const MAX: utinyint = 8;
+const SLOTS: utinyint = 8;
 let base: array<u8, 8>;       // a picture's first shape
 let frameCount: array<u8, 8>; // frames it has shapes for; 0: it is not drawn
 let interval: array<u8, 8>;
 let tick: array<u8, 8>;
 let frame: array<u8, 8>;
+let paused: array<u8, 8>;     // 1: automatic stepping paused
 let held: array<u8, 3>;       // the rows of the frame bind() is part-way through
 let used: utinyint = 0;       // shapes handed out so far
 let started: bool = false;
 
 function ensure(): void {
     if (!started) {
-        sprites.begin(MAX);
+        sprites.begin(SLOTS);
         started = true;
     }
 }
 
 export namespace graphics {
+    // The portable contract (index.8bs): what this machine answers.
+    const MAX: utinyint = 8;
+    const FRAMES: utinyint = sprites.SHAPES;  // the layer's shapes are shared by every picture
+    const WIDTH: utinyint = sprites.WIDTH;    // 4 × 4 pseudo-pixels of 4 × 4 real pixels
+    const HEIGHT: utinyint = sprites.HEIGHT;
+    const COLORS: utinyint = 1;               // the PET's one ink
+    const RECOLORS: bool = false;             // color() is a no-op: there is no colour to choose
+    const STEP_X: utinyint = sprites.STEP_X;  // a pseudo-pixel
+    const STEP_Y: utinyint = sprites.STEP_Y;
+    const RESTORES: bool = sprites.RESTORES;  // what an object covers comes back
+    const TRANSPARENT: bool = true;           // an unlit pseudo-pixel merges with a quadrant block under it
+
     function bind(slot: utinyint, index: utinyint, value: utinyint): void {
-        if (slot >= MAX) {
+        if (slot >= SLOTS) {
             return;
         }
         ensure();
@@ -53,12 +66,13 @@ export namespace graphics {
     }
 
     function meta(slot: utinyint, frames: utinyint, every: utinyint, which: utinyint, width: utinyint, height: utinyint): void {
-        if (slot >= MAX) {
+        if (slot >= SLOTS) {
             return;
         }
         ensure();
         tick[slot] = 0;
         frame[slot] = 0;
+        paused[slot] = 0;
         interval[slot] = every;
         // bind() stopped at the last shape that existed, so what was
         // defined is what `used` has moved past.
@@ -76,7 +90,7 @@ export namespace graphics {
     }
 
     function place(slot: utinyint, x: usmallint, y: usmallint): void {
-        if (slot >= MAX) {
+        if (slot >= SLOTS) {
             return;
         }
         ensure();
@@ -86,12 +100,51 @@ export namespace graphics {
         sprites.place(slot, x, y);
     }
 
+    function hide(slot: utinyint): void {
+        if (slot >= SLOTS) {
+            return;
+        }
+        ensure();
+        sprites.hide(slot);
+    }
+
+    function setFrame(slot: utinyint, n: utinyint): void {
+        if (slot >= SLOTS) {
+            return;
+        }
+        if (frameCount[slot] == 0) {
+            return;
+        }
+        ensure();
+        if (n >= frameCount[slot]) {
+            n = frameCount[slot] - 1;
+        }
+        frame[slot] = n;
+        tick[slot] = 0;
+        sprites.setShape(slot, base[slot] + n);
+    }
+
+    function animate(slot: utinyint, on: bool): void {
+        if (slot >= SLOTS) {
+            return;
+        }
+        paused[slot] = 1;
+        if (on) {
+            paused[slot] = 0;
+        }
+    }
+
+    // Not yet, and not possible here: the PET has one ink, so there is no
+    // colour to choose. graphics.RECOLORS is false.
+    function color(slot: utinyint, c: utinyint): void {
+    }
+
     function update(): void {
         if (!started) {
             return;
         }
-        for (let slot: utinyint = 0; slot < MAX; slot++) {
-            if (frameCount[slot] < 2) {
+        for (let slot: utinyint = 0; slot < SLOTS; slot++) {
+            if (frameCount[slot] < 2 || paused[slot] != 0) {
                 continue;
             }
             tick[slot] = tick[slot] + 1;

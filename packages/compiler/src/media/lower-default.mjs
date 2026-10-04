@@ -30,21 +30,31 @@ export function glyphOf(frame) {
   return 0x2A; // asterisk — the sprites default
 }
 
+// packages/graphics/src/index.8bs holds this many animation steps a picture.
+export const DEFAULT_MAX_STEPS = 4;
+
 export function lowerGraphicsDefault(sprite, frames, file) {
   const diagnostics = [];
-  const first = frames[0];
-  const glyph = first ? glyphOf(first) : 0x2A;
-  const collapsed = (sprite.animations?.[0]?.frames?.length ?? 1) > 1;
+  const anim = sprite.animations?.[0];
+  const sequence = anim?.frames?.length ? anim.frames : [0];
+  const kept = sequence.slice(0, DEFAULT_MAX_STEPS);
+  const data = kept.map((index) => {
+    const frame = frames[index] ?? frames[0];
+    return frame ? glyphOf(frame) : 0x2A;
+  });
+  const notes = [];
+  if (kept.length > 1) notes.push(`${kept.length} animation steps kept`);
+  if (sequence.length > DEFAULT_MAX_STEPS) notes.push(`steps past ${DEFAULT_MAX_STEPS} dropped`);
   diagnostics.push(diagnostic(
     Codes.GFX_ADAPTED,
-    `sprite '${sprite.name}' is a software glyph on this target${collapsed ? '; frames collapsed' : ''}`,
+    `sprite '${sprite.name}' is a software glyph on this target${notes.length ? `; ${notes.join('; ')}` : ''}`,
     file, sprite.start, sprite.length, 'warning',
   ));
   return {
     kind: KIND_GLYPH,
-    data: [glyph],
-    frames: 1,
-    every: sprite.animations?.[0]?.every ?? 8,
+    data,
+    frames: kept.length,
+    every: anim?.every ?? 8,
     width: 8,
     height: 8,
     chrPatches: [],

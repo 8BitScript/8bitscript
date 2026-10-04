@@ -69,7 +69,7 @@ import { Scene } from "./Scene.8bx";
 
 export function main(): void {
     screen.blank();
-    graphics.place(mark, sprites.ORIGIN_X + 120, sprites.ORIGIN_Y);
+    graphics.place(mark, 120, 0);
     audio.play(chime);
     flock.begin();
     timeline.start();

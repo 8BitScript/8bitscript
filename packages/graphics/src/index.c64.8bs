@@ -12,12 +12,13 @@ import { sprites } from "@8bitscript/sprites";
 import { sprites as hardware } from "@8bitscript/c64/sprites";
 import { multiplex } from "@8bitscript/c64/multiplex";
 
-const MAX: utinyint = multiplex.MAX;
+const SLOTS: utinyint = multiplex.MAX;
 const BYTES: utinyint = 63;
 let frameCount: array<u8, 24>;
 let interval: array<u8, 24>;
 let tick: array<u8, 24>;
 let frame: array<u8, 24>;
+let paused: array<u8, 24>;  // 1: automatic stepping paused
 let started: bool = false;
 let used: utinyint = 0;     // one past the highest slot a .8bg declared
 
@@ -27,14 +28,26 @@ function baseBlock(slot: utinyint): utinyint {
 
 function ensure(): void {
     if (!started) {
-        sprites.begin(MAX);
+        sprites.begin(SLOTS);
         started = true;
     }
 }
 
 export namespace graphics {
+    // The portable contract (index.8bs): what this machine answers.
+    const MAX: utinyint = SLOTS;                // the multiplexer's virtual sprites, eight on any one line
+    const FRAMES: utinyint = 4;                 // shape blocks a slot owns
+    const WIDTH: utinyint = sprites.WIDTH;      // a hardware sprite, unexpanded
+    const HEIGHT: utinyint = sprites.HEIGHT;
+    const COLORS: utinyint = 1;                 // one colour a sprite (the PNG's nearest); multicolour is not used
+    const RECOLORS: bool = true;                // color() sets the sprite colour register
+    const STEP_X: utinyint = sprites.STEP_X;    // a pixel
+    const STEP_Y: utinyint = sprites.STEP_Y;
+    const RESTORES: bool = sprites.RESTORES;    // a sprite draws over the picture and leaves it whole
+    const TRANSPARENT: bool = true;             // unset sprite pixels show what is behind
+
     function bind(slot: utinyint, index: utinyint, value: utinyint): void {
-        if (slot >= MAX) {
+        if (slot >= SLOTS) {
             return;
         }
         let block: utinyint = baseBlock(slot);
@@ -47,13 +60,14 @@ export namespace graphics {
     }
 
     function meta(slot: utinyint, frames: utinyint, every: utinyint, kind: utinyint, width: utinyint, height: utinyint): void {
-        if (slot >= MAX) {
+        if (slot >= SLOTS) {
             return;
         }
         frameCount[slot] = frames;
         interval[slot] = every;
         tick[slot] = 0;
         frame[slot] = 0;
+        paused[slot] = 0;
         ensure();
         sprites.setShape(slot, baseBlock(slot));
         sprites.setColor(slot, kind >> 4);
@@ -64,11 +78,55 @@ export namespace graphics {
     }
 
     function place(slot: utinyint, x: usmallint, y: usmallint): void {
-        if (slot >= MAX) {
+        if (slot >= SLOTS) {
             return;
         }
         ensure();
-        sprites.place(slot, x, y);
+        // Stage pixels in, sprite-chip coordinates out: the layer's origin
+        // is where the playfield's top-left corner sits in them.
+        sprites.place(slot, x + sprites.ORIGIN_X, y + sprites.ORIGIN_Y);
+    }
+
+    function hide(slot: utinyint): void {
+        if (slot >= SLOTS) {
+            return;
+        }
+        ensure();
+        sprites.hide(slot);
+    }
+
+    function setFrame(slot: utinyint, n: utinyint): void {
+        if (slot >= SLOTS) {
+            return;
+        }
+        if (frameCount[slot] == 0) {
+            return;
+        }
+        ensure();
+        if (n >= frameCount[slot]) {
+            n = frameCount[slot] - 1;
+        }
+        frame[slot] = n;
+        tick[slot] = 0;
+        sprites.setShape(slot, baseBlock(slot) + n);
+    }
+
+    function animate(slot: utinyint, on: bool): void {
+        if (slot >= SLOTS) {
+            return;
+        }
+        paused[slot] = 1;
+        if (on) {
+            paused[slot] = 0;
+        }
+    }
+
+    function color(slot: utinyint, c: utinyint): void {
+        if (slot >= SLOTS) {
+            return;
+        }
+        ensure();
+        sprites.setColor(slot, c);
     }
 
     function update(): void {
@@ -76,7 +134,7 @@ export namespace graphics {
             return;
         }
         for (let slot: utinyint = 0; slot < used; slot++) {
-            if (frameCount[slot] < 2) {
+            if (frameCount[slot] < 2 || paused[slot] != 0) {
                 continue;
             }
             tick[slot] = tick[slot] + 1;

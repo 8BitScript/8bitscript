@@ -17,6 +17,18 @@ test('every twin exports graphics.bind, meta, place, and update', () => {
   }
 });
 
+test('every twin, the web and X16 included, exports the contract calls and all ten constants', () => {
+  for (const name of ['index.8bs', 'index.c64.8bs', 'index.cx16.8bs', 'index.nes.8bs', 'index.pet.8bs', 'index.vic20.8bs', 'index.web.8bs']) {
+    const src = readFileSync(join(SRC, name), 'utf8');
+    for (const fn of ['hide', 'setFrame', 'animate', 'color']) {
+      assert.match(src, new RegExp(`function ${fn}\\(`), `${name}: ${fn}`);
+    }
+    for (const constant of ['MAX', 'FRAMES', 'WIDTH', 'HEIGHT', 'COLORS', 'RECOLORS', 'STEP_X', 'STEP_Y', 'RESTORES', 'TRANSPARENT']) {
+      assert.match(src, new RegExp(`^    const ${constant}: (?:utinyint|bool) = `, 'm'), `${name}: graphics.${constant}`);
+    }
+  }
+});
+
 // ---- web (packages/web/media/index.cjs + src/index.web.8bs) ----------------
 
 test('the web twin exports graphics.bind, meta, place, and update', () => {
@@ -32,7 +44,7 @@ test('the web twin holds exactly as many animation steps as the web lowering kee
   const { default: web } = await import('../../web/media/index.cjs');
   assert.equal(steps, web.MAX_STEPS);
   // codes is MAX pictures × STEPS steps, indexed (slot << 3) + step.
-  const max = Number(/const MAX: utinyint = (\d+);/.exec(src)?.[1]);
+  const max = Number(/^const SLOTS: utinyint = (\d+);/m.exec(src)?.[1]);
   assert.equal(Number(/let codes: array<u8, (\d+)>;/.exec(src)?.[1]), max * steps);
   assert.equal(steps, 8, 'the (slot << 3) indexing assumes eight steps');
 });
@@ -42,7 +54,8 @@ test('the web twin holds exactly as many animation steps as the web lowering kee
 test('the C64 twin holds as many graphics sprites as the multiplexer has virtual ones, and colours each from its kind byte', () => {
   const src = readFileSync(join(SRC, 'index.c64.8bs'), 'utf8');
   assert.match(src, /import \{ multiplex \} from "@8bitscript\/c64\/multiplex";/);
-  assert.match(src, /const MAX: utinyint = multiplex\.MAX;/);
+  assert.match(src, /const SLOTS: utinyint = multiplex\.MAX;/);
+  assert.match(src, /const MAX: utinyint = SLOTS;/);
   assert.match(src, /let frameCount: array<u8, 24>;/);
   assert.match(src, /sprites\.setColor\(slot, kind >> 4\);/);
   assert.doesNotMatch(src, /sprites\.setColor\(slot, 1\);/, 'the colour is no longer white for every sprite');
