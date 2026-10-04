@@ -109,19 +109,21 @@ does not target the web), 26 pass. The Vegas Nights `move_down` and `play` ones 
 game's own machine code (the quadrant machines' block-copy hop; the X16 reel
 code) and need wasm twins in that repo.
 
-**Building is not rendering.** Four builds that pass were looked at against the
+**Building is not rendering.** Three builds that pass were looked at against the
 real machine (`media-walk`, 200 frames):
 
 | | native | wasm |
 |---|---|---|
 | PET | two objects (a cross and a bar) | text only |
 | VIC-20 | objects | text only |
-| X16 | a yellow VERA sprite | text only |
+| X16 | a yellow VERA sprite | one white 8×8 glyph, in about the right place (since #317; it was text only) |
 
-**`@8bitscript/graphics` draws nothing on any real-machine wasm build** — the
-PET and VIC-20 objects are quadrant blocks written as screen codes of 128 and
-up (the reverse-video gap below), and the X16's are VERA sprites, which the page
-has no renderer for. Only the `web` target draws them.
+**`@8bitscript/graphics` draws nothing on the PET and VIC-20 wasm builds, and one
+flat glyph on the X16's.** The PET and VIC-20 objects are quadrant blocks written as
+screen codes of 128 and up (the reverse-video gap below); the X16's are VERA
+sprites, which the page has no renderer for, so a picture is drawn as a glyph in a
+single ink. The C64's do not build (`sprites_update`). Only the `web` target draws
+them as designed.
 
 ## Conformance: the first measurements
 
@@ -133,7 +135,7 @@ ASCII ramp in normal and reverse video, one cell per text colour):
 | **C64** | 1000 | **0** | 7 | The text, the character ROM and reverse video match x64sc cell for cell. The ink colours do not: the page paints the Pepto palette (`136,57,50` for red); x64sc's default is another (`169,71,100`). |
 | **PET** (4032) | 1000 | **114** | 0 | Reverse video is not drawn: screen codes ≥ 128 are masked or blank (`font8x8.mjs`: the PET and VIC-20 fonts were captured for codes 0–127 only). The corner cells, the whole reverse ramp and the colour row differ. |
 | **VIC-20** (8K) | 506 | **166** | 0 | The same reverse-video gap, **and** the page draws the lower-case ROM set (`vic20-text-screencode`) where the machine boots in upper case with graphics, so lower-case and symbol cells differ. |
-| **X16** | 4256 | **186** | 8 | Reverse video works; the page draws the ASCII ramp in the host font, not the ISO character ROM x16emu uses. The text colours are the C64's palette, not VERA's default (`136,0,0` for red in x16emu). |
+| **X16** | 4256 | **186** | 0 | Reverse video works; the page draws the ASCII ramp in the host font, not the ISO character ROM x16emu uses. (The first run, before #317, also found the colours were the C64's palette, not VERA's default — 8 cells; that is fixed.) |
 | web | — | — | — | no native emulator to compare against |
 
 The numbers are pinned: `packages/{pet,vic20,c64,cx16}/test/conform.test.mjs`
@@ -163,10 +165,10 @@ modes, raster timing. Those are items 4 and 6 below.
 | Builds the shared examples | ✔ 7/7 | ◐ 6/7 | ✘ 2/7 | ◐ 5/7 | ✔ 7/7 |
 | Text grid and character ROM (codes 0–127) | ✔ | ◐ wrong boot set | ✔ | ◐ host font | ✔ |
 | Reverse video (codes 128–255) | ✘ | ✘ | ✔ | ✔ | ✔ |
-| Text colours and palette | ✔ (mono) | not measurable (needs reverse video) | ◐ Pepto vs VICE | ◐ C64 palette, not VERA's | ✔ |
+| Text colours and palette | ✔ (mono) | not measurable (needs reverse video) | ◐ Pepto vs VICE | ✔ VERA's default (#317) | ✔ |
 | Portable input | ✔ builds | ✔ builds | ✔ arrows/Enter/Esc | ✘ `input_poll` | ✔ |
 | Portable raster (`@8bitscript/raster`) | ◐ 3032/4032 only; untested | ✘ `raster_probeRegion` | ◐ lands one picture line early | ✘ `raster_commit` | ✔ |
-| Graphics objects (`@8bitscript/graphics`) | ✘ builds, draws nothing | ✘ builds, draws nothing | ✘ does not build | ✘ builds, draws nothing | ✔ |
+| Graphics objects (`@8bitscript/graphics`) | ✘ builds, draws nothing | ✘ builds, draws nothing | ✘ does not build | ◐ one flat glyph, not a sprite (#317) | ✔ |
 | Hardware sprites / bitmap / multicolour | n/a | n/a | ✘ not drawn | ✘ not drawn | n/a |
 | Sound (`audio.tone`, `.8ba`) | ✘ silent | ✘ silent | ✘ silent | ✘ silent | ✔ (Web Audio; not heard in a tab) |
 | PAL / 50 Hz | ✘ NTSC | ✘ NTSC | ✘ NTSC | n/a | n/a |
@@ -235,17 +237,19 @@ build and run on c64 wasm; a `sprites` conformance probe agrees with x64sc to th
 documented tolerance; the C64 `limits` sprite line goes.
 
 **5. Palettes and ROM fonts — S–M.** The C64 page uses the Pepto palette where
-x64sc defaults to another; the X16 page uses the C64's colours where VERA's
-default is `0x000 0xFFF 0x800 0xAFE 0xC4C 0x0C5 0x00A …`. Read the real
-tables (VICE's palette file, VERA's reset palette), and capture the X16 ISO
-character ROM from the pinned ROM image (the C64's character-ROM generator is the
-model: it takes no path argument and checks the ROM's SHA-256). *Acceptance:* `8bs conform c64 --strict-colour` and `cx16` pass with
-colour tolerance 0; `packages/cx16/test/conform.test.mjs` 186 → 0.
+x64sc defaults to another (`169,71,100` for red; the page paints `136,57,50`): read
+VICE's real palette. The X16's colours were the C64's until #317 made them VERA's
+default; what is left there is the font — capture the X16 ISO character ROM from
+the pinned ROM image (the C64's character-ROM generator is the model: it takes no
+path argument and checks the ROM's SHA-256). *Acceptance:*
+`8bs conform c64 --strict-colour` passes with colour tolerance 0;
+`packages/cx16/test/conform.test.mjs` 186 → 0.
 
 **6. Graphics objects on PET, VIC-20 and X16 — M.** After item 1 the quadrant
-objects draw on PET and VIC-20 (verify, then fix what is left); the X16 needs a
-VERA sprite renderer (128 sprites, 8/16/32/64 px, 4/8 bpp, palette offset, flips,
-Z) reading sprite attribute RAM from the wasm memory map. *Acceptance:*
+objects should draw on PET and VIC-20 (verify, then fix what is left); the X16 draws
+one flat glyph per picture today (#317) and needs a VERA sprite renderer (128
+sprites, 8/16/32/64 px, 4/8 bpp, palette offset, flips, Z) reading sprite attribute
+RAM from the wasm memory map. *Acceptance:*
 `examples/media-walk` and `swarm` match the native picture on all three
 (a `graphics` conformance probe); the `graphics objects` limit lines go.
 

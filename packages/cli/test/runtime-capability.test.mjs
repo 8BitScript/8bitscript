@@ -67,8 +67,7 @@ test('every machine whose wasm build has a known gap says so in `limits`, where 
   says('vic20', /reverse video/);
   for (const id of ['pet', 'vic20', 'cx16']) says(id, /graphics object|sprites/);
   says('vic20', /raster does not build/);
-  says('cx16', /input does not build/);
-  says('cx16', /raster does not build/);
+  says('cx16', /input does not build/); // the raster and the sprites are held in the X16's own test below
   for (const id of ['pet', 'vic20', 'c64', 'cx16']) says(id, /sound/);
 });
 
