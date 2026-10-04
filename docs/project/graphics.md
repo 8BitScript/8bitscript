@@ -153,7 +153,7 @@ screen yet — that is the next piece of work on that machine.
 
 | Machine | `place` / `update` | `hide` | `setFrame` | `animate` | `color` |
 | --- | --- | --- | --- | --- | --- |
-| PET | verified | links | links | links | stub (`RECOLORS` false) |
+| PET | verified | verified | verified | verified | stub (`RECOLORS` false) |
 | VIC-20 | verified | links | links | links | links |
 | C64 | verified (under the playfield-pixel rule) | links | links | links | links |
 | Commander X16 | verified | links | links | links | stub (`RECOLORS` false) |
