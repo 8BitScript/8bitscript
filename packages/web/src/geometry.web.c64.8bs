@@ -27,6 +27,9 @@ export namespace Video {
     const GLYPH_FIRST: utinyint = 176;
     const GLYPH_COUNT: utinyint = 80;
 
+    // The tone registers right after the glyph table (see geometry.8bs).
+    const AUDIO_BASE: usmallint = 2838;
+
     // The same three questions the Modern host answers at run time, answered
     // here from constants: this skin is a machine, and a machine's grid does
     // not change. Both fold, so a program that asks costs nothing for asking.

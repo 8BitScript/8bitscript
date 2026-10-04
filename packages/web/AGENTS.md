@@ -249,7 +249,23 @@ web each answer is a line of code, cited above; this is the compact form.
    (SCROLL_X, 0-7).
 7. **Sprites** — none. The software substitute is the cell glyph path: `@8bitscript/sprites` over `text`, and `@8bitscript/graphics`' web twin (`.8bg` pictures as 8×8 art in the redefinable glyph table, animated) — see "A `.8bg` picture on the web is one cell" above.
 8. **Pseudo-pixels** — 2×2, codes 128–143, the sixteen quadrant patterns. Drawn in both renderers from `font8x8.mjs`.
-9. **Audio** — none. No entropy source either.
+9. **Audio** — one tone voice: four bytes (gate, note, wave, volume) at
+   `AUDIO_BASE` in the agreement page (9032 on the Modern host, 2838 on the
+   PET 2001 and C64 skins, 1850 on the VIC-20 skin, right after the glyph
+   table), read at every paint and played through one Web Audio oscillator
+   (`packages/web/src/voice.8bs` writes them for `@8bitscript/audio`'s
+   `audio.tone`; `packages/cli/src/web-audio.mjs` is the reference of what they
+   sound like, and the loader carries a hand copy of its two pure functions).
+   The browser starts audio only after a key press or a tap, so the page's
+   context resumes at the first paint after one. **Not heard**: a headless
+   run has no speaker and a real browser tab was not available; what is held
+   is the registers a program writes, the mapping to a frequency, waveform
+   and level, the page driving an oscillator from them (a stand-in
+   `AudioContext`), and a compiled program's register timeline rendered to
+   samples that measure at the pitch and length it asked for
+   (`packages/cli/test/web-audio.test.mjs`). `audio.voices` is 1. A `.8ba`
+   sample or song still has no web driver (`8BS2211`), and there is no
+   noise, envelope or second voice. No entropy source either.
 10. **Input** — arrow keys, Enter and Escape, through a one-byte snapshot
     at `INPUT_OFFSET` that the page writes and `@8bitscript/web/input`
     reads; what the host *is* — a touchscreen, a keyboard to press
@@ -483,7 +499,8 @@ sources before a capability depends on it.
    a 2×2 block set in glyphs 96–111, or the PETSCII quarter blocks, in
    both renderers. Not before the charset; a font-only change would have
    to be made twice.
-9. **Audio** — a voice table in the agreement page (frequency, waveform
+9. **Audio** — *one voice is built (see the table above); the rest is still
+   the plan:* a voice table in the agreement page (frequency, waveform
    square/saw/triangle/noise, volume, ADSR) played by the page through an
    `AudioWorklet` reading the shared memory once per logical frame, so
    sound is deterministic in frames like everything else. Sixteen voices

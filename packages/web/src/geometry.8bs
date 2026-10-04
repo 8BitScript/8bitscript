@@ -37,7 +37,8 @@
 //   8392   GLYPH_BASE        GLYPH_COUNT (80) glyphs of eight row bytes: the
 //                            redefinable character set, codes GLYPH_FIRST (176)
 //                            up, drawn when any of a glyph's rows is nonzero
-//   9032   the end of the agreement. The program's own data section — every
+//   9032   AUDIO_BASE        four tone registers: gate, note, wave, volume
+//   9036   the end of the agreement. The program's own data section — every
 //          string literal and const array — starts on the next 256-byte
 //          boundary above this (9216), placed there by the wasm backend from
 //          the same agreement the CLI writes for the page (`reservedEnd` in
@@ -81,6 +82,11 @@ export namespace Video {
     const GLYPH_BASE: usmallint = 8392;
     const GLYPH_FIRST: utinyint = 176;
     const GLYPH_COUNT: utinyint = 80;
+
+    // The tone registers right after the glyph table: GATE, NOTE, WAVE and
+    // VOLUME, four bytes (web-layout.mjs AudioRegister). The page plays them
+    // through one oscillator; @8bitscript/audio writes them.
+    const AUDIO_BASE: usmallint = 9032;
 
     // True where the grid can change under a running program. A build-time
     // fact, so `if (screen.RESIZABLE)` folds away entirely on every machine

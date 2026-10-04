@@ -27,6 +27,7 @@
       "./pointer": "./src/pointer.8bs",
       "./rasterline": "./src/rasterline.8bs",
       "./charset": "./src/charset.8bs",
+      "./voice": "./src/voice.8bs",
       "./color": "./src/color.8bs"
     },
     "hardware": {
@@ -52,7 +53,7 @@
         "video.spriteHeight": 0,
         "video.spriteColors": 0,
         "video.frameRate": 60,
-        "audio.voices": 0,
+        "audio.voices": 1,
         "audio.noise": false,
         "audio.envelope": false,
         "audio.filter": false,

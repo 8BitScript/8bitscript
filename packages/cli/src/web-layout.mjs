@@ -107,6 +107,22 @@ export const GLYPH_COUNT = 80;
 export const GLYPH_ROW_BYTES = 8;
 export const GLYPH_BYTES = GLYPH_COUNT * GLYPH_ROW_BYTES;
 
+// ---- the tone registers ---------------------------------------------------
+//
+// AUDIO_BYTES bytes right after the glyph table (or after the raster list on
+// a host with no table), one voice's worth of chip: GATE (nonzero while the
+// voice sounds), NOTE (the @8bitscript/audio / .8ba index, octave * 12 +
+// semitone, C0 = 0, A4 = 57), WAVE (0 square, 1 triangle, 2 sawtooth) and
+// VOLUME (0-15). The synthetic web hosts' page plays them through the Web
+// Audio API, one oscillator, read at every paint just as the raster list is;
+// web-audio.mjs is the pure reference of what that is (frequency, waveform,
+// level) and renders it to samples for the tests, since a headless run has no
+// speaker to hear. A real machine's own --web build has no region: its sound
+// is its chip's. packages/audio/src/index.web.8bs writes it and
+// packages/web/src/geometry.8bs and its skin twins mirror the numbers.
+export const AUDIO_BYTES = 4;
+export const AudioRegister = { GATE: 0, NOTE: 1, WAVE: 2, VOLUME: 3 };
+
 /**
  * The eight row bytes of a user-defined glyph, or null when `code` is not in
  * the table's range or its eight rows are all zero (an undefined glyph: the
@@ -187,6 +203,8 @@ export function agreementFor({
   // The synthetic web hosts carry the redefinable glyph table after the
   // raster list; a real machine's own build does not (its codes are its ROM's).
   userGlyphs = false,
+  // And the tone registers after those: the synthetic hosts again.
+  audio = false,
 } = {}) {
   const cells = cols * rows;
   const charBase = resizable ? RESIZABLE_CHAR_BASE : CHAR_BASE;
@@ -203,7 +221,9 @@ export function agreementFor({
   // can never land on a string the program reads.
   const rasterEnd = rasterBase + RASTER_MAX_ENTRIES * RASTER_ENTRY_SIZE;
   const glyphBase = userGlyphs ? rasterEnd : -1;
-  const reservedEnd = userGlyphs ? rasterEnd + GLYPH_BYTES : rasterEnd;
+  const glyphEnd = userGlyphs ? rasterEnd + GLYPH_BYTES : rasterEnd;
+  const audioBase = audio ? glyphEnd : -1;
+  const reservedEnd = audio ? glyphEnd + AUDIO_BYTES : glyphEnd;
   return {
     cols,
     rows,
@@ -222,6 +242,7 @@ export function agreementFor({
     glyphBase,
     glyphFirst: GLYPH_FIRST,
     glyphCount: GLYPH_COUNT,
+    audioBase,
     reservedEnd,
     rasterMaxEntries: RASTER_MAX_ENTRIES,
     columnsOffset: COLUMNS_OFFSET,
@@ -236,7 +257,7 @@ export function agreementFor({
   };
 }
 
-export const DEFAULT_LAYOUT = agreementFor({ userGlyphs: true });
+export const DEFAULT_LAYOUT = agreementFor({ userGlyphs: true, audio: true });
 
 export const GRID_COLS = DEFAULT_LAYOUT.cols;
 export const GRID_ROWS = DEFAULT_LAYOUT.rows;
@@ -294,6 +315,7 @@ export function layoutFromHardware(hardwareOrFacts = {}) {
     font: host.font,
     resizable: host.resizable === true,
     userGlyphs: true,
+    audio: true,
   });
 }
 
@@ -489,6 +511,7 @@ export function sidecarJson(layout = DEFAULT_LAYOUT) {
     glyphBase: layout.glyphBase,
     glyphFirst: layout.glyphFirst,
     glyphCount: layout.glyphCount,
+    audioBase: layout.audioBase,
     rasterMaxEntries: layout.rasterMaxEntries,
     palette: layout.palette,
     font: layout.font,

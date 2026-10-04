@@ -13,6 +13,19 @@ let sfxLen: array<u8, 4>;
 let songLen: array<u8, 4>;
 
 export namespace audio {
+    // The playable notes (the .8ba index, C0 = 0, A4 = 57): none here, so a
+    // program can fold its sounds away on `audio.NOTE_HIGH == 0`.
+    const NOTE_LOW: utinyint = 0;
+    const NOTE_HIGH: utinyint = 0;
+
+    // A single tone for `frames` calls of update() and its silence: both do
+    // nothing on a machine with no driver.
+    function tone(note: utinyint, frames: utinyint): void {
+    }
+
+    function silence(): void {
+    }
+
     function bind(kind: utinyint, slot: utinyint, index: utinyint, value: utinyint): void {
     }
 
