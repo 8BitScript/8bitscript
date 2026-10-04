@@ -18,6 +18,7 @@ const {
   findConfig,
   findToolchain,
   groupedMachineOptions,
+  hasSeveralPrograms,
   installersForTargets,
   doctorWantFromSelection,
   DOCTOR_EMULATORS,
@@ -39,6 +40,8 @@ const {
   loadProject,
   loadProjects,
   parseConfig,
+  programTargets,
+  resolveProgram,
   runnableOn,
   withShipped,
 } = require('../src/projects.cjs');
@@ -83,15 +86,15 @@ export default defineConfig({
     entry: 'src/main.8bs',
     targets: ['pet', 'c64'],
     programs: [
-      { name: 'format', entry: 'src/tools/format.8bs' },
-      { name: 'main', entry: 'src/main.8bs' },
-      { name: 'copy', entry: 'src/tools/copy.8bs' },
+      { name: 'format', entry: 'src/tools/format.8bs', targets: ['c64'] },
+      { name: 'main', entry: 'src/main.8bs', targets: null },
+      { name: 'copy', entry: 'src/tools/copy.8bs', targets: null },
     ],
   });
   // No main: the first program is "the" program.
   const first = parseConfig(`export default { programs: { tool: { entry: 'tool.8bs' } } };`);
   assert.equal(first.entry, 'tool.8bs');
-  assert.deepEqual(first.programs, [{ name: 'tool', entry: 'tool.8bs' }]);
+  assert.deepEqual(first.programs, [{ name: 'tool', entry: 'tool.8bs', targets: null }]);
 });
 
 test('parseConfig lists targets in the toolchain order, not the file order', () => {
@@ -735,4 +738,78 @@ test('systemLine writes the entry a person would have typed', () => {
     systemLine("Bob's C64", { target: 'c64', profile: 'reu512', hardware: { sid: '8580' }, region: 'pal' }),
     "'Bob\\'s C64': { target: 'c64', profile: 'reu512', hardware: { sid: '8580' }, region: 'pal' },",
   );
+});
+
+// ---- several programs: which one Run and Build act on -----------------------
+
+const LAB_CONFIG = `export default {
+  baseline: 'c64',
+  programs: {
+    main: { entry: 'src/lobby/main.8bs' },
+    'hello-reels': { entry: 'src/labs/hello-reels/main.8bs' },
+    'tiny-slot': { entry: 'src/labs/tiny/main.8bs', targets: ['pet', 'vic20'] },
+    'wide-slot': { entry: 'src/labs/wide/main.8bs', targets: { c64: {}, cx16: {} } },
+  },
+  targets: ['pet', 'vic20', 'c64', 'cx16', 'web'],
+};`;
+
+test('parseConfig reads a program\'s own targets, in either spelling, and leaves the project\'s alone', () => {
+  const { targets, programs } = parseConfig(LAB_CONFIG);
+  assert.deepEqual(targets, ['pet', 'c64', 'vic20', 'cx16', 'web'], 'the project\'s targets are not the programs\' ones');
+  assert.deepEqual(programs.map((p) => [p.name, p.targets]), [
+    ['main', null],
+    ['hello-reels', null],
+    ['tiny-slot', ['pet', 'vic20']],
+    ['wide-slot', ['c64', 'cx16']],
+  ]);
+});
+
+test('a program that names no machine this extension knows has no list of its own', () => {
+  const { programs } = parseConfig(`export default { programs: { a: { entry: 'a.8bs', targets: ['atari9000'] } } };`);
+  assert.equal(programs[0].targets, null);
+});
+
+function labProject() {
+  const { targets, programs } = parseConfig(LAB_CONFIG);
+  return { targets, programs: programs.map((p) => ({ ...p, entry: `/p/${p.entry}` })) };
+}
+
+test('hasSeveralPrograms: one program (or none) needs no --program', () => {
+  assert.equal(hasSeveralPrograms(labProject()), true);
+  assert.equal(hasSeveralPrograms({ programs: [{ name: 'main' }] }), false);
+  assert.equal(hasSeveralPrograms({}), false);
+  assert.equal(hasSeveralPrograms(null), false);
+});
+
+test('resolveProgram: the chosen one, else main, else nothing to guess — and null when there is only one', () => {
+  const project = labProject();
+  assert.equal(resolveProgram(project, 'hello-reels'), 'hello-reels');
+  assert.equal(resolveProgram(project, undefined), 'main');
+  assert.equal(resolveProgram(project, 'gone'), 'main', 'a choice the config no longer has falls back, never passes a name the CLI would refuse');
+  const noMain = { targets: ['c64'], programs: [{ name: 'a' }, { name: 'b' }] };
+  assert.equal(resolveProgram(noMain, undefined), null, 'several programs and no main: the caller must ask');
+  assert.equal(resolveProgram(noMain, 'b'), 'b');
+  assert.equal(resolveProgram({ programs: [{ name: 'only' }] }, 'only'), null);
+});
+
+test('programTargets narrows the project\'s machines to the program\'s own, in the project\'s order', () => {
+  const project = labProject();
+  assert.deepEqual(programTargets(project, 'tiny-slot'), ['pet', 'vic20']);
+  assert.deepEqual(programTargets(project, 'wide-slot'), ['c64', 'cx16']);
+  assert.deepEqual(programTargets(project, 'hello-reels'), project.targets, 'no list of its own: the project\'s');
+  assert.deepEqual(programTargets(project, null), project.targets);
+  assert.deepEqual(programTargets(project, 'nope'), project.targets);
+  const narrow = { targets: ['c64'], programs: [{ name: 'x', targets: ['pet', 'c64'] }] };
+  assert.deepEqual(programTargets(narrow, 'x'), ['c64'], 'a program cannot add a machine the project does not target');
+});
+
+test('commandArgs names the program for run and build — not for boot, which loads nothing', () => {
+  assert.deepEqual(commandArgs('run', 'c64', 'ntsc', undefined, { program: 'hello-reels' }),
+    ['run', 'c64', '--program', 'hello-reels', '--size']);
+  assert.deepEqual(commandArgs('build', 'pet', 'ntsc', undefined, { program: 'tiny-slot' }),
+    ['build', '--target', 'pet', '--program', 'tiny-slot', '--size']);
+  assert.deepEqual(commandArgs('run', 'c64', 'ntsc', undefined, { system: 'Named', program: 'main' }),
+    ['run', '--system', 'Named', '--program', 'main', '--size']);
+  assert.deepEqual(commandArgs('boot', 'c64', 'ntsc', undefined, { program: 'main' }), ['boot', 'c64']);
+  assert.deepEqual(commandArgs('run', 'c64', 'ntsc', undefined, {}), ['run', 'c64', '--size'], 'no program named: the CLI\'s own default');
 });

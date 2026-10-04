@@ -433,3 +433,32 @@ test('under VICE, REU transfers round-trip the screen through a 512 KiB unit, an
     await rm(scratch, { recursive: true, force: true });
   }
 });
+
+// examples/fancy is the one program that builds its own raster list with
+// raster.at() AND shows a graphics sprite. The C64 sprite layer's update()
+// rebuilds the whole list (raster.clear(), the plan, raster.commit()), so
+// calling it every frame wiped the bands and the wobble from the first frame
+// — fancy shipped that way from the four-pillars release until the 2026-10-04
+// fix, found because the screenshots showed a black border. It publishes the
+// still Mark sprite once, before the list, on the C64. This is the pixel
+// proof both survive together (examples/test/examples.test.mjs pins the
+// source shape where CI can run it).
+test('under VICE, examples/fancy keeps its colour bands beside its sprite (graphics.update() must not rebuild the program\'s list)', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-c64-fancy-'));
+  try {
+    const png = await shoot(scratch, 'fancy', '../../examples/fancy/src/main.8bs', ['--checkout', CHECKOUT]);
+    // The bands: a yellow border and a red background from picture line 24
+    // to 63 (PNG rows 49-88 here), black above and below.
+    assert.ok(isDark(pixelAt(png, 4, 30)), `above the band: a black border, got ${pixelAt(png, 4, 30)}`);
+    assert.ok(isYellow(pixelAt(png, 4, 60)), `inside the band: a yellow border, got ${pixelAt(png, 4, 60)}`);
+    assert.ok(isDark(pixelAt(png, 4, 120)), `below the band: a black border, got ${pixelAt(png, 4, 120)}`);
+    assert.ok(isRed(pixelAt(png, 200, 60)) || (pixelAt(png, 200, 60)[0] > pixelAt(png, 200, 60)[2] + 30), `inside the band: a red background, got ${pixelAt(png, 200, 60)}`);
+    // The sprite: Mark, an 8x8 picture at stage (120, 0), is drawn near
+    // x = 152, y = 26 in the capture — some non-black pixel in that box.
+    let lit = 0;
+    for (let y = 20; y <= 34; y++) for (let x = 146; x <= 162; x++) if (!isDark(pixelAt(png, x, y))) lit++;
+    assert.ok(lit >= 8, `the Mark sprite is on screen beside the list (${lit} lit pixels near it)`);
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
