@@ -36,6 +36,18 @@ function eventAt(atRow: utinyint, field: utinyint): utinyint {
 }
 
 export namespace audio {
+    // audio.tone is not written for POKEY yet: no playable notes, and the
+    // calls do nothing. The machine is parked in this release; the contract
+    // (packages/audio/AGENTS.md) is that a portable program still links.
+    const NOTE_LOW: utinyint = 0;
+    const NOTE_HIGH: utinyint = 0;
+
+    function tone(note: utinyint, frames: utinyint): void {
+    }
+
+    function silence(): void {
+    }
+
     function bind(kind: utinyint, slot: utinyint, index: utinyint, value: utinyint): void {
         if (slot != 0 || index >= DATA_MAX) {
             return;
