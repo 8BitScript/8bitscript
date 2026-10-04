@@ -34,9 +34,12 @@
 //                            low byte, the slot byte (bit 7 = the line's ninth
 //                            bit, so all MAX_ROWS * 8 = 512 picture lines fit),
 //                            the value
-//   8392   the end of the agreement. The program's own data section — every
+//   8392   GLYPH_BASE        GLYPH_COUNT (80) glyphs of eight row bytes: the
+//                            redefinable character set, codes GLYPH_FIRST (176)
+//                            up, drawn when any of a glyph's rows is nonzero
+//   9032   the end of the agreement. The program's own data section — every
 //          string literal and const array — starts on the next 256-byte
-//          boundary above this (8448), placed there by the wasm backend from
+//          boundary above this (9216), placed there by the wasm backend from
 //          the same agreement the CLI writes for the page (`reservedEnd` in
 //          packages/cli/src/web-layout.mjs, `dataBaseFor()` in the
 //          compiler). It used to start at a fixed 8192, inside this map:
@@ -70,6 +73,14 @@ export namespace Video {
     const RASTER_COUNT_OFFSET: usmallint = 8199;
     const RASTER_BASE: usmallint = 8200;
     const RASTER_MAX_ENTRIES: utinyint = 64;
+
+    // The redefinable glyph table right after the raster list: GLYPH_COUNT
+    // glyphs of eight row bytes (bit 0 the leftmost pixel), drawn for the
+    // character codes GLYPH_FIRST.. when any of a glyph's rows is nonzero —
+    // the same arithmetic agreementFor() in packages/cli/src/web-layout.mjs does.
+    const GLYPH_BASE: usmallint = 8392;
+    const GLYPH_FIRST: utinyint = 176;
+    const GLYPH_COUNT: utinyint = 80;
 
     // True where the grid can change under a running program. A build-time
     // fact, so `if (screen.RESIZABLE)` folds away entirely on every machine

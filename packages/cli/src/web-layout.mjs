@@ -89,6 +89,46 @@ export const MIN_ROWS = 18;
 export const RASTER_MAX_ENTRIES = 64;
 export const RASTER_ENTRY_SIZE = 3;
 
+// ---- the redefinable glyph table ------------------------------------------
+//
+// GLYPH_COUNT glyphs of eight row bytes each, right after the raster list:
+// the synthetic web hosts draw a cell whose character code is in
+// [GLYPH_FIRST, GLYPH_FIRST + GLYPH_COUNT) from these bytes when any of its
+// eight rows is nonzero (bit 0 the leftmost pixel, as every font here), and
+// from the font as before when all eight are zero — so an untouched table
+// changes nothing and a program that never writes it pays nothing. The
+// range sits in the gap the font leaves: 128-143 are the quadrant blocks,
+// 144-147 the corner masks, 0xA9 the copyright sign. A real machine's own
+// web build (pet, vic20, c64 through --web) has no table: its codes are its
+// own ROM's screen codes. packages/web/src/geometry.8bs and its skin twins
+// mirror these numbers and have to agree.
+export const GLYPH_FIRST = 176;
+export const GLYPH_COUNT = 80;
+export const GLYPH_ROW_BYTES = 8;
+export const GLYPH_BYTES = GLYPH_COUNT * GLYPH_ROW_BYTES;
+
+/**
+ * The eight row bytes of a user-defined glyph, or null when `code` is not in
+ * the table's range or its eight rows are all zero (an undefined glyph: the
+ * font draws the cell as it always has). Pure and dependency-free so the
+ * browser loader can carry a copy of it (web-loader.mjs interpolates this
+ * function's source) and the headless rasterizer calls it directly.
+ *
+ * @param {Uint8Array} mem the program's memory
+ * @param {number} glyphBase the table's first byte, or a negative number for a host with no table
+ * @param {number} code the cell's character code
+ * @returns {Uint8Array | null}
+ */
+export function userGlyph(mem, glyphBase, code) {
+  if (glyphBase < 0 || code < GLYPH_FIRST || code >= GLYPH_FIRST + GLYPH_COUNT) return null;
+  const at = glyphBase + (code - GLYPH_FIRST) * GLYPH_ROW_BYTES;
+  const rows = mem.subarray(at, at + GLYPH_ROW_BYTES);
+  for (let i = 0; i < GLYPH_ROW_BYTES; i += 1) {
+    if (rows[i] !== 0) return rows;
+  }
+  return null;
+}
+
 // Hold the cell COUNT roughly constant and let the window decide the shape.
 // Text then stays the same fraction of the screen whatever the screen is: a
 // phone and a 4K monitor showing the same shape get the same grid, so a
@@ -144,6 +184,9 @@ export function agreementFor({
   // measurement and web-loader.mjs's fit() for where this actually
   // stretches anything.
   pixelAspect = 1,
+  // The synthetic web hosts carry the redefinable glyph table after the
+  // raster list; a real machine's own build does not (its codes are its ROM's).
+  userGlyphs = false,
 } = {}) {
   const cells = cols * rows;
   const charBase = resizable ? RESIZABLE_CHAR_BASE : CHAR_BASE;
@@ -158,7 +201,9 @@ export function agreementFor({
   // program's own data section at or above this (dataBaseFor() in
   // packages/compiler/src/wasm/index.ts), so a register the page writes
   // can never land on a string the program reads.
-  const reservedEnd = rasterBase + RASTER_MAX_ENTRIES * RASTER_ENTRY_SIZE;
+  const rasterEnd = rasterBase + RASTER_MAX_ENTRIES * RASTER_ENTRY_SIZE;
+  const glyphBase = userGlyphs ? rasterEnd : -1;
+  const reservedEnd = userGlyphs ? rasterEnd + GLYPH_BYTES : rasterEnd;
   return {
     cols,
     rows,
@@ -174,6 +219,9 @@ export function agreementFor({
     rasterControlOffset,
     rasterCountOffset,
     rasterBase,
+    glyphBase,
+    glyphFirst: GLYPH_FIRST,
+    glyphCount: GLYPH_COUNT,
     reservedEnd,
     rasterMaxEntries: RASTER_MAX_ENTRIES,
     columnsOffset: COLUMNS_OFFSET,
@@ -188,7 +236,7 @@ export function agreementFor({
   };
 }
 
-export const DEFAULT_LAYOUT = agreementFor();
+export const DEFAULT_LAYOUT = agreementFor({ userGlyphs: true });
 
 export const GRID_COLS = DEFAULT_LAYOUT.cols;
 export const GRID_ROWS = DEFAULT_LAYOUT.rows;
@@ -245,6 +293,7 @@ export function layoutFromHardware(hardwareOrFacts = {}) {
     colorPerCell: facts['video.colorPerCell'] !== false,
     font: host.font,
     resizable: host.resizable === true,
+    userGlyphs: true,
   });
 }
 
@@ -437,6 +486,9 @@ export function sidecarJson(layout = DEFAULT_LAYOUT) {
     rasterControlOffset: layout.rasterControlOffset,
     rasterCountOffset: layout.rasterCountOffset,
     rasterBase: layout.rasterBase,
+    glyphBase: layout.glyphBase,
+    glyphFirst: layout.glyphFirst,
+    glyphCount: layout.glyphCount,
     rasterMaxEntries: layout.rasterMaxEntries,
     palette: layout.palette,
     font: layout.font,

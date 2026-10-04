@@ -1,0 +1,60 @@
+// @8bitscript/web/charset — the character set is RAM: redefine it.
+//
+// Named by "8bitscript".exports["./charset"] in this package's package.json:
+//
+//     import { charset } from "@8bitscript/web/charset";
+//
+//     // Code 176 becomes a ring. Write it with text.putChar(176, ...) or
+//     // let @8bitscript/graphics do it for a .8bg picture.
+//     charset.define(176, 0x3C, 0x42, 0x81, 0x81, 0x81, 0x81, 0x42, 0x3C);
+//
+// The web draws a cell from a font its runtime owns (ASCII 32-122, the
+// sixteen 2×2 blocks at 128-143, the corner masks at 144-147, the copyright
+// sign at 169). On top of that there is a table of COUNT glyphs you write
+// yourself, for the character codes FIRST up (176-255): eight bytes a glyph,
+// one a pixel row, bit 0 the leftmost pixel — the order every font here
+// uses, so a row's value reads left to right from its low bit. A cell whose
+// code is in the table draws from it once any of its eight rows is
+// nonzero; a glyph left all zero draws as it always has (blank in this
+// range), so an untouched table costs nothing and changes nothing. The
+// table is the program's memory, read fresh at every paint by the browser
+// page and the headless --screenshot alike (packages/cli/src/web-layout.mjs
+// `userGlyph`), so a write shows on the next frame with no call to make.
+//
+// A glyph is an 8×8 cell in the cell's one ink — `text.setColor`, or the
+// tint @8bitscript/graphics' color() sets — over the background. It is a
+// character, not a sprite: it lands on the grid, STEP 8. A real machine's
+// own --web build (pet, vic20, c64) keeps its own ROM's codes and has no
+// table; this module is for the synthetic web target.
+import { Video } from "./geometry.8bs";
+
+export namespace charset {
+    const FIRST: utinyint = Video.GLYPH_FIRST;   // the first redefinable code
+    const COUNT: utinyint = Video.GLYPH_COUNT;   // how many there are
+
+    // One pixel row of one glyph. A code outside FIRST..FIRST+COUNT or a row
+    // past 7 is refused, so a stray write cannot reach the raster list below
+    // the table or the program's own data above it.
+    function setRow(code: utinyint, row: utinyint, bits: utinyint): void {
+        if (code < charset.FIRST || row > 7) {
+            return;
+        }
+        let glyph: usmallint = code - charset.FIRST;
+        if (glyph >= charset.COUNT) {
+            return;
+        }
+        memory.write(Video.GLYPH_BASE + (glyph << 3) + row, bits);
+    }
+
+    // A whole glyph: eight rows, top to bottom.
+    function define(code: utinyint, r0: utinyint, r1: utinyint, r2: utinyint, r3: utinyint, r4: utinyint, r5: utinyint, r6: utinyint, r7: utinyint): void {
+        charset.setRow(code, 0, r0);
+        charset.setRow(code, 1, r1);
+        charset.setRow(code, 2, r2);
+        charset.setRow(code, 3, r3);
+        charset.setRow(code, 4, r4);
+        charset.setRow(code, 5, r5);
+        charset.setRow(code, 6, r6);
+        charset.setRow(code, 7, r7);
+    }
+}

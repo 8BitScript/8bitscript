@@ -1,34 +1,36 @@
-// @8bitscript/graphics on the web: a picture is one cell, drawn as a 2×2
-// quadrant-block glyph (codes 128-143), and an animated picture steps
-// through up to eight of them.
+// @8bitscript/graphics on the web: a picture is one cell of real art — an
+// 8×8 bitmap in the web's redefinable character set — and an animated
+// picture steps through up to eight of them.
 //
 //     import { player } from "./player.8bg";
 //     import { graphics } from "@8bitscript/graphics";
 //     graphics.place(player, x, y);
 //     graphics.update();
 //
-// packages/web/media/index.cjs lowers each animation step to one block
-// code while the program is being built, so what reaches here is a byte
-// per step: nothing is sampled, scaled or looked up at run time. The cell
-// layer draws it (@8bitscript/sprites, the glyph path): the position is in
-// stage pixels and lands on the cell at x >> 3, y >> 3, so STEP_X and
-// STEP_Y are 8, and a picture does not restore what it covers (RESTORES is
-// false).
+// packages/web/media/index.cjs lowers each animation step to eight row bytes
+// while the program is being built, and `bind()` below writes them straight
+// into the glyph table (@8bitscript/web/charset, character codes 176-255),
+// so nothing is sampled, scaled or looked up at run time and the twin keeps
+// no copy of its own. The cell layer draws the picture's character
+// (@8bitscript/sprites, the glyph path): the position is in stage pixels
+// and lands on the cell at x >> 3, y >> 3, so STEP_X and STEP_Y are 8, and
+// a picture does not restore what it covers (RESTORES is false).
 //
 // ---- what the web shows, and does not -------------------------------------
 //
-// One cell is 8×8 pixels of 2×2 quadrants. A 16×16 picture therefore
-// becomes four lit-or-dark quadrants of 8×8 source pixels each, which is
-// the whole picture — the lowering says so with 8BS2111. Colour is dropped
-// (the glyph is drawn in the sprite layer's default tint), and an
-// animation longer than STEPS steps keeps the first STEPS.
+// One cell is 8×8 pixels, and a picture is exactly that: an 8×8 source is
+// carried pixel for pixel, a larger one is reduced by area at build time
+// (the lowering says so with 8BS2111). Colour is dropped to the cell's one
+// ink (`graphics.color()` tints it), and an animation longer than STEPS steps
+// keeps the first STEPS. The table holds 80 glyphs and MAX x STEPS is 64, so
+// every picture a program declares has its frames.
 //
 // The web has no sprite hardware to be honest about: #fact(video.sprites)
 // is 0, and a true pixel sprite layer is a later item in
-// packages/web/AGENTS.md ("What a superset runtime would add", item 7),
-// behind the redefinable character set. This file is the glyph path until
-// then, and `update()` below is the part the generic twin (index.8bs) never
-// had: it advances each picture's animation, once per call.
+// packages/web/AGENTS.md ("What a superset runtime would add", item 7).
+// This file is the glyph path until then, and `update()` below is the part
+// the generic twin (index.8bs) never had: it advances each picture's
+// animation, once per call.
 //
 // ---- the numbers a program can fold on -------------------------------------
 //
@@ -38,10 +40,11 @@
 // calls them.
 import { sprites } from "@8bitscript/sprites";
 import { Video } from "@8bitscript/system";
+import { charset } from "@8bitscript/web/charset";
 
 const SLOTS: utinyint = 8;
 const STEPS: utinyint = 8;
-let codes: array<u8, 64>;  // STEPS block codes per picture: slot << 3 | step
+const BYTES: utinyint = 64; // a picture's row bytes: STEPS glyphs of eight
 let counts: array<u8, 8>;  // steps in this picture's animation
 let every: array<u8, 8>;   // update() calls between steps
 let tick: array<u8, 8>;    // update() calls since the last step
@@ -57,11 +60,16 @@ function ensure(): void {
     }
 }
 
+// The character code of a picture's step: glyph (slot << 3) + step of the table.
+function codeOf(slot: utinyint, frame: utinyint): utinyint {
+    return charset.FIRST + (slot << 3) + frame;
+}
+
 export namespace graphics {
     // The portable contract (index.8bs): what this machine answers.
     const MAX: utinyint = 8;
     const FRAMES: utinyint = 8;
-    const WIDTH: utinyint = sprites.WIDTH;       // one cell, as a 2×2 quadrant block
+    const WIDTH: utinyint = sprites.WIDTH;       // one cell, an 8×8 bitmap
     const HEIGHT: utinyint = sprites.HEIGHT;
     const COLORS: utinyint = 1;                  // the glyph's one ink
     const RECOLORS: bool = Video.COLOR_PER_CELL; // color() tints the cell
@@ -70,11 +78,12 @@ export namespace graphics {
     const RESTORES: bool = sprites.RESTORES;     // false: what a picture covers is lost
     const TRANSPARENT: bool = false;             // a cell is drawn whole
 
+    // Row (index & 7) of step (index >> 3) of picture `slot`, straight into the glyph table.
     function bind(slot: utinyint, index: utinyint, value: utinyint): void {
-        if (slot >= SLOTS || index >= STEPS) {
+        if (slot >= SLOTS || index >= BYTES) {
             return;
         }
-        codes[(slot << 3) + index] = value;
+        charset.setRow(codeOf(slot, index >> 3), index & 7, value);
     }
 
     function meta(slot: utinyint, frameCount: utinyint, interval: utinyint, kind: utinyint, width: utinyint, height: utinyint): void {
@@ -96,7 +105,7 @@ export namespace graphics {
             return;
         }
         ensure();
-        sprites.setShape(slot, codes[(slot << 3) + step[slot]]);
+        sprites.setShape(slot, codeOf(slot, step[slot]));
         sprites.place(slot, x, y);
     }
 
@@ -121,7 +130,7 @@ export namespace graphics {
         }
         step[slot] = frame;
         tick[slot] = 0;
-        sprites.setShape(slot, codes[(slot << 3) + frame]);
+        sprites.setShape(slot, codeOf(slot, frame));
     }
 
     function animate(slot: utinyint, on: bool): void {
@@ -157,7 +166,7 @@ export namespace graphics {
                             next = 0;
                         }
                         step[i] = next;
-                        sprites.setShape(i, codes[(i << 3) + next]);
+                        sprites.setShape(i, codeOf(i, next));
                     }
                 }
             }

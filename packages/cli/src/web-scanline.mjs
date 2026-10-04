@@ -16,6 +16,7 @@
 // write-to-visible delay and no per-line jitter — the web target proves
 // semantics, never fit.
 import { glyphRows } from './font8x8.mjs';
+import { userGlyph } from './web-layout.mjs';
 
 // The same four slot numbers every rasterline file names.
 export const Slot = {
@@ -165,7 +166,10 @@ export function renderFrame(mem, layout, palette) {
       const cell = cellRow * cols + col;
       const colorByte = mem[layout.colorBase + cell];
       const reverse = (colorByte & 128) !== 0;
-      const glyph = glyphRows(mem[layout.charBase + cell], layout.font, state.charset);
+      const raw = mem[layout.charBase + cell];
+      // A program's own redefined glyph (web-layout.mjs, GLYPH_FIRST..) wins
+      // over the font; an undefined one (all eight rows zero) falls to it.
+      const glyph = userGlyph(mem, layout.glyphBase ?? -1, raw) ?? glyphRows(raw, layout.font, state.charset);
       const bits = glyph === null ? 0 : glyph[glyphY];
       const on = ((bits >> gx) & 1) !== 0;
       const fg = colorPerCell ? palette[colorByte & 15] : palette[1];

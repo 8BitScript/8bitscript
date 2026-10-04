@@ -1,63 +1,96 @@
-// Web media lowering. A PNG becomes, per animation step, one 2×2
-// quadrant-block code (128-143) — the sixteen block glyphs both renderers
-// draw (packages/web/AGENTS.md, "Pseudo-pixels"). The picture is sampled
-// at build time, so the program carries one byte per step and the machine
+// Web media lowering. A PNG becomes, per animation step, one 8×8 glyph:
+// eight row bytes (bit 0 the leftmost pixel, the order every font on this
+// target uses) that packages/graphics/src/index.web.8bs writes into the
+// redefinable glyph table (packages/cli/src/web-layout.mjs GLYPH_*, the
+// character codes 176-255) and draws as a cell. The picture is sampled at
+// build time, so the program carries eight bytes per step and the machine
 // does no image work.
+//
+// Before this module drew real art it sampled each picture to one of the
+// sixteen 2×2 quadrant-block codes (128-143) — a 16×16 source became four
+// lit-or-dark quadrants. The glyph table is the redefinable character set
+// the web roadmap lists (packages/web/AGENTS.md, "What a superset runtime
+// would add", item 3), so a picture can now be what it is: 64 pixels of one
+// ink. A source of 8×8 pixels is carried exactly; a larger one is reduced by
+// area (each glyph pixel is lit when at least half of the source pixels it
+// covers are opaque, and the inkiest one is lit if none reaches that, so a
+// thin picture does not vanish). Colour is still dropped — a cell has one
+// ink; `graphics.color()` tints it — and the lowering says so with 8BS2111.
 //
 // The default lowering (packages/compiler/src/media/lower-default.mjs)
 // picks PETSCII-ish codes — 0xA0 "reverse space", 0x51 "ball" — which the
-// web does not draw: its font holds ASCII 32-122 and the blocks at 128-143,
-// and nothing else (font8x8.mjs `glyphRows`), so a mostly-filled picture
-// came out as an empty cell and a mostly-clear one as the letter Q. The web
-// is the one release target with its own font, so it names its own codes.
+// web does not draw: its font holds ASCII 32-122, the blocks at 128-143 and
+// nothing else (font8x8.mjs `glyphRows`), so before there was a module of
+// its own a mostly-filled picture was an empty cell and a mostly-clear one
+// the letter Q. The web is the one release target with its own font, so it
+// names its own data.
 //
 // Audio has no web driver; this module exports no lowerAudio, so the
 // compiler's default (silence, 8BS2211) stays.
 'use strict';
 
-// The block codes are the sixteen 2×2 patterns, indexed
-// topLeft<<3 | topRight<<2 | bottomLeft<<1 | bottomRight
-// (packages/cli/src/font8x8.mjs BLOCK_CODE_BASE).
-const BLOCK_CODE_BASE = 128;
 const KIND_GLYPH = 0;
 // graphics/src/index.web.8bs holds this many animation steps per picture.
 const MAX_STEPS = 8;
-// A quadrant is lit when at least this share of its pixels is opaque.
-const LIT_SHARE = 0.3;
+// The glyph is eight rows of eight pixels.
+const GLYPH_SIZE = 8;
+// A glyph pixel is lit when at least this share of the source pixels it
+// covers is opaque.
+const LIT_SHARE = 0.5;
 const OPAQUE_ALPHA = 16;
 
-/** Opaque-pixel count in each quadrant of a frame: [tl, tr, bl, br]. */
-function quadrantInk(frame) {
+/** The opaque share (0..1) of the source box behind glyph pixel (gx, gy). */
+function boxShare(frame, gx, gy) {
   const { rgba, width, height } = frame;
-  const halfW = width / 2;
-  const halfH = height / 2;
-  const ink = [0, 0, 0, 0];
-  const area = [0, 0, 0, 0];
-  for (let y = 0; y < height; y += 1) {
-    for (let x = 0; x < width; x += 1) {
-      const q = (y >= halfH ? 2 : 0) + (x >= halfW ? 1 : 0);
-      area[q] += 1;
-      if (rgba[(y * width + x) * 4 + 3] >= OPAQUE_ALPHA) ink[q] += 1;
+  const x0 = Math.floor((gx * width) / GLYPH_SIZE);
+  const x1 = Math.max(x0 + 1, Math.floor(((gx + 1) * width) / GLYPH_SIZE));
+  const y0 = Math.floor((gy * height) / GLYPH_SIZE);
+  const y1 = Math.max(y0 + 1, Math.floor(((gy + 1) * height) / GLYPH_SIZE));
+  let ink = 0;
+  let area = 0;
+  for (let y = y0; y < y1 && y < height; y += 1) {
+    for (let x = x0; x < x1 && x < width; x += 1) {
+      area += 1;
+      if (rgba[(y * width + x) * 4 + 3] >= OPAQUE_ALPHA) ink += 1;
     }
   }
-  return ink.map((n, q) => (area[q] ? n / area[q] : 0));
+  return area === 0 ? 0 : ink / area;
 }
 
 /**
- * The block code for one frame. A frame with ink always shows some: if no
- * quadrant reaches the share, the inkiest one is lit, so a thin picture
- * does not vanish. A frame with none is the empty block.
+ * The eight row bytes for one frame. A frame with ink always shows some: if
+ * no glyph pixel reaches the share, the inkiest are lit. A frame with none is
+ * the empty glyph (eight zero bytes: an undefined glyph, which draws blank).
  */
-function blockOf(frame) {
-  const share = quadrantInk(frame);
-  const best = Math.max(...share);
-  if (best === 0) return BLOCK_CODE_BASE;
-  const threshold = best >= LIT_SHARE ? LIT_SHARE : best;
-  let pattern = 0;
-  for (let q = 0; q < 4; q += 1) {
-    if (share[q] >= threshold) pattern |= 8 >> q;
+function glyphOf(frame) {
+  const shares = [];
+  let best = 0;
+  for (let gy = 0; gy < GLYPH_SIZE; gy += 1) {
+    for (let gx = 0; gx < GLYPH_SIZE; gx += 1) {
+      const share = boxShare(frame, gx, gy);
+      shares.push(share);
+      if (share > best) best = share;
+    }
   }
-  return BLOCK_CODE_BASE + pattern;
+  const rows = new Array(GLYPH_SIZE).fill(0);
+  if (best === 0) return rows;
+  const threshold = best >= LIT_SHARE ? LIT_SHARE : best;
+  shares.forEach((share, i) => {
+    if (share >= threshold) rows[Math.floor(i / GLYPH_SIZE)] |= 1 << (i % GLYPH_SIZE);
+  });
+  return rows;
+}
+
+/** How many distinct opaque colours a frame has (alpha-blind: the RGB triple). */
+function opaqueColours(frame) {
+  const seen = new Set();
+  const { rgba, width, height } = frame;
+  for (let i = 0; i < width * height; i += 1) {
+    if (rgba[i * 4 + 3] >= OPAQUE_ALPHA) {
+      seen.add((rgba[i * 4] << 16) | (rgba[i * 4 + 1] << 8) | rgba[i * 4 + 2]);
+    }
+  }
+  return seen.size;
 }
 
 function lowerGraphics(sprite, frames, _facts, file, diagnostic) {
@@ -65,30 +98,37 @@ function lowerGraphics(sprite, frames, _facts, file, diagnostic) {
   const anim = sprite.animations?.[0];
   if (!frames || frames.length === 0) {
     return {
-      kind: KIND_GLYPH, data: [BLOCK_CODE_BASE + 15], frames: 1, every: anim?.every ?? 8, width: 8, height: 8, chrPatches: [], diagnostics,
+      kind: KIND_GLYPH, data: new Array(GLYPH_SIZE).fill(255), frames: 1, every: anim?.every ?? 8, width: GLYPH_SIZE, height: GLYPH_SIZE, chrPatches: [], diagnostics,
     };
   }
   const sequence = anim?.frames?.length ? anim.frames : [0];
   const kept = sequence.slice(0, MAX_STEPS);
-  const data = kept.map((index) => blockOf(frames[index] ?? frames[0]));
-  const notes = ['colours dropped'];
+  const used = kept.map((index) => frames[index] ?? frames[0]);
+  const data = used.flatMap((frame) => glyphOf(frame));
+  const notes = [];
+  if (used.some((frame) => opaqueColours(frame) > 1)) notes.push('colours dropped');
+  if (used.some((frame) => frame.width !== GLYPH_SIZE || frame.height !== GLYPH_SIZE)) {
+    notes.push(`${used[0].width}×${used[0].height} reduced to ${GLYPH_SIZE}×${GLYPH_SIZE}`);
+  }
   if (kept.length > 1) notes.push(`${kept.length} animation steps kept`);
   if (sequence.length > MAX_STEPS) notes.push(`steps past ${MAX_STEPS} dropped`);
-  diagnostics.push(diagnostic(
-    '8BS2111',
-    `sprite '${sprite.name}' is a 2×2 quadrant-block glyph on the web; ${notes.join('; ')}`,
-    file, sprite.start, sprite.length, 'warning',
-  ));
+  if (notes.length > 0) {
+    diagnostics.push(diagnostic(
+      '8BS2111',
+      `sprite '${sprite.name}' is an 8×8 one-ink glyph on the web; ${notes.join('; ')}`,
+      file, sprite.start, sprite.length, 'warning',
+    ));
+  }
   return {
     kind: KIND_GLYPH,
     data,
     frames: kept.length,
     every: anim?.every ?? 8,
-    width: 8,
-    height: 8,
+    width: GLYPH_SIZE,
+    height: GLYPH_SIZE,
     chrPatches: [],
     diagnostics,
   };
 }
 
-module.exports = { lowerGraphics, blockOf, MAX_STEPS };
+module.exports = { lowerGraphics, glyphOf, GLYPH_SIZE, MAX_STEPS };

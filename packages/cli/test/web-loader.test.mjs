@@ -11,7 +11,7 @@ import { renderHtml } from '../src/web-runtime.mjs';
 import {
   ANY_BORDER_SCALE, BORDER_HAIRLINE_PX, BORDER_MIN_PX, BORDER_PX, FULL_BORDER_SCALE, HOST_OFFSET, HostStatus,
   INNER_H, INNER_W, INPUT_OFFSET, MIN_COLUMNS, MAX_COLUMNS, MIN_ROWS, MAX_ROWS,
-  C64_PALETTE, DEFAULT_LAYOUT, PET_PALETTE, VIC20_PALETTE, RASTER_ENTRY_SIZE, RASTER_MAX_ENTRIES,
+  C64_PALETTE, DEFAULT_LAYOUT, PET_PALETTE, VIC20_PALETTE, RASTER_ENTRY_SIZE, RASTER_MAX_ENTRIES, GLYPH_BYTES, GLYPH_FIRST,
   MACHINE_HOST, agreementFor, borderFor, gridFor, layoutForRealMachine, layoutFromHardware, sidecarJson, swipeEdge,
 } from '../src/web-layout.mjs';
 import { dataBaseFor } from '@8bitscript/compiler/wasm';
@@ -106,13 +106,15 @@ test('the data section starts past the register agreement on every host: registe
   for (const [machine, host] of Object.entries(MACHINE_HOST)) {
     const layout = layoutFromHardware({ facts: {}, options: { machine } });
     assert.equal(layout.resizable, host.resizable === true, machine);
-    assert.equal(layout.reservedEnd, layout.rasterBase + RASTER_MAX_ENTRIES * RASTER_ENTRY_SIZE, machine);
+    // The synthetic hosts carry the redefinable glyph table after the raster list.
+    assert.equal(layout.glyphBase, layout.rasterBase + RASTER_MAX_ENTRIES * RASTER_ENTRY_SIZE, machine);
+    assert.equal(layout.reservedEnd, layout.glyphBase + GLYPH_BYTES, machine);
     const dataBase = dataBaseFor(layout.reservedEnd);
     assert.ok(dataBase >= layout.reservedEnd, `${machine}: data at ${dataBase} would sit inside an agreement ending at ${layout.reservedEnd}`);
   }
   // The fixed skins keep their data where it always was; only Modern moves.
   assert.equal(dataBaseFor(layoutFromHardware({ facts: {}, options: { machine: 'c64' } }).reservedEnd), 8192);
-  assert.equal(dataBaseFor(layoutFromHardware({ facts: {}, options: { machine: 'hifi' } }).reservedEnd), 8448);
+  assert.equal(dataBaseFor(layoutFromHardware({ facts: {}, options: { machine: 'hifi' } }).reservedEnd), 9216, 'Modern: past the glyph table, which ends at 9032');
 });
 
 // layoutFromHardware() computes charBase/colorBase from grid size because
@@ -687,4 +689,54 @@ test('coi.js is both the page script and the service worker it registers', () =>
   assert.match(source, /window\.isSecureContext/);
   // And it must say out loud what it does to the rest of the page.
   assert.match(source, /require-corp to EVERY response on this origin/);
+});
+
+// The redefinable glyph table is the third thing the two compositors read from
+// the program's memory (after the cells and the raster list), so a glyph the
+// browser draws has to be the glyph --screenshot draws: the Modern host, the
+// PET skin (no per-cell colour), under a CHARSET band and a SCROLL_X band,
+// with defined and undefined codes and the table's first and last glyph.
+for (const machine of ['hifi', 'pet-2001', 'vic20']) {
+  test(`the loader paints redefined glyphs identically to renderFrame (${machine})`, () => {
+    const facts = machine === 'hifi' ? {} : { 'video.columns': 40, 'video.rows': 25, 'video.colorPerCell': machine !== 'pet-2001' };
+    const layout = layoutFromHardware({ facts, options: { machine } });
+    assert.ok(layout.glyphBase > 0);
+    const mem = new Uint8Array(65536);
+    mem[0] = 6;
+    mem[1] = 0;
+    const define = (code, rows) => mem.set(rows, layout.glyphBase + (code - GLYPH_FIRST) * 8);
+    define(GLYPH_FIRST, [0x81, 0x42, 0x24, 0x18, 0x18, 0x24, 0x42, 0x81]);
+    define(200, [0x0f, 0x0f, 0x0f, 0x0f, 0xf0, 0xf0, 0xf0, 0xf0]);
+    define(255, [1, 2, 4, 8, 16, 32, 64, 128]);
+    // cells: first, middle and last glyph, an undefined one, and a letter the
+    // alternate set would remap, side by side on rows 0-3.
+    const cells = [[0, GLYPH_FIRST, 7], [1, 200, 2], [2, 255, 5], [3, 201, 1], [4, 97, 1]];
+    for (const [cell, code, color] of cells) {
+      for (let row = 0; row < 4; row += 1) {
+        mem[layout.charBase + row * layout.cols + cell] = code;
+        mem[layout.colorBase + row * layout.cols + cell] = color;
+      }
+    }
+    // CHARSET from line 8 to 24, SCROLL_X from line 16: the glyph rows are under both.
+    storeEntry(mem, layout, 0, 8, Slot.CHARSET, 1);
+    storeEntry(mem, layout, 1, 16, Slot.SCROLL_X, 3);
+    storeEntry(mem, layout, 2, 24, Slot.CHARSET, 0);
+    mem[layout.rasterCountOffset] = 3;
+    mem[layout.rasterControlOffset] = 1;
+    const mine = assertPaintParity(layout, mem);
+    // And it is really painted: row 0 of the first glyph (0x81) lights its leftmost pixel.
+    const palette = rgbPalette(layout.palette);
+    assert.deepEqual(framePixel(mine, BORDER_PX, BORDER_PX), palette[machine === 'pet-2001' ? 1 : 7]);
+  });
+}
+
+test('a host with no glyph table draws none in the loader either, whatever bytes sit where one would be', () => {
+  const real = layoutForRealMachine('vic20', { facts: { 'video.columns': 22, 'video.rows': 23 }, tags: [] });
+  assert.equal(real.glyphBase, -1);
+  const mem = new Uint8Array(65536);
+  mem[real.charBase] = 200;
+  mem[real.colorBase] = 1;
+  const where = real.rasterBase + RASTER_MAX_ENTRIES * RASTER_ENTRY_SIZE;
+  mem.fill(0xff, where, where + GLYPH_BYTES);
+  assertPaintParity(real, mem);
 });
