@@ -53,6 +53,7 @@ test('a namespace function lowers to a mangled top-level function', () => {
     exported: true,
     functions: new Map([['setBorderColor', 'screen_setBorderColor']]),
     consts: new Map(),
+    constTypes: new Map(), // each numeric const's declared type, for the linker's inlining
     start: 17, length: 6, // the name's span, for the linker's entry-export rule
   });
 });

@@ -62,14 +62,11 @@ Do not describe more than this as working:
   docs/project/graphics.md): the twin adds `sprites.ORIGIN_X`/`ORIGIN_Y`
   itself, so `place(slot, 0, 0)` is text cell (0, 0) and a position past 255
   is the plain number `236` (sprite-chip X 260), as `test/graphics-probe.8bs`
-  writes it. **A sum a program builds from the origin itself must be a
-  `usmallint`**: `sprites.ORIGIN_X + 236` is two untyped small numbers and
-  wraps at 8 bits to 4, which is under the left border (an imported namespace
-  const's declared type is not tracked across the import —
-  `rewriteExpression`'s `namespaceConst` case in the linker); that is only
-  a program calling `sprites.place` directly now, and it puts the sum in a
-  `usmallint` variable (`let far: usmallint = sprites.ORIGIN_X; far = far +
-  236;`).
+  writes it. A sum a program builds from the origin itself, such as
+  `sprites.ORIGIN_X + 236` for a direct `sprites.place`, is a `usmallint` sum
+  (260): an imported namespace const keeps its declared type, so it no longer
+  wraps at 8 bits to 4 under the left border (pinned by
+  `packages/compiler/test/imported-const-width.test.mjs`).
 
 - **The picture lives in VIC bank 3** (`src/geometry.8bs`, the `Video`
   namespace and the arrays over it): screen matrix `$E000`, sprite

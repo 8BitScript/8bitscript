@@ -195,7 +195,7 @@ export function main(): void {
   assert.deepEqual(diagnostics, []);
   const tests = ir.functions.find((f) => f.name === 'main').body.filter((s) => s.kind === 'if').map((s) => s.test);
   assert.deepEqual(tests[0], { kind: 'binop', operator: '==', left: { kind: 'const', type: 'utinyint', value: 40 }, right: { kind: 'const', value: 40, type: 'utinyint' }, type: 'bool' });
-  assert.deepEqual(tests[1], { kind: 'unop', operator: '!', argument: { kind: 'const', type: 'utinyint', value: 1 }, type: 'bool' });
+  assert.deepEqual(tests[1], { kind: 'unop', operator: '!', argument: { kind: 'const', type: 'bool', value: 1 }, type: 'bool' }); // Video.BITMAP is a bool const: it keeps its declared type
 });
 
 test('hover explains #fact(...) and a key inside it, and nowhere else', () => {

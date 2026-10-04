@@ -288,6 +288,11 @@ class Lowering {
     const name = node.name.name;
     const functions = new Map();
     const consts = new Map();
+    // Each numeric const's declared type, beside its value: the linker
+    // inlines `Other.MEMBER` into another module, and a `usmallint` that
+    // happens to hold 24 must stay a `usmallint` there, not shrink to the
+    // narrowest type that fits 24.
+    const constTypes = new Map();
 
     for (const member of node.members) {
       if (!member) continue;
@@ -326,6 +331,7 @@ class Lowering {
         const init = member.initializer && this.expression(member.initializer);
         if (init?.kind === 'const') {
           consts.set(member.name.name, init.value);
+          constTypes.set(member.name.name, resolved);
           continue;
         }
         if (init?.kind === 'ref' && this.declares(init.name)) {
@@ -334,6 +340,7 @@ class Lowering {
         }
         if (init?.kind === 'ref' || init?.kind === 'namespaceConst') {
           consts.set(member.name.name, { pending: init, type: resolved });
+          constTypes.set(member.name.name, resolved);
           continue;
         }
         this.fail(member, 'a namespace const is initialized by a literal or a const');
@@ -344,6 +351,7 @@ class Lowering {
 
     this.namespaces.push({
       name, exported: node.exported ?? false, functions, consts,
+      constTypes,
       start: node.name.start, length: node.name.length,
     });
   }

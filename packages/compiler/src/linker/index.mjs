@@ -50,7 +50,7 @@ import { lower } from '../ir/index.mjs';
 import { findImports, resolveSpecifier, nativeSourcesBeside } from '../resolver/index.mjs';
 import { Codes, diagnostic } from '../diagnostics/index.mjs';
 import { formatMessage, isI18nPackageFile } from '../i18n/index.mjs';
-import { storageBytes, resolveIntegerType, narrowestIntegerType } from '../types/index.mjs';
+import { storageBytes, resolveIntegerType } from '../types/index.mjs';
 import { typeForCount, widerOf, COMPARISON_OPERATORS } from '../templates/index.mjs';
 import { checkHardwareHazards } from './hazards.mjs';
 import { checkUnrollDecorators } from './unroll.mjs';
@@ -646,14 +646,14 @@ function resolveNamespaceMember(module, namespaceName, memberName, table) {
   const own = module.namespaces.get(namespaceName);
   if (own) {
     const value = own[table].get(memberName);
-    return { namespaceFound: true, memberFound: value !== undefined, value, targetModule: module };
+    return { namespaceFound: true, memberFound: value !== undefined, value, type: own.constTypes.get(memberName), targetModule: module };
   }
   const binding = module.namespaceBindings.get(namespaceName);
   if (!binding) return { namespaceFound: false };
   const target = binding.module.namespaces.get(binding.name);
   if (!target) return { namespaceFound: false };
   const value = target[table].get(memberName);
-  return { namespaceFound: true, memberFound: value !== undefined, value, targetModule: binding.module };
+  return { namespaceFound: true, memberFound: value !== undefined, value, type: target.constTypes.get(memberName), targetModule: binding.module };
 }
 
 /**
@@ -944,14 +944,12 @@ function rewriteExpression(expr, scope, module, diagnostics) {
         delete expr.member;
       } else {
         // A genuine namespace const (`BorderColor.BLUE`): inlined as a
-        // plain value, same as one of this module's own consts. Its
-        // declared type is not tracked across the import boundary (own
-        // consts aren't always either — see ownConstTypes in ir/index.mjs),
-        // so it gets the same narrowest-fit fallback an untracked own
-        // const would.
+        // plain value, same as one of this module's own consts, and with
+        // the type it was declared with — `sprites.ORIGIN_X` is a
+        // `usmallint` holding 24, and `ORIGIN_X + 236` has to be 260, not 4.
         expr.kind = 'const';
         expr.value = result.value;
-        expr.type = narrowestIntegerType(result.value);
+        expr.type = result.type;
         delete expr.namespace;
         delete expr.member;
         delete expr.start;
