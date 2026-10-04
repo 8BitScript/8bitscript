@@ -484,10 +484,45 @@ What belongs here is what the next person touching it must keep true:
 - **Interrupt safety.** `DC_VIDEO` is changed once, with DCSEL put back; the
   data port writes stream through ADDR0, which the raster handler and the
   KERNAL's own IRQ users save and restore.
+- **The other calls** (2026-10-04; each read off x16emu in
+  `test/graphics-ops.test.mjs`, and held at the link level, where CI runs it,
+  by `packages/compiler/test/graphics-cx16-ops.test.mjs`):
+  - `hide` writes Z-depth 0 into `byte6`; `place` writes it back with the
+    position. `setFrame` clamps to the last frame and shows when placed if
+    chosen while hidden. `animate(false)` skips only that object in `update()`.
+  - **A position is off the screen at x ≥ 640 or y ≥ 480** and the sprite is
+    switched off (`byte6` = 0) instead of drawn: VERA keeps 10 bits of each
+    coordinate, so 1020 used to come back in four pixels from the left
+    (`place(x, 1020)` — the mutant that removes the guard fails the test).
+    A sprite that straddles the edge is clipped by the display window, not
+    moved.
+  - **`color(slot, c)`**: `c` 0–15 rewrites the object's own palette block
+    (entries 1–15; entry 0 is the transparent index) to palette entry `c`'s
+    RGB, read from VRAM `$1FA00` at the time of the call; `c` ≥ 16 copies
+    the block back from the picture's own palette, which `bind()` saved at
+    VRAM `$C000 + slot * 32` (bank 0: the eight sprite windows end at
+    `$C000`, the KERNAL's sprite data starts at `$13000`). `RECOLORS` is
+    true. A tint is a silhouette, not a hue shift: the other machines'
+    `color()` sets one ink, and this is the one meaning they all share.
+    Pointing the sprite at a different palette offset would show *another
+    object's* colours and was rejected for that reason.
+  - **The mouse** (sprite 0, `$FF68`) is never written: a test with
+    `mouse.begin()` and `mouse.poll()` in the loop shows the arrow at the
+    centre and all four objects whole beside it.
+- **Eight objects, and why not more.** An object owns a palette block
+  (entries 128–255 = 8 blocks) and a 4096-byte window (`$4000`–`$BFFF` = 8
+  windows). Sharing needs the build to intern palettes across `.8bg` files
+  and place pictures by size — the lowering sees one file at a time — and
+  the contract cannot place one picture twice. Recorded in
+  docs/project/graphics.md; it is a contract change, not this twin's.
 
-Measured (`packages/examples/media-walk`, `8bs build cx16 --size`):
-3982 bytes of program and 70 of RAM, of which the driver's functions are
-about 1.1 KB. The sprites' own data is 32 + 128 bytes a 16×16 frame.
+Measured (`packages/examples/media-walk`, `8bs build cx16 --size`,
+2026-10-04): 4114 bytes of program and 70 of RAM; 4002 / 69 before this
+change (the off-screen guard and the palette copy). A program that places
+and updates one 16×16 sprite is 2025 / 65; adding `hide`, `setFrame`,
+`animate` and `color` makes it 2506 / 69 — `color` 286, `setFrame` 69,
+`hide` 60, `animate` 28. The sprites' own data is 32 + 128 bytes a 16×16
+frame.
 
 ## Where things live
 
@@ -505,6 +540,8 @@ packages/cx16/src/text.8bs               @8bitscript/cx16/text: text.print/print
 packages/graphics/src/index.cx16.8bs     @8bitscript/graphics on the X16: VERA sprites, palette block, frames, the Y line
 packages/cx16/media/index.cjs            the X16's .8bg/.8ba lowering: palette + linear 4bpp frames; PSG songs
 packages/cx16/test/graphics.test.mjs     under x16emu, sprites on their pixels, animation, with a raster list
+packages/cx16/test/graphics-ops.test.mjs under x16emu, hide / place / setFrame / animate / color / off-screen / the mouse beside them, pixel by pixel
+packages/compiler/test/graphics-cx16-ops.test.mjs   the same calls held at the link level (CI runs it): shapes, VRAM numbers
 packages/compiler/test/media-cx16.test.mjs   the lowering as data: palette, nibble order, padding, windows
 packages/cx16/src/rasterline.8bs         @8bitscript/cx16/rasterline (behind @8bitscript/raster): the list and plan in Golden RAM ($0401-$077F), the VERA line-IRQ handler on CINV
 packages/cx16/test/raster-probe.8bs      the probe: every slot at a known line, an adjacent pair, setValue after sixty frames

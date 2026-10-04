@@ -123,7 +123,7 @@ One row per machine, so a machine's own work edits its row and nothing else
 | PET | 8 | 7 (shared by every picture) | 16×16 | 1 | no | 4×4 | yes | yes (a letter underneath is replaced) |
 | VIC-20 | 8 | 8 (one 64-byte pool) | 16×16 | 1 | yes | 8×8 | no | no |
 | C64 | 24 (eight on one line) | 4 | 24×21 | 1 | yes | 1×1 | yes | yes |
-| Commander X16 | 8 | 2 at 64×64 (32 at 16×16, 8 at 32×16) | 64×64 | 15 | no | 1×1 | yes | yes |
+| Commander X16 | 8 | 2 at 64×64 (32 at 16×16, 8 at 32×16) | 64×64 | 15 | yes | 1×1 | yes | yes |
 | Web | 8 | 8 | 8×8 | 1 | yes | 8×8 | no | no |
 | NES (parked) | 8 | 4 | 16×16 | 3 | no | 1×1 | yes | yes |
 | every other machine | 8 | 4 | 8×8 | 1 | where it colours cells | 8×8 | no | no |
@@ -156,7 +156,7 @@ screen yet — that is the next piece of work on that machine.
 | PET | verified | links | links | links | stub (`RECOLORS` false) |
 | VIC-20 | verified | links | links | links | links |
 | C64 | verified (under the playfield-pixel rule) | links | links | links | links |
-| Commander X16 | verified | links | links | links | stub (`RECOLORS` false) |
+| Commander X16 | verified | verified | verified | verified | verified |
 | Web | verified | verified | verified | verified | verified |
 | NES (parked) | links | links | links | links | stub |
 | every other machine | links | links | links | links | links |
@@ -242,7 +242,7 @@ with a user-port speaker so the VIA song actually plays.
 | PET 3032 + speaker | 3787 | 50 |
 | C64 | 4637 | 46 |
 | VIC-20 8K | 2493 | 48 |
-| Commander X16 | 4002 | 69 |
+| Commander X16 | 4114 | 70 |
 | Web (wasm module bytes) | 1820 | 267 |
 
 These are the figures after the portable contract landed
@@ -254,6 +254,15 @@ the machines whose arrays are zero-filled bytes in the image), and on the
 C64 the two additions that put the playfield's origin on every `place()`.
 Programs that call `setFrame`, `hide`, `animate` or `color` pay for those
 on top, measured when something uses them.
+
+The X16 row moved again on 2026-10-04 (4002 and 69 before, 4114 and 70
+now), when the twin gained a guard against off-screen positions and the
+palette copy `color()` restores from: `bind()` writes each palette byte
+twice, and `showSprite` compares the position with the screen. A program
+that places and updates one 16×16 sprite is 2025 bytes and 65 of RAM; the
+same program that also calls `hide`, `setFrame`, `animate` and `color` is
+2506 and 69. Of the 481 bytes, `color` is 286, `setFrame` 69, `hide` 60
+and `animate` 28; a call a program never makes costs nothing.
 
 The web row is `examples/media-walk` built with `8bs build --target web
 --size` on 2026-10-03: the module's byte count, and the declared RAM for
@@ -302,10 +311,46 @@ video memory. Measured under x16emu r50 (ROM `fbe32a60`), headless, with
 - **With a raster list.** `raster` entries and sprites share the screen:
   the list's line IRQ and the sprite writes both go through VERA's data
   port, which the handler saves and restores.
+- **`hide`, `setFrame`, `animate`.** `hide` writes z-depth 0, which VERA
+  reads as "not drawn"; `place` writes it back, at the new position.
+  `setFrame` clamps past the last frame, and a frame chosen while the object
+  is hidden shows when it is placed. `animate(false)` freezes one object on
+  its frame while the others keep stepping. Each is read off x16emu
+  screenshots pixel by pixel in `packages/cx16/test/graphics-ops.test.mjs`.
+- **Off the screen.** VERA keeps ten bits of a sprite's X and Y, so a
+  position of 1020 comes back in at the left edge. A position at or past
+  the screen's size (640 across, 480 down) now switches the sprite off
+  instead, and `place` brings it back; one that straddles the edge is cut
+  by the display window, not moved. (Before this, `place(x, 1020)` drew the
+  sprite four pixels in from the left — the contract says an object off the
+  playfield clips and never wraps.)
+- **`color(slot, c)`.** `RECOLORS` is true. A `c` from 0 to 15 draws the
+  object in that machine colour — the first sixteen palette entries, which
+  are the KERNAL's text colours — on every opaque pixel, so the picture
+  becomes a silhouette of it, the way the C64's sprite ink does. That is
+  the portable meaning. The X16 also remembers the picture: a `c` from 16
+  up (`255` is the convention) gives the object its own palette back. Both
+  rewrite only that object's palette block, so other objects, the text and
+  the raster list are untouched; the saved copy sits at VRAM `$C000 + slot *
+  32`, past the eight sprite windows and short of the KERNAL's sprite data
+  at `$13000`. It was chosen over pointing the sprite at a different
+  palette block (the attribute's palette offset) because a block holds
+  *some other object's* colours, not "colour c", and the other machines
+  cannot say that.
+- **More than eight objects: not done, and why.** VERA has 128 sprites, but
+  an object owns a palette block and a 4096-byte pixel window, and only
+  blocks 8–15 and `$4000`–`$BFFF` are free — eight of each. Sharing a
+  palette block between objects needs the build to know which pictures have
+  the same palette, and the media lowering sees one `.8bg` file at a time;
+  sharing windows needs it to place pictures by their real size. And the
+  contract has no way to put the same picture on the screen twice (one
+  `place` moves one object), which is what a 5×3 reel of eight symbols
+  would want. That is a contract change — an instance call — not an X16
+  twin's decision, so `MAX` stays 8.
 
-Not done: 8 bpp, collision masks, flips, per-sprite Z, and more than eight
-objects. Sprites are switched on at the first `place()`; nothing hides
-them again.
+Not done: 8 bpp, collision masks, flips and per-sprite Z. Sprites are
+switched on at the first `place()`. Sprite 0 (the KERNAL mouse cursor) is
+never written; no test runs the mouse and the sprites together.
 
 Later: tiles, tilemaps, fonts, vectors, raster blocks, Aseprite. The GIR
 has empty slots (`tiles`, `fonts`) so those land without reshaping the IR.

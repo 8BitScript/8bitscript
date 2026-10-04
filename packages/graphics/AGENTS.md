@@ -27,7 +27,7 @@ both together; the test fails if a twin and the table disagree.
   rounds down; one off the playfield clips and never wraps or writes outside
   the twin's own tables.
 - **A call degrades, it never disappears.** A twin that cannot do a call
-  exports it as a documented no-op (`color` on the PET, the X16 and the NES),
+  exports it as a documented no-op (`color` on the PET and the NES),
   with a comment saying why and which constant says so
   (`RECOLORS` false). A program guards a call with the constant and the
   guarded branch costs the other machines nothing.
