@@ -82,7 +82,7 @@ way — or no way — to change something while it does:
 | Atari 8-bit | the display list *is* a per-line plan; a DLI at any mode line, `WSYNC` aligns to blanking | 4 players + 4 missiles as live per-line registers | 9 colour registers per DLI: the archetype |
 | NES | no scanline IRQ in the chip: sprite-0 hit (one, polled) or a mapper's counter (MMC3 at dot 260) | 64 OAM entries, **per-frame data**, 8 per line chosen by the PPU | emphasis/greyscale bits only; palette is vblank-only |
 | X16 (VERA) | a line IRQ, armed two scanlines early so layer writes (scroll, tile base) and composer writes (border, palette — in the line before's hblank) all show from the target line — built (`packages/cx16/AGENTS.md`, "Raster splits") | 128 sprites in a per-line cycle budget (~46 small ones) | palette in VRAM, any time |
-| web | the renderer applies the list at paint time | none yet | free |
+| web | the renderer applies the list at paint time — border, background, fine scroll, and `Slot.CHARSET` (an alternate set the runtime defines: lower case drawn as capitals, `packages/web/AGENTS.md`) | none yet | free |
 
 So the same intent — "eight objects and eight more below them" — is a
 per-line register rewrite on the C64 and the Atari, an OAM ordering per
@@ -409,8 +409,12 @@ mechanism, both models' numbers, and the one remaining CRTC board (8032)
 that still needs its own fine-swept constants). Cells; still no colour.
 
 **web.** The renderer applies the raster list at paint time: idealized,
-"proves semantics, never fit". Sprites are cells until the web target has
-a sprite table.
+"proves semantics, never fit". All four slots apply, `CHARSET` included:
+the web has no ROM, so its alternate set is the runtime's own decision —
+the boot set with lower case drawn as capitals, the mixed-case/upper-case
+pair every Commodore machine has — verified by a compiled program's
+headless screenshot (`packages/cli/test/web-charset-raster.test.mjs`).
+Sprites are cells until the web target has a sprite table.
 
 ## Degradation ladders
 

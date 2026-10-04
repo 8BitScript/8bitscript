@@ -142,13 +142,65 @@ test('rowState holds each slot from its line down, from the base state up', () =
   ];
   const base = { border: 2, background: 3 };
   // Before the first line: the frame's base state, scroll 0.
-  assert.deepEqual(rowState(entries, 9, base), { border: 2, background: 3, scrollX: 0 });
+  assert.deepEqual(rowState(entries, 9, base), { border: 2, background: 3, scrollX: 0, charset: 0 });
   // At an entry's line it applies; later slots have not yet.
-  assert.deepEqual(rowState(entries, 10, base), { border: 5, background: 6, scrollX: 0 });
+  assert.deepEqual(rowState(entries, 10, base), { border: 5, background: 6, scrollX: 0, charset: 0 });
   // Past every line, everything holds.
-  assert.deepEqual(rowState(entries, 200, base), { border: 5, background: 6, scrollX: 3 });
+  assert.deepEqual(rowState(entries, 200, base), { border: 5, background: 6, scrollX: 3, charset: 0 });
   // Values are masked the way the renderer paints them: color & 15, scroll & 7.
   assert.equal(rowState([{ line: 0, slot: Slot.SCROLL_X, value: 12 }], 0, base).scrollX, 4);
+});
+
+test('rowState holds the character set from its line down, keeping only bit 0', () => {
+  const base = { border: 2, background: 3 };
+  const entries = [
+    { line: 16, slot: Slot.CHARSET, value: 1 },
+    { line: 32, slot: Slot.CHARSET, value: 0 },
+  ];
+  assert.equal(rowState(entries, 15, base).charset, 0, 'the boot set above the first entry');
+  assert.equal(rowState(entries, 16, base).charset, 1);
+  assert.equal(rowState(entries, 31, base).charset, 1);
+  assert.equal(rowState(entries, 32, base).charset, 0, 'a later entry switches back');
+  assert.equal(rowState([{ line: 0, slot: Slot.CHARSET, value: 3 }], 0, base).charset, 1);
+  assert.equal(rowState([{ line: 0, slot: Slot.CHARSET, value: 2 }], 0, base).charset, 0);
+});
+
+/** The 8×8 block of picture pixels for cell (col, cellRow), as row-bytes against `ink`. */
+function cellBits(frame, col, cellRow, ink) {
+  const rows = [];
+  for (let gy = 0; gy < 8; gy += 1) {
+    let bits = 0;
+    for (let gx = 0; gx < 8; gx += 1) {
+      const px = pixel(frame, BORDER_PX + col * 8 + gx, BORDER_PX + cellRow * 8 + gy);
+      if (px.every((v, i) => v === ink[i])) bits |= 1 << gx;
+    }
+    rows.push(bits);
+  }
+  return rows;
+}
+
+test('a CHARSET split draws lower case as capitals from its line down, and only there', () => {
+  const mem = new Uint8Array(65536);
+  mem[1] = 0; // background: black
+  // "az" in white on cell rows 0, 2 and 4.
+  for (const cellRow of [0, 2, 4]) {
+    mem[LAYOUT.charBase + cellRow * LAYOUT.cols] = 97;
+    mem[LAYOUT.charBase + cellRow * LAYOUT.cols + 1] = 122;
+    mem[LAYOUT.colorBase + cellRow * LAYOUT.cols] = 1;
+    mem[LAYOUT.colorBase + cellRow * LAYOUT.cols + 1] = 1;
+  }
+  appendEntry(mem, 16, Slot.CHARSET, 1);
+  appendEntry(mem, 32, Slot.CHARSET, 0);
+  mem[LAYOUT.rasterControlOffset] = 1;
+  const frame = renderFrame(mem, LAYOUT, RGB);
+  const white = RGB[1];
+  assert.deepEqual(cellBits(frame, 0, 0, white), [...glyphRows(97)], 'row 0, above the split: a');
+  assert.deepEqual(cellBits(frame, 0, 2, white), [...glyphRows(65)], 'row 2, inside the band: A');
+  assert.deepEqual(cellBits(frame, 1, 2, white), [...glyphRows(90)], 'row 2, inside the band: Z');
+  assert.deepEqual(cellBits(frame, 0, 4, white), [...glyphRows(97)], 'row 4, switched back: a');
+  // With the list disabled the same memory draws the boot set everywhere.
+  mem[LAYOUT.rasterControlOffset] = 0;
+  assert.deepEqual(cellBits(renderFrame(mem, LAYOUT, RGB), 0, 2, white), [...glyphRows(97)]);
 });
 
 test('with the list disabled or empty, renderFrame is pixel-identical to the cell-major picture', () => {

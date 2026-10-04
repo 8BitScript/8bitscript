@@ -257,6 +257,9 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
 
   var COLORS = ${JSON.stringify(layout.palette ?? COLORS)};
   var GLYPHS = ${glyphTableLiteral(layout.font)};
+  // The alternate character set a Slot.CHARSET entry of 1 selects from its
+  // line down (font8x8.mjs glyphRows(): lower case drawn as capitals).
+  var ALT_GLYPHS = ${glyphTableLiteral(layout.font, 1)};
   var GRID_COLS = ${layout.cols};
   var GRID_ROWS = ${layout.rows};
   var CHAR_W = ${layout.charWidth ?? CHAR_W};
@@ -379,14 +382,16 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
     var border = base.border;
     var background = base.background;
     var scrollX = 0;
+    var charset = 0;
     for (var i = 0; i < entries.length; i += 1) {
       var entry = entries[i];
       if (entry.line > row) break;
       if (entry.slot === 0) border = entry.value & 15;
       else if (entry.slot === 1) background = entry.value & 15;
       else if (entry.slot === 2) scrollX = entry.value & 7;
+      else if (entry.slot === 3) charset = entry.value & 1;
     }
-    return { border: border, background: background, scrollX: scrollX };
+    return { border: border, background: background, scrollX: scrollX, charset: charset };
   }
 
   // COLORS as [r, g, b] triples, re-parsed only when applyLayout swaps the
@@ -460,6 +465,7 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
       fillSpan(rgba, offset + (border + INNER_W) * 4, width - border - INNER_W, borderInk);
       var glyphY = row % CHAR_H;
       var cellRow = (row - glyphY) / CHAR_H;
+      var glyphs = state.charset === 1 ? ALT_GLYPHS : GLYPHS;
       for (var x = 0; x < INNER_W; x += 1) {
         var ink;
         var srcX = x - state.scrollX;
@@ -472,7 +478,7 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
           var colorByte = mem[COLOR_BASE + cell];
           var reverse = (colorByte & 128) !== 0;
           var raw = mem[CHAR_BASE + cell];
-          var glyph = GLYPHS[raw] || null;
+          var glyph = glyphs[raw] || null;
           var bits = glyph === null ? 0 : glyph[glyphY];
           var on = ((bits >> gx) & 1) !== 0;
           var fg = COLOR_PER_CELL ? palette[colorByte & 15] : palette[1];

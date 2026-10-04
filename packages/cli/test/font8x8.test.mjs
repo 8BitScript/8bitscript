@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { glyphRows, glyphTableLiteral, BLOCK_CODE_BASE, CORNER_CODE_BASE, COPYRIGHT_CODE } from '../src/font8x8.mjs';
+import { glyphRows, glyphTableLiteral, ALTERNATE_CHARSET, BLOCK_CODE_BASE, CORNER_CODE_BASE, COPYRIGHT_CODE } from '../src/font8x8.mjs';
 
 test('glyphRows returns eight row-bytes for ASCII 32-122 and null outside that range', () => {
   const space = glyphRows(32);
@@ -197,4 +197,26 @@ test('© is drawn at its own Unicode code point, above the blocks, without filli
 
   // And it reaches the browser page, not just --screenshot.
   assert.match(glyphTableLiteral(), /169:\[126,129,189,133,133,189,129,126\]/);
+});
+
+test('the alternate character set (Slot.CHARSET 1) draws lower case as capitals and leaves every other code alone', () => {
+  assert.equal(ALTERNATE_CHARSET, 1);
+  for (let c = 97; c <= 122; c += 1) {
+    assert.deepEqual(glyphRows(c, undefined, 1), glyphRows(c - 32), `code ${c}`);
+    assert.notDeepEqual(glyphRows(c, undefined, 1), glyphRows(c), `code ${c} really changes`);
+  }
+  for (const c of [0, 32, 48, 65, 90, 96, BLOCK_CODE_BASE + 5, CORNER_CODE_BASE, COPYRIGHT_CODE, 200]) {
+    assert.deepEqual(glyphRows(c, undefined, 1), glyphRows(c), `code ${c}`);
+  }
+  // Charset 0 is the boot set exactly as it always drew.
+  assert.deepEqual(glyphRows(97, undefined, 0), glyphRows(97));
+  // A real machine's ROM table is screen-code indexed, never remapped.
+  assert.deepEqual(glyphRows(97, 'vic20-text-screencode', 1), glyphRows(97, 'vic20-text-screencode'));
+});
+
+test('glyphTableLiteral(font, 1) is the alternate table the browser page switches to', () => {
+  const alt = glyphTableLiteral(undefined, 1);
+  assert.ok(alt.includes(`,97:[${[...glyphRows(65)].join(',')}]`), 'code 97 carries the capital A rows');
+  assert.equal(glyphTableLiteral(undefined, 0), glyphTableLiteral());
+  assert.equal(glyphTableLiteral('pet-text-screencode', 1), glyphTableLiteral('pet-text-screencode'));
 });
