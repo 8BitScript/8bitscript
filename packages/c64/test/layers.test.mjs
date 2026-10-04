@@ -156,6 +156,62 @@ test('under VICE, the portable rasterline slots land on $D020/$D021/$D016, pictu
   }
 });
 
+test('under VICE, Slot.CHARSET switches $D018 between the two ROM sets on the exact text rows its lines name', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-c64-layers-'));
+  try {
+    const png = await shoot(scratch, 'rasterline-charset', 'rasterline-charset-probe.8bs', ['--checkout', CHECKOUT]);
+    // Every cell is screen code 1, white on black: "A" in the upper-case
+    // set ($18, $3C, ..., $66, $00), "a" in the lower-case one ($00, $00,
+    // ..., $3E, $00). Raster line L is PNG row L - 28 (the geometry below);
+    // text row r's first scanline is line 51 + 8r. Lit pixels across the
+    // 320-pixel picture at a glyph row tell the sets apart: glyph rows 0
+    // and 1 are 80 and 160 in "A", 0 and 0 in "a"; glyph row 6 is 160 in
+    // "A" and 200 in "a".
+    const lit = (line) => {
+      let n = 0;
+      for (let x = 32; x < 352; x++) if (isWhite(pixelAt(png, x, line - 28))) n++;
+      return n;
+    };
+    const set = (row) => {
+      const top = 51 + 8 * row;
+      const [g0, g1, g6] = [lit(top), lit(top + 1), lit(top + 6)];
+      if (g0 === 80 && g1 === 160 && g6 === 160) return 'upper';
+      if (g0 === 0 && g1 === 0 && g6 === 200) return 'lower';
+      return `neither (${g0}/${g1}/${g6})`;
+    };
+    // Entries at picture lines 0 (0), 40 (1), 80 (0), 120 (1) and 160 (0,
+    // rewritten to 1 by setValue): each lands on its text row's FIRST
+    // scanline and leaves the row above whole — every scanline of every
+    // row one set, the boundary rows included.
+    const expected = (row) => (row < 5 || (row >= 10 && row < 15) ? 'upper' : 'lower');
+    for (let row = 0; row < 25; row++) {
+      assert.equal(set(row), expected(row), `text row ${row}`);
+    }
+    // The BORDER entry in the same list still lands: the slots coexist.
+    assert.ok(isRed(pixelAt(png, 4, 100)), `a red border, got ${pixelAt(png, 4, 100)}`);
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+test('under VICE, Slot.CHARSET is refused over a bitmap, and no $D018 write reaches the picture', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-c64-layers-'));
+  try {
+    const png = await shoot(scratch, 'rasterline-charset-bitmap', 'rasterline-charset-bitmap-probe.8bs', ['--checkout', CHECKOUT]);
+    // Yellow from picture line 100 (raster 150, PNG row 122) exists only
+    // if at(40, CHARSET, 1) came back false with the list unchanged.
+    assert.ok(isRed(pixelAt(png, 4, 60)), `red above line 100, got ${pixelAt(png, 4, 60)}`);
+    assert.ok(isYellow(pixelAt(png, 4, 180)), `the refusal's yellow below, got ${pixelAt(png, 4, 180)}`);
+    // The bitmap's blue cells, above and below where the refused entry
+    // would have landed (picture line 40, PNG row 62).
+    for (const y of [30, 62, 70, 150, 215]) {
+      assert.ok(isBlue(pixelAt(png, 200, y)), `bitmap cell at row ${y}: blue, got ${pixelAt(png, 200, y)}`);
+    }
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
 // Geometry, measured on this VICE (3.10 under Homebrew, 2026-09): the NTSC
 // capture is 384 x 247; raster line L is PNG row L - 28 (the picture,
 // lines 51-250, is rows 23-222; the lower border 251-262 rows 223-234;
