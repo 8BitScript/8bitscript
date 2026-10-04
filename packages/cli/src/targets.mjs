@@ -22,7 +22,62 @@ import {
 import { resolvePrograms } from './programs.mjs';
 import { describeReach, loadReach, printReach, projectInput } from './reach.mjs';
 import { applyCheckoutFromArgs } from './checkout.mjs';
+import { resolveOnPath } from './setup/host.mjs';
 import { loadMergedSystems } from './systems.mjs';
+import { WEB_EMULATORS } from './web-emulator.mjs';
+
+/**
+ * The ways a machine can be run, from what its package declares — the
+ * editor builds its runtime buttons from this and keeps no table of its own.
+ *
+ *   native        the machine's own emulator (VICE, x16emu, …): `emulator` is
+ *                 its binary, `installed` whether it is on PATH (null when
+ *                 there is nothing to look for), `reason` why not when
+ *                 `available` is false.
+ *   wasm          the machine's own package built through the wasm backend and
+ *                 run in a browser page: in an editor tab or an external
+ *                 browser, whichever opens the page. `8bs run <t> --web`.
+ *                 Declared by the package (`emulator.wasm`) and held to the
+ *                 truth by a test that builds every one.
+ *   wasmEmulator  the vendored real emulator as WebAssembly instead (cx16's
+ *                 x16emu): `8bs run <t> --web --x16emu`.
+ *   boot          the bare emulator with nothing loaded: `8bs boot <t>`; a
+ *                 native thing, so it follows native.
+ *
+ * @param {string} id
+ * @param {{ emulator: object }} catalog
+ * @param {boolean} inRelease
+ */
+export function describeRuntime(id, catalog, inRelease) {
+  const emulator = catalog.emulator;
+  const binary = emulator.binary ?? null;
+  const parked = 'not built in this release';
+  let nativeReason = null;
+  if (!inRelease) nativeReason = parked;
+  else if (binary === null) nativeReason = `${emulator.label ?? id} has no native emulator; it runs in the browser`;
+  else if (emulator.deferred) nativeReason = emulator.deferred;
+  const nativeAvailable = nativeReason === null;
+  const declared = emulator.wasm;
+  let wasmReason = null;
+  if (!inRelease) wasmReason = parked;
+  else if (!declared) wasmReason = 'this machine package does not declare a wasm port';
+  else if (declared.available !== true) wasmReason = declared.reason ?? 'this machine package has no wasm port yet';
+  const hasWasmEmulator = Object.hasOwn(WEB_EMULATORS, id);
+  return {
+    native: {
+      available: nativeAvailable,
+      emulator: binary,
+      installed: binary === null ? null : resolveOnPath(binary) !== null,
+      reason: nativeReason,
+    },
+    wasm: { available: wasmReason === null, reason: wasmReason },
+    wasmEmulator: { available: inRelease && hasWasmEmulator, reason: hasWasmEmulator ? null : 'no real emulator is vendored as WebAssembly for this machine' },
+    boot: {
+      available: nativeAvailable && id !== 'web',
+      reason: id === 'web' ? 'the web has no bare machine to boot: there is no ROM without a program to run' : nativeReason,
+    },
+  };
+}
 
 /**
  * One entry per target: what the editor's dropdowns and hardware panel
@@ -60,6 +115,9 @@ export function describeTargets(config) {
       // ones (RELEASE_MACHINES in the compiler).
       inRelease: RELEASE_MACHINES.includes(id),
       emulator: catalog.emulator.binary ?? catalog.emulator.label ?? null,
+      // The ways to run it: native, in a wasm page, the vendored real
+      // emulator as wasm, and the bare boot. See describeRuntime.
+      runtime: describeRuntime(id, catalog, RELEASE_MACHINES.includes(id)),
       emulatorFamily: catalog.emulator.family ?? null,
       screenshot: catalog.emulator.screenshot ?? null,
       framesUnit: catalog.emulator.framesUnit ?? null,

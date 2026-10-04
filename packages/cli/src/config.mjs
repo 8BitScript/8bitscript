@@ -22,6 +22,22 @@ export const DEFAULT_CATALOG_DIR = 'src/i18n';
 const CONFIG_FILENAMES = ['8bitscript.config.8bs', '8bitscript.config.ts', '8bs.config.ts'];
 
 /**
+ * The path of the config file `loadConfig` would load from `dir`, or null
+ * when the directory has none — the newest name that exists, like the
+ * loader. For a reader (`8bs project`) that must say which file it read.
+ *
+ * @param {string} dir
+ * @returns {string|null}
+ */
+export function configPathOf(dir) {
+  for (const filename of CONFIG_FILENAMES) {
+    const path = join(dir, filename);
+    if (existsSync(path)) return path;
+  }
+  return null;
+}
+
+/**
  * The project's 8bitscript.config.8bs (or an older .ts name), if present.
  * The content is plain type-stripped JS/TS either way — `.8bs` names the
  * config, it does not make it 8BitScript-the-language, which has no

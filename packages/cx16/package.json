@@ -16,7 +16,10 @@
       "screenshot": "gif",
       "framesUnit": "frames",
       "defaultFrames": 180,
-      "installer": "cx16"
+      "installer": "cx16",
+      "wasm": {
+        "available": true
+      }
     },
     "media": "./media/index.cjs",
     "entry": "./src/index.8bs",

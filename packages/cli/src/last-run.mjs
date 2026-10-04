@@ -87,9 +87,13 @@ export async function writeLastRun(target, patch, cwd = process.cwd(), web = fal
  * What compile() hands writeLastRun: memory, the `--size` entries when
  * asked for, the hardware snapshot, and the built file.
  */
-export function compileReport(target, { outFile, hardware, memory, sizeReport, frameRate, program, locale }, cwd = process.cwd()) {
+export function compileReport(target, { outFile, hardware, memory, sizeReport, frameRate, program, locale, defines }, cwd = process.cwd()) {
   return {
     target,
+    // What the build's `#define("NAME", default)` calls came to — name →
+    // value, a handed value or the default — so a reader can say "built
+    // with SEED=10". Empty for a program that reads none.
+    defines: defines ?? {},
     // The build's locale, or null: the plain files, which is every build
     // that never named one.
     locale: locale ?? null,

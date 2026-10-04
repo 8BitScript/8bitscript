@@ -28,7 +28,7 @@ async function finish(code) {
   process.exit(code);
 }
 
-const IMPLEMENTED = new Set(['check', 'lsp', 'doctor', 'build', 'run', 'boot', 'setup', 'targets', 'controller']);
+const IMPLEMENTED = new Set(['check', 'lsp', 'doctor', 'build', 'run', 'boot', 'setup', 'targets', 'project', 'controller']);
 const PLANNED = ['dev'];
 
 const usage = () => `Usage: 8bs <command> [options]
@@ -60,7 +60,14 @@ Implemented:
                                --program names one of the project's
                                programs (8bitscript.config.8bs's programs
                                block); without it, main, or the only one.
-  build --release              Every artifact this project declares for a
+                               --define NAME=VALUE (repeatable) hands the
+                               program a value that its #define("NAME", …)
+                               reads, over the program's own define block
+                               and the default in the source: a number,
+                               true/false, or a string ("…" forces a
+                               string). A name the program never reads is
+                               an error naming the nearest one it does.
+  build --release             Every artifact this project declares for a
                                release: each program, for each target it
                                (or the project) lists, once per name in
                                that target's own release array (or once,
@@ -71,7 +78,8 @@ Implemented:
                                the reusable compile.yml workflow.
   run <target> [--system <name>] [--pal] [--profile <name>]
     [--hardware option=value,...] [--checkout <dir>] [--size] [--program <name>] [entry]
-    [--no-open] [--lan] [--local] [--port <n>]
+    [--no-open] [--lan] [--local] [--port <n>] [--locale <name>]
+    [--define NAME=VALUE]... [--web [--x16emu]]
                                Build, then open that target's emulator
                                (VICE's xpet for the pet) at the right
                                machine model — or execute the .wasm and
@@ -92,6 +100,12 @@ Implemented:
                                --frames means a different unit per target
                                (cycles, wall-clock seconds, or exact
                                frame-advances); omit it for a tested default.
+                               --web builds pet, vic20 or cx16 through the
+                               wasm backend and serves a browser page with
+                               it (the c64 is not ported yet); --no-open
+                               prints the URL and does not open a browser.
+                               On cx16, --web --x16emu serves the real
+                               x16emu as WebAssembly instead.
   boot <target> [--system <name>] [--pal] [--profile <name>]
     [--hardware option=value,...] [--checkout <dir>]
                                Opens that target's emulator fitted the same
@@ -109,6 +123,18 @@ Implemented:
                                a package or not, against this project's
                                requires and input, and who is out there to
                                run a build (docs/project/reach.md)
+  project [--json] [--no-defines]
+                               The project in this directory, read by the
+                               CLI's own loader: its programs (the units
+                               you can run — title, group, the machines
+                               each builds for, and the #define values each
+                               takes with the defaults found in its source),
+                               targets, locales and named systems. --json is
+                               what the editor reads (docs/project/units.md);
+                               --no-defines skips linking each program to
+                               read its defines. Exit 0 even when the
+                               project has problems (they are in the output),
+                               1 when the config exists but cannot be loaded.
   controller [--no-open]       Map a game controller: serves a page on
     [--list] [--print]         loopback and opens it in your browser, which
     [--dir <path>]             is the only thing here that can see a pad —
@@ -123,7 +149,8 @@ Implemented:
                                (not what is plugged in: nothing outside a
                                browser can know that) and --print dumps
                                the file. --dir names a project copy.
-  check <files...>             Report diagnostics for 8BitScript source files
+  check <files...> [--define NAME=VALUE]...
+                               Report diagnostics for 8BitScript source files
   doctor [--json] [--install] [--all] [--want <keys>]
                                Verify host tools and optional emulators.
                                Missing emulators are warnings, not a
@@ -194,8 +221,14 @@ if (command === 'check') {
     await finish(2);
   }
   const { check } = await import('../src/check.mjs');
-  const files = rest.filter((a, i) => !checkout.consumed.has(i) && !a.startsWith('-'));
-  await finish(await check(files, { checkout: checkout.checkout }));
+  const { defineArgs } = await import('../src/defines.mjs');
+  const defineOpt = defineArgs(rest);
+  if (!defineOpt.ok) {
+    process.stderr.write(`8bs check: ${defineOpt.error}\n`);
+    await finish(2);
+  }
+  const files = rest.filter((a, i) => !checkout.consumed.has(i) && !defineOpt.consumed.includes(i) && !a.startsWith('-'));
+  await finish(await check(files, { checkout: checkout.checkout, defines: defineOpt.defines }));
 }
 
 if (command === 'doctor') {
@@ -226,6 +259,11 @@ if (command === 'controller') {
 if (command === 'targets') {
   const { targets } = await import('../src/targets.mjs');
   await finish(await targets(rest));
+}
+
+if (command === 'project') {
+  const { project } = await import('../src/project.mjs');
+  await finish(await project(rest));
 }
 
 if (command === 'setup') {
