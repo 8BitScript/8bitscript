@@ -318,6 +318,10 @@ window.addEventListener('message', ({ data }) => {
   renderPackages(data.packages ?? []);
   fill($('project'), data.projects, data.project);
   $('project').disabled = empty;
+  // The Entry dropdown is only there for a project with several programs.
+  const programs = data.programs ?? [];
+  $('program-field').hidden = programs.length === 0;
+  fill($('program'), programs, data.program);
   $('open').disabled = empty;
   $('details').disabled = empty;
   renderRunMenu(data.systems, { emulatorLabel: data.emulatorLabel, system: data.system });
@@ -376,6 +380,7 @@ window.addEventListener('message', ({ data }) => {
 });
 
 $('project').addEventListener('change', (e) => vscode.postMessage({ type: 'set', key: 'project', value: e.target.value }));
+$('program').addEventListener('change', (e) => vscode.postMessage({ type: 'set', key: 'program', value: e.target.value }));
 $('studio').addEventListener('click', () => vscode.postMessage({ type: 'command', id: '8bitscript.openStudio' }));
 $('studio-more').addEventListener('click', (e) => {
   e.studioMenu = true;

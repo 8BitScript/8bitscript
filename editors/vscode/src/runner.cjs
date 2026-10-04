@@ -33,6 +33,7 @@ const {
   commandArgs,
   findConfig,
   findToolchain,
+  hasSeveralPrograms,
   insertSystem,
   doctorWantFromSelection,
   loadApps,
@@ -43,7 +44,9 @@ const {
   ofKind,
   packageManagerFor,
   packageManagerPath,
+  programTargets,
   resolvePackageManager,
+  resolveProgram,
   systemLine,
   withShipped,
 } = require('./projects.cjs');
@@ -210,6 +213,7 @@ function makeTask(project, action, target, region, hardware = settings.getHardwa
     project: relativeDir(project.dir),
     projectDir: project.dir,
     ...(target ? { target } : {}),
+    ...(extras.program ? { program: extras.program } : {}),
     ...(pal ? { pal: true } : {}),
     ...(extras.web ? { web: true } : {}),
   };
@@ -219,7 +223,7 @@ function makeTask(project, action, target, region, hardware = settings.getHardwa
     : (target
       ? ` ${target}${MACHINE_TARGETS.has(target) ? ` (${regionShort(region)})` : ''}${fitted ? ` ${fitted}` : ''}`
       : '');
-  const name = `${project.name}: ${action}${suffix}${extras.web ? ' in a tab' : ''}`;
+  const name = `${project.name}: ${action}${extras.program ? ` ${extras.program}` : ''}${suffix}${extras.web ? ' in a tab' : ''}`;
   const invocation = cliCommand(project.toolchain) ?? { command: project.toolchain, args: [] };
   const env = { PATH: packageManagerPath(), ...invocation.env };
   const task = new vscode.Task(
@@ -485,9 +489,16 @@ class TaskProvider {
     const tasks = [];
     for (const project of this.projects.all) {
       if (!project.toolchain) continue;
-      for (const target of project.targets) {
-        tasks.push(makeTask(project, 'run', target, 'ntsc'));
-        tasks.push(makeTask(project, 'build', target, 'ntsc'));
+      // A project with several programs lists each one's own tasks, on the
+      // machines that program is set up for, so Tasks: Run Task reaches a
+      // lab without first changing the launcher's choice.
+      const programs = hasSeveralPrograms(project) ? project.programs.map((p) => p.name) : [null];
+      for (const program of programs) {
+        const extras = program ? { program } : {};
+        for (const target of programTargets(project, program)) {
+          tasks.push(makeTask(project, 'run', target, 'ntsc', undefined, extras));
+          tasks.push(makeTask(project, 'build', target, 'ntsc', undefined, extras));
+        }
       }
     }
     return tasks;
@@ -506,11 +517,17 @@ class TaskProvider {
       ?? loadProject(findConfig(dir) ?? path.join(dir, CONFIG_FILE));
     if (!project.toolchain) return undefined;
 
+    // A tasks.json entry names its program, or leaves it to the one chosen
+    // in the launcher (or `main`) — never to an interactive prompt.
+    const program = hasSeveralPrograms(project)
+      ? (definition.program ?? resolveProgram(project, settings.getProgram(project.dir))) : null;
     const resolved = makeTask(
       project,
       definition.command,
       definition.target,
       definition.pal ? 'pal' : 'ntsc',
+      undefined,
+      program ? { program } : {},
     );
     // The task must keep the definition object it was given, or the editor
     // treats the resolved task as a different one from the tasks.json entry.
@@ -580,6 +597,8 @@ function registerRunner(context, output) {
     if (node?.project && (node?.target || node?.system)) return node;
     const project = node?.project ?? selected() ?? (await pickProject(action, projects.all));
     if (!project) return undefined;
+    const program = await programOf(project, node, action);
+    if (program === undefined) return undefined;
     const named = node?.system ?? settings.getNamedSystem();
     if (named && !node?.target) {
       const systems = (await projects.loadTargets(project.dir))?.systems ?? [];
@@ -587,6 +606,7 @@ function registerRunner(context, output) {
       if (system) {
         return {
           project,
+          program,
           target: system.target,
           system: named,
           region: system.region ?? settings.getRegion(),
@@ -595,9 +615,40 @@ function registerRunner(context, output) {
       }
     }
     const machine = settings.getSystem();
+    const fits = programTargets(project, program);
     const target = node?.target
-      ?? (project.targets.includes(machine) ? machine : await pickTarget(project, action));
-    return target ? { project, target } : undefined;
+      ?? (fits.includes(machine) ? machine : await pickTarget({ ...project, targets: fits }, action));
+    return target ? { project, program, target } : undefined;
+  }
+
+  /**
+   * The program of a project with several that a command acts on: the one
+   * the caller named, else the one chosen for the project in the launcher,
+   * else `main`; with none of those, the person is asked and the answer is
+   * remembered. `null` is a project that needs no name (one program),
+   * `undefined` is a prompt that was dismissed.
+   */
+  async function programOf(project, node, action) {
+    if (!hasSeveralPrograms(project)) return null;
+    const known = resolveProgram(project, node?.program ?? settings.getProgram(project.dir));
+    if (known) return known;
+    return pickProgram(project, action);
+  }
+
+  async function pickProgram(project, action) {
+    const current = settings.getProgram(project.dir);
+    const picked = await vscode.window.showQuickPick(
+      project.programs.map((program) => ({
+        label: program.name,
+        description: program.name === current ? 'selected' : undefined,
+        detail: path.relative(project.dir, program.entry),
+        program: program.name,
+      })),
+      { placeHolder: `Which program of ${labelOf(project)} to ${action}?` },
+    );
+    if (!picked) return undefined;
+    await settings.setProgram(project.dir, picked.program);
+    return picked.program;
   }
 
   async function pickProject(action, candidates) {
@@ -823,6 +874,11 @@ function registerRunner(context, output) {
     const resolved = await targetOf(node, action);
     if (!resolved) return;
     const { project, target, hardware, region, system } = resolved;
+    // A node that arrives with its project and machine already named (the
+    // launcher's buttons, a tree row) skips targetOf, so the program is
+    // resolved here when targetOf has not.
+    const program = resolved.program !== undefined ? resolved.program : await programOf(project, node, action);
+    if (program === undefined) return;
     if (!requireToolchain(project)) return;
     if (!(await requireInstalled(project))) return;
     // An explicit hardware selection (a project's own named system, from
@@ -834,6 +890,7 @@ function registerRunner(context, output) {
     const extras = {
       system: system || undefined,
       checkout: projects.checkoutFlag() || undefined,
+      program: program || undefined,
       // Set only by a caller that already decided and knows how to show
       // the result: Studio's own tab, Preview On…, and the plain Run
       // command's own WEB_PREVIEW_READY/preferWebPreview check (below) —
@@ -877,7 +934,11 @@ function registerRunner(context, output) {
     if (!invocation) return null;
     const effectiveHardware = hardware
       ?? settings.getEffectiveHardware(target, (await projects.loadTargets(project.dir))?.get(target));
-    const extras = { system: system || undefined, checkout: projects.checkoutFlag() || undefined };
+    // Never asks: a background rebuild falls back to the first program when
+    // several are listed and none is chosen or named `main`.
+    const program = hasSeveralPrograms(project)
+      ? (resolveProgram(project, settings.getProgram(project.dir)) ?? project.programs[0].name) : undefined;
+    const extras = { system: system || undefined, checkout: projects.checkoutFlag() || undefined, program };
     const args = commandArgs('build', target, region ?? settings.getRegion(), effectiveHardware, extras);
     return { invocation, cwd: project.dir, args };
   }
@@ -1376,4 +1437,4 @@ function startLivePoll(projects, context) {
   context.subscriptions.push({ dispose() { clearInterval(timer); } });
 }
 
-module.exports = { Projects, RunningTasks, labelOf, makeTask, registerRunner, whereLabel };
+module.exports = { Projects, RunningTasks, TaskProvider, labelOf, makeTask, registerRunner, whereLabel };

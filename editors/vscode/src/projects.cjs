@@ -277,7 +277,7 @@ function quotedStrings(text) {
  * side bar that wants the rest has `programs` to read.
  *
  * @param {string} text
- * @returns {{ entry: string, targets: string[], programs: Array<{ name: string, entry: string }> }}
+ * @returns {{ entry: string, targets: string[], programs: Array<{ name: string, entry: string, targets: string[] | null }> }}
  */
 function parseConfig(text) {
   const source = stripComments(text);
@@ -303,18 +303,30 @@ function parseConfig(text) {
   }
   if (programs.length === 0) programs = [{ name: 'main', entry }];
 
-  let targets = ALL_TARGETS;
-  const targetsMatch = /\btargets\s*:\s*\[([^\]]*)\]/.exec(outside);
-  const objectMatch = /\btargets\s*:\s*\{/.exec(outside);
-  if (targetsMatch) {
-    const listed = quotedStrings(targetsMatch[1]).filter((t) => ALL_TARGETS.includes(t));
-    if (listed.length > 0) targets = ALL_TARGETS.filter((t) => listed.includes(t));
-  } else if (objectMatch) {
-    const listed = topLevelKeys(outside, objectMatch.index + objectMatch[0].length).filter((t) => ALL_TARGETS.includes(t));
-    if (listed.length > 0) targets = ALL_TARGETS.filter((t) => listed.includes(t));
-  }
+  const targets = targetList(outside) ?? ALL_TARGETS;
 
   return { entry, targets, programs };
+}
+
+/**
+ * The machines a config fragment names in its `targets` — the array form or
+ * the object form — in the toolchain's order, or null when it names none
+ * (no `targets`, or none this extension knows). A program's own body and
+ * the project's config outside its `programs` block read the same way.
+ *
+ * @param {string} source
+ * @returns {string[] | null}
+ */
+function targetList(source) {
+  const targetsMatch = /\btargets\s*:\s*\[([^\]]*)\]/.exec(source);
+  const objectMatch = /\btargets\s*:\s*\{/.exec(source);
+  let listed = [];
+  if (targetsMatch) {
+    listed = quotedStrings(targetsMatch[1]).filter((t) => ALL_TARGETS.includes(t));
+  } else if (objectMatch) {
+    listed = topLevelKeys(source, objectMatch.index + objectMatch[0].length).filter((t) => ALL_TARGETS.includes(t));
+  }
+  return listed.length > 0 ? ALL_TARGETS.filter((t) => listed.includes(t)) : null;
 }
 
 /**
@@ -344,7 +356,7 @@ function programEntries(source, from) {
         }
         const body = source.slice(bodyStart, j - 1);
         const entryMatch = /\bentry\s*:\s*(['"`])([^'"`]+)\1/.exec(body);
-        if (entryMatch) programs.push({ name, entry: entryMatch[2] });
+        if (entryMatch) programs.push({ name, entry: entryMatch[2], targets: targetList(body) });
         i = j;
         continue;
       }
@@ -710,7 +722,7 @@ function loadProject(configPath, overrides = {}) {
     configPath,
     entry: path.resolve(dir, entry),
     targets,
-    programs: programs.map((p) => ({ name: p.name, entry: path.resolve(dir, p.entry) })),
+    programs: programs.map((p) => ({ name: p.name, entry: path.resolve(dir, p.entry), targets: p.targets ?? null })),
     toolchain: findToolchain(dir, checkout),
     installed: isInstalled(dir, pkg),
     packageManager: packageManagerFor(dir),
@@ -1128,6 +1140,9 @@ function commandArgs(action, target, region = 'ntsc', hardware = undefined, extr
     ? (action === 'build' ? ['build', '--system', extras.system] : [action, '--system', extras.system])
     : (action === 'build' ? ['build', '--target', target] : [action, target]);
   if (extras.checkout) args.push('--checkout', extras.checkout);
+  // Which of a project's several programs, by name. Boot loads nothing, so it
+  // has no program to name.
+  if (extras.program && action !== 'boot') args.push('--program', extras.program);
   if (!extras.system && region === 'pal' && MACHINE_TARGETS.has(target)) args.push('--pal');
   if (!extras.system && hardware) args.push(...hardwareArgs(hardware));
   // Run and build print the size breakdown before the emulator starts (run)
@@ -1135,6 +1150,47 @@ function commandArgs(action, target, region = 'ntsc', hardware = undefined, extr
   // tree reads the same numbers from dist/.8bs-last-<target>.json.
   if (action === 'run' || action === 'build') args.push('--size');
   return args;
+}
+
+/**
+ * Whether Run and Build have to say which program: a project with several.
+ * One program (the usual case, or a `main` alone) needs no `--program`.
+ *
+ * @param {{ programs?: Array<{ name: string }> } | null | undefined} project
+ */
+function hasSeveralPrograms(project) {
+  return (project?.programs?.length ?? 0) > 1;
+}
+
+/**
+ * The program a command acts on: `chosen` when the project has it, else
+ * `main`, else null — several programs and no `main` is the one case the
+ * toolchain refuses to guess, so the caller asks. A project with a single
+ * program never needs a name (null: pass no `--program`).
+ *
+ * @param {{ programs?: Array<{ name: string }> } | null | undefined} project
+ * @param {string | undefined} chosen
+ * @returns {string | null}
+ */
+function resolveProgram(project, chosen) {
+  if (!hasSeveralPrograms(project)) return null;
+  const names = project.programs.map((p) => p.name);
+  if (chosen && names.includes(chosen)) return chosen;
+  return names.includes('main') ? 'main' : null;
+}
+
+/**
+ * The machines one program can be run on: the project's `targets`, narrowed
+ * by the program's own when it names some. An unknown program, or none,
+ * is the project's list.
+ *
+ * @param {{ targets: string[], programs?: Array<{ name: string, targets?: string[] | null }> }} project
+ * @param {string | null | undefined} name
+ * @returns {string[]}
+ */
+function programTargets(project, name) {
+  const own = project.programs?.find((p) => p.name === name)?.targets;
+  return own ? project.targets.filter((t) => own.includes(t)) : project.targets;
 }
 
 module.exports = {
@@ -1155,6 +1211,9 @@ module.exports = {
   cliPackageDir,
   commandArgs,
   examplesManifest,
+  hasSeveralPrograms,
+  programTargets,
+  resolveProgram,
   findToolchain,
   groupedMachineOptions,
   installersForTargets,
