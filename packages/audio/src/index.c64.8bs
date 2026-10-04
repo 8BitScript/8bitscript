@@ -13,6 +13,13 @@ let row: utinyint = 0;
 let tick: utinyint = 0;
 let sfxLeft: utinyint = 0;
 let ready: bool = false;
+// The master volume, 0..15, and whether the envelope is the plucked one (see blip).
+let level: utinyint = 15;
+let plucked: bool = false;
+
+// The SID decay rate (0..15, the datasheet's table) a pluck of N frames wants,
+// N = 0..9 and more: 6 ms, 24, 48, 72, 114, 168 ms for a note to die away.
+const DECAY: array<u8, 10> = [1, 1, 2, 3, 3, 4, 4, 4, 5, 5];
 
 function waveOf(code: utinyint): utinyint {
     if (code == 1) {
@@ -30,7 +37,7 @@ function waveOf(code: utinyint): utinyint {
 function ensure(): void {
     if (!ready) {
         sid.detectRegion();
-        sid.setVolume(15);
+        sid.setVolume(level);
         sid.setEnvelope(0, 0, 9, 8, 6);
         sid.setPulseWidth(0, 2048);
         ready = true;
@@ -99,6 +106,11 @@ export namespace audio {
     // once) so the pitch is right. Nothing else blocks.
     function tone(note: utinyint, frames: utinyint): void {
         ensure();
+        if (plucked) {
+            sid.setEnvelope(0, 0, 9, 8, 6);
+            plucked = false;
+        }
+        sid.release(0);
         sid.setWaveform(0, Waveform.PULSE);
         sid.play(0, note);
         sfxLeft = frames;
@@ -112,6 +124,40 @@ export namespace audio {
             sid.release(0);
         }
         sfxLeft = 0;
+    }
+
+    // The master volume the SID plays at, 0 (silent) to LEVEL_MAX; a level above
+    // the maximum is the maximum. It scales every tone, blip and song.
+    const LEVEL_MAX: utinyint = 15;
+
+    function setLevel(amount: utinyint): void {
+        level = amount;
+        if (level > 15) {
+            level = 15;
+        }
+        ensure();
+        sid.setVolume(level);
+    }
+
+    // A plucked tone on voice 0: the envelope has no sustain, so the note dies
+    // away by itself in about `frames` frames, and a missed update() can never
+    // leave it sounding. The gate is dropped first, so a note started on top of
+    // another retriggers.
+    function blip(note: utinyint, frames: utinyint): void {
+        ensure();
+        let slow: utinyint = frames;
+        if (slow > 9) {
+            slow = 9;
+        }
+        sid.setEnvelope(0, 0, DECAY[slow], 0, 2);
+        plucked = true;
+        sid.release(0);
+        sid.setWaveform(0, Waveform.PULSE);
+        sid.play(0, note);
+        sfxLeft = frames;
+        if (frames == 0) {
+            sfxLeft = 1;
+        }
     }
 
     function music(slot: utinyint): void {

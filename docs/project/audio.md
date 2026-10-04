@@ -128,6 +128,28 @@ A request the chip cannot satisfy is a diagnostic, not a dropped note.
 Song bytes are `[tempo, speed, rows, count]` then events `row, note, wave, voice`.
 Wave 0 pulse / 1 noise / 2 triangle / 3 saw.
 
+## Volume and plucked tones: `audio.setLevel`, `audio.blip`
+
+A game that plays a sound many times a second wants it quiet and short, and a
+tone that is not told to stop must not drone. Two more calls and a constant:
+
+```8bs
+audio.setLevel(6);      // the volume every tone, blip and song plays at: 0 (silent) .. audio.LEVEL_MAX
+audio.blip(48, 3);      // a plucked tone: starts at the level and dies away within 3 frames
+audio.tone(57, 30);     // a plain tone holds its level for its frames
+```
+
+`audio.LEVEL_MAX` is the loudest level the machine takes: 15 on the C64, VIC-20,
+X16 and web, 1 on the PET (a one-bit speaker has no volume: any level above 0 is
+the square wave, and 0 mutes), 0 where there is no driver. A level above the
+maximum is the maximum. `setLevel(0)` is silence for `tone`, `blip` and songs.
+
+A **blip** is a tone that fades by itself. The SID has an envelope for that: the
+note gets a decay and no sustain, so it is gone even if `update()` is never
+called. The VIC-I, the PSG and the web oscillator have none, so `update()` walks
+the volume down a step a frame to 0 on the note's last frame; the PET has no
+volume, so a blip is a plain tone. `frames` is the length, as for `tone`.
+
 ## Diagnostics (`8BS22xx`)
 
 | Code | Means |

@@ -65,4 +65,9 @@ export namespace psg {
     function silence(voice: utinyint): void {
         writePsg(voice * 4 + 2, 0);
     }
+
+    // Change a voice's volume (0..15, the same steps as `play`) without touching its pitch.
+    function setVolume(voice: utinyint, volume: utinyint): void {
+        writePsg(voice * 4 + 2, 0xC0 | ((volume & 15) * 4));
+    }
 }

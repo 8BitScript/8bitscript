@@ -24,6 +24,9 @@
 // A real browser tab was not available to listen to.
 import { Video } from "./geometry.8bs";
 
+// The level `on` sounds at, 0..15; `volume` changes the register alone (for a fade).
+let level: utinyint = 15;
+
 export namespace voice {
     // The note index sounds at once, on a square wave at full volume. A tone
     // shorter than the page's paint (about 16 ms) can be missed: the page
@@ -31,11 +34,24 @@ export namespace voice {
     function on(note: utinyint): void {
         memory.write(Video.AUDIO_BASE + 1, note);
         memory.write(Video.AUDIO_BASE + 2, 0);
-        memory.write(Video.AUDIO_BASE + 3, 15);
+        memory.write(Video.AUDIO_BASE + 3, level);
         memory.write(Video.AUDIO_BASE, 1);
     }
 
     function off(): void {
         memory.write(Video.AUDIO_BASE, 0);
+    }
+
+    // The level the next `on` sounds at (0 silent .. 15 full), and the one
+    // sounding now.
+    function setLevel(amount: utinyint): void {
+        level = amount & 15;
+        memory.write(Video.AUDIO_BASE + 3, level);
+    }
+
+    // Only the sounding volume (0..15): the fade of a plucked tone. The next `on`
+    // goes back to the level.
+    function volume(amount: utinyint): void {
+        memory.write(Video.AUDIO_BASE + 3, amount & 15);
     }
 }
