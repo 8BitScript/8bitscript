@@ -86,6 +86,22 @@ test('a DC offset does not move the measured pitch', () => {
   assert.ok(Math.abs(cents(result.segments[0].frequency, 330)) < 2);
 });
 
+test('a window of a recording is measured on its own: two notes run together are told apart', () => {
+  const result = analyzeWav(wav(1, [
+    { at: 0.1, seconds: 0.2, hz: 440 },
+    { at: 0.3, seconds: 0.2, hz: 660 },
+  ]));
+  assert.equal(result.segments.length, 1, 'with no gap they are one segment');
+  const first = result.measure(0.12, 0.28);
+  const second = result.measure(0.32, 0.48);
+  assert.ok(Math.abs(cents(first.frequency, 440)) < 3, `first window ${first.frequency}`);
+  assert.ok(Math.abs(cents(second.frequency, 660)) < 3, `second window ${second.frequency}`);
+  assert.ok(first.cycles >= 60 && second.cycles >= 90, `cycles ${first.cycles} ${second.cycles}`);
+  const quiet = result.measure(0.6, 0.9);
+  assert.equal(quiet.frequency, 0);
+  assert.equal(quiet.cycles, 0);
+});
+
 test('only 16-bit PCM is accepted', () => {
   const buffer = wav(1, [{ at: 0, seconds: 1, hz: 440 }]);
   buffer.writeUInt16LE(8, 34);

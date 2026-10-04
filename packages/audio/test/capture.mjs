@@ -27,16 +27,62 @@ export function haveBinary(name) {
 // is a run of 10 ms blocks whose peak is at least a quarter of the file's;
 // runs closer than `gap` seconds are one tone. The frequency is the count of
 // rising zero crossings of the mean-removed first channel over the segment.
-export function analyzeWav(buffer, { gap = 0.03 } = {}) {
+export function analyzeWav(buffer, options) {
+  const { rate, channels, samples } = decodeWav(buffer);
+  return { ...analyzeSamples(samples, rate, options), channels };
+}
+
+// The first channel of a 16-bit PCM WAV, in the file's own units.
+export function decodeWav(buffer) {
   const channels = buffer.readUInt16LE(22);
   const rate = buffer.readUInt32LE(24);
   const bits = buffer.readUInt16LE(34);
   if (bits !== 16) throw new Error(`analyzeWav: ${bits}-bit PCM is not handled`);
   const frames = Math.floor((buffer.length - 44) / (2 * channels));
-  const sample = (i) => buffer.readInt16LE(44 + i * 2 * channels);
+  const samples = new Float32Array(frames);
+  for (let i = 0; i < frames; i += 1) samples[i] = buffer.readInt16LE(44 + i * 2 * channels);
+  return { rate, channels, samples };
+}
+
+// The pitch inside [from, to) seconds: rising zero crossings of the
+// mean-removed samples, counted between the first and the last. `cycles` says
+// how many it saw, which is how far to trust the number (a 30 ms note has
+// fewer than ten cycles at 300 Hz).
+export function measureWindow(samples, rate, from, to) {
+  const start = Math.max(0, Math.round(from * rate));
+  const end = Math.min(samples.length, Math.round(to * rate));
+  let mean = 0;
+  let peak = 0;
+  for (let i = start; i < end; i += 1) mean += samples[i];
+  mean /= Math.max(1, end - start);
+  for (let i = start; i < end; i += 1) peak = Math.max(peak, Math.abs(samples[i]));
+  let crossings = 0;
+  let first = -1;
+  let last = -1;
+  let previous = (samples[start] ?? 0) - mean;
+  for (let i = start + 1; i < end; i += 1) {
+    const value = samples[i] - mean;
+    if (previous < 0 && value >= 0) {
+      crossings += 1;
+      if (first < 0) first = i;
+      last = i;
+    }
+    previous = value;
+  }
+  const cycles = Math.max(0, crossings - 1);
+  return { frequency: cycles > 0 ? (cycles * rate) / (last - first) : 0, cycles, peak };
+}
+
+// Tone segments in mono samples at `rate`.
+export function analyzeSamples(samples, rate, { gap = 0.03 } = {}) {
+  const frames = samples.length;
+  const sample = (i) => samples[i];
   let peak = 0;
   for (let i = 0; i < frames; i += 1) peak = Math.max(peak, Math.abs(sample(i)));
-  const result = { rate, channels, seconds: frames / rate, peak, segments: [] };
+  const result = {
+    rate, seconds: frames / rate, peak, segments: [], samples,
+    measure: (from, to) => measureWindow(samples, rate, from, to),
+  };
   if (peak === 0) return result;
   const threshold = peak / 4;
   const block = Math.max(1, Math.round(rate / 100));
