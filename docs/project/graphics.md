@@ -53,7 +53,9 @@ C64, NES, PET, Atari 8-bit, and VIC-20 each export a `"8bitscript".media` module
 Every other machine uses the glyph path `@8bitscript/sprites` already has,
 with `8BS2111` naming the adaptation. The web exports one too, because its
 font draws only ASCII and the sixteen 2×2 block codes: the default glyph
-codes (reverse space, a ball) are PETSCII and draw nothing there.
+codes (reverse space, a ball) are PETSCII and draw nothing there. It lowers
+a picture to an 8×8 bitmap per animation step, which the web twin writes into
+the runtime's redefinable glyph table (`@8bitscript/web/charset`).
 
 ## The portable contract
 
@@ -177,7 +179,7 @@ nearest evidence for it.
 | Atari 8-bit | A software glyph; frames collapsed (`8BS2111`). Player/missile shapes are a later slice. |
 | VIC-20 | Quadrant-block characters from the ROM, worked out at build time: one cell for a source of 8 pixels or fewer, 2×2 cells for anything larger (scaled down), one screen code a cell a frame, the animation's frames (the first 8) stepping every `every` updates; a picture with almost no ink becomes one glyph (`8BS2111` either way). Moving an object blanks the cells it left; cells off the screen are not drawn. |
 | Commander X16 | A VERA hardware sprite in its own 15-colour palette; 8, 16, 32 or 64 px a side, real animation frames (`8BS2110` over 15 colours, `8BS2111` for padding or cut frames). See [Commander X16](#commander-x16). |
-| Web | One cell as a 2×2 quadrant-block glyph (codes 128–143) per animation step, up to eight steps, stepped every `every` calls to `graphics.update()`; colours dropped (`8BS2111`). A 16×16 picture is four quadrants of 8×8 source pixels. A true sprite layer is a later item for the web runtime (`packages/web/AGENTS.md`). |
+| Web | One cell of real art per animation step: `packages/web/media/index.cjs` reduces each frame at build time to an 8×8 bitmap (eight row bytes, bit 0 the leftmost pixel; an 8×8 source is carried pixel for pixel, a larger one by area, a glyph pixel lit at half its source pixels or more), `packages/graphics/src/index.web.8bs` writes it into the runtime's redefinable glyph table (`@8bitscript/web/charset`, character codes 176–255) and draws it as a cell, up to eight pictures of eight steps, stepped every `every` calls to `graphics.update()`. One ink per cell (`graphics.color()` tints it); a source with more than one colour, or a larger size, or steps past eight is adapted and the build says so (`8BS2111`). A true sprite layer is a later item for the web runtime (`packages/web/AGENTS.md`). |
 | every other machine | The same glyph path, quantized to that machine's cell size: one glyph per animation step, up to four (`8BS2111` names what was dropped). |
 
 ### On the PET
@@ -244,7 +246,7 @@ with a user-port speaker so the VIA song actually plays.
 | C64 | 4692 | 46 |
 | VIC-20 8K | 2493 | 48 |
 | Commander X16 | 4114 | 70 |
-| Web (wasm module bytes) | 1820 | 267 |
+| Web (wasm module bytes) | 1956 | 203 |
 
 These are the figures after the portable contract landed
 (2026-10-04); before it they were 3765, 4577, 2455, 3982 and 1797 bytes of
@@ -266,10 +268,15 @@ same program that also calls `hide`, `setFrame`, `animate` and `color` is
 and `animate` 28; a call a program never makes costs nothing.
 
 The web row is `examples/media-walk` built with `8bs build --target web
---size` on 2026-10-03: the module's byte count, and the declared RAM for
-variables. It was 1610 and 235 with the default glyph path, which also drew
-nothing for that example's picture; the 187 bytes are mostly the animation
-stepper in `graphics.update()`.
+--size`: the module's byte count, and the declared RAM for variables. It was
+1610 and 235 with the default glyph path, which also drew nothing for that
+example's picture; 1797 and 259 once the twin kept one block code per step
+(2026-10-03); 1820 and 267 after the portable contract (2026-10-04); and
+1956 and 203 now that a picture is eight row bytes a step written straight
+into the glyph table (2026-10-04). The 136 bytes more are the binder calls
+that carry eight bytes a step instead of one; the 64 bytes less are the
+code table the twin no longer keeps — the glyph table is the runtime's own
+memory, not the program's.
 
 The VIC-20 row was measured again on 2026-10-03, after its twin changed: it
 was 2383 and 41 on the same example before, and the 256-byte glyph table it

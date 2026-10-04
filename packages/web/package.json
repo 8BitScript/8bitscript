@@ -26,6 +26,7 @@
       "./input": "./src/input.8bs",
       "./pointer": "./src/pointer.8bs",
       "./rasterline": "./src/rasterline.8bs",
+      "./charset": "./src/charset.8bs",
       "./color": "./src/color.8bs"
     },
     "hardware": {
@@ -37,7 +38,7 @@
         "video.palette": 16,
         "video.cellColors": 2,
         "video.colorPerCell": true,
-        "video.glyphs": 0,
+        "video.glyphs": 80,
         "video.blockWidth": 2,
         "video.blockHeight": 2,
         "video.bitmap": false,

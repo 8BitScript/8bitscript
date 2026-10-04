@@ -19,6 +19,14 @@ export namespace Video {
     const RASTER_BASE: usmallint = 2006;
     const RASTER_MAX_ENTRIES: utinyint = 64;
 
+    // The redefinable glyph table right after the raster list: GLYPH_COUNT
+    // glyphs of eight row bytes (bit 0 the leftmost pixel), drawn for the
+    // character codes GLYPH_FIRST.. when any of a glyph's rows is nonzero —
+    // the same arithmetic agreementFor() in packages/cli/src/web-layout.mjs does.
+    const GLYPH_BASE: usmallint = 2198;
+    const GLYPH_FIRST: utinyint = 176;
+    const GLYPH_COUNT: utinyint = 80;
+
     // The same three questions the Modern host answers at run time, answered
     // here from constants: this skin is a machine, and a machine's grid does
     // not change. Both fold, so a program that asks costs nothing for asking.

@@ -634,16 +634,17 @@ test('two .8bg files get slots 0 and 1 and are bound in the order they are decla
 });
 
 
-test('web lowering keeps all four animation steps as drawable quadrant-block codes; its audio stays silent', () => {
+test('web lowering keeps all four animation steps as 8×8 glyph rows; its audio stays silent', () => {
   withProject((dir) => {
     const { ir, diagnostics } = linked(dir, 'web');
     assert.deepEqual(diagnostics.filter((d) => d.severity !== 'warning'), []);
-    assert.ok(diagnostics.some((d) => d.code === '8BS2111' && /quadrant-block glyph on the web.*4 animation steps kept/.test(d.message)));
+    assert.ok(diagnostics.some((d) => d.code === '8BS2111' && /8×8 one-ink glyph on the web.*4 animation steps kept/.test(d.message)));
     const gfx = ir.globals.find((g) => g.name.includes('8bg') && Array.isArray(g.init));
-    // The picture is a 10×12 block centred in each 16×16 frame: all four
-    // quadrants are lit, which is block 15, code 143 — a code the web draws
-    // (the default lowering's 0xA0 is not one).
-    assert.deepEqual(gfx.init, [143, 143, 143, 143]);
+    // The picture is a 10×12 block centred in each 16×16 frame (x 3-12, y 2-13):
+    // reduced by area to 8×8 it is rows 1-6 lit across glyph columns 1-6 (0x7E)
+    // and rows 0 and 7 empty — eight bytes a step, four steps.
+    const step = [0, 126, 126, 126, 126, 126, 126, 0];
+    assert.deepEqual(gfx.init, [...step, ...step, ...step, ...step]);
     assert.ok(diagnostics.some((d) => d.code === Codes.AUD_NO_DRIVER && /web/.test(d.message)));
   });
 });

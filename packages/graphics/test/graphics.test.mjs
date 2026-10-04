@@ -38,15 +38,22 @@ test('the web twin exports graphics.bind, meta, place, and update', () => {
   }
 });
 
-test('the web twin holds exactly as many animation steps as the web lowering keeps', async () => {
+test('the web twin holds exactly as many animation steps as the web lowering keeps, and every one has a glyph', async () => {
   const src = readFileSync(join(SRC, 'index.web.8bs'), 'utf8');
   const steps = Number(/const STEPS: utinyint = (\d+);/.exec(src)?.[1]);
   const { default: web } = await import('../../web/media/index.cjs');
   assert.equal(steps, web.MAX_STEPS);
-  // codes is MAX pictures × STEPS steps, indexed (slot << 3) + step.
+  assert.equal(web.GLYPH_SIZE, 8, 'the lowering emits eight row bytes a step');
+  // A picture's bytes are STEPS glyphs of eight, indexed (index >> 3) step, (index & 7) row.
+  assert.equal(Number(/const BYTES: utinyint = (\d+);/.exec(src)?.[1]), steps * web.GLYPH_SIZE);
+  assert.equal(steps, 8, 'the (slot << 3) glyph numbering assumes eight steps');
+  // MAX pictures x STEPS glyphs must fit the web's glyph table (geometry.8bs GLYPH_COUNT).
   const max = Number(/^const SLOTS: utinyint = (\d+);/m.exec(src)?.[1]);
-  assert.equal(Number(/let codes: array<u8, (\d+)>;/.exec(src)?.[1]), max * steps);
-  assert.equal(steps, 8, 'the (slot << 3) indexing assumes eight steps');
+  const geometry = readFileSync(join(SRC, '..', '..', 'web', 'src', 'geometry.8bs'), 'utf8');
+  const table = Number(/const GLYPH_COUNT: utinyint = (\d+);/.exec(geometry)?.[1]);
+  const first = Number(/const GLYPH_FIRST: utinyint = (\d+);/.exec(geometry)?.[1]);
+  assert.ok(max * steps <= table, `${max} pictures x ${steps} steps is ${max * steps} glyphs; the table holds ${table}`);
+  assert.ok(first + max * steps <= 256, 'the last glyph code is a byte');
 });
 
 // --- C64 twin: capacity and colour (packages/c64/test/graphics.test.mjs runs it) ---

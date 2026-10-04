@@ -56,7 +56,7 @@ import {
   INNER_H, INNER_W, INPUT_OFFSET, InputEdge, KEY_TO_EDGE, SWIPE_THRESHOLD,
   ANY_BORDER_SCALE, BORDER_HAIRLINE_PX, BORDER_MIN_PX, FULL_BORDER_SCALE,
   COLUMNS_OFFSET, ROWS_OFFSET, MAX_COLUMNS, MAX_ROWS, MIN_COLUMNS, MIN_ROWS,
-  RASTER_MAX_ENTRIES, TARGET_CELLS,
+  RASTER_MAX_ENTRIES, TARGET_CELLS, GLYPH_FIRST, GLYPH_COUNT,
 } from './web-layout.mjs';
 
 // The two words the page and the worker share, in a SharedArrayBuffer beside
@@ -260,6 +260,12 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
   // The alternate character set a Slot.CHARSET entry of 1 selects from its
   // line down (font8x8.mjs glyphRows(): lower case drawn as capitals).
   var ALT_GLYPHS = ${glyphTableLiteral(layout.font, 1)};
+  // The redefinable glyph table (web-layout.mjs): GLYPH_COUNT glyphs of eight
+  // row bytes at GLYPH_BASE in the program's memory, codes GLYPH_FIRST up.
+  // GLYPH_BASE is negative on a host with none (a real machine's own build).
+  var GLYPH_BASE = ${layout.glyphBase ?? -1};
+  var GLYPH_FIRST = ${layout.glyphFirst ?? GLYPH_FIRST};
+  var GLYPH_COUNT = ${layout.glyphCount ?? GLYPH_COUNT};
   var GRID_COLS = ${layout.cols};
   var GRID_ROWS = ${layout.rows};
   var CHAR_W = ${layout.charWidth ?? CHAR_W};
@@ -480,6 +486,16 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
           var raw = mem[CHAR_BASE + cell];
           var glyph = glyphs[raw] || null;
           var bits = glyph === null ? 0 : glyph[glyphY];
+          // A redefined glyph (any of its eight rows nonzero) wins over the
+          // font: web-layout.mjs userGlyph(), the same rule renderFrame uses.
+          if (GLYPH_BASE >= 0 && raw >= GLYPH_FIRST && raw < GLYPH_FIRST + GLYPH_COUNT) {
+            var at = GLYPH_BASE + (raw - GLYPH_FIRST) * 8;
+            var defined = false;
+            for (var k = 0; k < 8; k += 1) {
+              if (mem[at + k] !== 0) { defined = true; break; }
+            }
+            if (defined) bits = mem[at + glyphY];
+          }
           var on = ((bits >> gx) & 1) !== 0;
           var fg = COLOR_PER_CELL ? palette[colorByte & 15] : palette[1];
           ink = reverse ? (on ? backgroundInk : fg) : (on ? fg : backgroundInk);
@@ -559,6 +575,9 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
     if (next.rasterControlOffset != null) RASTER_CONTROL_OFFSET = next.rasterControlOffset;
     if (next.rasterCountOffset != null) RASTER_COUNT_OFFSET = next.rasterCountOffset;
     if (next.rasterBase != null) RASTER_BASE = next.rasterBase;
+    if (next.glyphBase != null) GLYPH_BASE = next.glyphBase;
+    if (next.glyphFirst != null) GLYPH_FIRST = next.glyphFirst;
+    if (next.glyphCount != null) GLYPH_COUNT = next.glyphCount;
     if (next.rasterMaxEntries != null) RASTER_MAX_ENTRIES = next.rasterMaxEntries;
     if (typeof next.colorPerCell === 'boolean') COLOR_PER_CELL = next.colorPerCell;
     if (next.aspect) ASPECT = next.aspect;
