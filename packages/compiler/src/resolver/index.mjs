@@ -14,7 +14,7 @@
 // carries an "8bitscript" entry field, a package subpath (`@scope/name/thing`)
 // resolves through that package's "8bitscript".exports map, and Node itself
 // is never asked to understand a .8bs file.
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, resolve as resolvePath } from 'node:path';
 
 import { Codes, diagnostic } from '../diagnostics/index.mjs';
@@ -479,7 +479,7 @@ function resolveSubpath(specifier, name, packageDir, manifest, subpath, options)
  * One machine's entry value: a relative path into the package, or a bare
  * specifier delegating to another package — its entry, or one of its
  * subpaths (`@8bitscript/c64/screen`) — resolved from the package's own
- * directory, so its own dependencies serve the delegation. A relative
+ * (real) directory, so its own dependencies serve the delegation. A relative
  * entry carries its own package's native sources; a delegation carries the
  * delegated package's, since that is whose code is actually being linked.
  */
@@ -501,7 +501,15 @@ function resolveEntryValue(specifier, packageDir, value, options, seen, native =
     return { code: Codes.MISSING_PACKAGE_ENTRY, message: `'${specifier}' delegates its entry in a cycle` };
   }
   seen.add(packageDir);
-  const delegated = resolveSpecifier(value, join(packageDir, 'package.json'), options, seen);
+  // A package manager that does not hoist (pnpm's default) installs
+  // `node_modules/@8bitscript/screen` as a symlink and puts the package's own
+  // dependencies — every machine package it delegates to — beside its real
+  // directory, not in the project's `node_modules`. So the delegation starts
+  // from the real directory, as Node's resolver would; from the symlink's path
+  // `8bs check` and the editor, which validate every machine's branch because
+  // they have no machine, reported `8BS2001 for the c128 target: cannot find
+  // package '@8bitscript/c128'` on every import of text, screen and input.
+  const delegated = resolveSpecifier(value, join(realpathSync(packageDir), 'package.json'), options, seen);
   if (!delegated) {
     return {
       code: Codes.NOT_AN_8BS_PACKAGE,

@@ -56,17 +56,56 @@ export namespace random {
 
     // A value from 0 up to (not including) bound — the shape a caller
     // wants when picking among a fixed number of choices: a board cell, a
-    // shuffled index, a die face after adding 1. `bound` must be at least
-    // 1. The classic modulo-bias caveat applies here as much as it does on
-    // any machine: for a `bound` that is not a power of two, the results
-    // near 255 are very slightly less likely than the results near 0,
-    // because 256 is not an exact multiple of `bound`. That bias is under
-    // 1/256 of a percentage point for anything this package is likely to be
-    // asked for — a handful of board cells or die faces — and not worth a
-    // rejection-sampling loop's extra code on a machine measured in
-    // kilobytes; a program that needs an exactly uniform pick from a large
-    // bound should say so and this note is where to start.
+    // shuffled index, a die face after adding 1. `bound` must be 1 to 255.
+    //
+    // **Exactly uniform.** `next() % bound` is not: 256 is not a multiple of
+    // `bound`, so the first `256 % bound` outcomes get one more byte than
+    // the rest. Over the generator's whole period that is 7 chances in 256
+    // for 0-33 and 6 for 34-36 on a 37-pocket wheel (the likeliest pocket
+    // is 17% more likely than the least), 2.4% between die faces on a d6,
+    // and 2x at a bound of 150 or 200. A game that publishes odds cannot
+    // ship that. So the bytes that would make the split uneven — the last
+    // `256 % bound` values, the incomplete final block — are thrown away and
+    // a fresh byte is drawn: what is left is a whole number of complete
+    // blocks, every outcome in each, and each outcome is exactly as likely
+    // as any other (tested by counting, not by sampling).
+    //
+    // The test needs one modulo, the same `%` the biased form used: `byte -
+    // remainder` is the start of the block the byte falls in, and a block
+    // is complete when it ends by 255, i.e. when that start is at most `256
+    // - bound`. `0 - bound` is `256 - bound` in a `utinyint`, which is how
+    // 256 is written without a 9th bit. A bound that divides 256 (a power
+    // of two) never rejects; any other rejects fewer than half the time, so
+    // a call draws 1.0 to 2.0 bytes and, on average, under 1.5 for the
+    // bounds a game uses. The number of bytes a call takes is not fixed —
+    // the sequence is still fully determined by the seed.
     function range(bound: utinyint): utinyint {
-        return random.next() % bound;
+        let limit: utinyint = 0 - bound;
+        let value: utinyint = random.next();
+        let rest: utinyint = value % bound;
+        while (value - rest > limit) {
+            value = random.next();
+            rest = value % bound;
+        }
+        return rest;
+    }
+
+    // The top `count` bits of the next byte: a value from 0 up to (not
+    // including) 2^count, for `count` from 1 to 8. Exactly uniform by
+    // construction — no rejection, no modulo — and the right call for a
+    // power-of-two choice (a coin, a 1-of-8 reel stop, a 64-stop virtual
+    // reel). It takes the *top* bits because that is where an LCG is best
+    // mixed; `range(64)` would take the low six bits of the same byte.
+    //
+    // The shift is a loop of one-bit shifts, not `>> (8 - count)`: the 6502
+    // has no shift by a run-time amount and the compiler refuses one
+    // ("index a table of masks instead"). A loop of constant shifts is
+    // small, and exact.
+    function bits(count: utinyint): utinyint {
+        let value: utinyint = random.next();
+        for (let i: utinyint = count; i < 8; i++) {
+            value = value >> 1;
+        }
+        return value;
     }
 }

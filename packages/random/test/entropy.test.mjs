@@ -67,7 +67,7 @@ for (const target of TARGETS) {
     assert.deepEqual(diagnostics, []);
     assert.equal(ir.entry, 'main');
     const names = new Set(ir.functions.map((f) => f.name));
-    for (const call of ['entropy_begin', 'entropy_tick', 'entropy_next', 'entropy_range']) {
+    for (const call of ['entropy_begin', 'entropy_tick', 'entropy_next', 'entropy_range', 'entropy_bits']) {
       assert.ok(names.has(call), `${call} is missing from the linked program`);
     }
   });
@@ -95,15 +95,29 @@ for (const target of SOFTWARE) {
   });
 }
 
-test('range() computes its own modulo rather than forwarding to random.range() — measured at 8 bytes a target', () => {
-  // The header of each file explains why: a call whose only job is to pass
-  // its argument on does not inline away. This is the line most likely to
-  // be "simplified" back.
-  for (const file of ['entropy.8bs', 'entropy.c64.8bs', 'entropy.atari8.8bs']) {
+test('the software entropy forwards range() and bits() to the default generator — one copy of the rejection loop, measured free', () => {
+  // A `return f(x);` delegate costs nothing now (the entropy probe is 231
+  // bytes of program on the PET with the loop written out and with this
+  // forward); before the compiler folded those it cost 8 bytes a target.
+  const source = readFileSync(join(SRC, 'entropy.8bs'), 'utf8');
+  assert.match(source.split('function range')[1], /return random\.range\(bound\);/);
+  assert.match(source.split('function bits')[1], /return random\.bits\(count\);/);
+});
+
+test('the two hardware twins carry their own rejection loop over the register, not the modulo bias', () => {
+  // A twin reads a register rather than the software generator, so it cannot
+  // forward; what it must not do is take `byte % bound` and call that a
+  // range — the first `256 % bound` outcomes would be favoured.
+  for (const file of ['entropy.c64.8bs', 'entropy.atari8.8bs']) {
     const source = readFileSync(join(SRC, file), 'utf8');
-    const body = source.split('function range')[1];
-    assert.match(body, /% bound;/, `${file}: range() takes the modulo itself`);
-    assert.doesNotMatch(body, /random\.range\(/, `${file}: range() must not forward to random.range()`);
+    const body = source.split('function range')[1].split('function bits')[0];
+    assert.match(body, /let limit: utinyint = 0 - bound;/, `${file}: the block limit`);
+    assert.match(body, /while \(value - rest > limit\)/, `${file}: rejects the incomplete last block`);
+    assert.equal((body.match(/random\.byte\(\)/g) ?? []).length, 2, `${file}: reads the register for the first draw and each redraw`);
+    const bitsBody = source.split('function bits')[1];
+    assert.match(bitsBody, /let value: utinyint = random\.byte\(\);/, `${file}: bits() reads one byte`);
+    assert.match(bitsBody, /for \(let i: utinyint = count; i < 8; i\+\+\)/, `${file}: bits() shifts it down to the top bits, a bit at a time`);
+    assert.doesNotMatch(bitsBody, />> \(/, `${file}: no run-time shift amount (the 6502 backend refuses one)`);
   }
 });
 
@@ -132,12 +146,20 @@ test('built and run for the web, the software path is the LCG from state 1, with
     const memory = new Uint8Array(instance.exports.memory.buffer);
 
     const next = referenceLcg(1);
+    // range(n): draw until the byte falls in a complete block of n (the
+    // incomplete last block is thrown away — see ../src/index.8bs).
+    const range = (n) => {
+      for (;;) {
+        const v = next();
+        if (v - (v % n) <= 256 - n) return v % n;
+      }
+    };
     next();                                       // tick()
     assert.equal(memory[0x1100], next());         // next()
     assert.equal(memory[0x1101], next());         // next()
-    assert.equal(memory[0x1102], next() % 6);     // range(6)
+    assert.equal(memory[0x1102], range(6));       // range(6)
     next();                                       // tick()
-    assert.equal(memory[0x1103], next() % 10);    // range(10)
+    assert.equal(memory[0x1103], range(10));      // range(10)
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }

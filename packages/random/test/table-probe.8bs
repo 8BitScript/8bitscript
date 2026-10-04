@@ -9,9 +9,11 @@ let picked: utinyint = 0;
 export function main(): void {
     random.seed(1);
     picked = random.range(6);
+    picked = random.bits(3);
 
     table.seed(37);
     picked = table.next();
     picked = table.range(6);
+    picked = table.bits(3);
     picked = table.at(0);
 }

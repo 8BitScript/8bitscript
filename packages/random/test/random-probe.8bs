@@ -15,4 +15,5 @@ export function main(): void {
     random.seed(1);
     picked = random.next();
     picked = random.range(6);
+    picked = random.bits(3);
 }
