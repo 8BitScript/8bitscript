@@ -1,90 +1,180 @@
-// @8bitscript/graphics on the CX16: one VERA sprite (sprite 1 — 0 is the mouse).
+// @8bitscript/graphics on the CX16: VERA hardware sprites.
+//
+// The Commander X16 media lowering (packages/cx16/media/index.cjs) hands
+// bind() a sprite as a 32-byte palette followed by every animation frame,
+// each a linear 4bpp bitmap, and meta() its frame count, speed and size.
+// This file puts the palette where the sprite will read it, the frames in
+// the sprite's own window of video memory, and each frame a pointer write.
+//
+// Where things live (VERA's video memory is 17 bits; bank 1 is $10000 up):
+//   - sprite N (0..7) is VERA sprite N + 1. Sprite 0 is the KERNAL's mouse
+//     cursor, and this package leaves it alone.
+//   - its attributes are the eight bytes at $1FC00 + (N + 1) * 8.
+//   - its pixels are a 4096-byte window at $4000 + N * $1000 — low video
+//     memory nothing else in this toolchain claims (the KERNAL's own
+//     sprite data is at $13000, the text map at $1B000).
+//   - its palette is the sixteen entries at $1FB00 + N * 32, entries
+//     128 + N * 16 on. The attributes point the sprite at that block with
+//     palette offset 8 + N, so a sprite shows its picture's own colors
+//     rather than whatever the default palette holds at 1, 2 and 3. Entries
+//     0..127 (the KERNAL text colors and the default ramps) are not touched.
+//
+// Sprites are switched on in DC_VIDEO the first time one is placed; before
+// that the machine looks exactly as it did.
+//
+// Where a sprite lands. VERA counts a sprite's coordinates from the top-left
+// of the active area, the same corner @8bitscript/screen insets the text
+// grid to, so graphics.place(x, y) is a stage pixel like text.print's cells.
+// One line differs: with a nonzero DC_VSTART (which screen.blank() sets) a
+// sprite's first line lands one line above where the layers' first line
+// lands after screen.8bs's two-line correction — measured under x16emu with
+// a one-pixel marker, x 16 + X but y 15 + Y in the screenshot. The first
+// place() reads DC_VSTART once and adds that line back, so a sprite placed at
+// (0, 0) sits on the same pixel as the text grid's cell (0, 0).
 import { setVramAddress } from "@8bitscript/cx16";
 
 const MAX: utinyint = 8;
 const KIND_CX16: utinyint = 5;
-const ATTR_BANK: utinyint = 1;
-const ATTR_LOW: usmallint = 0xFC00;
-const TILE_BANK: utinyint = 0;
-const TILE_LOW: usmallint = 0x4000;
+const PALETTE_BYTES: utinyint = 32;
+const PALETTE_LOW: usmallint = 0xFB00;   // bank 1: palette entry 128
+const ATTR_LOW: usmallint = 0xFC00;      // bank 1: sprite 0's attributes
+const DATA_LOW: usmallint = 0x4000;      // bank 0: sprite 0's window
+const WINDOW: usmallint = 0x1000;        // bytes of pixels a sprite may hold
+const FIRST_PALETTE_OFFSET: utinyint = 8;
+const IN_FRONT: utinyint = 0x0C;         // z-depth 3: in front of both layers
 
-let spriteIndex: array<u8, 8>;
-let tileBytes: array<u8, 512>;
-let tileLen: array<u8, 8>;
+let frameCount: array<u8, 8>;
+let interval: array<u8, 8>;
+let tick: array<u8, 8>;
+let frame: array<u8, 8>;
+let shown: array<u8, 8>;
+let sizeBits: array<u8, 8>;
+let frameBytes: array<u16, 8>;
 let px: array<u16, 8>;
 let py: array<u16, 8>;
-let shown: array<u8, 8>;
+let enabled: bool = false;
+let rise: usmallint = 0; // lines to add back to every sprite's Y; see above
 
 function vramWrite(bank: utinyint, low: usmallint, value: utinyint): void {
     setVramAddress(bank, low, 1);
     memory.write(0x9F23, value);
 }
 
-function uploadTiles(slot: utinyint): void {
-    let i: utinyint = 0;
-    let addr: usmallint = TILE_LOW;
-    while (i < tileLen[slot]) {
-        vramWrite(TILE_BANK, addr, tileBytes[slot * 128 + i]);
-        addr = addr + 1;
-        i = i + 1;
+function attrAddress(slot: utinyint): usmallint {
+    let wide: usmallint = slot;
+    return ATTR_LOW + (wide + 1) * 8;
+}
+
+// VERA's sprite switch is bit 6 of DC_VIDEO, which sits behind DCSEL = 0.
+function enableSprites(): void {
+    if (enabled) {
+        return;
     }
+    enabled = true;
+    let ctrl: utinyint = memory.read(0x9F25);
+    memory.write(0x9F25, ctrl & 0xFD);
+    memory.write(0x9F29, memory.read(0x9F29) | 0x40);
+    memory.write(0x9F25, 0x02);
+    if (memory.read(0x9F2B) != 0) {
+        rise = 1;
+    }
+    memory.write(0x9F25, ctrl);
+}
+
+function sizeCode(n: utinyint): utinyint {
+    if (n >= 64) {
+        return 3;
+    }
+    if (n >= 32) {
+        return 2;
+    }
+    if (n >= 16) {
+        return 1;
+    }
+    return 0;
+}
+
+// Point the sprite at the current frame: the pixel address in 32-byte units,
+// low byte first, its top nibble beside the 4bpp mode bit (clear).
+function writeFrame(slot: utinyint): void {
+    let wide: usmallint = slot;
+    let step: usmallint = frame[slot];
+    let unit: usmallint = (DATA_LOW + wide * WINDOW + step * frameBytes[slot]) / 32;
+    let at: usmallint = attrAddress(slot);
+    vramWrite(1, at, unit % 256);
+    vramWrite(1, at + 1, unit / 256);
 }
 
 function showSprite(slot: utinyint): void {
-    let idx: utinyint = spriteIndex[slot];
-    if (idx == 0) {
-        idx = 1;
-    }
-    let base: usmallint = ATTR_LOW + idx * 4;
+    let at: usmallint = attrAddress(slot);
     let x: usmallint = px[slot];
-    let y: usmallint = py[slot];
-    vramWrite(ATTR_BANK, base, x % 256);
-    vramWrite(ATTR_BANK, base + 1, (x / 256) + (y * 4));
-    vramWrite(ATTR_BANK, base + 2, 0);
-    vramWrite(ATTR_BANK, base + 3, 0x00);
+    let y: usmallint = py[slot] + rise;
+    setVramAddress(1, at + 2, 1);
+    memory.write(0x9F23, x % 256);
+    memory.write(0x9F23, x / 256);
+    memory.write(0x9F23, y % 256);
+    memory.write(0x9F23, y / 256);
+    memory.write(0x9F23, IN_FRONT);
+    memory.write(0x9F23, sizeBits[slot]);
 }
 
 export namespace graphics {
-    function bind(slot: utinyint, index: utinyint, value: utinyint): void {
+    function bind(slot: utinyint, index: usmallint, value: utinyint): void {
         if (slot >= MAX) {
             return;
         }
-        if (index == 0) {
-            spriteIndex[slot] = value;
+        let wide: usmallint = slot;
+        if (index < PALETTE_BYTES) {
+            vramWrite(1, PALETTE_LOW + wide * 32 + index, value);
             return;
         }
-        if (index < 132) {
-            tileBytes[slot * 128 + index - 4] = value;
-        }
+        vramWrite(0, DATA_LOW + wide * WINDOW + index - PALETTE_BYTES, value);
     }
 
-    function meta(slot: utinyint, frames: utinyint, every: utinyint, which: utinyint, width: utinyint, height: utinyint): void {
+    function meta(slot: utinyint, frames: utinyint, every: utinyint, kind: utinyint, width: utinyint, height: utinyint): void {
         if (slot >= MAX) {
             return;
         }
-        if (which == KIND_CX16) {
-            tileLen[slot] = 128;
-        }
-        uploadTiles(slot);
+        let w: usmallint = width;
+        let h: usmallint = height;
+        frameCount[slot] = frames;
+        interval[slot] = every;
+        tick[slot] = 0;
+        frame[slot] = 0;
+        shown[slot] = 0;
+        frameBytes[slot] = (w * h) / 2;
+        sizeBits[slot] = sizeCode(height) * 64 + sizeCode(width) * 16 + FIRST_PALETTE_OFFSET + slot;
     }
 
     function place(slot: utinyint, x: usmallint, y: usmallint): void {
         if (slot >= MAX) {
             return;
         }
+        enableSprites();
         px[slot] = x;
         py[slot] = y;
         shown[slot] = 1;
+        writeFrame(slot);
         showSprite(slot);
     }
 
     function update(): void {
-        let slot: utinyint = 0;
-        while (slot < MAX) {
-            if (shown[slot] != 0) {
-                showSprite(slot);
+        if (!enabled) {
+            return;
+        }
+        for (let slot: utinyint = 0; slot < MAX; slot++) {
+            if (shown[slot] == 0 || frameCount[slot] < 2) {
+                continue;
             }
-            slot = slot + 1;
+            tick[slot] = tick[slot] + 1;
+            if (tick[slot] >= interval[slot]) {
+                tick[slot] = 0;
+                frame[slot] = frame[slot] + 1;
+                if (frame[slot] >= frameCount[slot]) {
+                    frame[slot] = 0;
+                }
+                writeFrame(slot);
+            }
         }
     }
 }
