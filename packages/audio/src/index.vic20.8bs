@@ -4,6 +4,11 @@ import { sound } from "@8bitscript/vic20/sound";
 import { songs } from "./songs.8bs";
 
 let sfxLeft: utinyint = 0;
+// True once the program has asked for a song (audio.play or audio.music of one). Nothing but
+// those two calls assigns it, so in a program that never plays a song the linker's optimizer
+// inlines it as false, every `songsOn` test below folds away, and the sequencer and its 256-byte
+// bank are not linked at all: a program that only plays tones pays nothing for songs.
+let songsOn: bool = false;
 // The frames a song note has left to sound (0: it holds for its rows).
 let decayLeft: utinyint = 0;
 let ready: bool = false;
@@ -113,6 +118,28 @@ function apply(event: utinyint): void {
     }
 }
 
+// One frame of a song that is playing: a note's decay, then the sequencer's next step.
+function songFrame(): void {
+    if (!songs.active()) {
+        return;
+    }
+    if (decayLeft != 0) {
+        decayLeft = decayLeft - 1;
+        if (decayLeft == 0) {
+            sound.quiet();
+            fade = 0;
+        } else if (fade != 0) {
+            if (shown > fade) {
+                shown = shown - fade;
+            } else {
+                shown = 0;
+            }
+            sound.volume(shown);
+        }
+    }
+    apply(songs.step());
+}
+
 export namespace audio {
     // The playable notes (the .8ba index, C0 = 0, A4 = 57): C3..B5, where
     // the soprano's 7-bit divisor keeps the pitch within half a semitone.
@@ -132,7 +159,9 @@ export namespace audio {
     // Replaces whatever tone is sounding. Nothing blocks.
     function tone(note: utinyint, frames: utinyint): void {
         ensure();
-        songs.stop();
+        if (songsOn) {
+            songs.stop();
+        }
         decayLeft = 0;
         fade = 0;
         shown = level;
@@ -146,7 +175,9 @@ export namespace audio {
 
     // Stop now: the tone, the sample and the song, and put the volume back.
     function silence(): void {
-        songs.stop();
+        if (songsOn) {
+            songs.stop();
+        }
         sound.quiet();
         sfxLeft = 0;
         fade = 0;
@@ -159,7 +190,13 @@ export namespace audio {
 
     // True while a tone, a sample or a song is sounding (a song's rests count).
     function busy(): bool {
-        return sfxLeft != 0 || songs.active();
+        if (sfxLeft != 0) {
+            return true;
+        }
+        if (songsOn) {
+            return songs.active();
+        }
+        return false;
     }
 
     // The VIC-I has one volume, 0 (silent) to 15 for every voice; a level above
@@ -181,7 +218,9 @@ export namespace audio {
     // step a frame (in update) until it reaches 0 on the last frame.
     function blip(note: utinyint, frames: utinyint): void {
         ensure();
-        songs.stop();
+        if (songsOn) {
+            songs.stop();
+        }
         decayLeft = 0;
         let span: utinyint = frames;
         if (span == 0) {
@@ -207,6 +246,7 @@ export namespace audio {
     // last row, and is silent after. A new sound replaces whatever is sounding.
     function play(slot: utinyint): void {
         if (songs.isSong(slot)) {
+            songsOn = true;
             ensure();
             sfxLeft = 0;
             apply(songs.start(slot, false));
@@ -216,7 +256,9 @@ export namespace audio {
             return;
         }
         ensure();
-        songs.stop();
+        if (songsOn) {
+            songs.stop();
+        }
         decayLeft = 0;
         fade = 0;
         shown = level;
@@ -228,6 +270,7 @@ export namespace audio {
     // A song, repeated for ever if its file says `loop true` (the default), until the next sound
     // or audio.silence().
     function music(slot: utinyint): void {
+        songsOn = true;
         ensure();
         sfxLeft = 0;
         apply(songs.start(slot, true));
@@ -251,22 +294,8 @@ export namespace audio {
             }
             return;
         }
-        if (songs.active()) {
-            if (decayLeft != 0) {
-                decayLeft = decayLeft - 1;
-                if (decayLeft == 0) {
-                    sound.quiet();
-                    fade = 0;
-                } else if (fade != 0) {
-                    if (shown > fade) {
-                        shown = shown - fade;
-                    } else {
-                        shown = 0;
-                    }
-                    sound.volume(shown);
-                }
-            }
-            apply(songs.step());
+        if (songsOn) {
+            songFrame();
         }
     }
 }

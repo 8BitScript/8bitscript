@@ -214,6 +214,26 @@ volume, so a blip is a plain tone. `frames` is the length, as for `tone`.
 Measured with the graphics slice on `packages/examples/media-walk` — see
 [graphics.md](graphics.md#what-it-costs).
 
+**Audio** (`8bs build --size`, program bytes, 2026-10-04):
+
+| | tone only (`audio.tone` + `update` + `silence`) | before | after | `examples/swarm` (a sample and a song) | before | after |
+| --- | --- | --- | --- | --- | --- | --- |
+| C64 | | 1530 | **1270** | | 6989 | 7799 |
+| PET | | 608 | **380** | | 5179 | 5737 |
+| VIC-20 | | 684 | **455** | | 4860 | 5771 |
+| X16 | | 1227 | **1203** | | 5929 | 6832 |
+
+A program that plays only tones is smaller than it was: the old drivers carried a one-song
+player the tone never used. The song sequencer and its bank are linked **only if the program
+plays a song** (`audio.play` or `audio.music` of one): the drivers keep a `songsOn` flag that
+nothing but those two calls sets, and test it in front of every use of the sequencer, so the
+linker's optimizer folds it away and drops `songs.8bs` altogether (the guard test is
+`packages/compiler/test/audio-tone.test.mjs`). A program that does play a song pays for the
+bank, which is 255 bytes of zero-filled image plus the directory, and for the sequencer: about
+0.6 to 0.9 KB in `swarm`, more than the old single-song player. The web build keeps all its
+globals whatever the program reaches, so its tone-only program carries the bank's ~330 bytes of
+linear memory.
+
 Later: full tracker effects, parts, voice groups, affinity and stealing,
 cross-file `import`, MIDI and module import, Famicom expansion audio.
 The AIR has empty slots (`parts`, `voiceGroups`) so those land without
