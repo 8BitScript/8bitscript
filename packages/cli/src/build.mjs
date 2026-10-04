@@ -466,7 +466,7 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
     // linear memory (see the wasm backend's own note on this). The
     // synthetic web/hifi target owns no hardware to map one to, so it
     // keeps refusing them, exactly as before this option existed.
-    const result = await build(ir, { outFile, frameRate, report, reserved: layout.reservedEnd, allowPinnedScalars: target !== 'web' });
+    const result = await build(ir, { outFile, frameRate, report, reserved: layout.reservedEnd, allowPinnedScalars: target !== 'web', reservedRanges: layout.reservedRanges });
     if (!result.ok) {
       process.stderr.write(`8bs build: ${result.error}\n`);
       return { ok: false };

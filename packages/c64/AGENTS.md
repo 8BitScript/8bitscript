@@ -346,6 +346,59 @@ Do not describe more than this as working:
     RAM, `$D000` the I/O area unless a caller banks it out.
   - `@8bitscript/c64/mouse` (`src/mouse.8bs`): a 1351 in a port —
     `present()`, `poll()`, `x/y`, buttons.
+- **The wasm build** (`8bs build --target c64 --web`, `8bs run c64 --web`, and
+  `8bs run c64 --web --screenshot out.png` for a headless capture of what the
+  page draws): the editor's WASM tab and an external browser run a C64
+  program without VICE. **It is a model of the machine, not the machine**, and
+  `8bs targets --json` says what it does not model in `runtime.wasm.limits`
+  (this package's `package.json`, `emulator.wasm`): text mode only — sprites,
+  bitmap, multicolour and extended-colour modes are not drawn; no SID; no
+  keyboard matrix, joystick or mouse (the portable `@8bitscript/input` works —
+  the page writes arrow keys, Enter and Escape at one byte of the program's
+  memory and `input.c64.web.8bs` reads it — but `@8bitscript/c64/keyboard` and
+  `/joystick` read the CIA and see nothing); NTSC at 60 Hz (`detectRegion()`
+  answers NTSC);
+  the address-form raster list (`@8bitscript/c64/raster`, `border`, `idle`,
+  `multiplex`) is machine code and is not built — the portable
+  `@8bitscript/raster` is, applied at picture-line granularity (an entry at
+  line L takes effect on line L; the handler lands it on line L+1).
+  **How it works.** The wasm backend lowers an `@address` array to a fixed run
+  of linear memory at its pin, so `screenRam` ($E000), `colorRam` ($D800) and
+  the chips' registers are bytes the program holds, and the page paints from
+  them (`layout.vic`, `packages/cli/src/web-layout.mjs`
+  `REAL_MACHINE_LAYOUT.c64`; the browser loader's copy and `web-scanline.mjs`
+  are held pixel-identical by `web-loader.test.mjs`): the border and background
+  from `$D020`/`$D021`, the fine scroll from `$D016`, the live character set
+  from `$D018` bit 1 (a raster CHARSET entry overrides it from its line), and
+  **every glyph from the character RAM**, eight bytes a glyph, bit 7 the
+  leftmost pixel, reversed copies at codes 128-255 — so `charset.define`,
+  `copy`, `restore()` and reverse video are exactly the bytes there. Four
+  `.web` twins replace the files that are machine code or read chips: `index.c64.web.8bs`
+  (`setupVideo()` copies the ROM, which is data in `src/chargen.8bs`, to the
+  character RAM with ordinary stores; the I/O-banking windows are no-ops;
+  `detectRegion()` answers NTSC), `text.c64.web.8bs` (`print`, `printNumber`
+  and `fill` as the plain loops the PET's text.8bs has), `geometry.c64.web.8bs`
+  `rasterline.c64.web.8bs` (the portable raster list written into the page's
+  list instead of the interrupt list; its three offsets are held to the layout
+  by a test) and `input.c64.web.8bs` (the page's input byte instead of the
+  CIA scan; its offset likewise). `src/chargen.8bs` is generated from VICE's
+  `chargen-901225-01.bin` by `scripts/chargen-web.mjs`.
+  **Rules for this rail.** The character RAM is at `$A000`, not the machine's
+  `$D000`: on the machine it is the RAM *under* the I/O area, and in flat
+  memory `$D000-$DFFF` is the VIC-II, SID, CIAs and colour RAM themselves
+  (copying the ROM there overwrote `$D018`, `$D020` and every colour); the
+  backend refuses a build whose data, or a program's own `@address` array,
+  would reach into it (`reservedRanges`; Vegas Nights keeps its tile and strip
+  buffers at `$C000`, `$8000` and `$9800`, which is why the RAM is at `$A000`
+  and not `$C000`). A twin is a copy: add a name to the native file and
+  `packages/compiler/test/c64-web-twin.test.mjs` fails until the twin has it,
+  and no twin may contain `asm6502`. The wasm backend folds a constant added to
+  an 8-bit array index into the address, as the 6502 backend does
+  (`screenRam[i + 250]` does not wrap at 255); a byte-wide product still wraps
+  (`40 * 10` of two literals is 144), here and on the machine. Verified
+  pixel for pixel against the ROM's own bytes with no emulator
+  (`packages/cli/test/web-c64.test.mjs`, which CI runs, unlike this
+  package's x64sc tests).
 - **Hardware** (the catalog in `package.json`): `ram` — `none` (default)
   or `reu128`…`reu16m`, with presets `stock` and `reu…` of the same names;
   `sid` — `6581` (default) or `8580` (`-sidmodel`); `port1`/`port2` —

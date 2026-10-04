@@ -1,0 +1,36 @@
+// What the C64's wasm build must draw like the machine does: border and
+// background from $D020/$D021, ink from colour RAM's low nybble, both cases,
+// reverse video (a screen code's bit 7), a glyph the program redefines in the
+// character RAM, the upper-case set through $D018, and charset.restore()
+// putting the ROM's glyphs back. test/web.test.mjs captures it through
+// `8bs run c64 --web --screenshot` and reads the pixels.
+import { screen, BorderColor, BackgroundColor } from "@8bitscript/screen";
+import { text, TextColor } from "@8bitscript/text";
+import { charset } from "@8bitscript/c64/charset";
+
+export function main(): void {
+    screen.blank(BorderColor.LIGHT_BLUE, BackgroundColor.BLUE);
+
+    text.setColor(TextColor.WHITE);
+    text.print(0, "Hello World!");
+
+    text.setColor(TextColor.YELLOW);
+    text.print(40, "Mixed Case abc");
+
+    text.setColor(TextColor.RED);
+    text.setReverse(true);
+    text.print(80, "REVERSE");
+    text.setReverse(false);
+
+    text.setColor(TextColor.GREEN);
+    text.printNumber(120, 12345, 5);
+    text.fill(160, 4, 45);
+
+    // Glyph 1 (an 'a' in the mixed-case set the print selected) redefined as
+    // a checkerboard in the upper-case set; showing the upper-case set puts
+    // it on screen. The same screen code, 1, is at cell 200 in cyan.
+    text.setColor(TextColor.CYAN);
+    text.fill(200, 3, 97);
+    charset.define(1, 0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55);
+    charset.useUppercase();
+}

@@ -30,7 +30,7 @@
 // "instruction selection" at all: it always lowers to the same one
 // instruction, a `call` to whatever function index `build()` assigned the
 // `env.waitFrame` import — see `Ctx.waitFrameIndex`.
-import { resolveIntegerType } from '../types/index.mjs';
+import { resolveIntegerType, storageBytes } from '../types/index.mjs';
 import { BlockType, Opcode, ValType, memarg, memoryCopy, signedLEB128, unsignedLEB128 } from './encode.ts';
 
 export interface IrExpr {
@@ -427,12 +427,31 @@ function expr(node: IrExpr, ctx: Ctx): number[] {
     // first real caller) doubles the index into a byte offset first, then
     // reads both bytes at once: i32.load16_u is little-endian, the same
     // layout build() wrote the data segment in.
+    const split = splitIndexOffset(node.index as IrExpr);
     if (array.elementWidth === 2) {
-      return [...expr(node.index as IrExpr, ctx), ...i32Const(1), Opcode.i32Shl, Opcode.i32Load16U, ...memarg(0, array.address)];
+      return [...expr(split.index, ctx), ...i32Const(1), Opcode.i32Shl, Opcode.i32Load16U, ...memarg(0, array.address + 2 * split.offset)];
     }
-    return [...expr(node.index as IrExpr, ctx), Opcode.i32Load8U, ...memarg(0, array.address)];
+    return [...expr(split.index, ctx), Opcode.i32Load8U, ...memarg(0, array.address + split.offset)];
   }
   throw new LowerError(unsupported(node.kind));
+}
+
+/** `array[i + 250]` split into the part that belongs in the *address* and
+ * the part that belongs in the index — the rule the 6502 backend holds
+ * (mos/lower/index.ts splitIndexOffset), so the same program means the same
+ * thing on both rails. `i + 250` with an 8-bit `i` is an 8-bit sum that wraps
+ * at 255; what the C64's and VIC-20's `screen.blank()` write, and what the
+ * machine offers (`STA base+250,Y`), is the other association: the constant
+ * belongs to the array's address and the index stays the 8-bit value. Taken
+ * only when the other side is 8-bit (a wider index has its own path) and the
+ * constant is non-negative; anything else is the index as written. */
+function splitIndexOffset(index: IrExpr): { index: IrExpr; offset: number } {
+  if (index.kind !== 'binop' || index.operator !== '+') return { index, offset: 0 };
+  const isConst = (side: IrExpr | undefined): side is IrExpr & { value: number } => !!side && side.kind === 'const' && typeof side.value === 'number' && side.value >= 0;
+  const narrow = (side: IrExpr | undefined): boolean => !!side && !!side.type && storageBytes(side.type) === 1;
+  if (isConst(index.right) && narrow(index.left)) return { index: index.left!, offset: index.right.value };
+  if (isConst(index.left) && narrow(index.right)) return { index: index.right!, offset: index.left.value };
+  return { index, offset: 0 };
 }
 
 /** `name`'s own entry in `ctx.arrays`, or throws naming what's missing —
@@ -551,11 +570,11 @@ function statement(node: IrStatement, ctx: Ctx): number[] {
     // value needs no mask of its own.
     const array = arrayEntry(ctx, node.array!.name!);
     if (!array.mutable) throw new LowerError(`'${node.array!.name}' is a const array — data, not RAM — and the checker should already have refused writing it`);
-    const index = node.index!;
+    const split = splitIndexOffset(node.index!);
     if (array.elementWidth === 2) {
-      return [...expr(index, ctx), ...i32Const(1), Opcode.i32Shl, ...expr(node.value!, ctx), Opcode.i32Store16, ...memarg(0, array.address)];
+      return [...expr(split.index, ctx), ...i32Const(1), Opcode.i32Shl, ...expr(node.value!, ctx), Opcode.i32Store16, ...memarg(0, array.address + 2 * split.offset)];
     }
-    return [...expr(index, ctx), ...expr(node.value!, ctx), Opcode.i32Store8, ...memarg(0, array.address)];
+    return [...expr(split.index, ctx), ...expr(node.value!, ctx), Opcode.i32Store8, ...memarg(0, array.address + split.offset)];
   }
   if (node.kind === 'stringCopy') {
     // `s = "..."` / `s = other` on a `string<N>` (0.2.2 — milestone 5's

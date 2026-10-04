@@ -1,0 +1,245 @@
+// text.8bs's own `.web` twin — build.mjs's internal `web` tag resolves this
+// in place of text.8bs whenever this package builds through the wasm backend
+// (`8bs build --target c64 --web`, `8bs run c64 --web`).
+//
+// What changes is only how print(), printNumber() and fill() are done:
+// text.8bs hands them to native/6502/text.s, a jsr with its parameters in
+// page $07 — machine code the wasm backend never lowers. Here they are the
+// plain loops the PET's text.8bs writes, over the same screenRam / colorRam
+// arrays (fixed runs of linear memory on this rail, the page paints from
+// them), in the same current colour, with the same output cell for cell.
+// Everything else — the ASCII-to-screen-code table, putChar, putColor,
+// setColor, setReverse, the colour names — is text.8bs, line for line.
+// Keep the export list identical to text.8bs; test/c64-web-twin.test.mjs
+// holds the two to the same names.
+//
+// @8bitscript/c64/text — the C64's implementation of @8bitscript/text.
+//
+// Named by "8bitscript".exports["./text"] in this package's package.json,
+// and what
+//
+//     import { text } from "@8bitscript/text";
+//
+// resolves to when the build is for the C64. Built on the registers
+// @8bitscript/c64 exports. Every machine's text.8bs exports this same
+// namespace — the same names, the same shapes, ASCII codes, and a cell 0
+// at the top-left corner inside the border — so a program that imports it
+// from @8bitscript/text draws the same thing on every target.
+import { memoryPointer, setupVideo, videoMode, VideoMode } from "./index.8bs";
+import { Video, screenRam, colorRam } from "./geometry.8bs";
+
+// The screen is addressed by flat cell index — a position is
+// `y * text.COLUMNS + x` — and these are the plainest things a text API
+// can be built from: poke one cell's character code, poke one cell's
+// color, and how many cells the whole screen has. Whether a caller uses
+// these to clear the screen, lay out a label, or nothing at all is entirely
+// up to the caller — this package draws nothing on its own. Where the
+// 40x25 screen is (VIC bank 3, $E000 — ./geometry.8bs says why it is not
+// the KERNAL's $0400) reaches this file as `Video`; color RAM is the
+// fixed 1K of nybbles at $D800 wherever the screen is.
+//
+// ---- character codes: ASCII in, screen codes out ----------------------------
+//
+// `text.putChar` takes ASCII on every machine — space (32), '0'-'9'
+// (48-57), 'A'-'Z' (65-90) and the punctuation `! , - . : ?` — upper case
+// only: that is the portable set, the characters every target's character
+// set has (the NES ships its own font, and that is what it has). The
+// hardware wants screen codes: in every Commodore character ROM, codes
+// 32-63 are those same ASCII values (space, digits, that punctuation), and
+// Which of the character ROM's two sets is live is not something to
+// inherit — the ROM's boot state, whatever a program ran before, or a
+// user's SHIFT+C= would each give a different answer — so this package owns
+// the choice: prepare() selects the **mixed-case** set, every run in text
+// mode (in bitmap mode $D018 is the bitmap's, and left alone), through the
+// VIC-II's memory pointer (see @8bitscript/c64's `memoryPointer`): one
+// register write, of the value that also names this screen's position in
+// the bank.
+//
+// Mixed-case rather than upper-case/graphics, for the reason
+// packages/pet/src/text.8bs gives at length and this machine repeats: it
+// is the only one of the two sets holding both cases of the alphabet, so
+// it is the only one that can draw `"Hello World"` as it was written
+// rather than flattened to `HELLO WORLD`. A text package that silently
+// changes the text is answering a different question than the one its
+// caller asked. The upper-case set costs nothing to reach for a program
+// that wants it — MEMORY_POINTER_UPPERCASE is right there in `Video`.
+
+function asciiToScreenCode(code: utinyint): utinyint {
+    // The mixed-case set keeps lower case at 1-26 and upper case at its own
+    // ASCII values, 65-90 — measured against the real ROM
+    // (`chargen-901225-01.bin`, 8 bytes/glyph, the two sets in one 4K file):
+    // in the lower half, code 8 is 'h' and code 72 is 'H'. So 'A'-'Z',
+    // space, the digits and the punctuation all pass through untouched, and
+    // only lower case moves.
+    if (code >= 97 && code < 123) {
+        return code - 96; // 'a'-'z'
+    }
+    return code;
+}
+
+// ---- print: strings and number fields ------------------------------------
+//
+// `text.print(cell, s)` writes a string's characters into consecutive
+// cells from `cell`, and `text.printNumber(cell, value, width)` writes
+// `value` as exactly `width` decimal digits, zero-padded and right-aligned,
+// so a field on a HUD never shifts columns. Both draw in the current color —
+// white until `text.setColor(TextColor.CYAN)` changes it, and that one
+// call then colors everything printed after it, on the machines that have
+// per-cell color. They are also the two
+// functions the compiler's template layout targets: `text.print(0,
+// \`TICK ${ticks:1}\`)` is laid out at compile time into these same calls
+// (see packages/compiler/src/ir).
+//
+// All three are native/6502/text.s, one routine each: `print()`,
+// `printNumber()` and `fill()` here copy their parameters to page $07
+// (the routines' header maps it) from an asm6502 block that names them,
+// and call. They were this file's own code until 2026-09-19, when the
+// compiler's generic code measured 1,908 cycles for a nine-character
+// print — a call to place() and two inside it for every cell, ~210 a
+// character — 2,944 for a five-digit number and 8,078 to fill forty
+// cells (test/text-timing-probe.8bs): a HUD line was a fifth of a frame.
+// `prepare()` makes sure the picture is set up and selects the
+// mixed-case set once for the run, and hands the routines the color and
+// reverse state. `text.putChar` and `text.putColor` stay the one-cell
+// pokes a caller can build anything from, in 8BitScript.
+let currentColor: utinyint = 1; // white, until text.setColor() says otherwise
+let currentReverse: bool = false; // until text.setReverse() says otherwise
+
+// Reverse video is bit 7 of the screen code: 128-255 are the ROM's
+// inverted copies of 0-127. A reverse space is a solid block in the
+// cell's color, which is how a selected menu item becomes a filled bar.
+function toScreen(code: utinyint): utinyint {
+    let screen: utinyint = asciiToScreenCode(code);
+    if (currentReverse) {
+        screen = screen + 128;
+    }
+    return screen;
+}
+
+// What a run of text needs once, before its first character.
+function prepare(): void {
+    setupVideo();
+    if (videoMode == VideoMode.TEXT) {
+        memoryPointer = Video.MEMORY_POINTER_LOWERCASE;
+    }
+}
+
+// One cell: the screen code for an ASCII character, in the current colour.
+function place(cell: usmallint, code: utinyint): void {
+    screenRam[cell] = toScreen(code);
+    colorRam[cell] = currentColor;
+}
+
+// A number is written one place at a time, high to low, by subtracting the
+// place value until it no longer fits — the same walk text.s does.
+const DIGIT_PLACES: array<usmallint, 5> = [10000, 1000, 100, 10, 1];
+
+export namespace text {
+    const CELL_COUNT: usmallint = Video.CELL_COUNT; // 40 columns x 25 rows
+    const COLUMNS: utinyint = Video.COLUMNS; // cells per row, so cell = y * text.COLUMNS + x
+    const ROWS: utinyint = Video.ROWS;
+
+    // The live grid. Fixed on this machine — its screen is the size its video
+    // chip makes it — so both fold to the constants above and cost nothing.
+    // Here so a program that lays itself out from the grid it is actually on
+    // runs unchanged on every target; see the web target's Modern host, the
+    // one grid that does change.
+    function columns(): utinyint {
+        return text.COLUMNS;
+    }
+
+    function rows(): utinyint {
+        return text.ROWS;
+    }
+
+
+    function putChar(cell: usmallint, code: utinyint): void {
+        prepare();
+        screenRam[cell] = toScreen(code);
+    }
+
+    function putColor(cell: usmallint, color: utinyint): void {
+        colorRam[cell] = color;
+    }
+
+    function setColor(color: utinyint): void {
+        currentColor = color;
+    }
+
+    // Invert glyphs printed after this: the character pixels take the
+    // background color and the rest of the cell takes the text color.
+    function setReverse(on: bool): void {
+        currentReverse = on;
+    }
+
+    // Deliberately empty. setupVideo() (prepare(), above) banks the KERNAL
+    // out and leaves it out — the screen matrix lives at $E000, over the
+    // RAM the KERNAL ROM used to read, and main() falling off its end does
+    // not land back in a working BASIC the way it does on every other
+    // Commodore here (see the file header's "the KERNAL goes out... and
+    // stays out" in ./index.8bs). There is no cursor to hand back.
+    function releaseCursor(): void {
+    }
+
+    function print(cell: usmallint, s: string): void {
+        prepare();
+        for (let i: utinyint = 0; i < s.length; i++) {
+            place(cell + i, s[i]);
+        }
+    }
+
+    // Writes `code` into `count` consecutive cells from `cell`, in the current
+    // color. The run print() would write if a string of that width could be
+    // built at run time — it cannot, so a layout whose width is only known
+    // while the program runs (a responsive tile, a panel being cleared) needs
+    // this instead of a string constant per possible width.
+    function fill(cell: usmallint, count: usmallint, code: utinyint): void {
+        prepare();
+        for (let i: usmallint = 0; i < count; i++) {
+            place(cell + i, code);
+        }
+    }
+
+    // `value` as exactly `width` decimal digits, zero-padded and
+    // right-aligned: one place at a time, high to low, by subtracting the
+    // place value until it no longer fits — the 6502 has no divide
+    // instruction, and `value / 10` would link a 250-byte routine to do it.
+    // Places above the field are still taken off, so a field narrower than
+    // its number shows the low digits; places the number does not reach
+    // print as zeros.
+    function printNumber(cell: usmallint, value: usmallint, width: utinyint): void {
+        prepare();
+        let k: utinyint = width;
+        if (k < DIGIT_PLACES.length) {
+            k = DIGIT_PLACES.length;
+        }
+        while (k > 0) {
+            let digit: utinyint = 48; // '0'
+            if (k <= DIGIT_PLACES.length) {
+                while (value >= DIGIT_PLACES[DIGIT_PLACES.length - k]) {
+                    value = value - DIGIT_PLACES[DIGIT_PLACES.length - k];
+                    digit++;
+                }
+            }
+            if (k <= width) {
+                place(cell + width - k, digit);
+            }
+            k--;
+        }
+    }
+}
+
+// The colors `text.setColor()` takes: the eight names every machine
+// shares, with this machine's color-RAM values. Color RAM takes all
+// sixteen VIC-II colors; the other eight are numbers 8-15, the ones
+// `BorderColor`/`BackgroundColor` in ./screen.8bs name.
+export namespace TextColor {
+    const BLACK: utinyint = 0;
+    const WHITE: utinyint = 1;
+    const RED: utinyint = 2;
+    const CYAN: utinyint = 3;
+    const PURPLE: utinyint = 4;
+    const GREEN: utinyint = 5;
+    const BLUE: utinyint = 6;
+    const YELLOW: utinyint = 7;
+}
