@@ -1,0 +1,167 @@
+// rasterline.8bs's own `.web` twin — build.mjs's internal `web` tag resolves
+// this in place of rasterline.8bs whenever this package builds through the
+// wasm backend (`8bs build --target c64 --web`, `8bs run c64 --web`).
+//
+// The native file is a translation onto ./raster.8bs's address-form list: an
+// interrupt handler in machine code (native/6502/raster.s) applying register
+// writes at raster lines, which the wasm backend never lowers and which has
+// nothing to interrupt here. The page paints this build from the program's
+// memory and applies a *picture-line* list at paint time instead — the one
+// the synthetic web target uses (packages/web/src/rasterline.8bs, read by
+// web-scanline.mjs and the loader's copy) — so this twin writes that list.
+// The portable surface is the C64's own, unchanged: the same Slot numbers,
+// `line` a picture line 0-199 held in a byte, 63 entries, `at` refusing a
+// line below the last entry's, `insert`, `setValue`, `count`, `commit`,
+// `enable`, `disable`. Two numbers differ and a program reads both from
+// constants: `raster.STRIDE` is 3 (a byte of line, a slot byte, a value),
+// not the native list's 4, so `entry = index * raster.STRIDE` keeps working.
+//
+// What it does NOT model, on purpose: the handler's timing. An entry takes
+// effect at its picture line exactly (the web renderer is idealized, per
+// web-scanline.mjs), where on the machine it lands in the right border at
+// the end of the line before — so an effect shows one line earlier here than
+// on a real C64. The sprite multiplexer, which builds on the same list, is
+// not built (packages/c64/package.json `wasm.limits`).
+//
+// The three list offsets below are where web-layout.mjs agreementFor() puts
+// the raster region for this machine's fixed 40x25 grid; the test in
+// packages/cli/test/web-c64.test.mjs holds them to the layout, so changing
+// one without the other fails.
+//
+// Keep the export list identical to rasterline.8bs — test/c64-web-twin.test.mjs
+// holds the two to the same names.
+
+// What the picture does at a line, named without an address. The numbers
+// are arbitrary and the same in all nine rasterline files.
+export namespace Slot {
+    const BORDER: utinyint = 0;     // the border's color
+    const BACKGROUND: utinyint = 1; // the playfield's background color
+    const SCROLL_X: utinyint = 2;   // the horizontal fine scroll, 0-7
+    const CHARSET: utinyint = 3;    // 0 = upper case/graphics ($D018 $84), 1 = lower/upper case ($86)
+}
+
+const LIST_CONTROL: usmallint = 2004; // agreementFor(40x25).rasterControlOffset
+const LIST_COUNT: usmallint = 2005;   // .rasterCountOffset
+const LIST_BASE: usmallint = 2006;    // .rasterBase
+
+// The last line appended, to keep insertion ascending: nothing reads this
+// list live the way the native handler does, so the ordering rule is
+// enforced here, where the bytes are written.
+let lastLine: utinyint = 0;
+
+export namespace raster {
+    const ENTRIES: utinyint = 63; // the list's capacity: the native list's, whatever the page allows
+    const STRIDE: utinyint = 3;   // bytes per entry: line, slot, value
+    const FINE_SCROLL: bool = true; // Slot.SCROLL_X entries are accepted: the page shifts the line
+    const COLORS: bool = true;     // Slot.BORDER/BACKGROUND entries are accepted
+    const CHARSET: bool = true;    // Slot.CHARSET entries are accepted: the page switches sets at the line
+    const TOP: utinyint = 50;     // picture line 0 is raster line 50 (the native list's offset; the page needs none)
+    const LINES: utinyint = 200;  // visible picture lines, 0-199
+    const KEEP: utinyint = 0xF8;  // $D016 bits 3-7 — CSEL, MCM — kept in every SCROLL_X byte on the machine
+
+    // Empty the list. The control byte stands: enable()/disable() own it.
+    function clear(): void {
+        memory.write(LIST_COUNT, 0);
+        lastLine = 0;
+    }
+
+    // Append: at picture line `line`, give `slot` the value `value`.
+    // False, and nothing added, if the line is past the visible picture,
+    // below the last entry's, the slot is not one of the four, or the list
+    // is full.
+    function at(line: utinyint, slot: utinyint, value: utinyint): bool {
+        if (line >= raster.LINES || line < lastLine) {
+            return false;
+        }
+        if (slot > Slot.CHARSET) {
+            return false;
+        }
+        let held: utinyint = memory.read(LIST_COUNT);
+        if (held >= raster.ENTRIES) {
+            return false;
+        }
+        let entry: usmallint = held;
+        entry = LIST_BASE + entry * 3;
+        memory.write(entry, line);
+        memory.write(entry + 1, slot);
+        memory.write(entry + 2, value);
+        memory.write(LIST_COUNT, held + 1);
+        lastLine = line;
+        return true;
+    }
+
+    // In order: the same as `at`, at a line at or above the last entry's
+    // — the entries below it slid up three bytes each. False, and nothing
+    // added, if the line is past the picture, the slot is not one of the
+    // four, or the list is full.
+    function insert(line: utinyint, slot: utinyint, value: utinyint): bool {
+        if (line >= raster.LINES) {
+            return false;
+        }
+        if (line >= lastLine) {
+            return raster.at(line, slot, value);
+        }
+        if (slot > Slot.CHARSET) {
+            return false;
+        }
+        let held: utinyint = memory.read(LIST_COUNT);
+        if (held >= raster.ENTRIES) {
+            return false;
+        }
+        let pos: usmallint = held;
+        pos = LIST_BASE + pos * 3;
+        while (pos > LIST_BASE) {
+            if (memory.read(pos - 3) <= line) {
+                break;
+            }
+            memory.write(pos, memory.read(pos - 3));
+            memory.write(pos + 1, memory.read(pos - 2));
+            memory.write(pos + 2, memory.read(pos - 1));
+            pos = pos - 3;
+        }
+        memory.write(pos, line);
+        memory.write(pos + 1, slot);
+        memory.write(pos + 2, value);
+        memory.write(LIST_COUNT, held + 1);
+        return true;
+    }
+
+    // How many entries the list holds.
+    function count(): utinyint {
+        return memory.read(LIST_COUNT);
+    }
+
+    // Nothing to hand over: the page reads the list at paint time, between
+    // two frames of the program, so a rebuilt list is whole by construction.
+    function commit(): void {
+    }
+
+    // Rewrite one entry's value, leaving its line and slot: `entry` is the
+    // entry's byte offset (index * raster.STRIDE). False, and nothing
+    // written, if the offset is not a multiple of the stride or names an
+    // entry at or past the count. A SCROLL_X entry takes the 0-7 amount and
+    // a CHARSET entry 0 or 1, as `at` does; the page keeps only those bits.
+    function setValue(entry: utinyint, value: utinyint): bool {
+        if ((entry / 3) * 3 != entry) {
+            return false;
+        }
+        let held: usmallint = memory.read(LIST_COUNT);
+        held = held * 3;
+        let wide: usmallint = entry;
+        if (wide >= held) {
+            return false;
+        }
+        memory.write(LIST_BASE + wide + 2, value);
+        return true;
+    }
+
+    // The page applies the list from the next paint on.
+    function enable(): void {
+        memory.write(LIST_CONTROL, 1);
+    }
+
+    // The plain, unsplit picture again; the list is kept.
+    function disable(): void {
+        memory.write(LIST_CONTROL, 0);
+    }
+}

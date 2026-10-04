@@ -76,6 +76,18 @@ function cellIs(png, rom, col, row, code, set, ink, paper) {
   return true;
 }
 
+/** Like cellIs, with the whole row shifted right by `shift` pixels (a $D016 fine scroll): glyph column gx lands at x + shift. */
+function shiftedCellIs(png, rom, col, row, code, set, ink, paper, shift) {
+  for (let gy = 0; gy < 8; gy += 1) {
+    const bits = rom[set * 2048 + code * 8 + gy];
+    for (let gx = 0; gx < 8; gx += 1) {
+      const want = ((bits >> (7 - gx)) & 1) !== 0 ? ink : paper;
+      if (!sameInk(pixelAt(png, BORDER_PX + col * 8 + gx + shift, BORDER_PX + row * 8 + gy), want)) return false;
+    }
+  }
+  return true;
+}
+
 /** The mixed-case set's screen code for an ASCII character, as text.8bs maps it. */
 const screenCode = (ch) => {
   const c = ch.charCodeAt(0);
@@ -190,4 +202,50 @@ test('charset.restore() puts the ROM\'s glyphs back, and a program that never ca
   [...'abc'].forEach((ch, col) => {
     assert.ok(cellIs(png, rom, col, 0, screenCode(ch), 0, RGB[1], RGB[0]), `cell ${col} is the ROM's glyph ${screenCode(ch)} of set 0 after restore()`);
   });
+});
+
+test('the portable raster list on the C64 wasm build applies each slot at its picture line: colours, fine scroll, character set', async () => {
+  const rom = await characterRom();
+  const png = await shoot(await readFile(join(REPO, 'packages', 'c64', 'test', 'web-raster-probe.8bs'), 'utf8'));
+  const green = RGB[5];
+  const red = RGB[2];
+  const blue = RGB[6];
+  const black = RGB[0];
+  const white = RGB[1];
+  // BORDER at line 40 and back at 160: the border strip changes exactly there.
+  assert.ok(sameInk(pixelAt(png, 2, BORDER_PX + 39), green), "border above line 40: the program's green");
+  assert.ok(sameInk(pixelAt(png, 2, BORDER_PX + 40), red), 'border from line 40: red');
+  assert.ok(sameInk(pixelAt(png, 2, BORDER_PX + 159), red), 'still red on line 159');
+  assert.ok(sameInk(pixelAt(png, 2, BORDER_PX + 160), green), 'green again from line 160');
+  // BACKGROUND likewise: a blank cell above the band is black, inside it blue, below it black.
+  assert.ok(cellIs(png, rom, 30, 4, 32, 1, white, black), 'cell row 4 (lines 32-39): black');
+  assert.ok(cellIs(png, rom, 30, 5, 32, 1, white, blue), 'cell row 5 (lines 40-47): blue');
+  assert.ok(cellIs(png, rom, 30, 19, 32, 1, white, blue), 'cell row 19 (lines 152-159): blue');
+  assert.ok(cellIs(png, rom, 30, 20, 32, 1, white, black), 'cell row 20 (lines 160-167): black again');
+  // SCROLL_X 3 on lines 80-99: "scroll" on cell rows 10 and 11 sits three pixels right, its first three columns blue.
+  [...'scroll'].forEach((ch, col) => {
+    for (const row of [10, 11]) {
+      assert.ok(shiftedCellIs(png, rom, col, row, screenCode(ch), 1, white, blue, 3), `row ${row} col ${col}: '${ch}' shifted by 3`);
+    }
+  });
+  for (let y = 0; y < 16; y += 1) {
+    for (let x = 0; x < 3; x += 1) {
+      assert.ok(sameInk(pixelAt(png, BORDER_PX + x, BORDER_PX + 80 + y), blue), `a scrolled line opens its first pixels as background (${x}, ${80 + y})`);
+    }
+  }
+  // CHARSET 0 on lines 120-139: the same "abc" is lower case on row 14 (set 1) and capitals on rows 15 and 16 (set 0).
+  [...'abc'].forEach((ch, col) => {
+    assert.ok(cellIs(png, rom, col, 14, screenCode(ch), 1, white, blue), `row 14: '${ch}' in the lower/upper-case set`);
+    assert.ok(cellIs(png, rom, col, 15, screenCode(ch), 0, white, blue), 'row 15: the same code in the upper-case/graphics set');
+    assert.ok(cellIs(png, rom, col, 16, screenCode(ch), 0, white, blue), 'row 16: and again');
+  });
+});
+
+test("the C64 raster twin's list offsets are the ones the page reads for this machine", async () => {
+  const layout = layoutForRealMachine('c64', { facts: { 'video.columns': 40, 'video.rows': 25 } });
+  const twin = await readFile(join(REPO, 'packages', 'c64', 'src', 'rasterline.c64.web.8bs'), 'utf8');
+  const constant = (name) => Number(new RegExp(`const ${name}: usmallint = (\\d+);`).exec(twin)?.[1]);
+  assert.equal(constant('LIST_CONTROL'), layout.rasterControlOffset);
+  assert.equal(constant('LIST_COUNT'), layout.rasterCountOffset);
+  assert.equal(constant('LIST_BASE'), layout.rasterBase);
 });

@@ -1,0 +1,5 @@
+---
+"@8bitscript/c64": minor
+---
+
+The portable `@8bitscript/raster` works on the C64's wasm build: colour splits (border and background), a per-line fine scroll and a per-line character-set switch, applied by the page at the line they name (the machine's handler lands an entry one line later, and the sprite multiplexer and `@8bitscript/c64/raster`'s address-form list are still machine code and not built — `runtime.wasm.limits` says so). A new `rasterline.c64.web.8bs` writes the page's raster list instead of the interrupt list, keeping the C64 contract unchanged (`line` a byte, 63 entries, `at` refusing a line below the last, `insert`, `setValue`, `commit`, `enable`, `disable`); `raster.STRIDE` is 3 there, not the native list's 4, so a program that computes `index * raster.STRIDE` is unaffected. Checked pixel for pixel by `packages/cli/test/web-c64.test.mjs` (a band's border and background change on exactly the named lines, `SCROLL_X` 3 moves a row three pixels, a `CHARSET` entry draws the same screen codes from the other set), with the twin's list offsets held to the layout's by a test.

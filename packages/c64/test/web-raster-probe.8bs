@@ -1,0 +1,40 @@
+// The portable raster surface on the C64's wasm build, band by band, so a
+// capture can say whether the page applies each slot at its picture line:
+//
+//   lines 0-39     the base: green border, black background
+//   lines 40-159   red border, blue background   (BORDER + BACKGROUND at 40, back at 160)
+//   lines 80-99    fine scroll 3, over cell rows 10 and 11 ("scroll")
+//   lines 120-139  character set 0 (upper case/graphics), over cell rows 15 and 16
+//
+// Rows 14, 15 and 16 print the same "abc": the mixed-case set draws lower
+// case on row 14, and the band switches rows 15 and 16 to set 0, where the
+// same screen codes are capitals. test/web-c64.test.mjs reads the pixels.
+import { screen, BorderColor, BackgroundColor } from "@8bitscript/screen";
+import { text, TextColor } from "@8bitscript/text";
+import { raster, Slot } from "@8bitscript/raster";
+
+export function main(): void {
+    screen.blank(BorderColor.GREEN, BackgroundColor.BLACK);
+    text.setColor(TextColor.WHITE);
+    // A cell is y * 40 + x: the width is a usmallint, because 40 * 10 of two
+    // byte-wide literals is a byte-wide product that wraps at 256.
+    let width: usmallint = text.COLUMNS;
+    text.print(width * 10, "scroll");
+    text.print(width * 11, "scroll");
+    text.print(width * 14, "abc");
+    text.print(width * 15, "abc");
+    text.print(width * 16, "abc");
+    raster.clear();
+    raster.at(40, Slot.BORDER, BorderColor.RED);
+    raster.at(40, Slot.BACKGROUND, BackgroundColor.BLUE);
+    raster.at(80, Slot.SCROLL_X, 3);
+    raster.at(100, Slot.SCROLL_X, 0);
+    raster.at(120, Slot.CHARSET, 0);
+    raster.at(140, Slot.CHARSET, 1);
+    raster.at(160, Slot.BORDER, BorderColor.GREEN);
+    raster.at(160, Slot.BACKGROUND, BackgroundColor.BLACK);
+    raster.enable();
+    while (true) {
+        waitFrame();
+    }
+}
