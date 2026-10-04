@@ -38,6 +38,7 @@ export namespace raster {
     const FINE_SCROLL: bool = false; // Slot.SCROLL_X entries are refused
     const COLORS: bool = false;     // Slot.BORDER/BACKGROUND entries are accepted
     const CHARSET: bool = false;   // Slot.CHARSET entries are refused
+    const FRAME_COUNTER: bool = false; // no video-frame counter: frame() answers 0
 
     function clear(): void {
     }
@@ -58,6 +59,10 @@ export namespace raster {
     }
 
     function count(): utinyint {
+        return 0;
+    }
+
+    function frame(): utinyint {
         return 0;
     }
 

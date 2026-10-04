@@ -113,6 +113,7 @@ export namespace raster {
     const FINE_SCROLL: bool = true; // Slot.SCROLL_X entries are accepted: $D016's XSCROLL
     const COLORS: bool = true;     // Slot.BORDER/BACKGROUND entries are accepted
     const CHARSET: bool = true;    // Slot.CHARSET entries are accepted: $D018 bit 1, text mode only
+    const FRAME_COUNTER: bool = true; // frame() counts video frames since enable()
     const TOP: utinyint = 50;     // picture line 0 is raster line 50
     const LINES: utinyint = 200;  // visible picture lines, 0-199
     const KEEP: utinyint = 0xF8;  // $D016 bits 3-7 — CSEL, MCM — kept in every SCROLL_X byte
@@ -202,6 +203,12 @@ export namespace raster {
     // Own the IRQ: the list is applied from the next frame on.
     function enable(): void {
         addressList.enable();
+    }
+
+    // Video frames since enable(), wrapping at 256: the handler adds one at
+    // line 0 of every frame, however slowly the game loop runs.
+    function frame(): utinyint {
+        return addressList.frame();
     }
 
     // Interrupts off again; the list is kept.

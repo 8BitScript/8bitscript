@@ -65,6 +65,11 @@
 ; $03FE        1 between the pass's end at 255 and line 0: the next
 ;              interrupt writes the frame table, not an entry.
 ; $03FF        @8bitscript/c64/reu's probe byte.
+;
+; $06C3        the VIDEO-FRAME counter: this handler adds 1 at line 0 of every
+;              frame, the installer zeroes it, and raster.frame() reads it
+;              (wraps at 256). One `inc` in the line-0 pass; a program that
+;              never reads it ignores it.
 ; $0400-$0422  page A's FRAME TABLE, $0500-$0522 page B's: the eight
 ;              sprites' registers as the next frame starts — 16 bytes
 ;              for $D000-$D00F, then $D010, $D015, the eight pointers
@@ -232,6 +237,7 @@ __8bs_c64_raster_install:
     lda #0
     sta 0xFFFF
     sta 0x03FE              ; no line-0 phase pending (RAM is not zero under VICE)
+    sta 0x06C3              ; raster.frame() counts from here
     txa
     pha
     jsr __8bs_c64_raster_swap   ; the committed list is live at once
@@ -319,6 +325,7 @@ __8bs_c64_raster_end:
     pla
     rti
 __8bs_c64_raster_top:
+    inc 0x06C3              ; one more video frame (raster.frame())
     lda #0
     sta 0x03FE
     jsr __8bs_c64_raster_restore   ; ~420 cycles: the raster is at line 6-7 after

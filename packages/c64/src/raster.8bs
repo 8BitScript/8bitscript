@@ -149,6 +149,8 @@ let sharedPage: volatile<u8>; // the build state, shared with a native builder: 
 let sharedEnd: volatile<u8>;
 @address(0x06C2)
 let sharedLastLine: volatile<u8>;
+@address(0x06C3)
+let frameCounter: volatile<u8>; // video frames since enable(): native/6502/raster.s adds 1 at line 0 of every frame
 
 let buildPage: utinyint = 2; // where `at` writes: the page not live
 let buildEnd: utinyint = 0; // its entries * 4
@@ -576,6 +578,12 @@ export namespace raster {
         asm6502 {
             cli
         }
+    }
+
+    // Video frames since enable(), wrapping at 256 (the handler's line-0 pass
+    // counts them, so a slow game loop still sees every one).
+    function frame(): utinyint {
+        return frameCounter;
     }
 
     // Interrupts off again; the list is kept.

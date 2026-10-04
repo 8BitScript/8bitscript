@@ -1,0 +1,54 @@
+// raster.frame(), the portable video-frame counter, checked against the
+// machine itself. Each pass of the loop is SLOW: it polls the VIC's raster
+// counter (bit 8 of the line, $D011 bit 7, falling = line 0 = a new frame)
+// until three real frame boundaries have gone by, so one pass of the loop is
+// three video frames long. raster.frame() is read before and after; if it
+// counts video frames it moved by the same three (one either way: the
+// interrupt lands a few dozen cycles after the line starts), and if it
+// counted loop passes it moved by one, and if the handler never counted it
+// did not move. Twelve passes all agreeing paint the playfield green, the
+// first that does not paints it red. See test/raster-frame.test.mjs.
+import { raster, Slot } from "@8bitscript/raster";
+import { screen, BorderColor, BackgroundColor } from "../src/screen.8bs";
+
+let previousHigh: utinyint = 0;
+let polled: utinyint = 0;
+
+// Count a frame boundary when the line's bit 8 goes from set to clear.
+function poll(): void {
+    let high: utinyint = memory.read(0xD011) & 0x80;
+    if (previousHigh != 0 && high == 0) {
+        polled = polled + 1;
+    }
+    previousHigh = high;
+}
+
+export function main(): void {
+    screen.blank(BorderColor.BLACK, BackgroundColor.BLUE);
+    raster.clear();
+    raster.at(0, Slot.BORDER, 0);
+    raster.enable();
+    let bad: utinyint = 0;
+    let pass: utinyint = 0;
+    while (pass < 12) {
+        let framesBefore: utinyint = raster.frame();
+        let polledBefore: utinyint = polled;
+        while (polled - polledBefore < 3) {
+            poll();
+        }
+        let framesSeen: utinyint = raster.frame() - framesBefore;
+        let polledSeen: utinyint = polled - polledBefore;
+        if (framesSeen + 1 < polledSeen || polledSeen + 1 < framesSeen) {
+            bad = 1;
+        }
+        pass = pass + 1;
+    }
+    if (bad == 0) {
+        screen.setBackground(BackgroundColor.GREEN);
+    } else {
+        screen.setBackground(BackgroundColor.RED);
+    }
+    while (true) {
+        poll();
+    }
+}

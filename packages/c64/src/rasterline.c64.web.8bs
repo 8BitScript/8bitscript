@@ -55,6 +55,7 @@ export namespace raster {
     const FINE_SCROLL: bool = true; // Slot.SCROLL_X entries are accepted: the page shifts the line
     const COLORS: bool = true;     // Slot.BORDER/BACKGROUND entries are accepted
     const CHARSET: bool = true;    // Slot.CHARSET entries are accepted: the page switches sets at the line
+    const FRAME_COUNTER: bool = false; // no host counter: the C64 wasm build runs on the web host
     const TOP: utinyint = 50;     // picture line 0 is raster line 50 (the native list's offset; the page needs none)
     const LINES: utinyint = 200;  // visible picture lines, 0-199
     const KEEP: utinyint = 0xF8;  // $D016 bits 3-7 — CSEL, MCM — kept in every SCROLL_X byte on the machine
@@ -156,6 +157,13 @@ export namespace raster {
     }
 
     // The page applies the list from the next paint on.
+    // No video-frame counter: the C64 wasm build runs on the web host, which runs one logical frame per waitFrame() return and never skips one, so a loop that calls
+    // waitFrame() once a pass already counts every frame itself. frame() answers 0
+    // and FRAME_COUNTER says so; count your own waitFrame() calls.
+    function frame(): utinyint {
+        return 0;
+    }
+
     function enable(): void {
         memory.write(LIST_CONTROL, 1);
     }
