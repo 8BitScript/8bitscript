@@ -2,7 +2,7 @@
 
 Deterministic pseudo-random generators, the same code on every target —
 VIC-20, C64, PET, C128, Atari 8-bit, NES, Commander X16, MEGA65, and web.
-Two, at two import paths, with the same three calls — and a third path,
+Two, at two import paths, with the same calls — and a third path,
 [`/entropy`](#entropy-hardware-where-a-machine-has-it), that is one of the
 machine's own entropy sources where it has one:
 
@@ -23,7 +23,8 @@ let roll: utinyint = random.range(6) + 1; // 1..6
 | --- | --- |
 | `seed(value)` | Replaces the generator's whole state |
 | `next()` | One step of the generator; a byte, 0-255 |
-| `range(bound)` | `next() % bound` — a value from 0 up to (not including) `bound` |
+| `range(bound)` | A value from 0 up to (not including) `bound`, **exactly uniform** — see [below](#range-and-bits-are-exactly-uniform) |
+| `bits(count)` | The top `count` bits of `next()` (1 to 8): a value from 0 up to 2^`count`, exactly uniform, no rejection |
 
 `table` adds one more call, since it has no reason not to: `at(index)`
 reads the table directly with no state of its own, for a program that
@@ -36,7 +37,8 @@ already keeps its own running counter (frames elapsed is the usual one).
 | How `next()` works | `state = state * 25173 + 13849`, return the high byte | `TABLE[index]`, then `index++` |
 | Cost per call | A 16-bit multiply and add | One indexed load |
 | Period | 65536 | 256 |
-| Distribution | Good, not exact | Exact over every 256 consecutive calls — the table is a permutation of 0-255 |
+| `next()` distribution | Every byte exactly 256 times per period | Every byte exactly once per 256 consecutive calls — the table is a permutation of 0-255 |
+| `range()` / `bits()` | Exactly uniform | Exactly uniform |
 
 Reach for the default generator first. Reach for `/table` where a 6502
 multiply is specifically the thing a piece of code cannot afford — several
@@ -55,6 +57,75 @@ entropy source (`@8bitscript/atari8/random`'s POKEY counter,
 `@8bitscript/c64/random`'s SID voice 3) and hands the byte it reads to
 either one's `seed()`. A program that has decided it wants the register on
 every draw, not just for a seed, says so with the import below.
+
+## `range()` and `bits()` are exactly uniform
+
+`next() % bound` is not. 256 is not a multiple of most bounds, so the first
+`256 % bound` outcomes get one more byte than the rest. Measured over the
+generator's whole period (every byte comes up exactly 256 times, so these
+are counts, not samples):
+
+| `bound` | likeliest outcome | least likely | ratio |
+| --- | --- | --- | --- |
+| 6 (a die) | 16.80% | 16.41% | 1.024 |
+| 37 (a roulette wheel) | 2.734% (7 bytes in 256) | 2.344% (6 bytes) | 1.167 |
+| 52 (a deck) | 1.953% | 1.563% | 1.250 |
+| 100 | 1.172% | 0.781% | 1.500 |
+| 150 and 200 | 0.781% | 0.391% | 2.000 |
+
+A game that publishes its odds cannot ship that, so `range()` throws away
+the bytes that would make the split uneven — the last `256 % bound` values,
+the incomplete final block — and draws again. What is left is a whole number
+of complete blocks, and every outcome is exactly as likely as every other.
+The test costs one modulo (the same `%` the biased form used): a byte is
+kept when `byte - byte % bound <= 256 - bound`. A bound that divides 256
+never redraws; any other redraws fewer than half the time. The sequence is
+still completely determined by the seed — only the number of bytes a call
+takes is no longer fixed.
+
+`bits(count)` is the call for a power-of-two choice (a coin, one of 8 reel
+stops, one of 64 virtual stops): the top bits of one byte, no redraw. It
+takes the *top* bits because that is where an LCG is best mixed.
+
+**Behaviour change.** `range()` used to be `next() % bound`, and its
+comment called the bias "under 1/256 of a percentage point"; 1/256 is an
+absolute probability of 0.39 percentage points, and the table above is the
+real size. A program that seeds the generator and uses `range()` now gets a
+different sequence whenever a draw lands in the rejected block — `256 %
+bound` bytes in 256, so 4 in 256 for a die and 34 in 256 for a wheel — and
+the same sequence otherwise. `next()` and `seed()` are unchanged, so a
+program that draws bytes itself sees no difference. Nothing in this
+repository depended on the exact sequence (2048 pins an older CLI and is
+unaffected until it moves).
+
+**What it costs**, on a program with `seed()`, two `range()` calls and a
+`next()` (`8bs build <target> --size`, program bytes and RAM, before →
+after): C64 165 → 220 and 13 → 16, PET and VIC-20 204 → 262 and 13 → 16,
+X16 168 → 223 and 13 → 16, web `.wasm` 153 → 216. That is the rejection loop
+and its three locals, once, shared by every call site. `bits()` adds about 26 bytes of loop on top of `next()` (75 bytes
+in a program that uses nothing else, `next()` included). The compiler does not
+specialise `range()` per call site, so a constant bound still tests the
+block limit at run time.
+
+**Tested by counting.** `test/uniform.test.mjs` compiles the generator for
+the web target and runs one whole period through `range(n)` — exactly
+`256 × (256 − 256 % n)` accepted draws — and asserts every outcome came up
+exactly `256 × ⌊256 / n⌋` times; the same over one pass of the table.
+It also checks the compiled draws value for value against the algorithm,
+and builds the whole surface for the PET, VIC-20, C64 and X16, because a
+`link` does not reach the 6502 backend (it refuses a run-time shift, which
+is why `bits()` shifts a bit at a time rather than by `8 - count`).
+
+**What it does not fix: the state is 16 bits.** A seeded run repeats after
+65,536 steps and only 65,536 distinct games exist, whatever the seed;
+a 52-card shuffle can reach 65,536 of its 52! orderings. That is plenty
+for slot-reel stops and nowhere near a statement about "every possible
+deal". A wider generator — a 16-bit LCG and a 16-bit LFSR with coprime
+periods, about 2^32 states — was built and measured and **not shipped**: it
+cost +173 bytes of program over the default on the C64 (393 against 220 for
+the same program) and +8 of RAM, and a hand-built combination has not been
+through a statistical battery. If a game needs it, that is the number to
+beat.
 
 ## `/entropy`: hardware where a machine has it
 
@@ -106,12 +177,16 @@ frame makes the sequence depend on the player's timing too, which is as
 much unpredictability as a machine with no entropy source can offer. The
 hardware twins make it empty, so the call inlines away to nothing there.
 
-**`range()` computes; it does not delegate.** Each file writes `range()` as
-`next-or-byte % bound` rather than forwarding to `random.range()`: the
-forwarding form measured +8 bytes on every 6502 target (PET, VIC-20, C128,
-CX16, MEGA65 alike), because a call whose only job is to pass an argument
-on does not inline away. `entropy.test.mjs` checks the bodies stay that
-way.
+**`range()` and `bits()`: forwarded in software, written out on the two
+hardware twins.** The software `entropy` calls `random.range()` and
+`random.bits()` — one copy of the rejection loop. A forwarder used to cost 8
+bytes a target; the compiler now folds a `return f(x);` delegate away
+(measured again: 231 bytes of program on the PET either way). The C64 and
+Atari twins read a register, so each carries its own loop over `random.byte()`
+(`entropy_range` is 71 bytes on the C64, `entropy_bits` 30, each with its register read inlined). Reads a few cycles
+apart are not independent samples of the noise — hardware entropy is for a
+seed or a shuffle, not for statistics — but the arithmetic favours no
+outcome. `entropy.test.mjs` checks the bodies.
 
 **Not yet on the C128 or MEGA65.** Both have a SID and answer
 `#fact(audio.entropy)` true, but neither machine package has a `./random`

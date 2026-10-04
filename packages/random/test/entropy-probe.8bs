@@ -16,4 +16,5 @@ export function main(): void {
     entropy.tick();
     picked = entropy.next();
     picked = entropy.range(6);
+    picked = entropy.bits(3);
 }

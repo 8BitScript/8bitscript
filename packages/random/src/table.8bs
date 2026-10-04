@@ -70,10 +70,32 @@ export namespace table {
         return value;
     }
 
-    // A value from 0 up to (not including) bound. See ../index.8bs for the
-    // same modulo-bias note — it applies here too, and for the same reason.
+    // A value from 0 up to (not including) bound, exactly uniform: the
+    // same rejection of the incomplete last block as ./index.8bs (read its
+    // note), over this generator's bytes. The permutation makes the result
+    // sharper than the LCG's: any 256 consecutive bytes are every byte once,
+    // so any stretch of 256 table steps gives each outcome 256 / bound
+    // (rounded down) times *exactly*, not just on average.
     function range(bound: utinyint): utinyint {
-        return table.next() % bound;
+        let limit: utinyint = 0 - bound;
+        let value: utinyint = table.next();
+        let rest: utinyint = value % bound;
+        while (value - rest > limit) {
+            value = table.next();
+            rest = value % bound;
+        }
+        return rest;
+    }
+
+    // The top `count` bits of the next table byte (1 to 8): a value from 0
+    // up to 2^count, exactly uniform, no rejection. Same call as the
+    // default generator's `bits`.
+    function bits(count: utinyint): utinyint {
+        let value: utinyint = table.next();
+        for (let i: utinyint = count; i < 8; i++) {
+            value = value >> 1;
+        }
+        return value;
     }
 
     // The table with no state at all: a program that already keeps its own

@@ -1,5 +1,0 @@
-import { run } from "./table-values.8bs";
-
-export function main(): void {
-    run();
-}

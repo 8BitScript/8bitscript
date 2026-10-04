@@ -42,14 +42,16 @@
 // hardware twins make it empty (a free-running register needs no help), so
 // the call inlines away to nothing there.
 //
-// ---- range() computes; it does not delegate ---------------------------------
+// ---- range() and bits() forward here; the twins write their own -------------
 //
-// `range()` is written as `random.next() % bound`, not as a call to
-// `random.range(bound)`. The forwarding form costs 8 bytes on every 6502
-// target this file serves — measured on the PET, VIC-20, C128, CX16 and
-// MEGA65 alike, all five moved by exactly 8 — because a call whose only
-// job is to pass its argument on does not inline away. The two twins are
-// written the same way, `random.byte() % bound`, for the same reason.
+// On the seven software targets this file IS the default generator, so
+// `range()` and `bits()` are calls to `random.range()` / `random.bits()`:
+// one copy of the rejection loop, in ./index.8bs. A forwarder that only
+// passes its arguments on used to cost 8 bytes a target; the compiler now
+// folds it away (a `return f(x);` delegate is `f(x)` in the caller — see
+// packages/compiler/AGENTS.md), measured again here: the entropy probe is
+// 231 bytes of program on the PET either way. The two hardware twins read a
+// register instead, so they carry their own loop over `random.byte()`.
 import { random } from "./index.8bs";
 
 export namespace entropy {
@@ -69,9 +71,15 @@ export namespace entropy {
         return random.next();
     }
 
-    // A value from 0 up to (not including) bound. The modulo-bias caveat
-    // in ./index.8bs applies here exactly as it does there.
+    // A value from 0 up to (not including) bound, exactly uniform — the
+    // default generator's `range()`, whose note explains the rejection.
     function range(bound: utinyint): utinyint {
-        return random.next() % bound;
+        return random.range(bound);
+    }
+
+    // The top `count` bits of the next byte (1 to 8): a value from 0 up to
+    // 2^count, exactly uniform, no rejection.
+    function bits(count: utinyint): utinyint {
+        return random.bits(count);
     }
 }
