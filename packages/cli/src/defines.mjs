@@ -40,10 +40,10 @@ export function defineArgs(args) {
   const consumed = [];
   for (let index = 0; index < args.length; index += 1) {
     if (args[index] !== '--define') continue;
-    const spec = args[index + 1];
-    if (spec === undefined || spec.startsWith('-')) {
+    if (index + 1 >= args.length || args[index + 1].startsWith('-')) {
       return { ok: false, error: '--define expects NAME=VALUE, e.g. --define SEED=42' };
     }
+    const spec = args[index + 1];
     const at = spec.indexOf('=');
     if (at <= 0) return { ok: false, error: `--define ${spec}: expected NAME=VALUE, e.g. --define SEED=42` };
     const name = spec.slice(0, at);

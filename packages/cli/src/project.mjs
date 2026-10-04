@@ -43,6 +43,7 @@ const LAYERS = { project: 'clone', user: 'machine', advertised: 'advertised' };
  *
  * @param {string[]} targets
  * @param {{ target: string }|null} baseline
+ * @returns {string|null} null when the program builds for no machine this release has
  */
 function discoveryTarget(targets, baseline) {
   if (baseline && targets.includes(baseline.target)) return baseline.target;
@@ -158,10 +159,14 @@ export async function describeProject({ cwd = process.cwd(), checkout = null, de
   const programs = [];
   for (const program of declared.ok ? declared.programs : []) {
     const reachable = (program.targets ?? buildable).filter((id) => buildable.includes(id));
+    // A per-machine `entry` object is not one path; whether it exists is not asked.
+    const entryIsPath = typeof program.entry === 'string';
+    const entryPresent = entryIsPath && existsSync(resolve(cwd, program.entry));
+    const entryMissing = entryIsPath && !entryPresent;
     const entry = {
       name: program.name,
       entry: program.entry,
-      entryExists: typeof program.entry === 'string' ? existsSync(resolve(cwd, program.entry)) : null,
+      entryExists: entryIsPath ? entryPresent : null,
       title: program.title,
       description: program.description,
       group: program.group,
@@ -173,15 +178,15 @@ export async function describeProject({ cwd = process.cwd(), checkout = null, de
       problems: [],
     };
     const target = discoveryTarget(reachable, resolvedBaseline);
-    if (defines && target !== null && entry.entryExists !== false) {
+    if (defines && target && !entryMissing) {
       const found = discoverDefines(config, program, target, { cwd, checkout, frameRate: rate });
       entry.definesRead = true;
       entry.definesReadOn = target;
       entry.defines = mergeDefines(program, found.sites);
       entry.problems.push(...found.problems);
-    } else if (defines && entry.entryExists === false) {
+    } else if (defines && entryMissing) {
       entry.problems.push(`entry ${program.entry} does not exist`);
-    } else if (defines && target === null) {
+    } else if (defines && !target) {
       entry.problems.push('no machine this release builds for is among this program\'s targets, so its defines were not read');
     }
     programs.push(entry);
