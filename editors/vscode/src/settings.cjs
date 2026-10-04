@@ -24,10 +24,16 @@ function getRegion() {
   return config().get('region') === 'pal' ? 'pal' : 'ntsc';
 }
 
-/** @returns {string} one of ALL_TARGETS */
+/**
+ * The machine the launcher uses when no named system is selected. Any id the
+ * CLI lists — the extension keeps no list of its own to validate against —
+ * and the first release machine until one is chosen.
+ *
+ * @returns {string}
+ */
 function getSystem() {
   const value = config().get('system');
-  return ALL_TARGETS.includes(value) ? value : ALL_TARGETS[0];
+  return typeof value === 'string' && value !== '' ? value : ALL_TARGETS[0];
 }
 
 /**
@@ -142,13 +148,11 @@ function getShowExamples() {
 const setShowExamples = (show) => update('showExamples', show);
 
 /**
- * Whether the plain Run command prefers a machine's own --web build over a
- * native emulator window, for a target that one already exists for. On by
- * default: the design this is part of is heading toward a game never
- * needing a native emulator installed to develop against at all (see the
- * "8BitScript: Native System Emulation in WASM" plan). runner.cjs's own
- * WEB_PREVIEW_READY names which targets that already holds for today —
- * this setting decides *whether* to prefer it, not *which* targets can.
+ * DEPRECATED — what a program with no history runs in: the Editor tab (on,
+ * the default) or the native emulator (off). The launcher remembers the
+ * runtime per program now (unitState.cjs), so this is read once, as the
+ * default of a first run, and ignored after that. Which machines have a
+ * wasm page is the CLI's to say (units.runtimeMatrix), not this setting's.
  */
 function getPreferWebPreview() {
   return config().get('preferWebPreview') !== false;

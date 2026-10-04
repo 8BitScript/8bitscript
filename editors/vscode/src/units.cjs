@@ -69,6 +69,7 @@
 //   runtimeArgs(runtime, target, { x16emu, webLan }) -> string[]   the flags a runtime adds to `8bs run`
 //   runKey({dir, program, system, target, runtime})   -> string    identity of a run
 //   formatCommand(args)                               -> string    `8bs run c64 --program x` as typed
+//   programOffset(configText, name)                   -> number    where a program is declared in the config (-1: not found)
 //
 //   class UnitLoader         asks the CLI, caches by config mtime, falls back to legacy
 //
@@ -557,6 +558,24 @@ function defaultMtime(file) {
   }
 }
 
+/**
+ * Where a program is declared in a config's source: the offset of its key
+ * inside `programs: { … }`, or -1 when it cannot be found. A search, not a
+ * parse — it is only used to put the cursor near the right line.
+ *
+ * @param {string} text the config's source
+ * @param {string} name
+ * @returns {number}
+ */
+function programOffset(text, name) {
+  const block = /\bprograms\s*:\s*\{/.exec(text);
+  if (!block) return -1;
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const key = new RegExp(`(^|[\\s,{])(['"]?)${escaped}\\2\\s*:`, 'm').exec(text.slice(block.index + block[0].length));
+  if (!key) return -1;
+  return block.index + block[0].length + key.index + key[1].length;
+}
+
 module.exports = {
   RUNTIMES,
   RUNTIME_LABELS,
@@ -571,6 +590,7 @@ module.exports = {
   normalizeProject,
   normalizeRuntime,
   programNamed,
+  programOffset,
   resolveUnit,
   runKey,
   runtimeArgs,

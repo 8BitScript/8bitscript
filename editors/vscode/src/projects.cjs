@@ -219,6 +219,12 @@ const MACHINE_TARGETS = new Set(['vic20', 'c64', 'c128', 'atari8', 'nes', 'mega6
  * backend for real.
  */
 const WEB_PREVIEW_READY = new Set(['pet', 'vic20', 'cx16']);
+// DEPRECATED, along with NO_BARE_EMULATOR and MACHINE_TARGETS below: the
+// runner no longer decides anything with them. Which runtimes a machine has
+// is the `runtime` object of its row in `8bs targets --json` (units.cjs
+// runtimeMatrix); what is left here is only what an older CLI leaves the
+// extension to guess, and the views that have not moved to the unit model
+// yet. They go when the launcher view does.
 
 /**
  * Targets with no bare emulator to boot without a program — today just
@@ -1117,10 +1123,14 @@ function runnableOn(projects, system) {
  * @param {{ profile?: string|null, options?: object }} [hardware] the
  *   hardware fitted (the side bar's selection for that system): `--profile`
  *   and `--hardware option=value,...`, as a person would type them
- * @param {{ system?: string, checkout?: string, want?: 'all' | string[], install?: boolean }} [extras] a named system
+ * @param {{ system?: string, checkout?: string, program?: string, locale?: string, defines?: string[],
+ *   regional?: boolean, want?: 'all' | string[], install?: boolean }} [extras] a named system
  *   (`--system`) and/or a local checkout (`--checkout`). A named system
- *   already carries its fitting, so hardware flags are omitted. `want` is
- *   doctor's `--all` / `--want` list. `install` is doctor's `--install`.
+ *   already carries its fitting, so hardware flags are omitted. `defines`
+ *   is the `--define NAME=VALUE` flags, ready made. `regional` says
+ *   whether the machine takes `--pal` (the CLI's answer; absent, the old
+ *   fixed set). `want` is doctor's `--all` / `--want` list. `install` is
+ *   doctor's `--install`.
  * @returns {string[]}
  */
 function commandArgs(action, target, region = 'ntsc', hardware = undefined, extras = {}) {
@@ -1143,7 +1153,17 @@ function commandArgs(action, target, region = 'ntsc', hardware = undefined, extr
   // Which of a project's several programs, by name. Boot loads nothing, so it
   // has no program to name.
   if (extras.program && action !== 'boot') args.push('--program', extras.program);
-  if (!extras.system && region === 'pal' && MACHINE_TARGETS.has(target)) args.push('--pal');
+  // The program's inputs for this run: `--define NAME=VALUE`, already
+  // built by units.inputArgs (only what differs from the program's own
+  // values), and the language the messages are folded for. Boot loads no
+  // program, so neither applies to it.
+  if (extras.locale && action !== 'boot') args.push('--locale', extras.locale);
+  if (Array.isArray(extras.defines) && action !== 'boot') args.push(...extras.defines);
+  // Whether the machine has a region at all is the CLI's to say (the
+  // `region` flag on its `8bs targets --json` row); the fixed set below is
+  // only what an older CLI leaves the extension to guess.
+  const regional = extras.regional ?? MACHINE_TARGETS.has(target);
+  if (!extras.system && region === 'pal' && regional) args.push('--pal');
   if (!extras.system && hardware) args.push(...hardwareArgs(hardware));
   // Run and build print the size breakdown before the emulator starts (run)
   // or instead of launching one (build). The launcher's Running machines

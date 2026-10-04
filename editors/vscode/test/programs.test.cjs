@@ -119,10 +119,18 @@ test('TaskProvider lists each program on the machines it is set up for', () => {
   assert.ok(labels.includes('run tiny pet') && labels.includes('build tiny vic20'));
   assert.ok(!labels.some((l) => l.includes('tiny c64')), 'tiny is not set up for the C64');
   assert.ok(labels.includes('run reels c64') && labels.includes('run main c64'));
-  assert.equal(tasks.length, 2 * (3 + 3 + 2), 'run and build on 3 + 3 + 2 program/machine pairs');
+  // A native run and a build on each of 3 + 3 + 2 program/machine pairs, and the
+  // same program as a wasm page in the browser on the six whose machine has one
+  // (the PET and VIC-20; the C64 has none yet).
+  assert.equal(tasks.length, 2 * (3 + 3 + 2) + 6);
+  const browser = tasks.filter((t) => t.definition.runtime === 'browser');
+  assert.equal(browser.length, 6);
+  assert.ok(browser.every((t) => t.definition.web === true && ['pet', 'vic20'].includes(t.definition.target)));
+  assert.ok(!browser.some((t) => t.definition.target === 'c64'), 'no wasm page for the C64: no task for one');
+  assert.equal(tasks.filter((t) => t.definition.command === 'run' && t.definition.runtime === 'native').length, 8, 'the native run stays, now saying so');
   const single = { ...project, programs: [project.programs[0]], targets: ['c64', 'pet'] };
   const plain = new TaskProvider({ all: [single] }).provideTasks();
-  assert.equal(plain.length, 4);
+  assert.equal(plain.length, 2 * 2 + 1, 'a native run and a build on each machine, and the PET\'s browser run');
   assert.ok(plain.every((t) => t.definition.program === undefined), 'a one-program project\'s tasks name none');
 });
 

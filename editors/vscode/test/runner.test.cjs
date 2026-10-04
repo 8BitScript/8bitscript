@@ -491,7 +491,7 @@ test('registerRunner: run executes a plain machine target end to end', async () 
 test('registerRunner: run on the PET defaults to its own --web build in the Preview tab, preferWebPreview and an explicit override both respected', async () => {
   const dir = tmpDir();
   try {
-    writeConfig(dir);
+    writeConfig(dir, 'src/main.8bs', ['pet', 'c64']);
     const cli = writeFakeCli(dir);
     const shown = [];
 

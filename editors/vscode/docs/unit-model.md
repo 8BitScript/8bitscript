@@ -69,6 +69,7 @@ told why, and offered the fix if there is one.
 ## What the launcher view asks the runner for
 
 ```ts
+projects.machines(project)            // Promise<{ id, inRelease, regional, emulator, runtime }[]>  the System selector's list
 projects.unitProject(project)         // Promise<UnitProject>  (cached by config mtime)
 projects.matrix(project, program, target)   // Promise<runtimeMatrix result>
 projects.unitState                    // UnitState

@@ -1,7 +1,7 @@
 {
   "name": "8bitscript-lang",
   "displayName": "8BitScript",
-  "description": "Syntax highlighting, language server, and a project runner for 8BitScript (.8bs) source files.",
+  "description": "Syntax highlighting, language server, and a launcher for 8BitScript (.8bs, .8bx, .8bg, .8ba): run any program of a project on any system, in an editor tab, a browser or a native emulator.",
   "icon": "media/8bitscript-icon.png",
   "version": "0.24.0",
   "private": true,
@@ -166,19 +166,54 @@
     "commands": [
       {
         "command": "8bitscript.run",
-        "title": "Run",
+        "title": "Run Program (Last Used Runtime)",
         "category": "8BitScript",
         "icon": "$(play)"
       },
       {
+        "command": "8bitscript.runUnit",
+        "title": "Run Program…",
+        "category": "8BitScript",
+        "icon": "$(play)"
+      },
+      {
+        "command": "8bitscript.runEditor",
+        "title": "Run in Editor Tab (WebAssembly)",
+        "category": "8BitScript",
+        "icon": "$(open-preview)"
+      },
+      {
+        "command": "8bitscript.runBrowser",
+        "title": "Run in Browser (WebAssembly)",
+        "category": "8BitScript",
+        "icon": "$(globe)"
+      },
+      {
+        "command": "8bitscript.runNative",
+        "title": "Run in Native Emulator",
+        "category": "8BitScript",
+        "icon": "$(device-desktop)"
+      },
+      {
+        "command": "8bitscript.openBareEmulator",
+        "title": "Open Bare Emulator (Nothing Loaded)",
+        "category": "8BitScript",
+        "icon": "$(chip)"
+      },
+      {
+        "command": "8bitscript.revealProgram",
+        "title": "Reveal Program in Config",
+        "category": "8BitScript"
+      },
+      {
         "command": "8bitscript.build",
-        "title": "Build",
+        "title": "Build (Compile Only, Writes dist/)",
         "category": "8BitScript",
         "icon": "$(tools)"
       },
       {
         "command": "8bitscript.boot",
-        "title": "Boot (no program loaded)",
+        "title": "Boot (Alias of Open Bare Emulator)",
         "category": "8BitScript",
         "icon": "$(chip)"
       },
@@ -334,17 +369,17 @@
       },
       {
         "command": "8bitscript.selectProject",
-        "title": "Select Project",
+        "title": "Select Project (Moved to the Side Bar)",
         "category": "8BitScript"
       },
       {
         "command": "8bitscript.selectSystem",
-        "title": "Select System",
+        "title": "Select System (Moved to the Side Bar)",
         "category": "8BitScript"
       },
       {
         "command": "8bitscript.selectRegion",
-        "title": "Select Region (NTSC — US/Japan, PAL — Europe)",
+        "title": "Select Region (NTSC or PAL)",
         "category": "8BitScript"
       },
       {
@@ -406,6 +441,18 @@
         {
           "command": "8bitscript.assemblyView.toggleExplain",
           "when": "resourceScheme == 8bitscript-asm"
+        },
+        {
+          "command": "8bitscript.boot",
+          "when": "false"
+        },
+        {
+          "command": "8bitscript.selectProject",
+          "when": "false"
+        },
+        {
+          "command": "8bitscript.selectSystem",
+          "when": "false"
         }
       ],
       "editor/context": [
@@ -514,24 +561,17 @@
             "PAL (Europe), 50Hz — passes --pal to 8bs run and 8bs build."
           ],
           "default": "ntsc",
-          "description": "The machine region the launcher runs with: NTSC (US/Japan) or PAL (Europe). Passed as --pal for the machines that have a region, ignored for the ones that do not. Set from the Region dropdown under Hardware · Region · Facts in the 8BitScript side bar."
+          "description": "The machine region the launcher runs with: NTSC (US/Japan) or PAL (Europe). Passed as --pal for the machines that have a region (the CLI says which), ignored for the ones that do not. Chosen in Configure System, or with 8BitScript: Select Region."
         },
         "8bitscript.system": {
           "type": "string",
-          "enum": [
-            "pet",
-            "c64",
-            "vic20",
-            "cx16",
-            "web"
-          ],
           "default": "pet",
-          "description": "The machine the launcher's Run and Build buttons use when no named system is selected. Set from the System dropdown in the 8BitScript side bar, or 8BitScript: Select System. Named systems live in 8bitscript.namedSystem."
+          "description": "The machine the launcher uses when no named system is selected: any machine id `8bs targets` lists (pet, c64, vic20, cx16, web …). Chosen with the System selector in the 8BitScript side bar. Named systems live in 8bitscript.namedSystem."
         },
         "8bitscript.program": {
           "type": "object",
           "default": {},
-          "description": "Which program Run and Build act on in a project with several `programs` in its config: an object keyed by the project's directory, each value a program name (`8bs run --program`). A project with a `main` program, or only one, needs no entry here; the launcher's Entry dropdown writes it.",
+          "description": "Which program Run and Build act on in a project with several `programs` in its config: an object keyed by the project's directory, each value a program name (`8bs run --program`). A project with a `main` program, or only one, needs no entry here; the launcher's program list writes it.",
           "additionalProperties": {
             "type": "string"
           }
@@ -597,7 +637,9 @@
         "8bitscript.preferWebPreview": {
           "type": "boolean",
           "default": true,
-          "description": "The plain Run command opens a machine's own --web build instead of a native emulator window, for a target that already has one (today: the PET). On by default. A target with no --web build yet (VIC-20, C64) still runs its native emulator either way — this never turns Run into a failure, only a preference between two things that already work. Preview On… always offers the choice regardless of this setting."
+          "description": "Deprecated: the launcher remembers the runtime (Editor, Browser or Native) per program. This only decides the first run of a program with no history: on (the default) is Editor, off is Native. A machine with no WebAssembly build always starts Native.",
+          "deprecationMessage": "The launcher remembers the runtime per program. This setting now only picks the first run's default.",
+          "markdownDeprecationMessage": "The launcher remembers the runtime per program. This setting now only picks the first run's default."
         },
         "8bitscript.assemblyView.explain": {
           "type": "boolean",
@@ -633,10 +675,11 @@
             "enum": [
               "run",
               "build",
+              "boot",
               "doctor",
               "install"
             ],
-            "description": "The 8bs subcommand to run."
+            "description": "The 8bs subcommand to run. `boot` opens the machine's emulator with nothing loaded."
           },
           "project": {
             "type": "string",
@@ -644,18 +687,55 @@
           },
           "target": {
             "type": "string",
-            "enum": [
-              "pet",
-              "c64",
-              "vic20",
-              "cx16",
-              "web"
-            ],
-            "description": "The system to build for or run on. Required for run and build."
+            "description": "The system to build for or run on: any machine id `8bs targets` lists (pet, c64, vic20, cx16, web …). Required for run, build and boot."
+          },
+          "system": {
+            "type": "string",
+            "description": "Run a named system from the project's `systems` instead of a bare machine (`8bs run --system`). It supplies the target, hardware and region."
           },
           "program": {
             "type": "string",
             "description": "Which of the project's several `programs` to run or build (`8bs run --program`). Optional: without it the program chosen in the launcher is used, or `main`."
+          },
+          "runtime": {
+            "type": "string",
+            "enum": [
+              "editor",
+              "browser",
+              "native"
+            ],
+            "enumDescriptions": [
+              "Serve the WebAssembly page on loopback (`8bs run <target> --web --no-open`) and print its URL; the launcher's Editor run also shows it in a tab.",
+              "Open the WebAssembly page in the system browser (`8bs run <target> --web`).",
+              "The machine's own emulator (`8bs run <target>`). The default."
+            ],
+            "description": "Where a run goes. Without it the run is native (the synthetic `web` target is a browser page)."
+          },
+          "define": {
+            "type": "object",
+            "additionalProperties": {
+              "type": [
+                "string",
+                "number",
+                "boolean"
+              ]
+            },
+            "description": "The program's inputs for this run, `NAME: value` (`8bs run --define NAME=value`). A name the program does not read is an error."
+          },
+          "locale": {
+            "type": "string",
+            "description": "The language to build the messages in (`8bs run --locale`)."
+          },
+          "profile": {
+            "type": "string",
+            "description": "A hardware profile for the target (`8bs run --profile`)."
+          },
+          "hardware": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Hardware options for the target, `option: value` (`8bs run --hardware option=value,…`)."
           },
           "pal": {
             "type": "boolean",
@@ -663,14 +743,11 @@
           },
           "web": {
             "type": "boolean",
-            "description": "Run in the machine's WebAssembly emulator, served on loopback for the Studio tab (8bs run cx16 --web --no-open). Commander X16 only."
+            "description": "Shorthand for `\"runtime\": \"browser\"`: run the WebAssembly page in the system browser (`8bs run <target> --web`)."
           }
         }
       }
-    ],
-    "configurationDefaults": {
-      "workbench.iconTheme": "8bitscript"
-    }
+    ]
   },
   "main": "./bootstrap.cjs",
   "activationEvents": [
@@ -678,6 +755,7 @@
     "workspaceContains:**/*.8bx",
     "workspaceContains:**/*.8bg",
     "workspaceContains:**/*.8ba",
+    "workspaceContains:**/8bitscript.config.8bs",
     "workspaceContains:**/8bitscript.config.ts",
     "workspaceContains:**/8bs.config.ts"
   ],
