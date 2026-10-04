@@ -1,0 +1,43 @@
+// The VIC-20's CHARSET raster slot under xvic, read by
+// test/raster.test.mjs. Every cell holds screen code 66, whose glyph
+// differs on all eight of its lines between the upper-case/graphics ROM
+// set ($8000) and the mixed-case set ($8800), so every picture line says
+// which set it was drawn from. White characters on black, and nothing
+// printed: text.print would select the mixed-case set itself. The screen
+// is the build's own (Video, from the geometry file the RAM size picks),
+// so the same probe runs unexpanded and with 8K.
+//
+// Eight CHARSET entries alternating 0,1,... so no entry is a silent
+// no-op (the last, 1, is what the frame wraps to above the first, 0),
+// at lines that are not multiples of 8 so each split falls inside a row
+// of characters. Lines 100 and 170 also carry BORDER entries: one planned
+// line each, a color store and the CHARSET store together.
+//
+//   charset: mixed-case above 21, then upper 21, mixed 43, upper 67,
+//            mixed 90, upper 117, mixed 138, upper 155, mixed 170 on
+//   border:  black above 100, red 100-169, black from 170
+import { raster, Slot } from "@8bitscript/raster";
+import { Video } from "@8bitscript/vic20/geometry";
+
+export function main(): void {
+    memory.write(0x900F, 0x08); // black background and border, normal video
+    for (let cell: usmallint = 0; cell < 506; cell++) {
+        memory.write(Video.SCREEN + cell, 66);
+        memory.write(Video.COLOR + cell, 1);
+    }
+    raster.clear();
+    raster.at(21, Slot.CHARSET, 0);
+    raster.at(43, Slot.CHARSET, 1);
+    raster.at(67, Slot.CHARSET, 0);
+    raster.at(90, Slot.CHARSET, 1);
+    raster.at(100, Slot.BORDER, 2);
+    raster.at(117, Slot.CHARSET, 0);
+    raster.at(138, Slot.CHARSET, 1);
+    raster.at(155, Slot.CHARSET, 0);
+    raster.at(170, Slot.CHARSET, 1);
+    raster.at(170, Slot.BORDER, 0);
+    raster.enable();
+    while (true) {
+        waitFrame();
+    }
+}

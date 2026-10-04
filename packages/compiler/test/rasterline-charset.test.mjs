@@ -9,8 +9,8 @@
 // honest-stub case every rasterline file answers the same way — except
 // the X16 (VERA's L1_TILEBASE, packages/cx16/AGENTS.md, "Raster splits"),
 // the C64 ($D018 bit 1, packages/c64/AGENTS.md), the web (its runtime draws
-// an alternate set, packages/web/AGENTS.md) and the PET's own `3032` and
-// `4032` model tags, which have real drivers
+// an alternate set, packages/web/AGENTS.md), the VIC-20 ($9005, every RAM
+// size) and the PET's own `3032` and `4032` model tags, which have real drivers
 // (packages/pet/AGENTS.md, "Raster: character-set switching"); the two
 // tests after this one check those tags specifically. This file is the
 // "answers nothing but costs zero" gate for the new slot on every OTHER
@@ -32,8 +32,10 @@ const TARGETS = ['vic20', 'c64', 'pet', 'c128', 'atari8', 'nes', 'cx16', 'mega65
 
 const COLORS_TRUE = new Set(['vic20', 'c64', 'web', 'cx16']);
 // Stock builds whose driver answers Slot.CHARSET (the C64: $D018 bit 1,
-// packages/c64/AGENTS.md; the X16: L1_TILEBASE; the web: its runtime draws an alternate set, packages/web/AGENTS.md).
-const CHARSET_TRUE = new Set(['c64', 'cx16', 'web']);
+// packages/c64/AGENTS.md; the X16: L1_TILEBASE; the web: its runtime draws an
+// alternate set, packages/web/AGENTS.md; the VIC-20: $9005's character base,
+// packages/vic20/AGENTS.md).
+const CHARSET_TRUE = new Set(['c64', 'cx16', 'web', 'vic20']);
 
 test('every rasterline file names Slot.CHARSET and answers raster.COLORS/raster.CHARSET as a folded constant', () => {
   for (const target of TARGETS) {
