@@ -9,7 +9,10 @@ true, and how to listen without a speaker. Read the root
 
 `audio.bind` / `meta` (called by the `.8ba` lowering), `play`, `music`,
 `update`, and the portable tone: `audio.tone(note, frames)`,
-`audio.silence()`, and the two constants `audio.NOTE_LOW` / `audio.NOTE_HIGH`.
+`audio.blip(note, frames)` (a plucked tone), `audio.setLevel(level)` (the volume),
+`audio.silence()`, and the three constants `audio.NOTE_LOW` / `audio.NOTE_HIGH` /
+`audio.LEVEL_MAX` (15 on the chips with a volume, 1 on the PET's one-bit speaker, 0 with
+no driver).
 Every twin (`src/index.<machine>.8bs`, and the generic `src/index.8bs` for a
 machine with no driver) exports every one of them, so a portable program links
 anywhere and costs nothing where there is no sound. A machine with no driver
@@ -18,6 +21,16 @@ calls ("not written for the APU / POKEY yet": both machines are parked, and a
 stub that says so is the honest answer). `packages/compiler/test/audio-tone.test.mjs`
 is the gate: it links a probe on all thirty-two targets, checks each constant
 folds to a literal, and holds every pitch table to the chip's formula.
+
+**A blip and the level.** `setLevel` is the master volume on the SID, the VIC-I and the
+web oscillator, and the PSG voice's volume steps on the X16 (the portable 0-15 times four of
+the chip's 64). A blip on the SID is an envelope with no sustain (a decay chosen from
+`frames` by the `DECAY` table, release 2), so the note dies by itself and a missed
+`update()` cannot leave it sounding; a plain `tone` puts the sustained envelope back. Both
+drop the gate first, so a note started on top of another retriggers. On the VIC-I, the PSG
+and the web the fade is `update()` lowering the volume by `ceil(level / frames)` a frame,
+and putting the level back when the note ends. `packages/audio/test/level.test.mjs` measures
+all of it on the emulators; `audio-tone.test.mjs` pins the source.
 
 **`note` is the `.8ba` index** — `octave * 12 + semitone`, C0 = 0, A4 = 57,
 the SID's `Note` index — on every machine. A note outside a machine's range is

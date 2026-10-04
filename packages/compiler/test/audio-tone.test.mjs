@@ -37,22 +37,25 @@ const TARGETS = ['vic20', 'c64', 'pet', 'c128', 'atari8', 'nes', 'cx16', 'mega65
 // octave * 12 + semitone, C0 = 0, A4 = 57. A machine with no driver answers
 // 0 and 0, which a program folds its sounds away on.
 const RANGES = {
-  pet: { file: 'index.pet.8bs', low: 48, high: 71 },
-  vic20: { file: 'index.vic20.8bs', low: 36, high: 71 },
-  c64: { file: 'index.c64.8bs', low: 0, high: 83 },
-  cx16: { file: 'index.cx16.8bs', low: 36, high: 95 },
-  web: { file: 'index.web.8bs', low: 24, high: 95 },
-  nes: { file: 'index.nes.8bs', low: 0, high: 0 },
-  atari8: { file: 'index.atari8.8bs', low: 0, high: 0 },
+  pet: { file: 'index.pet.8bs', low: 48, high: 71, levelMax: 1 },
+  vic20: { file: 'index.vic20.8bs', low: 36, high: 71, levelMax: 15 },
+  c64: { file: 'index.c64.8bs', low: 0, high: 83, levelMax: 15 },
+  cx16: { file: 'index.cx16.8bs', low: 36, high: 95, levelMax: 15 },
+  web: { file: 'index.web.8bs', low: 24, high: 95, levelMax: 15 },
+  nes: { file: 'index.nes.8bs', low: 0, high: 0, levelMax: 0 },
+  atari8: { file: 'index.atari8.8bs', low: 0, high: 0, levelMax: 0 },
 };
-const GENERIC = { file: 'index.8bs', low: 0, high: 0 };
+const GENERIC = { file: 'index.8bs', low: 0, high: 0, levelMax: 0 };
 
 const PROBE = `import { audio } from "@8bitscript/audio";
 export function main(): void {
     let low: utinyint = audio.NOTE_LOW;
     let high: utinyint = audio.NOTE_HIGH;
+    let loud: utinyint = audio.LEVEL_MAX;
+    audio.setLevel(loud);
     audio.tone(low, 10);
     audio.tone(high, 0);
+    audio.blip(low, 3);
     audio.silence();
     audio.update();
     return;
@@ -81,25 +84,69 @@ function probe(target) {
 }
 
 for (const target of TARGETS) {
-  test(`${target}: audio.tone, silence and the two note constants link, and the constants fold`, () => {
+  test(`${target}: audio.tone, blip, setLevel, silence and the constants link, and the constants fold`, () => {
     const { values, called } = probe(target);
     const want = expectedFor(target);
     assert.equal(values.low, want.low, `${target}: audio.NOTE_LOW`);
     assert.equal(values.high, want.high, `${target}: audio.NOTE_HIGH`);
-    for (const call of ['tone', 'silence', 'update']) {
+    assert.equal(values.loud, want.levelMax, `${target}: audio.LEVEL_MAX`);
+    for (const call of ['setLevel', 'tone', 'blip', 'silence', 'update']) {
       assert.ok(called.includes(`audio_${call}`), `${target}: audio.${call} is called in the linked program (saw ${called})`);
     }
   });
 }
 
-test('every twin source declares NOTE_LOW, NOTE_HIGH, tone and silence', () => {
+test('every twin source declares NOTE_LOW, NOTE_HIGH, LEVEL_MAX, tone, blip, setLevel and silence', () => {
   for (const { file } of [...Object.values(RANGES), GENERIC]) {
     const src = readFileSync(join(SRC, file), 'utf8');
     assert.match(src, /const NOTE_LOW: utinyint = \d+;/, file);
     assert.match(src, /const NOTE_HIGH: utinyint = \d+;/, file);
     assert.match(src, /function tone\(note: utinyint, frames: utinyint\): void/, file);
     assert.match(src, /function silence\(\): void/, file);
+    assert.match(src, /const LEVEL_MAX: utinyint = \d+;/, file);
+    assert.match(src, /function setLevel\(amount: utinyint\): void|function setLevel\(level: utinyint\): void/, file);
+    assert.match(src, /function blip\(note: utinyint, frames: utinyint\): void/, file);
   }
+});
+
+test('the level each twin states is the one this table records', () => {
+  for (const [target, { file, levelMax }] of Object.entries(RANGES)) {
+    const src = readFileSync(join(SRC, file), 'utf8');
+    assert.equal(Number(/const LEVEL_MAX: utinyint = (\d+);/.exec(src)[1]), levelMax, `${target} LEVEL_MAX`);
+  }
+});
+
+// A plucked tone must be able to die away by itself or by the frame count, never by
+// luck. These read the sources (the emulator tests in packages/audio/test measure it).
+test('C64: blip is a plucked envelope with no sustain, and drops the gate first so a second note retriggers', () => {
+  const src = readFileSync(join(SRC, 'index.c64.8bs'), 'utf8');
+  const blip = /function blip\([^)]*\): void \{([\s\S]*?)\n    \}/.exec(src)[1];
+  assert.match(blip, /sid\.setEnvelope\(0, 0, DECAY\[slow\], 0, 2\);/, 'attack 0, decay from the table, sustain 0, release 2');
+  assert.ok(blip.indexOf('sid.release(0);') < blip.indexOf('sid.play(0, note);'), 'the gate drops before the new note');
+  const tone = /function tone\([^)]*\): void \{([\s\S]*?)\n    \}/.exec(src)[1];
+  assert.match(tone, /sid\.setEnvelope\(0, 0, 9, 8, 6\);/, 'a plain tone puts the sustained envelope back');
+  assert.ok(tone.indexOf('sid.release(0);') < tone.indexOf('sid.play(0, note);'), 'a plain tone retriggers too');
+  assert.match(src, /sid\.setVolume\(level\);/, 'the first ensure() uses the level, not a hard-coded 15');
+  assert.doesNotMatch(src, /sid\.setVolume\(15\)/);
+});
+
+test('VIC-20, X16 and web: blip walks the volume down a step a frame and puts the level back when it ends', () => {
+  for (const file of ['index.vic20.8bs', 'index.cx16.8bs', 'index.web.8bs']) {
+    const src = readFileSync(join(SRC, file), 'utf8');
+    assert.match(src, /let rest: utinyint = level;/, `${file}: the step is worked out from the level`);
+    assert.match(src, /if \(shown > fade\) \{\s*shown = shown - fade;\s*\} else \{\s*shown = 0;/, `${file}: update lowers the volume, never below 0`);
+    assert.match(src, /fade = 0;/, `${file}: a plain tone and the end of a blip clear the fade`);
+  }
+  assert.match(readFileSync(join(SRC, 'index.vic20.8bs'), 'utf8'), /sound\.volume\(level\);\s*\}\s*\n\s*\/\/ A plucked tone|shown = level;\s*sound\.volume\(level\);/, 'the VIC puts the volume back');
+  assert.match(readFileSync(CX16_PSG, 'utf8'), /function setVolume\(voice: utinyint, volume: utinyint\): void \{\s*writePsg\(voice \* 4 \+ 2, 0xC0 \| \(\(volume & 15\) \* 4\)\);/, 'the PSG can change a voice volume without touching its pitch');
+});
+
+test('PET: one bit has two levels, and level 0 mutes tone and blip', () => {
+  const src = readFileSync(join(SRC, 'index.pet.8bs'), 'utf8');
+  assert.match(src, /const LEVEL_MAX: utinyint = 1;/);
+  assert.match(src, /muted = amount == 0;/);
+  assert.match(src, /function tone\(note: utinyint, frames: utinyint\): void \{\s*if \(muted\) \{\s*return;/);
+  assert.match(src, /function blip\([^)]*\): void \{\s*audio\.tone\(note, frames\);/);
 });
 
 test('the range in each twin source is the one this table records', () => {

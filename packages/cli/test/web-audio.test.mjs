@@ -254,11 +254,11 @@ export function main(): void {
 }
 `;
 
-async function runProgramTimeline(machine, frames) {
+async function runProgramTimeline(machine, frames, source = PROGRAM) {
   const dir = await mkdtemp(join(tmpdir(), '8bs-web-audio-'));
   const prev = process.cwd();
   try {
-    await writeFile(join(dir, 'main.8bs'), PROGRAM);
+    await writeFile(join(dir, 'main.8bs'), source);
     process.chdir(dir);
     const result = await silently(() => compile('web', join(dir, 'main.8bs'), { checkout: REPO, hardware: machine ? { machine } : {} }));
     assert.equal(result.ok, true, `builds for ${machine ?? 'the Modern host'}`);
@@ -321,3 +321,54 @@ for (const machine of [undefined, 'pet-2001']) {
     assert.ok(Math.abs(measured[0].seconds - 0.5) < 0.02 && Math.abs(measured[1].seconds - 20 / 60) < 0.02, `lengths ${measured.map((m) => m.seconds)}`);
   });
 }
+
+// ---- 5. levels and plucked tones ----------------------------------------------
+
+const LEVEL_PROGRAM = `import { audio } from "@8bitscript/audio";
+import { text } from "@8bitscript/text";
+
+export function main(): void {
+    text.print(0, "LEVEL");
+    audio.setLevel(6);
+    audio.blip(57, 6);
+    let n: utinyint = 0;
+    while (true) {
+        waitFrame();
+        audio.update();
+        n = n + 1;
+        if (n == 40) {
+            audio.setLevel(15);
+            audio.tone(57, 5);
+        }
+        if (n == 80) {
+            audio.setLevel(0);
+            audio.tone(57, 5);
+            audio.blip(69, 3);
+        }
+    }
+}
+`;
+
+test("audio.setLevel scales a tone, audio.blip fades to nothing in the frames it is given, and level 0 is silence", async () => {
+  const { timeline } = await runProgramTimeline(undefined, 120, LEVEL_PROGRAM);
+  const level = (frame) => Number(timeline[frame].level.toFixed(4));
+  // The blip: starts at level 6 (6 / 15 of the 0.5 the page plays at), walks down a step a frame, and is over after 6 frames.
+  assert.equal(level(0), 0.2, 'the blip starts at the level it was asked for');
+  const blip = timeline.slice(0, 12).map((state) => state.level);
+  for (let i = 1; i < blip.length; i += 1) assert.ok(blip[i] <= blip[i - 1], `the blip never gets louder (frame ${i})`);
+  const over = timeline.slice(0, 12).findIndex((state) => !state.on);
+  assert.ok(over >= 1 && over <= 6, `the blip is over within its 6 frames (frame ${over})`);
+  assert.ok(timeline.slice(over, 40).every((state) => !state.on), 'and stays over: nothing sounds until the next call');
+  // A plain tone after setLevel(15) is at full level, and is not faded.
+  assert.equal(level(41), 0.5);
+  assert.ok(timeline.slice(41, 45).every((state) => state.on && state.level === 0.5), 'a plain tone holds its level for its frames');
+  assert.ok(timeline.slice(46, 80).every((state) => !state.on), 'and ends');
+  // Level 0 is silence for tone and for blip.
+  assert.ok(timeline.slice(80).every((state) => !state.on), 'at level 0 neither a tone nor a blip makes a sound');
+});
+
+test("the web voice's setLevel and volume write the volume register; on() sounds at the level", async () => {
+  const src = readFileSync(join(SRC, 'voice.8bs'), 'utf8');
+  assert.match(src, /memory\.write\(Video\.AUDIO_BASE \+ 3, level\);\s*memory\.write\(Video\.AUDIO_BASE, 1\);/, 'on() uses the level');
+  assert.match(src, /function volume\(amount: utinyint\): void \{\s*memory\.write\(Video\.AUDIO_BASE \+ 3, amount & 15\);/);
+});
