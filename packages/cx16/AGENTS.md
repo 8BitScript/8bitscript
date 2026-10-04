@@ -460,6 +460,20 @@ borders and the background strip read per row):
   on PATH) — see [`docs/setup/verify.md`](../../docs/setup/verify.md#screenshots)
   before reaching for the raw flags directly.
 
+### raster.frame(): the video-frame counter
+
+`raster.frame()` (`raster.FRAME_COUNTER` is true here) returns the video frames
+since `enable()`, wrapping at 256. The handler adds one (`inc $0408`) each time
+a pass over the planned lines ends, and `enable()` zeroes the byte, so it
+advances once a frame however slowly the loop reading it runs; it counts only
+while the handler is installed (a program with no raster list has none).
+`test/raster-frame-probe.8bs` polls VERA's scanline bit 8 ($9F26 bit 6 on a
+read) to make each loop pass three real frame boundaries long and checks the
+counter moved by three (`test/raster-frame.test.mjs`: green border or red;
+removing the `inc` turns it red). Cost 8 bytes (`examples/fancy`: 5543 ->
+5551). Golden RAM $0408 was free ($0401-$0407 are the handler's, $0410 the
+list). Not checked on a real X16.
+
 ## Graphics (`.8bg` sprites)
 
 `@8bitscript/graphics` on the X16 is VERA's own sprites; the design and the

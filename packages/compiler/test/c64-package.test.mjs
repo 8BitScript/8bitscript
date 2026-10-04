@@ -247,7 +247,7 @@ test('the package ships the vector stub as native assembly, and only the raster 
   assert.doesNotMatch(init, /raster_irq/);
   // Install: a jmp to the handler at $FD-$FF, the vector at $00FD, the committed list made live.
   const install = asm.slice(asm.indexOf('__8bs_c64_raster_install:'), asm.indexOf('.section .text.__8bs_c64_raster_irq'));
-  assert.match(install, /pha[\s\S]*lda #0x4C[\s\S]*sta 0x00FD[\s\S]*lda #<__8bs_c64_raster_irq[\s\S]*sta 0x00FE[\s\S]*lda #>__8bs_c64_raster_irq[\s\S]*sta 0x00FF[\s\S]*lda #0xFD[\s\S]*sta 0xFFFE[\s\S]*lda #0\n[\s\S]*sta 0xFFFF[\s\S]*sta 0x03FE[\s\S]*jsr __8bs_c64_raster_swap[\s\S]*jsr __8bs_c64_raster_restore[\s\S]*pla[\s\S]*rts/);
+  assert.match(install, /pha[\s\S]*lda #0x4C[\s\S]*sta 0x00FD[\s\S]*lda #<__8bs_c64_raster_irq[\s\S]*sta 0x00FE[\s\S]*lda #>__8bs_c64_raster_irq[\s\S]*sta 0x00FF[\s\S]*lda #0xFD[\s\S]*sta 0xFFFE[\s\S]*lda #0\n[\s\S]*sta 0xFFFF[\s\S]*sta 0x03FE\s*[^\n]*\n\s*sta 0x06C3[\s\S]*jsr __8bs_c64_raster_swap[\s\S]*jsr __8bs_c64_raster_restore[\s\S]*pla[\s\S]*rts/);
   // The swap: the committed page ($03FC) into the live-page byte and the
   // six list accesses' page operands, its end into $02FC, the index to 0.
   const swap = asm.slice(asm.indexOf('__8bs_c64_raster_swap:'), asm.indexOf('.section .text.__8bs_c64_raster_restore'));
@@ -274,7 +274,7 @@ test('the package ships the vector stub as native assembly, and only the raster 
   assert.match(irq, /sta 0xD019\s*[^\n]*\n\s*lda 0x03FE\s*\n\s*bne __8bs_c64_raster_top/);
   assert.match(irq, /cmp #0xFF\s*\n\s*bcs __8bs_c64_raster_end\s*[^\n]*\n\s*lda #0xFF\s*\n\s*jmp __8bs_c64_raster_arm/);
   assert.match(irq, /__8bs_c64_raster_end:\s*\n\s*jsr __8bs_c64_raster_swap\s*\n\s*lda #0x01\s*\n\s*sta 0x03FE\s*[^\n]*\n\s*lda #0\s*\n\s*sta 0xD012/);
-  assert.match(irq, /__8bs_c64_raster_top:\s*\n\s*lda #0\s*\n\s*sta 0x03FE\s*\n\s*jsr __8bs_c64_raster_restore\s*[^\n]*\n\s*ldx #0\s*\n\s*__8bs_c64_raster_first:\s*\n\s*lda 0x0200\s*[^\n]*\n\s*jmp __8bs_c64_raster_arm/);
+  assert.match(irq, /__8bs_c64_raster_top:\s*\n\s*inc 0x06C3\s*[^\n]*\n\s*lda #0\s*\n\s*sta 0x03FE\s*\n\s*jsr __8bs_c64_raster_restore\s*[^\n]*\n\s*ldx #0\s*\n\s*__8bs_c64_raster_first:\s*\n\s*lda 0x0200\s*[^\n]*\n\s*jmp __8bs_c64_raster_arm/);
   assert.doesNotMatch(irq, /__8bs_c64_raster_end:[\s\S]*?jsr __8bs_c64_raster_restore[\s\S]*?rti/, 'the frame table is not written at 255');
   assert.doesNotMatch(irq, /\bsta 0x[0-9A-F]{2}\b/, 'no zero page');
   assert.doesNotMatch(irq, /\b(tya|ldy|sty)\b/, 'Y is not touched');

@@ -34,6 +34,22 @@ machine answers it, and a written degradation for machines that cannot.
   `packages/vic20/AGENTS.md`, "Raster splits"); an honest zero-cost stub
   on the other six behind `#fact(video.raster)`. `examples/fancy` is the
   pattern: build once, rewrite values per frame, fold away elsewhere.
+- **`raster.frame()` / `raster.FRAME_COUNTER`** — a count of *video frames*
+  since `enable()`, wrapping at 256, so an effect steps once per frame
+  however long the game loop takes (a loop that runs an effect once per
+  pass stalls, then jumps, whenever a pass is not exactly one frame — the
+  Vegas Nights bonus stripes did exactly that). It counts where a handler
+  already runs once a frame: the C64 (`inc $06C3` in the line-0 pass of
+  `native/6502/raster.s`) and the X16 (`inc $0408` when a pass over the
+  planned lines ends). Everywhere else `FRAME_COUNTER` is a folded `false`
+  and `frame()` answers 0: the VIC-20 and the PET run no interrupt (a count
+  of `waitFrame()` returns would miss every frame a slow loop skips), and the
+  web's host runs one logical frame per `waitFrame()` and catches up when a
+  loop falls behind, so a loop pass is already a frame. A program branches
+  on the const — `if (raster.FRAME_COUNTER) { step = raster.frame(); } else
+  { step = own; own++ }` — and the stub costs it nothing. The counter adds
+  6 bytes to the C64 handler and 8 to the X16's (measured on
+  `examples/fancy`, 2026-10-04); a machine without it is byte-identical.
 - **The C64 list's mechanics** (`packages/c64/AGENTS.md`, "Three things
   the VIC-II does that its manual does not say"): two list pages with an
   atomic `commit()`, the pass ending at line 255, entries applied late
