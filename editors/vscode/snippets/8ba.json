@@ -5,11 +5,13 @@
   ],
   "Instrument": {
     "prefix": "instrument",
-    "description": "A synth instrument with waveform and polyphony.",
+    "description": "A synth instrument with waveform, polyphony, volume (0..15) and decay (frames; 0 holds).",
     "body": [
       "instrument ${1:lead} {",
       "\twaveform ${2:pulse}",
       "\tpolyphony ${3:1}",
+      "\tvolume ${4:12}",
+      "\tdecay ${5:3}",
       "}"
     ]
   },
@@ -35,6 +37,23 @@
       "\t\ttrack ${6:lead} {",
       "\t\t\trow 0 { note ${7:C4}; instrument ${6:lead}; }",
       "\t\t\trow 8 { note ${8:G4}; }",
+      "\t\t}",
+      "\t}",
+      "}"
+    ]
+  },
+  "One-shot song": {
+    "prefix": "songonce",
+    "description": "A song that plays once: 3 frames a row, a note held two rows, a rest, a second note.",
+    "body": [
+      "song ${1:win} {",
+      "\tspeed ${2:3}",
+      "\tloop false",
+      "\torder { ${3:main} }",
+      "\tpattern ${3:main} length ${4:8} {",
+      "\t\ttrack ${5:lead} {",
+      "\t\t\trow 0 { note ${6:C4}; instrument ${5:lead}; length ${7:2}; }",
+      "\t\t\trow 3 { note ${8:G4}; }",
       "\t\t}",
       "\t}",
       "}"

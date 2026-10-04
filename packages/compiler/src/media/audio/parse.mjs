@@ -37,6 +37,8 @@ function parseInstrument(c, keyword) {
     name: name.name,
     waveform: 'pulse',
     polyphony: 1,
+    volume: 15,
+    decay: 0,
     start: keyword.start,
     length: name.length,
   };
@@ -54,12 +56,21 @@ function parseInstrument(c, keyword) {
       const n = parseNumber(inner, 'polyphony');
       return { kind: 'polyphony', value: n.value, diagnostics: n.diagnostics };
     }
+    // How loud the instrument plays, 0..15, and how many frames its note takes to die away
+    // (0: it holds until its length is up). Both are optional and end with an optional ';'.
+    if (field.text === 'volume' || field.text === 'decay') {
+      const n = parseNumber(inner, field.text);
+      inner.eat(MediaTokenKind.Punctuation, ';');
+      return { kind: field.text, value: n.value, start: n.start, length: n.length, diagnostics: n.diagnostics };
+    }
     return { skip: true, diagnostics: [inner.report(inner.unknown, `unknown field '${field.text}'`, field)] };
   });
   diagnostics.push(...block.diagnostics);
   for (const item of block.body) {
     if (item.kind === 'waveform') inst.waveform = item.value;
     if (item.kind === 'polyphony') inst.polyphony = item.value;
+    if (item.kind === 'volume') { inst.volume = item.value; inst.volumeSpan = { start: item.start, length: item.length }; }
+    if (item.kind === 'decay') { inst.decay = item.value; inst.decaySpan = { start: item.start, length: item.length }; }
   }
   inst.diagnostics = diagnostics;
   return inst;
@@ -150,7 +161,7 @@ function parseNote(c) {
 function parseRow(c) {
   const n = parseNumber(c, 'a row number');
   const diagnostics = [...n.diagnostics];
-  const row = { row: n.value, note: null, instrument: null, start: n.start, length: n.length };
+  const row = { row: n.value, note: null, instrument: null, noteLength: null, volume: null, start: n.start, length: n.length };
   const block = parseBlock(c, (inner) => {
     const field = inner.eat(MediaTokenKind.Identifier);
     if (!field) {
@@ -167,12 +178,20 @@ function parseRow(c) {
       inner.eat(MediaTokenKind.Punctuation, ';');
       return { kind: 'instrument', value: name.name, start: name.start, length: name.length, diagnostics: name.diagnostics };
     }
+    // `length N`: the note sounds for N rows (default 1); `volume N`: 0..15, over the instrument's.
+    if (field.text === 'length' || field.text === 'volume') {
+      const n = parseNumber(inner, field.text);
+      inner.eat(MediaTokenKind.Punctuation, ';');
+      return { kind: field.text, value: n.value, start: n.start, length: n.length, diagnostics: n.diagnostics };
+    }
     return { skip: true, diagnostics: [inner.report(inner.unknown, `unknown field '${field.text}'`, field)] };
   });
   diagnostics.push(...block.diagnostics);
   for (const item of block.body) {
     if (item.kind === 'note') row.note = item.value;
     if (item.kind === 'instrument') row.instrument = item.value;
+    if (item.kind === 'length') { row.noteLength = item.value; row.lengthSpan = { start: item.start, length: item.length }; }
+    if (item.kind === 'volume') { row.volume = item.value; row.volumeSpan = { start: item.start, length: item.length }; }
   }
   row.diagnostics = diagnostics;
   return row;
@@ -254,6 +273,7 @@ function parseSong(c, keyword) {
     name: name.name,
     tempo: 120,
     speed: 6,
+    loop: true,
     order: [],
     patterns: [],
     start: keyword.start,
@@ -273,6 +293,15 @@ function parseSong(c, keyword) {
       const n = parseNumber(inner, 'speed');
       return { kind: 'speed', value: n.value, diagnostics: n.diagnostics };
     }
+    // `loop true` (the default: music) or `loop false` (a one-shot: it plays once, then is silent).
+    if (field.text === 'loop') {
+      const word = inner.eat(MediaTokenKind.Identifier);
+      inner.eat(MediaTokenKind.Punctuation, ';');
+      if (!word || (word.text !== 'true' && word.text !== 'false')) {
+        return { skip: true, diagnostics: [inner.report(inner.syntax, "expected 'true' or 'false' after loop", word ?? inner.at())] };
+      }
+      return { kind: 'loop', value: word.text === 'true', diagnostics: [] };
+    }
     if (field.text === 'order') return { kind: 'order', ...parseOrder(inner) };
     if (field.text === 'pattern') return { kind: 'pattern', ...parsePattern(inner) };
     return { skip: true, diagnostics: [inner.report(inner.unknown, `unknown field '${field.text}'`, field)] };
@@ -281,6 +310,7 @@ function parseSong(c, keyword) {
   for (const item of block.body) {
     if (item.kind === 'tempo') song.tempo = item.value;
     if (item.kind === 'speed') song.speed = item.value;
+    if (item.kind === 'loop') song.loop = item.value;
     if (item.kind === 'order') song.order = item.names;
     if (item.kind === 'pattern') {
       diagnostics.push(...(item.diagnostics ?? []));

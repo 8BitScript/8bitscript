@@ -25,8 +25,8 @@
 // the letter Q. The web is the one release target with its own font, so it
 // names its own data.
 //
-// Audio has no web driver; this module exports no lowerAudio, so the
-// compiler's default (silence, 8BS2211) stays.
+// Audio: the web host plays songs and samples through its one oscillator (audio.tone's voice),
+// square, triangle or sawtooth; noise has no oscillator here, so it plays as the square.
 'use strict';
 
 const KIND_GLYPH = 0;
@@ -131,4 +131,33 @@ function lowerGraphics(sprite, frames, _facts, file, diagnostic) {
   };
 }
 
-module.exports = { lowerGraphics, glyphOf, GLYPH_SIZE, MAX_STEPS };
+const WAVE = { pulse: 0, noise: 1, triangle: 2, saw: 3 };
+
+function lowerAudio(air, _pcm, _facts, file, diagnostic, helpers) {
+  const diagnostics = [];
+  const samples = [];
+  const songs = [];
+  for (const sample of air.samples ?? []) {
+    const fallback = sample.fallback?.synth ?? 'pulse';
+    diagnostics.push(diagnostic(
+      '8BS2210',
+      `sample '${sample.name}' is not PCM on the web; using fallback { synth ${fallback} }`,
+      file, sample.start, sample.length, 'warning',
+    ));
+    samples.push({ name: sample.name, data: [WAVE[fallback] ?? 0, 60], events: [] });
+  }
+  for (const song of air.songs ?? []) {
+    const { data, events } = helpers.encodeSong(song);
+    if (events.some((e) => e.waveform === 'noise')) {
+      diagnostics.push(diagnostic(
+        '8BS2212',
+        `waveform 'noise' cannot route on 'web': the oscillator plays it as a square`,
+        file, song.start, song.length, 'warning',
+      ));
+    }
+    songs.push({ name: song.name, data, events });
+  }
+  return { samples, songs, diagnostics };
+}
+
+module.exports = { lowerGraphics, lowerAudio, glyphOf, GLYPH_SIZE, MAX_STEPS };

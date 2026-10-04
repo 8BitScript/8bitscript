@@ -1,15 +1,13 @@
-// @8bitscript/audio on the PET: the VIA's CB2 square wave. One voice, no
-// volume. A missing speaker (audio.voices = 0) means the lowering omitted
-// the bytes and these calls are no-ops.
-const DATA_MAX: utinyint = 64;
-let sfx: array<u8, 64>;
-let song: array<u8, 64>;
-let sfxLen: array<u8, 4>;
-let songLen: array<u8, 4>;
-let playing: utinyint = 255;
-let row: utinyint = 0;
-let tick: utinyint = 0;
+// @8bitscript/audio on the PET: the VIA's CB2 square wave. One voice, no volume, no envelope.
+// A missing speaker (audio.voices = 0) means the lowering omitted the bytes and these calls are
+// no-ops. A song is the bank and sequencer in songs.8bs: a note's waveform and volume mean
+// nothing to a one-bit speaker (it is always the square; a volume of 0 is a rest), and a
+// note's decay is how long the speaker sounds before it is switched off.
+import { songs } from "./songs.8bs";
+
 let sfxLeft: utinyint = 0;
+// The frames a song note has left to sound (0: it holds for its rows).
+let decayLeft: utinyint = 0;
 
 // T2 low byte for notes C4..B5 (the .8ba index 48..71, C0 = 0, A4 = 57).
 // The VIA's shift clock is half the T2 rate, so it shifts a bit out every
@@ -49,18 +47,25 @@ function quiet(): void {
     memory.write(0xE84B, 0);
 }
 
-function eventAt(atRow: utinyint, field: utinyint): utinyint {
-    let count: utinyint = song[3];
-    let i: utinyint = 0;
-    let off: utinyint = 4;
-    while (i < count) {
-        if (song[off] == atRow) {
-            return song[off + field];
-        }
-        off = off + 4;
-        i = i + 1;
+// Start the note the sequencer says begins (a volume of 0 is a rest).
+function startNote(): void {
+    if (muted || songs.volume() == 0) {
+        quiet();
+        decayLeft = 0;
+        return;
     }
-    return 255;
+    playNote(songs.note());
+    decayLeft = songs.decay();
+}
+
+// Do what the sequencer says.
+function apply(event: utinyint): void {
+    if (event == 1) {
+        startNote();
+    } else if (event == 2 || event == 3) {
+        quiet();
+        decayLeft = 0;
+    }
 }
 
 export namespace audio {
@@ -70,39 +75,19 @@ export namespace audio {
     const NOTE_HIGH: utinyint = 71;
 
     function bind(kind: utinyint, slot: utinyint, index: utinyint, value: utinyint): void {
-        if (slot != 0 || index >= DATA_MAX) {
-            return;
-        }
-        if (kind == 0) {
-            sfx[index] = value;
-        } else {
-            song[index] = value;
-        }
+        songs.bind(kind, slot, index, value);
     }
 
     function meta(kind: utinyint, slot: utinyint, length: utinyint, a: utinyint, b: utinyint, c: utinyint): void {
-        if (slot != 0) {
-            return;
-        }
-        if (kind == 0) {
-            sfxLen[slot] = length;
-        } else {
-            songLen[slot] = length;
-        }
-    }
-
-    function play(slot: utinyint): void {
-        if (sfxLen[slot] < 2) {
-            return;
-        }
-        playNote(sfx[1]);
-        sfxLeft = 8;
+        songs.meta(kind, slot, length);
     }
 
     // One square tone for `frames` calls of update(), then quiet. Replaces
     // whatever tone is sounding. With no speaker fitted (audio.voices 0)
     // the CB2 wave still runs but nothing hears it. Nothing blocks.
     function tone(note: utinyint, frames: utinyint): void {
+        songs.stop();
+        decayLeft = 0;
         if (muted) {
             return;
         }
@@ -113,9 +98,17 @@ export namespace audio {
         }
     }
 
+    // Stop now: the tone, the sample and the song.
     function silence(): void {
+        songs.stop();
         quiet();
         sfxLeft = 0;
+        decayLeft = 0;
+    }
+
+    // True while a tone, a sample or a song is sounding (a song's rests count).
+    function busy(): bool {
+        return sfxLeft != 0 || songs.active();
     }
 
     // A one-bit speaker has two levels: 0 (silent) and 1 (the square wave). Any
@@ -135,10 +128,28 @@ export namespace audio {
         audio.tone(note, frames);
     }
 
+    // A sample plays its fallback note for eight frames; a song plays once, from its start to its
+    // last row, and is silent after. A new sound replaces whatever is sounding.
+    function play(slot: utinyint): void {
+        if (songs.isSong(slot)) {
+            sfxLeft = 0;
+            apply(songs.start(slot, false));
+            return;
+        }
+        if (!songs.isSample(slot) || muted) {
+            return;
+        }
+        songs.stop();
+        decayLeft = 0;
+        playNote(songs.sampleNote(slot));
+        sfxLeft = 8;
+    }
+
+    // A song, repeated for ever if its file says `loop true` (the default), until the next sound
+    // or audio.silence().
     function music(slot: utinyint): void {
-        playing = slot;
-        row = 0;
-        tick = 0;
+        sfxLeft = 0;
+        apply(songs.start(slot, true));
     }
 
     function update(): void {
@@ -149,29 +160,14 @@ export namespace audio {
             }
             return;
         }
-        if (playing == 255 || songLen[0] < 4) {
-            return;
-        }
-        let speed: utinyint = song[1];
-        if (speed == 0) {
-            speed = 6;
-        }
-        tick = tick + 1;
-        if (tick < speed) {
-            return;
-        }
-        tick = 0;
-        let length: utinyint = song[2];
-        if (length == 0) {
-            length = 16;
-        }
-        let note: utinyint = eventAt(row, 1);
-        if (note != 255) {
-            playNote(note);
-        }
-        row = row + 1;
-        if (row >= length) {
-            row = 0;
+        if (songs.active()) {
+            if (decayLeft != 0) {
+                decayLeft = decayLeft - 1;
+                if (decayLeft == 0) {
+                    quiet();
+                }
+            }
+            apply(songs.step());
         }
     }
 }

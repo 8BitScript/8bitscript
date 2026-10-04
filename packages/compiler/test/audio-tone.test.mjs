@@ -133,7 +133,7 @@ test('C64: blip is a plucked envelope with no sustain, and drops the gate first 
 test('VIC-20, X16 and web: blip walks the volume down a step a frame and puts the level back when it ends', () => {
   for (const file of ['index.vic20.8bs', 'index.cx16.8bs', 'index.web.8bs']) {
     const src = readFileSync(join(SRC, file), 'utf8');
-    assert.match(src, /let rest: utinyint = level;/, `${file}: the step is worked out from the level`);
+    assert.match(src, /let rest: utinyint = (level|volume);/, `${file}: the step is worked out from the level`);
     assert.match(src, /if \(shown > fade\) \{\s*shown = shown - fade;\s*\} else \{\s*shown = 0;/, `${file}: update lowers the volume, never below 0`);
     assert.match(src, /fade = 0;/, `${file}: a plain tone and the end of a blip clear the fade`);
   }
@@ -145,7 +145,7 @@ test('PET: one bit has two levels, and level 0 mutes tone and blip', () => {
   const src = readFileSync(join(SRC, 'index.pet.8bs'), 'utf8');
   assert.match(src, /const LEVEL_MAX: utinyint = 1;/);
   assert.match(src, /muted = amount == 0;/);
-  assert.match(src, /function tone\(note: utinyint, frames: utinyint\): void \{\s*if \(muted\) \{\s*return;/);
+  assert.match(src, /function tone\(note: utinyint, frames: utinyint\): void \{\s*songs\.stop\(\);\s*decayLeft = 0;\s*if \(muted\) \{\s*return;/);
   assert.match(src, /function blip\([^)]*\): void \{\s*audio\.tone\(note, frames\);/);
 });
 

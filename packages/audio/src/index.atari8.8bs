@@ -48,6 +48,11 @@ export namespace audio {
     function silence(): void {
     }
 
+    // True while something is sounding: nothing ever is here.
+    function busy(): bool {
+        return false;
+    }
+
     // The loudest level `setLevel` takes, 0 (silent) to LEVEL_MAX. 0 here: a
     // machine with no driver has nothing to turn down, and both calls below do
     // nothing, so a portable program folds its volume handling away.

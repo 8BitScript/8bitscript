@@ -226,6 +226,8 @@ export const Codes = {
   AUD_FLAC_NEEDS_FFMPEG: '8BS2213',
   AUD_MISSING_FIELD: '8BS2214',
   AUD_UNKNOWN_INSTRUMENT: '8BS2215',
+  // The program's samples and songs do not fit the audio driver's data bank.
+  AUD_BANK_FULL: '8BS2216',
 
   NOT_COMPILABLE: '8BS3001',
   NOT_ON_THIS_TARGET: '8BS3002',

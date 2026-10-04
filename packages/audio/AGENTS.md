@@ -10,7 +10,7 @@ true, and how to listen without a speaker. Read the root
 `audio.bind` / `meta` (called by the `.8ba` lowering), `play`, `music`,
 `update`, and the portable tone: `audio.tone(note, frames)`,
 `audio.blip(note, frames)` (a plucked tone), `audio.setLevel(level)` (the volume),
-`audio.silence()`, and the three constants `audio.NOTE_LOW` / `audio.NOTE_HIGH` /
+`audio.silence()`, `audio.busy()`, and the three constants `audio.NOTE_LOW` / `audio.NOTE_HIGH` /
 `audio.LEVEL_MAX` (15 on the chips with a volume, 1 on the PET's one-bit speaker, 0 with
 no driver).
 Every twin (`src/index.<machine>.8bs`, and the generic `src/index.8bs` for a
@@ -31,6 +31,20 @@ drop the gate first, so a note started on top of another retriggers. On the VIC-
 and the web the fade is `update()` lowering the volume by `ceil(level / frames)` a frame,
 and putting the level back when the note ends. `packages/audio/test/level.test.mjs` measures
 all of it on the emulators; `audio-tone.test.mjs` pins the source.
+
+**Songs.** `src/songs.8bs` is the bank and the sequencer every song-playing twin (C64, VIC-20,
+PET, X16, web) shares; the twins hold only the chip: `startNote()` (what to do with the voice
+for a note's pitch, waveform, volume and decay) and the `silence`/`apply` that lets it go.
+`songs.step()` is called once a frame by `audio.update()` and answers NOTHING / STARTED / ENDED /
+FINISHED. Four things have to stay true, because breaking any of them brings back a drone:
+a song that is not told to loop plays its rows once and then lets the voice go
+(`FINISHED` -> `silence`); `audio.silence()`, `tone` and `blip` all stop the song
+(`songs.stop()`); a note's `length` ends it even if its decay is longer; and the bank is
+indexed by a byte, so `AUDIO_BANK_BYTES` (255, in `media/elaborate.mjs`) is what the compiler
+refuses past (`8BS2216`). `media/audio/song.mjs` encodes `[flags, speed, rows, count]` and five
+bytes an event; the NES and Atari 8-bit keep their own older format. `test/songs.test.mjs` plays
+a song on every emulator; `packages/cli/test/web-audio.test.mjs` steps one frame by frame on
+the web host, which is the quickest way to test the sequencer.
 
 **`note` is the `.8ba` index** — `octave * 12 + semitone`, C0 = 0, A4 = 57,
 the SID's `Note` index — on every machine. A note outside a machine's range is
