@@ -79,6 +79,7 @@ export namespace raster {
     const FINE_SCROLL: bool = true; // Slot.SCROLL_X entries are accepted: the renderer shifts the line
     const COLORS: bool = true;     // Slot.BORDER/BACKGROUND entries are accepted
     const CHARSET: bool = true;    // Slot.CHARSET entries are accepted: the renderer switches sets at the line
+    const FRAME_COUNTER: bool = false; // no host counter: the web host runs one logical frame per waitFrame() return and catches up when a loop falls behind
 
     // Empty the list. The control byte stands: enable()/disable() own it.
     function clear(): void {
@@ -183,6 +184,13 @@ export namespace raster {
     }
 
     // The renderer applies the list from the next paint on.
+    // No video-frame counter: the web host runs one logical frame per waitFrame() return and catches up when a loop falls behind, so a loop pass never skips a frame, so a loop that calls
+    // waitFrame() once a pass already counts every frame itself. frame() answers 0
+    // and FRAME_COUNTER says so; count your own waitFrame() calls.
+    function frame(): utinyint {
+        return 0;
+    }
+
     function enable(): void {
         memory.write(Video.RASTER_CONTROL_OFFSET, 1);
     }

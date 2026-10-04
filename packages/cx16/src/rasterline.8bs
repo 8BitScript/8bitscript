@@ -97,6 +97,8 @@
 //   $0404  IEN as enable() found it, for disable()
 //   $0405  CINV as enable() found it (2 bytes), for other IRQ sources
 //   $0407  the I flag as enable() found it (4 = interrupts were off)
+//   $0408  the VIDEO-FRAME counter: the handler adds 1 each time a pass over
+//          the planned lines ends, enable() zeroes it, raster.frame() reads it
 //   $0410  the list: 32 entries of line, slot, value
 //   $0480  the live plan, nine 32-byte tables (below), to $059F — the
 //          handler's
@@ -173,6 +175,7 @@ export namespace raster {
     const FINE_SCROLL: bool = true;  // Slot.SCROLL_X entries are accepted: L1_HSCROLL
     const COLORS: bool = true;       // Slot.BORDER/BACKGROUND entries are accepted
     const CHARSET: bool = true;      // Slot.CHARSET entries are accepted: L1_TILEBASE
+    const FRAME_COUNTER: bool = true; // frame() counts video frames since enable()
     const ALT_TILEBASE: utinyint = 0xD4; // the alternate set at $1A800: ($1A800 >> 11) << 2
 
     // Empty the list. What shows keeps showing until the next commit().
@@ -523,6 +526,8 @@ export namespace raster {
             pla
             and #$04
             sta $0407
+            lda #0
+            sta $0408
             sei
             lda $0314
             sta $0405
@@ -621,7 +626,8 @@ export namespace raster {
             inx
             cpx $0402
             bcc cx16rl_arm
-            ; the pass is over: the first planned line, next frame
+            ; the pass is over: one more video frame, then the first planned line, next frame
+            inc $0408
             ldx #0
             lda $0480
             sta $9F28
@@ -668,6 +674,13 @@ export namespace raster {
             cli
         }
         return;
+    }
+
+    // Video frames since enable(), wrapping at 256: the handler adds one each
+    // time a pass over the planned lines ends, which is once per frame however
+    // slowly the game loop runs. Counts only while the handler is installed.
+    function frame(): utinyint {
+        return memory.read(0x0408);
     }
 
     // Stop applying: the vector and VERA's interrupt enable put back as

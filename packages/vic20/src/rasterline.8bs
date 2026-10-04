@@ -310,6 +310,7 @@ export namespace raster {
     const FINE_SCROLL: bool = false; // Slot.SCROLL_X is refused: $9000 moves the picture in 4-pixel steps
     const COLORS: bool = true;      // Slot.BORDER/BACKGROUND entries are accepted
     const CHARSET: bool = true;    // Slot.CHARSET entries are accepted: $9005's character base
+    const FRAME_COUNTER: bool = false; // no video-frame counter: the VIC-20 has no raster or vertical-blank interrupt here
     const LINES: utinyint = 184;  // visible picture lines: Video.ROWS (23) * 8
 
     // Empty the list. What shows keeps showing until the next commit().
@@ -544,6 +545,13 @@ export namespace raster {
     }
 
     // Start applying: commits the list, which shows from the next frame.
+    // No video-frame counter (the VIC-20 has no raster or vertical-blank interrupt here): a count of
+    // waitFrame() returns would miss every frame a slow loop skips, so frame()
+    // answers 0 and FRAME_COUNTER says so. Count your own waitFrame() calls.
+    function frame(): utinyint {
+        return 0;
+    }
+
     function enable(): void {
         enabled = true;
         raster.commit();

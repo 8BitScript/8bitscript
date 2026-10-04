@@ -130,6 +130,7 @@ export namespace raster {
     const FINE_SCROLL: bool = false;
     const COLORS: bool = false;    // no border or background register
     const CHARSET: bool = true;
+    const FRAME_COUNTER: bool = false; // no video-frame counter: the PET driver runs with interrupts off and syncs on the CB1 retrace flag
 
     function clear(): void {
         entryCount = 0;
@@ -239,6 +240,13 @@ export namespace raster {
             }
         }
         return true;
+    }
+
+    // No video-frame counter (the PET driver runs with interrupts off and syncs on the CB1 retrace flag): a count of
+    // waitFrame() returns would miss every frame a slow loop skips, so frame()
+    // answers 0 and FRAME_COUNTER says so. Count your own waitFrame() calls.
+    function frame(): utinyint {
+        return 0;
     }
 
     function enable(): void {

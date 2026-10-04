@@ -885,6 +885,22 @@ Bauer says the compare is tested "in cycle 0 of every line"; whether a
 write in the line itself fires is not stated, so the handler does not
 depend on it either way.
 
+### raster.frame(): the video-frame counter
+
+`raster.frame()` (portable, `@8bitscript/raster`; `raster.FRAME_COUNTER` is true
+here) returns the number of video frames since `enable()`, wrapping at 256. The
+handler's line-0 pass in `native/6502/raster.s` does `inc $06C3` before it
+writes the frame table; the installer zeroes the byte; `./raster.8bs` reads it
+as `frameCounter`. It counts in the interrupt, so a game loop that is slower
+than a frame still sees every frame: `test/raster-frame-probe.8bs` makes each
+pass of its loop exactly three polled frame boundaries long and checks the
+counter moved by three each time (`test/raster-frame.test.mjs`, green playfield
+or red; leaving the `inc` out turns it red). Cost: 6 bytes in the handler
+(`inc`, and the installer's `sta`), measured on `examples/fancy`: 5997 -> 6003.
+`$06C3` is free ($06C0-$06C2 are the build state shared with `multiplex.s`,
+$06C8 up the multiplexer's). Only differences between two reads mean
+anything: do not rely on the value at any particular frame.
+
 ### graphics.update() and a raster list of your own
 
 `sprites.update()` (and so the portable `graphics.update()`) is
