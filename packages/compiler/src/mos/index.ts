@@ -847,7 +847,7 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   // than mis-encoded by data.ts.
   const dataArrayGlobals: DataArrayGlobal[] = [];
   const pinnedArrays: Directive[] = [];
-  const arrays = new Map<string, { elementType: string; mutable: boolean }>();
+  const arrays = new Map<string, { elementType: string; mutable: boolean; length: number }>();
   for (const g of globals) {
     if (g.array === undefined) continue;
     const width = storageBytes(g.type);
@@ -865,7 +865,7 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
       // `equate`). An initializer would be a lie about hardware, and the
       // checker does not allow one.
       pinnedArrays.push({ kind: 'equate', name: arrayLabel(g.name), value: g.address });
-      arrays.set(g.name, { elementType: g.type, mutable: !g.constant });
+      arrays.set(g.name, { elementType: g.type, mutable: !g.constant, length: g.array });
       continue;
     }
     const init = (g.init as number[] | null) ?? new Array<number>(g.array).fill(0);
@@ -895,11 +895,11 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
         ramInits.push({ label: `__8bs_rominit_${g.name}`, address: bssCursor, values });
       }
       bssCursor += size;
-      arrays.set(g.name, { elementType: g.type, mutable: true });
+      arrays.set(g.name, { elementType: g.type, mutable: true, length: g.array });
       continue;
     }
     dataArrayGlobals.push({ name: g.name, type: g.type, array: g.array, init });
-    arrays.set(g.name, { elementType: g.type, mutable: !g.constant });
+    arrays.set(g.name, { elementType: g.type, mutable: !g.constant, length: g.array });
   }
 
   // The RAM those arrays were just placed in, zeroed before anything runs.

@@ -163,6 +163,18 @@ if (!command || command === '--help' || command === '-h') {
   await finish(command ? 0 : 1);
 }
 
+// `8bs <command> --help` / `-h`: that command's own usage, exit 0, before
+// anything is built or launched. Without this the flag reached the handler as
+// an unknown argument and `8bs run pet --help` opened the emulator.
+if (IMPLEMENTED.has(command)) {
+  const { helpFor } = await import('../src/help.mjs');
+  const help = helpFor(command, rest, usage());
+  if (help !== null) {
+    process.stdout.write(help);
+    await finish(0);
+  }
+}
+
 if (command === '--version' || command === '-v') {
   const { readFileSync } = await import('node:fs');
   const { dirname, join } = await import('node:path');

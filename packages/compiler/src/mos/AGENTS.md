@@ -309,9 +309,32 @@ outright: `TAY; LDA label,y`. A 2-byte element (`DIGIT_PLACES: array
 <usmallint, 5>`, `printNumber`'s own digit-place table) needs the index
 doubled into a byte offset first — `ASL` (a plain shift left, exact only
 while `index * 2 <= 255`, since `Y` is an 8-bit register with no wider
-sibling; every const array this backend has ever placed is nowhere close)
-— then low byte, then `INY`, then high byte, matching `binop16`'s own
-"low byte, then high byte, one further along" shape.
+sibling) — then low byte, then `INY`, then high byte, matching
+`binop16`'s own "low byte, then high byte, one further along" shape.
+
+**An array of more than 128 two-byte elements does not take that short
+form.** `LowerOptions.arrays` carries each array's `length` (mos/index.ts
+reads it from the global's declared `array<T, N>`), and `wideElements()`
+is true above 128. Doubling the index in A there silently dropped the
+carry — element 185 of a `usmallint` ring read and wrote element 57; the
+80-column PET 8032's marquee in vegas-nights was the program that found
+it. So a runtime index into such an array builds the byte offset in 16
+bits (`arrayPointer16`: widen the index into a zero-page pair, `ASL`/`ROL`,
+add the array's address) and reads or writes through `(pointer),y` with Y
+at 0 then 1; a constant index whose doubled offset passes byte 255 folds
+`index * 2` into the address (`label+300,y` with Y at 0 and 1). The same
+path also takes a 16-bit-typed (`usmallint`) index, which the short form
+refuses by name. Arrays of 128 or fewer keep the short form byte for byte
+(no example's size moved), and 1-byte-element arrays never needed it: Y
+spans 256 of them, and a wider index already went through `arrayPointer`.
+Measured on the C64 (`8bs build c64 --size`, 2026-10-04): one read and one
+write of a 129-element `usmallint` array make `main` 103 bytes against 61
+for a 128-element one — 42 bytes more code for the pair, and 4 more bytes
+of zero-page temporaries; every example's size is unchanged.
+A fixture that builds `LowerOptions` by hand and omits `length` is taken
+to be small. Pinned in `src/mos/lower/index.test.ts` (the emitted shape,
+CI-run) and under xpet/x64sc in `packages/pet/test/array-wide.test.mjs`
+and `packages/c64/test/array-wide.test.mjs`.
 
 **Const arrays reuse the data section; `zp/index.ts` skips them
 entirely.** `allocate()` used to refuse *every* array global by name,
@@ -544,9 +567,11 @@ of `indexRead16`: the value first, into a 16-bit temp through
 `store16Into` (so a utinyint literal into a usmallint cell zero-extends,
 the way a 16-bit assignment does), then Y = index × 2 (a constant doubles
 at compile time, a runtime index by `ASL`), the low byte at `label,y`,
-`INY`, the high byte — with the read side's own limit, exact while
-index × 2 ≤ 255, and a runtime 16-bit-typed index refused by name rather
-than truncated. The store that needed it is the menu bar's
+`INY`, the high byte — the short form exact while index × 2 ≤ 255 (an
+array of at most 128 elements, and a runtime 16-bit-typed index refused by
+name rather than truncated there); a longer array takes the 16-bit
+`arrayPointer16` form described under `index()` above. The store that
+needed it is the menu bar's
 `hitAt[index] = 0` (`packages/ui/src/menubar.8bs`), which had kept Studio
 and every menu bar off the native backend. Worth remembering the day a ROM-cartridge target (NES)
 returns: this placement rule is exactly what a ROM target CANNOT use, and

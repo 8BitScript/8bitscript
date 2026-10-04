@@ -16,7 +16,7 @@ import { WAIT_FRAME_LABEL } from '../startup/waitframe.ts';
 function ctx(
   globals: [string, { address: number; type: string }][] = [],
   functions: [string, FunctionSite][] = [],
-  arrays: [string, { elementType: string; mutable?: boolean }][] = [],
+  arrays: [string, { elementType: string; mutable?: boolean; length?: number }][] = [],
 ): LowerOptions {
   return { globals: new Map(globals), locals: new LocalAllocator(0x90, 0x100), params: [], functions: new Map(functions), arrays: new Map(arrays) };
 }
@@ -1587,4 +1587,136 @@ test('a frame name where an instruction needs code — jsr, jmp, jmp (), a branc
   const wide = lower([asm('    lda s')], withParams({ name: 's', type: 'string', address: 0x100 }));
   assert.equal(wide.ok, false);
   if (!wide.ok) assert.match(wide.error, /at \$100 — past the zero page/);
+});
+
+// ---- 2-byte elements past element 127: the byte offset is a 16-bit sum --------
+//
+// The short form doubles the index with ASL in A and hands it to Y, which is
+// exact only while index * 2 <= 255 — an array of at most 128 elements. An
+// array of more used to take that form anyway, and ASL dropped the carry:
+// element 185 of a usmallint ring read and wrote element 57 (the 8032 PET's
+// marquee, vegas-nights src/shared/fx.pet.8bs). These pin the emitted shape,
+// since no 6502 interpreter exists at this level; packages/pet/test/
+// array-wide.test.mjs runs the same arrays under xpet.
+
+const modesOf = (program: Directive[]) => program.filter((d) => d.kind === 'instruction').map((d) => instruction(d).mode);
+const withData = (program: Directive[], name: string, bytes: number): Directive[] => [...program, { kind: 'label', name: arrayLabel(name) }, { kind: 'byte', values: new Array(bytes).fill(0) }];
+const ringOf = (length: number, mutable = true) => [['ring', { elementType: 'usmallint', mutable, length }]] as [string, { elementType: string; mutable?: boolean; length?: number }][];
+
+test('reading a 2-byte element of a 200-element array under a utinyint index computes the offset in 16 bits (ASL then ROL, then (pointer),y)', () => {
+  const result = lower(
+    [local('v', idx('ring', ref('i'), 'usmallint'), 'usmallint')],
+    ctx([['i', { address: 0x10, type: 'utinyint' }]], [], ringOf(200)),
+  );
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  const modes = modesOf(result.program);
+  assert.ok(mnemonicsOf(result.program).includes('ROL'), 'the carry out of the doubled index is kept (ROL into the high byte)');
+  assert.ok(!modes.includes('accumulator'), 'no 8-bit doubling in A: that is the shape that dropped the carry');
+  assert.ok(!modes.includes('absolute,y'), 'no absolute,y with a doubled 8-bit offset');
+  assert.equal(modes.filter((m) => m === '(indirect),y').length, 2, 'low byte, then high byte, through the pointer');
+  assembles(withData(result.program, 'ring', 400));
+});
+
+test('a 128-element array of 2-byte elements keeps the short form — the last element is at byte 254, which Y holds', () => {
+  const result = lower(
+    [local('v', idx('ring', ref('i'), 'usmallint'), 'usmallint')],
+    ctx([['i', { address: 0x10, type: 'utinyint' }]], [], ringOf(128)),
+  );
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  const mnemonics = mnemonicsOf(result.program);
+  assert.deepEqual(mnemonics.slice(0, 6), ['LDA', 'ASL', 'TAY', 'LDA', 'STA', 'INY']);
+  assert.ok(!mnemonics.includes('ROL'));
+  assembles(withData(result.program, 'ring', 256));
+});
+
+test('129 elements is the first length that takes the long form', () => {
+  const result = lower(
+    [local('v', idx('ring', ref('i'), 'usmallint'), 'usmallint')],
+    ctx([['i', { address: 0x10, type: 'utinyint' }]], [], ringOf(129)),
+  );
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  assert.ok(mnemonicsOf(result.program).includes('ROL'));
+});
+
+test('a constant index past element 127 folds its byte offset into the address, with Y at 0 then 1', () => {
+  const result = lower(
+    [local('v', idx('ring', u8(150), 'usmallint'), 'usmallint')],
+    ctx([], [], ringOf(200)),
+  );
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  const loads = result.program.filter((d) => d.kind === 'instruction').map(instruction).filter((d) => d.mnemonic === 'LDA');
+  assert.equal(loads.length, 4, 'low byte, high byte, then the two-byte copy into v');
+  assert.deepEqual(loads[0].operand, { kind: 'label', name: arrayLabel('ring'), offset: 300 }, '150 * 2 = 300, past a byte, so it rides in the address');
+  assert.deepEqual(loads[1].operand, { kind: 'label', name: arrayLabel('ring'), offset: 300 });
+  const first = instruction(result.program[0]);
+  assert.equal(first.mnemonic, 'LDY');
+  assert.equal(first.operand!.kind === 'value' ? first.operand!.value : -1, 0);
+  assembles(withData(result.program, 'ring', 400));
+});
+
+test('a constant index at or below 127 still doubles into Y at compile time', () => {
+  const result = lower(
+    [local('v', idx('ring', u8(127), 'usmallint'), 'usmallint')],
+    ctx([], [], ringOf(200)),
+  );
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  const ldy = instruction(result.program[0]);
+  assert.equal(ldy.mnemonic, 'LDY');
+  assert.equal(ldy.operand!.kind === 'value' ? ldy.operand!.value : -1, 254);
+});
+
+test('storing a 2-byte element of a 200-element array under a utinyint index uses the pointer form, after the value is parked', () => {
+  const result = lower(
+    [{ kind: 'storeIndex', array: { kind: 'ref', name: 'ring' }, index: ref('i'), value: ref('cell', 'usmallint'), elementType: 'usmallint' }],
+    ctx([['i', { address: 0x10, type: 'utinyint' }], ['cell', { address: 0x20, type: 'usmallint' }]], [], ringOf(200)),
+  );
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  const modes = modesOf(result.program);
+  assert.ok(mnemonicsOf(result.program).includes('ROL'));
+  assert.ok(!modes.includes('accumulator'));
+  assert.equal(modes.filter((m) => m === '(indirect),y').length, 2);
+  assembles(withData(result.program, 'ring', 400));
+});
+
+test('a usmallint index into a 200-element array of 2-byte elements is written, not refused (only a short array refuses it)', () => {
+  const result = lower(
+    [{ kind: 'storeIndex', array: { kind: 'ref', name: 'ring' }, index: ref('far', 'usmallint'), value: u16(4242), elementType: 'usmallint' }],
+    ctx([['far', { address: 0x10, type: 'usmallint' }]], [], ringOf(200)),
+  );
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  assert.ok(mnemonicsOf(result.program).includes('ROL'));
+  assembles(withData(result.program, 'ring', 400));
+});
+
+test('a constant store past element 127 folds the offset into the address on both bytes', () => {
+  const result = lower(
+    [{ kind: 'storeIndex', array: { kind: 'ref', name: 'ring' }, index: u8(199), value: u16(4321), elementType: 'usmallint' }],
+    ctx([], [], ringOf(200)),
+  );
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  const stores = result.program.filter((d) => d.kind === 'instruction').map(instruction).filter((d) => d.mnemonic === 'STA' && d.mode === 'absolute,y');
+  assert.equal(stores.length, 2);
+  for (const store of stores) assert.deepEqual(store.operand, { kind: 'label', name: arrayLabel('ring'), offset: 398 });
+  assembles(withData(result.program, 'ring', 400));
+});
+
+test('a 256-element byte array keeps its one-byte index: LDY, then absolute,y', () => {
+  const result = lower(
+    [local('v', idx('bytes', ref('i'), 'utinyint'), 'utinyint')],
+    ctx([['i', { address: 0x10, type: 'utinyint' }]], [], [['bytes', { elementType: 'utinyint', mutable: true, length: 256 }]]),
+  );
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  if (!result.ok) return;
+  const modes = modesOf(result.program);
+  assert.ok(modes.includes('absolute,y'));
+  assert.ok(!modes.includes('(indirect),y'), 'a byte table up to 256 needs no pointer: Y spans it');
+  assembles(withData(result.program, 'bytes', 256));
 });
