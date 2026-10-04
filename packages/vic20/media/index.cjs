@@ -137,33 +137,9 @@ function lowerGraphics(sprite, frames, _facts, file, diagnostic) {
 const WAVE = { pulse: 0, noise: 1, triangle: 2, saw: 3 };
 const VOICE = { pulse: 0, noise: 3, triangle: 1, saw: 2 };
 
-function songEvents(air, song) {
-  const instruments = new Map((air.instruments ?? []).map((i) => [i.name, i]));
-  const patternByName = new Map((song.patterns ?? []).map((p) => [p.name, p]));
-  const events = [];
-  let lastInst = null;
-  for (const name of song.order.length ? song.order : [...patternByName.keys()].slice(0, 1)) {
-    const pattern = patternByName.get(name);
-    if (!pattern) continue;
-    for (const track of pattern.tracks ?? []) {
-      for (const row of track.rows ?? []) {
-        if (row.instrument) lastInst = instruments.get(row.instrument) ?? lastInst;
-        if (row.note == null) continue;
-        const wf = lastInst?.waveform ?? 'pulse';
-        events.push({ row: row.row, note: row.note, waveform: wf, voice: VOICE[wf] ?? 0 });
-      }
-    }
-  }
-  return { events, length: song.patterns[0]?.length ?? 16 };
-}
 
-function encodeSong(song, events, length) {
-  const bytes = [song.tempo & 255, song.speed & 255, length & 255, events.length & 255];
-  for (const e of events) bytes.push(e.row & 255, e.note & 255, WAVE[e.waveform] ?? 0, e.voice & 255);
-  return bytes;
-}
 
-function lowerAudio(air, _pcm, facts, file, diagnostic) {
+function lowerAudio(air, _pcm, facts, file, diagnostic, helpers) {
   const diagnostics = [];
   const samples = [];
   const songs = [];
@@ -197,7 +173,7 @@ function lowerAudio(air, _pcm, facts, file, diagnostic) {
     samples.push({ name: sample.name, data: [WAVE[fallback] ?? 1, 60], events: [] });
   }
   for (const song of air.songs ?? []) {
-    const { events, length } = songEvents(air, song);
+    const { data, events } = helpers.encodeSong(song);
     const saw = events.find((e) => e.waveform === 'saw');
     if (saw) {
       diagnostics.push(diagnostic(
@@ -206,7 +182,7 @@ function lowerAudio(air, _pcm, facts, file, diagnostic) {
         file, song.start, song.length, 'error',
       ));
     }
-    songs.push({ name: song.name, data: encodeSong(song, events, length), events });
+    songs.push({ name: song.name, data, events });
   }
   return { samples, songs, diagnostics };
 }

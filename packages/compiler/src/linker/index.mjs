@@ -137,7 +137,7 @@ function loadGraph(entryText, entryFile, diagnostics, sources, options) {
   // once each however many modules import the package — keyed by canonical
   // path for the same pnpm-symlink reason `byPath` is.
   const nativeSources = new Map();
-  const finishOptions = { frameRate: options.frameRate, machine: options.machine, facts: options.facts, bx: options.bx, locale: options.locale, i18n: options.i18n, checkout: options.checkout, mediaSlots: { graphics: 0 }, defines: options.defines, defineSites: options.defineSites };
+  const finishOptions = { frameRate: options.frameRate, machine: options.machine, facts: options.facts, bx: options.bx, locale: options.locale, i18n: options.i18n, checkout: options.checkout, mediaSlots: { graphics: 0, audio: 0, audioBytes: 0 }, defines: options.defines, defineSites: options.defineSites };
 
   // Whether a module is the program's own: the entry, and whatever it
   // reaches by a relative path or a project alias — never through a bare

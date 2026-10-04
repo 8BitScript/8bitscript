@@ -1,15 +1,11 @@
-// @8bitscript/audio on the VIC-20: three squares plus noise. One volume.
+// @8bitscript/audio on the VIC-20: three squares plus noise. One volume. A song plays on the
+// soprano (or the noise voice for a noise note); songs.8bs holds the bank and the sequencer.
 import { sound } from "@8bitscript/vic20/sound";
+import { songs } from "./songs.8bs";
 
-const DATA_MAX: utinyint = 64;
-let sfx: array<u8, 64>;
-let song: array<u8, 64>;
-let sfxLen: array<u8, 4>;
-let songLen: array<u8, 4>;
-let playing: utinyint = 255;
-let row: utinyint = 0;
-let tick: utinyint = 0;
 let sfxLeft: utinyint = 0;
+// The frames a song note has left to sound (0: it holds for its rows).
+let decayLeft: utinyint = 0;
 let ready: bool = false;
 
 // The soprano voice's 7-bit divisor for the .8ba notes C3..B5 (index 36..71,
@@ -40,17 +36,6 @@ function periodOf(note: utinyint): utinyint {
     return DIVISOR[n - 36];
 }
 
-// Noise is the fourth channel; every pitched waveform plays on the soprano
-// (voice 2), whose divisor is the finest. The VIC's three tones are all
-// squares, so triangle and saw are the same square here; one monophonic
-// track is all a .8ba carries.
-function voiceOf(code: utinyint): utinyint {
-    if (code == 1) {
-        return 3;
-    }
-    return 2;
-}
-
 // The volume the game asked for (0..15), the volume sounding now, and how much
 // a plucked tone loses a frame (0 for a plain tone).
 let level: utinyint = 15;
@@ -64,18 +49,68 @@ function ensure(): void {
     }
 }
 
-function eventAt(atRow: utinyint, field: utinyint): utinyint {
-    let count: utinyint = song[3];
-    let i: utinyint = 0;
-    let off: utinyint = 4;
-    while (i < count) {
-        if (song[off] == atRow) {
-            return song[off + field];
-        }
-        off = off + 4;
-        i = i + 1;
+// Noise is the fourth channel; every pitched waveform plays on the soprano (voice 2), whose
+// divisor is the finest. The VIC's three tones are all squares, so triangle and saw are the same
+// square here.
+function voiceOf(code: utinyint): utinyint {
+    if (code == 1) {
+        return 3;
     }
-    return 255;
+    return 2;
+}
+
+// The volume a note of `vol` (0..15) plays at under the game's level: level * vol / 16, rounded up.
+function scaled(vol: utinyint): utinyint {
+    let product: utinyint = level * vol;
+    return (product + 15) >> 4;
+}
+
+// How much a note of `volume` loses a frame to be gone in `frames`: volume / frames, rounded up.
+function stepOf(volume: utinyint, frames: utinyint): utinyint {
+    let rest: utinyint = volume;
+    let step: utinyint = 0;
+    while (rest > 0) {
+        step = step + 1;
+        if (rest > frames) {
+            rest = rest - frames;
+        } else {
+            rest = 0;
+        }
+    }
+    return step;
+}
+
+// Start the note the sequencer says begins: the volume is the chip's one volume, so it is set
+// for the note; a note with a decay is walked down by update().
+function startNote(): void {
+    ensure();
+    let vol: utinyint = scaled(songs.volume());
+    sound.quiet();
+    shown = vol;
+    sound.volume(vol);
+    sound.tone(voiceOf(songs.wave()), periodOf(songs.note()));
+    fade = 0;
+    decayLeft = songs.decay();
+    if (decayLeft != 0) {
+        fade = stepOf(vol, decayLeft);
+    }
+}
+
+// Do what the sequencer says.
+function apply(event: utinyint): void {
+    if (event == 1) {
+        startNote();
+    } else if (event == 2) {
+        sound.quiet();
+        decayLeft = 0;
+        fade = 0;
+    } else if (event == 3) {
+        sound.quiet();
+        decayLeft = 0;
+        fade = 0;
+        shown = level;
+        sound.volume(level);
+    }
 }
 
 export namespace audio {
@@ -85,25 +120,11 @@ export namespace audio {
     const NOTE_HIGH: utinyint = 71;
 
     function bind(kind: utinyint, slot: utinyint, index: utinyint, value: utinyint): void {
-        if (slot != 0 || index >= DATA_MAX) {
-            return;
-        }
-        if (kind == 0) {
-            sfx[index] = value;
-        } else {
-            song[index] = value;
-        }
+        songs.bind(kind, slot, index, value);
     }
 
     function meta(kind: utinyint, slot: utinyint, length: utinyint, a: utinyint, b: utinyint, c: utinyint): void {
-        if (slot != 0) {
-            return;
-        }
-        if (kind == 0) {
-            sfxLen[slot] = length;
-        } else {
-            songLen[slot] = length;
-        }
+        songs.meta(kind, slot, length);
         ensure();
     }
 
@@ -111,6 +132,8 @@ export namespace audio {
     // Replaces whatever tone is sounding. Nothing blocks.
     function tone(note: utinyint, frames: utinyint): void {
         ensure();
+        songs.stop();
+        decayLeft = 0;
         fade = 0;
         shown = level;
         sound.volume(level);
@@ -121,10 +144,22 @@ export namespace audio {
         }
     }
 
+    // Stop now: the tone, the sample and the song, and put the volume back.
     function silence(): void {
+        songs.stop();
         sound.quiet();
         sfxLeft = 0;
         fade = 0;
+        decayLeft = 0;
+        shown = level;
+        if (ready) {
+            sound.volume(level);
+        }
+    }
+
+    // True while a tone, a sample or a song is sounding (a song's rests count).
+    function busy(): bool {
+        return sfxLeft != 0 || songs.active();
     }
 
     // The VIC-I has one volume, 0 (silent) to 15 for every voice; a level above
@@ -146,6 +181,8 @@ export namespace audio {
     // step a frame (in update) until it reaches 0 on the last frame.
     function blip(note: utinyint, frames: utinyint): void {
         ensure();
+        songs.stop();
+        decayLeft = 0;
         let span: utinyint = frames;
         if (span == 0) {
             span = 1;
@@ -166,19 +203,34 @@ export namespace audio {
         sfxLeft = span;
     }
 
+    // A sample plays its fallback note for eight frames; a song plays once, from its start to its
+    // last row, and is silent after. A new sound replaces whatever is sounding.
     function play(slot: utinyint): void {
-        if (sfxLen[slot] < 2) {
+        if (songs.isSong(slot)) {
+            ensure();
+            sfxLeft = 0;
+            apply(songs.start(slot, false));
             return;
         }
-        let v: utinyint = voiceOf(sfx[0]);
-        sound.tone(v, periodOf(sfx[1]));
+        if (!songs.isSample(slot)) {
+            return;
+        }
+        ensure();
+        songs.stop();
+        decayLeft = 0;
+        fade = 0;
+        shown = level;
+        sound.volume(level);
+        sound.tone(voiceOf(songs.sampleWave(slot)), periodOf(songs.sampleNote(slot)));
         sfxLeft = 8;
     }
 
+    // A song, repeated for ever if its file says `loop true` (the default), until the next sound
+    // or audio.silence().
     function music(slot: utinyint): void {
-        playing = slot;
-        row = 0;
-        tick = 0;
+        ensure();
+        sfxLeft = 0;
+        apply(songs.start(slot, true));
     }
 
     function update(): void {
@@ -199,28 +251,22 @@ export namespace audio {
             }
             return;
         }
-        if (playing == 255 || songLen[0] < 4) {
-            return;
-        }
-        let speed: utinyint = song[1];
-        if (speed == 0) {
-            speed = 6;
-        }
-        tick = tick + 1;
-        if (tick < speed) {
-            return;
-        }
-        tick = 0;
-        let note: utinyint = eventAt(row, 1);
-        if (note != 255) {
-            let v: utinyint = voiceOf(eventAt(row, 2));
-            sound.tone(v, periodOf(note));
-        } else {
-            sound.quiet();
-        }
-        row = row + 1;
-        if (row >= song[2]) {
-            row = 0;
+        if (songs.active()) {
+            if (decayLeft != 0) {
+                decayLeft = decayLeft - 1;
+                if (decayLeft == 0) {
+                    sound.quiet();
+                    fade = 0;
+                } else if (fade != 0) {
+                    if (shown > fade) {
+                        shown = shown - fade;
+                    } else {
+                        shown = 0;
+                    }
+                    sound.volume(shown);
+                }
+            }
+            apply(songs.step());
         }
     }
 }
