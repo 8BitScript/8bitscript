@@ -162,8 +162,42 @@ test('PET lowering picks a 4×4 quadrant-block for a solid picture', () => {
     assert.ok(diagnostics.some((d) => d.code === Codes.GFX_ADAPTED || d.code === '8BS2111'));
     const gfx = ir.globals.find((g) => g.name.includes('8bg') && Array.isArray(g.init));
     assert.ok(gfx);
-    assert.ok(gfx.init.length === 4 || gfx.init.length === 1);
+    // Four animation frames, four row nibbles each; the driver turns each
+    // into its own shape.
+    assert.equal(gfx.init.length, 16);
   });
+});
+
+test('two .8bg files each hold one sprite: their slots are 0 and 1, not both 0', () => {
+  const dir = mkdtempSync(join(tmpdir(), '8bs-media-slots-'));
+  try {
+    writeFileSync(join(dir, 'player.png'), solidSheet());
+    writeFileSync(join(dir, 'player.8bg'), SPRITE);
+    writeFileSync(join(dir, 'enemy.png'), solidSheet());
+    writeFileSync(join(dir, 'enemy.8bg'), SPRITE.replace('sprite player', 'sprite enemy').replace('./player.png', './enemy.png'));
+    const text = `import { player } from "./player.8bg";
+import { enemy } from "./enemy.8bg";
+import { graphics } from "@8bitscript/graphics";
+
+export function main(): void {
+    graphics.place(player, 8, 8);
+    graphics.place(enemy, 40, 8);
+}
+`;
+    for (const machine of ['pet', 'c64']) {
+      const { ir, diagnostics } = link(text, join(dir, 'main.8bs'), { machine, facts: stockFacts(machine), checkout: CHECKOUT });
+      assert.deepEqual(diagnostics.filter((d) => d.severity !== 'warning'), [], machine);
+      const entry = ir.functions.find((f) => f.name === ir.entry);
+      // The sprite names are consts folded into each call: the slot is the first argument.
+      const placed = entry.body.filter((s) => s.kind === 'call' && /graphics_place$/.test(s.name)).map((s) => s.args[0].value);
+      assert.deepEqual(placed, [0, 1], `${machine}: player then enemy`);
+      // The binds run in declaration order, ahead of anything main() does.
+      const calls = entry.body.filter((s) => s.kind === 'call' && /__8bs_media_bind_/.test(s.name)).map((s) => s.name.replace(/^.*__8bs_media_bind_/, ''));
+      assert.deepEqual(calls, ['player', 'enemy'], machine);
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('Atari 8-bit lowering reports a glyph and a POKEY song', () => {
@@ -343,3 +377,210 @@ test('Atari graphics is the glyph path', () => {
   assert.equal(result.data.length, 1);
   assert.ok(result.diagnostics.some((d) => d.code === '8BS2111' && /frames collapsed/.test(d.message)));
 });
+// ---- PET graphics: animation frames, the seven-shape budget, slots ------------
+//
+// packages/pet/test/graphics.test.mjs runs the same pictures under xpet. These
+// are here because the machine packages' own tests are not part of the CI gate
+// (scripts/ci-excluded-packages.mjs): compiler, cli and examples tests cover them.
+// The fixtures are written to a scratch directory at run time.
+
+// The four pictures of the animation, as 4×4 pseudo-pixel rows (bit 3 the left
+// pixel): a left bar, a right bar, a top bar, a bottom bar. Each is drawn into
+// the PNG as 16×16 so the lowering's downsample gets them back exactly.
+const PET_WALK = [
+  [12, 12, 12, 12],
+  [3, 3, 3, 3],
+  [15, 15, 0, 0],
+  [0, 0, 15, 15],
+];
+const PET_RING = [6, 9, 9, 6];
+
+function petSheet(frames) {
+  const width = 16 * frames.length;
+  const rgba = new Uint8Array(width * 16 * 4);
+  frames.forEach((rows, f) => {
+    for (let y = 0; y < 16; y += 1) {
+      for (let x = 0; x < 16; x += 1) {
+        if ((rows[y >> 2] >> (3 - (x >> 2))) & 1) rgba[(y * width + f * 16 + x) * 4 + 3] = 255;
+      }
+    }
+  });
+  return encodePng(width, 16, rgba);
+}
+
+function petEightBg(name, animated) {
+  return `sprite ${name} {\n  source "./${name}.png"\n  size 16x16\n  transparent auto\n${animated
+    ? '  animation go {\n    frames 0, 1, 2, 3\n    every 4\n  }\n' : ''}}\n`;
+}
+
+/** Write the pictures and a program into `dir`; `layout` is [name, frames, x, y] for each. */
+function petWriteProgram(dir, layout) {
+  const imports = [];
+  const places = [];
+  for (const [name, frames, x, y] of layout) {
+    writeFileSync(join(dir, `${name}.png`), petSheet(frames));
+    writeFileSync(join(dir, `${name}.8bg`), petEightBg(name, frames.length > 1));
+    imports.push(`import { ${name} } from "./${name}.8bg";`);
+    places.push(`    graphics.place(${name}, sprites.ORIGIN_X + ${x}, sprites.ORIGIN_Y + ${y});`);
+  }
+  const text = `import { screen } from "@8bitscript/screen";
+import { graphics } from "@8bitscript/graphics";
+import { sprites } from "@8bitscript/sprites";
+${imports.join('\n')}
+
+export function main(): void {
+    screen.blank();
+${places.join('\n')}
+    while (true) {
+        waitFrame();
+        graphics.update();
+    }
+}
+`;
+  const file = join(dir, 'main.8bs');
+  writeFileSync(file, text);
+  return { file, text };
+}
+
+function petLink(program, model = '3032') {
+  return link(program.text, program.file, {
+    machine: 'pet', facts: stockFacts('pet'), tags: [model], checkout: CHECKOUT,
+  });
+}
+
+
+function petFrameOf(rows) {
+  const width = 16;
+  const rgba = new Uint8Array(width * 16 * 4);
+  for (let y = 0; y < 16; y += 1) {
+    for (let x = 0; x < 16; x += 1) {
+      if ((rows[y >> 2] >> (3 - (x >> 2))) & 1) rgba[(y * width + x) * 4 + 3] = 255;
+    }
+  }
+  return { rgba, width, height: 16 };
+}
+
+const petSprite = (name, animation) => ({
+  name, width: 16, height: 16, start: 0, length: 1, animations: animation ? [animation] : [],
+});
+
+test('every animation frame is lowered, four row nibbles each, in the order the animation names them', () => {
+  const frames = PET_WALK.map(petFrameOf);
+  const walk = petMedia.lowerGraphics(petSprite('walk', { name: 'go', frames: [0, 1, 2, 3], every: 6 }), frames, {}, 't.8bg', wrap);
+  assert.equal(walk.kind, 3);
+  assert.equal(walk.frames, 4);
+  assert.equal(walk.every, 6);
+  assert.deepEqual(walk.data, PET_WALK.flat());
+  assert.deepEqual(walk.diagnostics.map((d) => d.code), ['8BS2111']);
+  assert.match(walk.diagnostics[0].message, /4 frames/);
+
+  // The animation picks and orders the sheet's frames: 2 then 0 is two frames.
+  const picked = petMedia.lowerGraphics(petSprite('pick', { name: 'go', frames: [2, 0], every: 8 }), frames, {}, 't.8bg', wrap);
+  assert.equal(picked.frames, 2);
+  assert.deepEqual(picked.data, [...PET_WALK[2], ...PET_WALK[0]]);
+
+  // No animation: one frame, the sheet's first.
+  const still = petMedia.lowerGraphics(petSprite('ring'), [petFrameOf(PET_RING)], {}, 't.8bg', wrap);
+  assert.equal(still.frames, 1);
+  assert.deepEqual(still.data, PET_RING);
+  assert.doesNotMatch(still.diagnostics[0].message, /frames/);
+});
+
+test('a picture holds at most seven frames — the sprite layer has seven shapes — and says which it dropped', () => {
+  const frames = Array.from({ length: 9 }, (_, i) => petFrameOf(PET_WALK[i % 4]));
+  const long = petMedia.lowerGraphics(petSprite('long', { name: 'go', frames: [0, 1, 2, 3, 0, 1, 2, 3, 0], every: 4 }), frames, {}, 't.8bg', wrap);
+  assert.equal(long.frames, 7);
+  assert.equal(long.data.length, 28);
+  assert.match(long.diagnostics[0].message, /last 2 frames dropped/);
+});
+
+test('the shapes are one budget for the whole program: a later picture gets what is left, then nothing', () => {
+  const shared = {};
+  const frames = PET_WALK.map(petFrameOf);
+  const go = { name: 'go', frames: [0, 1, 2, 3], every: 4 };
+  const first = petMedia.lowerGraphics(petSprite('a', go), frames, {}, 't.8bg', wrap, shared);
+  const second = petMedia.lowerGraphics(petSprite('b', go), frames, {}, 't.8bg', wrap, shared);
+  const third = petMedia.lowerGraphics(petSprite('c'), [petFrameOf(PET_RING)], {}, 't.8bg', wrap, shared);
+  assert.equal(first.frames, 4);
+  assert.equal(second.frames, 3, 'seven shapes minus the four the first took');
+  assert.match(second.diagnostics[0].message, /last 1 frame dropped/);
+  assert.equal(third.frames, 0, 'nothing left');
+  assert.deepEqual(third.data, []);
+  assert.match(third.diagnostics[0].message, /not drawn/);
+  assert.equal(third.diagnostics[0].severity, 'warning');
+  assert.equal(shared.petShapes, 7);
+});
+
+test('what is the shape: transparency when the picture has any, brightness only when it is fully opaque', () => {
+  const paint = (rows, ink, paper) => {
+    const rgba = new Uint8Array(16 * 16 * 4);
+    for (let y = 0; y < 16; y += 1) {
+      for (let x = 0; x < 16; x += 1) {
+        const on = (rows[y >> 2] >> (3 - (x >> 2))) & 1;
+        const colour = on ? ink : paper;
+        rgba.set(colour, (y * 16 + x) * 4);
+      }
+    }
+    return { rgba, width: 16, height: 16 };
+  };
+  const WHITE = [255, 255, 255, 255];
+  const BLACK = [0, 0, 0, 255];
+  const CLEAR = [0, 0, 0, 0];
+  const lower = (frame) => petMedia.lowerGraphics(petSprite('p'), [frame], {}, 't.8bg', wrap);
+
+  // White pixel art on a clear background is a white shape, as on the C64.
+  assert.deepEqual(lower(paint(PET_RING, WHITE, CLEAR)).data, PET_RING);
+  // Black ink on opaque white paper: the colours are all there is to go on.
+  assert.deepEqual(lower(paint(PET_RING, BLACK, WHITE)).data, PET_RING);
+  // Dark ink on a clear background, the case the examples draw.
+  assert.deepEqual(lower(paint(PET_RING, BLACK, CLEAR)).data, PET_RING);
+});
+
+test('a PNG that could not be read lowers to nothing but a placeholder, and an animation naming a frame the sheet lacks falls back to the first', () => {
+  // The unreadable-source diagnostic is the compiler's; the lowering is
+  // handed no frames and must not throw.
+  const none = petMedia.lowerGraphics(petSprite('gone'), [], {}, 't.8bg', wrap);
+  assert.equal(none.kind, 0);
+  assert.equal(none.frames, 1);
+  assert.deepEqual(none.diagnostics, []);
+
+  const frames = [petFrameOf(PET_RING)];
+  const stray = petMedia.lowerGraphics(petSprite('stray', { name: 'go', frames: [0, 9], every: 8 }), frames, {}, 't.8bg', wrap);
+  assert.equal(stray.frames, 2);
+  assert.deepEqual(stray.data, [...PET_RING, ...PET_RING], 'frame 9 does not exist; the first stands in');
+});
+
+test('a picture too faint to survive the downsample becomes a small centre block, one shape, and says so', () => {
+  const blank = petFrameOf([0, 0, 0, 0]);
+  const dot = petMedia.lowerGraphics(petSprite('dot'), [blank], {}, 't.8bg', wrap);
+  assert.equal(dot.kind, 3);
+  assert.equal(dot.frames, 1);
+  assert.deepEqual(dot.data, [0, 6, 6, 0]);
+  assert.match(dot.diagnostics[0].message, /centre block/);
+  assert.equal(dot.diagnostics[0].severity, 'warning');
+});
+
+
+test('two .8bg files get slots 0 and 1 and are bound in the order they are declared; the budget warnings reach the build', () => {
+  const scratch = mkdtempSync(join(tmpdir(), '8bs-pet-gfx-link-'));
+  try {
+    const program = petWriteProgram(scratch, [['alpha', PET_WALK, 16, 16], ['beta', PET_WALK, 120, 16], ['gamma', [PET_RING], 224, 16]]);
+    const { ir, diagnostics } = petLink(program);
+    assert.deepEqual(diagnostics.filter((d) => d.severity !== 'warning'), []);
+
+    const entry = ir.functions.find((f) => f.name === ir.entry);
+    const binds = entry.body.filter((s) => s.kind === 'call' && /__8bs_media_bind_/.test(s.name)).map((s) => s.name.replace(/^.*__8bs_media_bind_/, ''));
+    assert.deepEqual(binds, ['alpha', 'beta', 'gamma']);
+    const slots = entry.body.filter((s) => s.kind === 'call' && /graphics_place$/.test(s.name)).map((s) => s.args[0].value);
+    assert.deepEqual(slots, [0, 1, 2]);
+
+    const messages = diagnostics.filter((d) => d.code === '8BS2111').map((d) => d.message);
+    assert.equal(messages.length, 3);
+    assert.match(messages[0], /alpha.*4 frames/);
+    assert.match(messages[1], /beta.*last 1 frame dropped/);
+    assert.match(messages[2], /gamma.*not drawn/);
+  } finally {
+    rmSync(scratch, { recursive: true, force: true });
+  }
+});
+

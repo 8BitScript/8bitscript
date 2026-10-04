@@ -1150,17 +1150,18 @@ function injectMediaBinds(ir) {
   if (!ir.entry) return;
   const entryFn = ir.functions.find((f) => f.name === ir.entry);
   if (!entryFn) return;
-  const binds = ir.functions.filter((f) => f.mediaBind);
-  for (const fn of binds) {
-    entryFn.body.unshift({
-      kind: 'call',
-      name: fn.name,
-      args: [],
-      type: 'void',
-      start: 0,
-      length: 0,
-    });
-  }
+  // In declaration order: a target whose pictures share something finite
+  // (the PET's seven shapes) hands it out first come, first served, and its
+  // lowering counts the same way.
+  const calls = ir.functions.filter((f) => f.mediaBind).map((fn) => ({
+    kind: 'call',
+    name: fn.name,
+    args: [],
+    type: 'void',
+    start: 0,
+    length: 0,
+  }));
+  entryFn.body.unshift(...calls);
 }
 
 function checkEntryExports(module) {

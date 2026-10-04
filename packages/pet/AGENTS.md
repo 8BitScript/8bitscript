@@ -33,9 +33,20 @@ program built for one point in that space does not run on the others.
 Do not describe more than this as working:
 
 - **Portable media.** `media/index.cjs` (`"8bitscript".media`) turns a
-  `.8bg` PNG into a 4×4 quadrant-block (four row bytes for
-  `sprites.defineShape`) or a single glyph if the picture cannot survive
-  that (`8BS2111` either way). A `.8ba` song drives the VIA's CB2 square
+  `.8bg` PNG into a 4×4 quadrant-block per animation frame (four row
+  bytes each, for `sprites.defineShape`), or into a small centre block
+  if the picture cannot survive the downsample (`8BS2111` either way).
+  The sprite layer holds seven shapes in all and a frame spends one, so
+  the whole program has seven frames to share, handed out in the order
+  the pictures are bound; the lowering counts them across `.8bg` files
+  (the linker's per-build `mediaSlots` tally) and warns where a picture
+  is cut short or left with none. `packages/graphics/src/index.pet.8bs`
+  defines every frame's shape up front and steps them in
+  `graphics.update()`; `test/graphics.test.mjs` is the proof, under xpet
+  on the 2001, 3032, 4032 and 8032. A picture that changes frame near
+  the top of the screen can be seen part-old, part-new for that frame —
+  the sprite layer redraws against the beam (`packages/sprites`
+  header) — so the test keeps animated pictures in the lower half. A `.8ba` song drives the VIA's CB2 square
   wave when `audio.voices` is 1; the stock 2001 has no speaker
   (`audio.voices` 0) and playback is omitted (`8BS2211`). Noise samples
   cannot play on that one square wave.
@@ -931,6 +942,7 @@ packages/pet/src/rasterline.pet.3032.8bs   the 3032 tag's real driver: petRaster
 packages/pet/src/rasterline.pet.4032.8bs   the 4032 tag's own twin: same shape, its own ORIGIN_CYCLES/LINE_CYCLES, its header has the two wrong-turn measurements
 packages/pet/test/raster-probe.8bs   the 3032 probe: graphics/text/graphics bands, a digit counter that never touches $E84C
 packages/pet/test/raster-probe.pet.4032.8bs   the 4032 probe: eight entries, alternating character sets so no entry is a silent no-op
+packages/pet/test/graphics.test.mjs  the PET media lowering, the link, and — under xpet on the 2001, 3032, 4032 and 8032 — .8bg pictures drawn, animated and cut to the seven-shape budget
 packages/pet/test/raster.test.mjs    links both probes with tags:['3032']/['4032']; under xpet, two frame counts each
 packages/pet/package.json            "8bitscript".exports names the four subpaths; the "3032" and "4032" model values' own video.raster: true
 packages/compiler/test/pet-keys.test.mjs   both tables well formed, shared names, VICE .vkm cross-check, profile picks the table

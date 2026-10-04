@@ -5,8 +5,14 @@
 
 const KIND_PET = 3;
 const KIND_GLYPH = 0;
+// Rows of a 4×4 shape, bit 3 the left pixel: the middle two by two.
+const CENTRE_BLOCK = [0, 6, 6, 0];
 
-function downsample(rgba, width, height, dstW, dstH) {
+// `byAlpha`: the picture has transparent pixels, so transparency is what
+// separates the shape from the paper, as on the C64 — a white sprite on a
+// clear background is a white sprite. A fully opaque picture has only its
+// colours to go on, and bright is taken for paper.
+function downsample(rgba, width, height, dstW, dstH, byAlpha) {
   const bits = [];
   for (let y = 0; y < dstH; y += 1) {
     let row = 0;
@@ -21,7 +27,7 @@ function downsample(rgba, width, height, dstW, dstH) {
         for (let sx = x0; sx < x1 && sx < width; sx += 1) {
           const o = (sy * width + sx) * 4;
           n += 1;
-          if (rgba[o + 3] >= 16 && (rgba[o] + rgba[o + 1] + rgba[o + 2]) < 500) ink += 1;
+          if (rgba[o + 3] >= 16 && (byAlpha || (rgba[o] + rgba[o + 1] + rgba[o + 2]) < 500)) ink += 1;
         }
       }
       if (n && ink / n >= 0.3) row |= 1 << (dstW - 1 - x);
@@ -31,36 +37,71 @@ function downsample(rgba, width, height, dstW, dstH) {
   return bits;
 }
 
-function lowerGraphics(sprite, frames, _facts, file, diagnostic) {
+// The sprite layer holds this many shapes in all (`sprites.SHAPES` in
+// packages/sprites/src/index.pet.8bs), and an animation spends one shape
+// a frame, so one picture cannot have more frames than that.
+const MAX_FRAMES = 7;
+
+// `shared` is the per-build tally the linker hands every `.8bg` in turn
+// (`mediaSlots`): the shapes spent so far, counted in the order the
+// pictures are bound, so a picture that finds none left is told at build
+// time rather than discovered as a missing sprite. Absent (a lone call from
+// a test or an editor), the whole budget is there.
+function lowerGraphics(sprite, frames, _facts, file, diagnostic, shared) {
   const diagnostics = [];
-  const frame = frames[0];
   const anim = sprite.animations?.[0];
-  if (!frame) {
+  if (!frames.length) {
     return {
       kind: KIND_GLYPH, data: [0x2A], frames: 1, every: 8, width: 8, height: 8, chrPatches: [], diagnostics,
     };
   }
-  const bits = downsample(frame.rgba, frame.width, frame.height, 4, 4);
-  const ink = bits.reduce((n, row) => n + (row.toString(2).split('1').length - 1), 0);
-  if (ink < 2) {
+  const left = MAX_FRAMES - (shared?.petShapes ?? 0);
+  if (left <= 0) {
     diagnostics.push(diagnostic(
       '8BS2111',
-      `sprite '${sprite.name}' cannot survive as a 4×4 quadrant-block; using a software glyph`,
+      `sprite '${sprite.name}' is not drawn: the PET holds ${MAX_FRAMES} shapes in all and earlier pictures have taken them`,
       file, sprite.start, sprite.length, 'warning',
     ));
     return {
-      kind: KIND_GLYPH, data: [0x51], frames: 1, every: anim?.every ?? 8, width: 8, height: 8, chrPatches: [], diagnostics,
+      kind: KIND_PET, data: [], frames: 0, every: anim?.every ?? 8, width: 16, height: 16, chrPatches: [], diagnostics,
     };
   }
+  const wanted = anim?.frames?.length ? anim.frames : [0];
+  const indexes = wanted.slice(0, left);
+  const picked = indexes.map((index) => frames[index] ?? frames[0]);
+  const byAlpha = picked.some((frame) => {
+    for (let o = 3; o < frame.rgba.length; o += 4) if (frame.rgba[o] < 16) return true;
+    return false;
+  });
+  const rows = picked.map((frame) => downsample(frame.rgba, frame.width, frame.height, 4, 4, byAlpha));
+  const ink = rows.flat().reduce((n, row) => n + (row.toString(2).split('1').length - 1), 0);
+  if (ink < 2) {
+    // A picture of one lit quadrant or none: all it can show is a mark, so
+    // it becomes a small block in the middle of the 4×4 — still a shape
+    // the sprite layer places and restores like any other.
+    diagnostics.push(diagnostic(
+      '8BS2111',
+      `sprite '${sprite.name}' cannot survive as a 4×4 quadrant-block; using a small centre block`,
+      file, sprite.start, sprite.length, 'warning',
+    ));
+    if (shared) shared.petShapes = (shared.petShapes ?? 0) + 1;
+    return {
+      kind: KIND_PET, data: CENTRE_BLOCK, frames: 1, every: anim?.every ?? 8, width: 16, height: 16, chrPatches: [], diagnostics,
+    };
+  }
+  const dropped = wanted.length - indexes.length;
   diagnostics.push(diagnostic(
     '8BS2111',
-    `sprite '${sprite.name}' is a 4×4 quadrant-block object on the PET`,
+    `sprite '${sprite.name}' is a 4×4 quadrant-block object on the PET`
+      + (indexes.length > 1 ? `, ${indexes.length} frames` : '')
+      + (dropped ? `; the last ${dropped} frame${dropped === 1 ? '' : 's'} dropped (the PET holds ${MAX_FRAMES} shapes in all)` : ''),
     file, sprite.start, sprite.length, 'warning',
   ));
+  if (shared) shared.petShapes = (shared.petShapes ?? 0) + indexes.length;
   return {
     kind: KIND_PET,
-    data: bits,
-    frames: 1,
+    data: rows.flat(),
+    frames: indexes.length,
     every: anim?.every ?? 8,
     width: 16,
     height: 16,
