@@ -166,8 +166,11 @@ test('a native cx16 run from the launcher includes capture and fullscreen flags 
 test('a web run from the launcher listens on the LAN by default', () => {
   const runner = fs.readFileSync(path.join(ROOT, 'src', 'runner.cjs'), 'utf8');
   assert.match(runner, /getWebLan\(\)/);
-  assert.match(runner, /args\.push\('--port', '0'\)/, 'an ephemeral port so two web runs can coexist');
-  assert.match(runner, /args\.push\('--local'\)/);
+  // The flags a runtime adds are one function now (units.runtimeArgs), which
+  // the runner calls with the LAN setting.
+  const units = fs.readFileSync(path.join(ROOT, 'src', 'units.cjs'), 'utf8');
+  assert.match(units, /\['--port', '0', \.\.\.local\]/, 'an ephemeral port so two web runs can coexist');
+  assert.match(units, /const local = webLan \? \[\] : \['--local'\]/);
   const settings = fs.readFileSync(path.join(ROOT, 'src', 'settings.cjs'), 'utf8');
   assert.match(settings, /function getWebLan/);
   const view = fs.readFileSync(path.join(ROOT, 'src', 'launcherView.cjs'), 'utf8');
@@ -333,12 +336,19 @@ test('every element the page script reaches for is on the page', () => {
   for (const id of ids) assert.match(view, new RegExp(`id="${id}"`), `no #${id} in the page`);
 });
 
-test('the 8bs task type offers every target this release builds for', () => {
-  const { ALL_TARGETS } = require('../src/projects.cjs');
+test('the 8bs task type names a machine by any id the CLI lists, and says where a run goes', () => {
   const definition = MANIFEST.contributes.taskDefinitions.find((d) => d.type === '8bs');
-  assert.deepEqual(definition.properties.target.enum, ALL_TARGETS);
-  // The Studio tab's run is told apart from a native one by this key, so
-  // it has to be part of the declared definition, not a private extra.
+  // The machines are the toolchain's to list (`8bs targets`), not a
+  // hand-kept enum that goes stale the day one is added.
+  assert.equal(definition.properties.target.type, 'string');
+  assert.equal(definition.properties.target.enum, undefined, 'no hand-kept list of machines');
+  assert.deepEqual(definition.properties.runtime.enum, ['editor', 'browser', 'native']);
+  // `web` was declared as "run --web" and is the browser runtime, said so.
   assert.equal(definition.properties.web?.type, 'boolean');
-  assert.match(definition.properties.web.description, /cx16 --web/);
+  assert.match(definition.properties.web.description, /browser/);
+  for (const key of ['system', 'define', 'locale', 'profile', 'hardware']) {
+    assert.ok(definition.properties[key], `${key} is part of the declared definition, not a private extra`);
+  }
+  assert.equal(definition.properties.define.type, 'object');
+  assert.ok(definition.properties.command.enum.includes('boot'));
 });

@@ -28,7 +28,6 @@ const {
   CONFIG_FILE,
   CONFIG_FILENAMES,
   MACHINE_TARGETS,
-  WEB_PREVIEW_READY,
   cliCommand,
   commandArgs,
   findConfig,
@@ -60,6 +59,8 @@ const { toolchainStatus } = require('./projectInfo.cjs');
 const { checkoutCli, isCheckout, managedCheckoutDir, managedUpdateCommand, resolveCheckoutRoot, runCheckout, writeToolchainFile } = require('./checkout.cjs');
 const { AssemblyViewController } = require('./assemblyView.cjs');
 const { quietly } = require('./quietly.cjs');
+const units = require('./units.cjs');
+const { UnitState } = require('./unitState.cjs');
 
 const { regionShort } = settings;
 
@@ -103,10 +104,26 @@ function labelOf(project) {
   return project.kind === 'project' ? project.name : project.title;
 }
 
+/** How a task definition is told apart from its siblings: see units.runKey. */
+function runIdOf(definition) {
+  return units.runKey({
+    dir: definition.projectDir ?? '',
+    program: definition.program ?? null,
+    system: definition.system ?? null,
+    target: definition.target ?? null,
+    runtime: definition.runtime ?? (definition.web === true ? 'editor' : 'native'),
+  });
+}
+
 /**
  * Tracks which `8bs` tasks are running, so the panel can list them and the
  * Stop button can end them. Keyed by the task definition, which is what
  * both the panel and tasks.json-launched runs have in common.
+ *
+ * A run is identified by (project, program, system, runtime): the same
+ * program on the same system in the same runtime is one run, and another
+ * runtime of it is another run beside it, so the editor's tab and the
+ * native emulator can be compared side by side.
  */
 class RunningTasks {
   constructor(onChange) {
@@ -133,44 +150,68 @@ class RunningTasks {
   }
 
   /**
-   * What is running, for the panel's Running machines section. `command` is
-   * left in so an `install` or a `doctor` is not mistaken for a program on a
+   * What is running, for the panel's Running section. `command` is left in
+   * so an `install` or a `doctor` is not mistaken for a program on a
    * machine; the panel labels it accordingly.
    *
-   * @returns {{ dir: string, target: string|undefined, command: string, name: string, startedAt: number }[]}
+   * `runId` names the run for `stopRun`; `commandLine` is the exact `8bs`
+   * command it was started with, for the panel's Command line.
+   *
+   * @returns {{ runId: string, dir: string, target: string|undefined, program: string|undefined,
+   *   system: string|undefined, runtime: 'editor'|'browser'|'native'|undefined, command: string,
+   *   web: boolean, name: string, commandLine: string|undefined, startedAt: number }[]}
    */
   list() {
     return [...this.executions].map((execution) => {
       const definition = execution.task.definition;
       return {
+        runId: runIdOf(definition),
         dir: definition.projectDir ?? '',
         target: definition.target,
+        program: definition.program,
+        system: definition.system,
+        runtime: definition.runtime,
         command: definition.command,
         web: definition.web === true,
         name: execution.task.name,
+        commandLine: definition.commandLine,
         startedAt: this.startedAt.get(execution) ?? Date.now(),
       };
     });
   }
 
-  /** @param {string} dir @param {string} [target] */
   /**
    * @param {string} dir
    * @param {string} [target]
-   * @param {{ web?: boolean }} [only] `web: true` keeps only runs in the
-   *   editor's Studio tab, `web: false` only native ones; left out, both.
+   * @param {{ web?: boolean, runtime?: string, program?: string }} [only] `web: true` keeps only runs of
+   *   the wasm page (the editor's tab or the browser), `web: false` only native ones; `runtime`
+   *   and `program` narrow further. Left out, everything of that project and target.
    */
   matching(dir, target, only = {}) {
     return [...this.executions].filter((execution) => {
       const definition = execution.task.definition;
       if (definition.projectDir !== dir) return false;
       if (only.web !== undefined && (definition.web === true) !== only.web) return false;
+      if (only.runtime !== undefined && (definition.runtime ?? (definition.web === true ? 'editor' : 'native')) !== only.runtime) return false;
+      if (only.program !== undefined && definition.program !== only.program) return false;
       return target === undefined || definition.target === target;
     });
   }
 
   stop(dir, target, only = {}) {
     for (const execution of this.matching(dir, target, only)) execution.terminate();
+  }
+
+  /** The run `runId` names, if it is still going. */
+  find(runId) {
+    return [...this.executions].find((execution) => runIdOf(execution.task.definition) === runId);
+  }
+
+  /** Stop exactly one run, leaving every other — its sibling runtimes included — alone. */
+  stopRun(runId) {
+    const found = this.find(runId);
+    if (found) found.terminate();
+    return found !== undefined;
   }
 }
 
@@ -187,26 +228,25 @@ class RunningTasks {
  * hardware someone has fitted for their own work.
  */
 function makeTask(project, action, target, region, hardware = settings.getHardware(target), extras = {}) {
+  // Which runtime a run is. `runtime` is the model's word; `web` is the
+  // older spelling of "the editor's tab" and stays an alias for it. The
+  // synthetic `web` target is itself a browser page, so a plain run of it is
+  // the Browser runtime. Nothing here falls back to a hidden rule: a caller
+  // that wants a wasm page says so.
+  const runtime = action === 'run'
+    ? (extras.runtime ?? (extras.web ? 'editor' : (target === 'web' ? 'browser' : 'native')))
+    : undefined;
   const args = commandArgs(action, target, region, extras.system ? undefined : hardware, extras);
-  if (action === 'run' && target === 'web') {
-    args.push('--port', '0');
-    if (!settings.getWebLan()) args.push('--local');
-  }
-  if (action === 'run' && extras.web) {
-    // The editor's Preview/Studio tabs: a --web build served on an
-    // ephemeral loopback port and opened nowhere — the tab frames it
-    // (studioView.cjs). Loopback only; the LAN setting is the web target's.
-    // Studio's own tab is always cx16, and always wants the CLI's
-    // WebAssembly x16emu, not the lightweight preview every other --web
-    // build (and a plain project's own cx16 target) now gets — extras.x16emu
-    // is how it asks for that.
-    args.push('--web', '--no-open', '--port', '0');
-    if (extras.x16emu) args.push('--x16emu');
-  }
-  if ((action === 'run' || action === 'boot') && target === 'cx16' && !extras.web) {
+  // Studio's own tab is always cx16, and always wants the CLI's WebAssembly
+  // x16emu, not the lightweight preview every other --web build (and a
+  // plain project's own cx16 target) gets — extras.x16emu is how it asks.
+  if (runtime) args.push(...units.runtimeArgs(runtime, target, { x16emu: extras.x16emu === true, webLan: settings.getWebLan() }));
+  const wasm = runtime === 'editor' || runtime === 'browser';
+  if ((action === 'run' || action === 'boot') && target === 'cx16' && !wasm) {
     args.push(...settings.cx16NativeWindowCliArgs({ studio: project.name === '@8bitscript/studio' }));
   }
-  const pal = region === 'pal' && MACHINE_TARGETS.has(target);
+  const regional = extras.regional ?? MACHINE_TARGETS.has(target);
+  const pal = region === 'pal' && regional;
   const definition = {
     type: TASK_TYPE,
     command: action,
@@ -214,16 +254,25 @@ function makeTask(project, action, target, region, hardware = settings.getHardwa
     projectDir: project.dir,
     ...(target ? { target } : {}),
     ...(extras.program ? { program: extras.program } : {}),
+    ...(extras.system ? { system: extras.system } : {}),
     ...(pal ? { pal: true } : {}),
-    ...(extras.web ? { web: true } : {}),
+    // `web` keys the last-run report (dist/.8bs-last-<target>-web.json), so
+    // it marks a wasm page of a real machine, in a tab or a browser. The
+    // synthetic web target keeps its one file.
+    ...(wasm && target !== 'web' ? { web: true } : {}),
+    ...(runtime ? { runtime } : {}),
+    ...(extras.inputs && Object.keys(extras.inputs).length > 0 ? { define: extras.inputs } : {}),
+    ...(extras.locale ? { locale: extras.locale } : {}),
+    commandLine: units.formatCommand(args),
   };
   const fitted = extras.system ? extras.system : selectionLabel(hardware);
   const suffix = extras.system
     ? ` ${extras.system}`
     : (target
-      ? ` ${target}${MACHINE_TARGETS.has(target) ? ` (${regionShort(region)})` : ''}${fitted ? ` ${fitted}` : ''}`
+      ? ` ${target}${regional ? ` (${regionShort(region)})` : ''}${fitted ? ` ${fitted}` : ''}`
       : '');
-  const name = `${project.name}: ${action}${extras.program ? ` ${extras.program}` : ''}${suffix}${extras.web ? ' in a tab' : ''}`;
+  const where = runtime === 'editor' ? ' in a tab' : (runtime === 'browser' && target !== 'web' ? ' in the browser' : '');
+  const name = `${project.name}: ${action}${extras.program ? ` ${extras.program}` : ''}${suffix}${where}`;
   const invocation = cliCommand(project.toolchain) ?? { command: project.toolchain, args: [] };
   const env = { PATH: packageManagerPath(), ...invocation.env };
   const task = new vscode.Task(
@@ -274,6 +323,21 @@ class Projects {
     // `8bs doctor --json` is about this host, not a project. One report
     // for the workspace; refresh() and a finished Doctor task clear it.
     this.doctorPromise = null;
+    // `8bs project --json` per project, cached by the config's mtime and
+    // dropped when a source file is saved (a program's inputs are read from
+    // its source). The loader falls back to the regex reader for a CLI that
+    // predates the command.
+    this.units = new units.UnitLoader({
+      exec: (project, args) => this.runCli(project, args),
+      log: (line) => this.output?.appendLine(line),
+    });
+    // What the launcher remembers per program; registerRunner gives it a
+    // workspaceState to keep it in.
+    /** @type {UnitState} */
+    this.unitState = new UnitState({ get: (_key, fallback) => fallback, update: async () => {} });
+    // `8bs targets --json` per directory once it has answered, for the code
+    // that cannot wait on a promise (the task provider's list).
+    this.targetRows = new Map();
   }
 
   /**
@@ -365,8 +429,116 @@ class Projects {
         },
       );
     });
+    // Remembered for the code that cannot wait on the promise; `pending` itself never rejects.
+    void pending.then((rows) => { if (rows) this.targetRows.set(project.dir, rows); });
     this.targetsPromises.set(project.dir, pending);
     return pending;
+  }
+
+  /**
+   * Run `8bs <args>` in a project's directory with its own toolchain (and the
+   * workspace's `--checkout`). Never rejects: `{ code, stdout }` is the
+   * whole answer, and a project with no toolchain answers `{ code: -1 }`.
+   *
+   * @param {{ dir: string, toolchain: any }} project
+   * @param {string[]} args
+   * @returns {Promise<{ code: number, stdout: string }>}
+   */
+  runCli(project, args) {
+    const invocation = project.toolchain ? cliCommand(project.toolchain) : null;
+    if (!invocation) return Promise.resolve({ code: -1, stdout: '' });
+    const checkout = this.checkoutFlag();
+    return new Promise((resolvePromise) => {
+      execFile(
+        invocation.command,
+        [...invocation.args, ...args, ...(checkout ? ['--checkout', checkout] : [])],
+        {
+          cwd: project.dir,
+          maxBuffer: 16 * 1024 * 1024,
+          ...(invocation.env ? { env: { ...process.env, ...invocation.env } } : {}),
+        },
+        (error, stdout) => {
+          resolvePromise({ code: error ? (typeof error.code === 'number' ? error.code : 1) : 0, stdout: String(stdout ?? '') });
+        },
+      );
+    });
+  }
+
+  /**
+   * What the project is: its programs (with titles, groups and inputs), the
+   * machines it builds for, its systems and its problems. See units.cjs.
+   *
+   * @param {import('./projects.cjs').Project} project
+   * @param {{ defines?: boolean }} [options]
+   */
+  unitProject(project, options) {
+    return this.units.load(project, options);
+  }
+
+  /**
+   * The Editor / Browser / Native / Boot cells for one program on one machine:
+   * available or not, why not, and what would fix it. From the machine's own
+   * `runtime` object in `8bs targets --json`, and Doctor's word on whether its
+   * emulator is installed; nothing is hard-coded.
+   *
+   * @param {import('./projects.cjs').Project} project
+   * @param {string|null|undefined|false} programName
+   * @param {string} target
+   */
+  async matrix(project, programName, target) {
+    const [rows, unit, doctor] = await Promise.all([this.loadTargets(project.dir), this.unitProject(project), this.loadDoctor()]);
+    return units.runtimeMatrix({
+      runtime: units.normalizeRuntime(rows?.get(target)?.runtime),
+      target,
+      // `false` is "no program" (a bare boot loads none); null or undefined is
+      // the project's main.
+      program: programName === false ? null : units.programNamed(unit, programName ?? unit.main),
+      doctor,
+    });
+  }
+
+  /**
+   * The machines the System selector offers for a project: every one the
+   * CLI lists, with whether this release builds it, whether it takes a
+   * region, its emulator, and its runtime cells (not narrowed to a program;
+   * `matrix()` does that). When the CLI cannot be asked, the five machines
+   * this release builds, from the built-in table.
+   *
+   * @param {{ dir: string }} project
+   * @returns {Promise<{ id: string, inRelease: boolean, regional: boolean, emulator: string|null, runtime: object }[]>}
+   */
+  async machines(project) {
+    const rows = await this.loadTargets(project.dir);
+    if (!rows) {
+      return ALL_TARGETS.map((id) => {
+        const runtime = units.legacyRuntime(id);
+        return { id, inRelease: true, regional: MACHINE_TARGETS.has(id), emulator: runtime.native.emulator, runtime };
+      });
+    }
+    return [...rows.values()].map((row) => ({
+      id: row.id,
+      inRelease: row.inRelease !== false,
+      regional: row.region === true,
+      emulator: typeof row.emulator === 'string' ? row.emulator : null,
+      runtime: units.normalizeRuntime(row.runtime) ?? units.legacyRuntime(row.id),
+    }));
+  }
+
+  /**
+   * Whether a machine takes `--pal`, from the CLI's `region` flag; undefined
+   * until it has answered, which leaves the old fixed set to decide.
+   *
+   * @returns {boolean|undefined}
+   */
+  regional(dir, target) {
+    const region = this.targetRows.get(dir)?.get(target)?.region;
+    return typeof region === 'boolean' ? region : undefined;
+  }
+
+  /** Whether a machine has a wasm page, for code that cannot wait: the CLI's word once known, else the legacy table. */
+  wasmReady(dir, target) {
+    const row = units.normalizeRuntime(this.targetRows.get(dir)?.get(target)?.runtime);
+    return (row ?? units.legacyRuntime(target)).wasm.available;
   }
 
   /**
@@ -428,6 +600,8 @@ class Projects {
     const checkout = this.checkoutFlag();
     this.projects = loadProjects(found.map((uri) => uri.fsPath), { checkout });
     this.targetsPromises.clear();
+    this.targetRows.clear();
+    this.units.invalidate();
     this.doctorPromise = null;
     const shipped = this.discoverShipped();
     const withCli = (list) => list.map((project) => ({
@@ -496,8 +670,16 @@ class TaskProvider {
       for (const program of programs) {
         const extras = program ? { program } : {};
         for (const target of programTargets(project, program)) {
-          tasks.push(makeTask(project, 'run', target, 'ntsc', undefined, extras));
-          tasks.push(makeTask(project, 'build', target, 'ntsc', undefined, extras));
+          const regional = this.projects.regional?.(project.dir, target);
+          const own = regional === undefined ? extras : { ...extras, regional };
+          // The native emulator, as always; the same program as a wasm page in
+          // the browser where the machine has one; and the build. (The editor
+          // tab belongs to the launcher: a task has no tab to show.)
+          tasks.push(makeTask(project, 'run', target, 'ntsc', undefined, own));
+          if (this.projects.wasmReady?.(project.dir, target) ?? units.legacyRuntime(target).wasm.available) {
+            tasks.push(makeTask(project, 'run', target, 'ntsc', undefined, { ...own, runtime: 'browser' }));
+          }
+          tasks.push(makeTask(project, 'build', target, 'ntsc', undefined, own));
         }
       }
     }
@@ -521,13 +703,33 @@ class TaskProvider {
     // in the launcher (or `main`) — never to an interactive prompt.
     const program = hasSeveralPrograms(project)
       ? (definition.program ?? resolveProgram(project, settings.getProgram(project.dir))) : null;
+    // `runtime` says where a run goes. The older `web: true` was declared as
+    // "run --web" but never reached the command; it now means the browser,
+    // which is what it said.
+    const runtime = definition.command === 'run'
+      ? (definition.runtime ?? (definition.web === true && definition.target !== 'web' ? 'browser' : undefined))
+      : undefined;
+    const defines = isPlainObject(definition.define)
+      ? Object.entries(definition.define).flatMap(([name, value]) => ['--define', units.defineText(name, value)])
+      : [];
+    const regional = this.projects.regional?.(project.dir, definition.target);
+    const hardware = isPlainObject(definition.hardware) || typeof definition.profile === 'string'
+      ? { profile: typeof definition.profile === 'string' ? definition.profile : null, options: isPlainObject(definition.hardware) ? definition.hardware : {} }
+      : undefined;
     const resolved = makeTask(
       project,
       definition.command,
       definition.target,
       definition.pal ? 'pal' : 'ntsc',
-      undefined,
-      program ? { program } : {},
+      hardware,
+      {
+        ...(program ? { program } : {}),
+        ...(typeof definition.system === 'string' && definition.system !== '' ? { system: definition.system } : {}),
+        ...(runtime ? { runtime } : {}),
+        ...(defines.length > 0 ? { defines } : {}),
+        ...(typeof definition.locale === 'string' && definition.locale !== '' ? { locale: definition.locale } : {}),
+        ...(regional === undefined ? {} : { regional }),
+      },
     );
     // The task must keep the definition object it was given, or the editor
     // treats the resolved task as a different one from the tasks.json entry.
@@ -541,6 +743,10 @@ class TaskProvider {
   }
 }
 
+function isPlainObject(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
 /**
  * Wire the project model, the task provider, and every command into the
  * extension. The launcher view is registered separately and reads this.
@@ -552,6 +758,9 @@ class TaskProvider {
 function registerRunner(context, output) {
   const managedDir = managedCheckoutDir(context.globalStorageUri.fsPath);
   const projects = new Projects(output, managedDir);
+  // Per-program memory lives in the workspace's own state, never in
+  // settings.json; a host without one (a test) just forgets.
+  if (context.workspaceState) projects.unitState = new UnitState(context.workspaceState);
   projects.running.listen(context.subscriptions);
   context.subscriptions.push(projects.changed);
   const assemblyView = new AssemblyViewController(context, output, buildAssemblyArgs);
@@ -572,6 +781,13 @@ function registerRunner(context, output) {
     watcher.onDidDelete(() => quietly('8BitScript project refresh', () => projects.refresh())),
     watcher.onDidChange(() => quietly('8BitScript project refresh', () => projects.refresh())),
     vscode.workspace.onDidChangeWorkspaceFolders(() => quietly('8BitScript project refresh', () => projects.refresh())),
+    // A program's inputs are read from its source, so saving a source file
+    // means the cached description of its project may be stale.
+    vscode.workspace.onDidSaveTextDocument?.((document) => {
+      if (!/\.(8bs|8bx)$/.test(document.fileName ?? '')) return;
+      const owner = projects.all.find((project) => document.fileName.startsWith(project.dir + path.sep));
+      if (owner) projects.units.invalidate(owner.dir);
+    }) ?? { dispose() {} },
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration('8bitscript.examplesPath') || e.affectsConfiguration('8bitscript.checkout')) {
         void quietly('8BitScript project refresh', () => projects.refresh());
@@ -887,26 +1103,61 @@ function registerRunner(context, output) {
     // settings.getEffectiveHardware.
     const effectiveHardware = hardware
       ?? settings.getEffectiveHardware(target, (await projects.loadTargets(project.dir))?.get(target));
+    const given = await inputExtras(project, program, node, action);
+    if (given.failed) return undefined;
     const extras = {
       system: system || undefined,
       checkout: projects.checkoutFlag() || undefined,
       program: program || undefined,
       // Set only by a caller that already decided and knows how to show
-      // the result: Studio's own tab, Preview On…, and the plain Run
-      // command's own WEB_PREVIEW_READY/preferWebPreview check (below) —
-      // never defaulted in here. launch() (Launch App…/Launch Example…)
+      // the result: launchUnit() below, Studio's own tab, Preview On….
+      // Never defaulted in here. launch() (Launch App…/Launch Example…)
       // calls this with nothing set and has no tab of its own to show a
       // --web run in; defaulting it here once made that combination start
-      // a real server with nothing pointed at it.
-      web: node?.web ? true : undefined,
-      // Studio's own tab only — it always wants the real vendored x16emu,
-      // never the lightweight preview every other --web run (cx16
-      // included, now) gets.
+      // a real server with nothing pointed at it. `web` is the older
+      // spelling of runtime 'editor'.
+      runtime: node?.runtime ?? (node?.web ? 'editor' : undefined),
+      // Studio's own tab, and an X16 run that asks for it — the real
+      // vendored x16emu as WebAssembly, never the lightweight preview.
       x16emu: node?.x16emu ? true : undefined,
+      regional: projects.regional(project.dir, target),
+      ...given.extras,
     };
     return vscode.tasks.executeTask(
       makeTask(project, action, target, region ?? settings.getRegion(), effectiveHardware, extras),
     );
+  }
+
+  /**
+   * The inputs and language one run (or build) is handed: the caller's, else
+   * what the launcher has remembered for that program. Only what differs from
+   * the program's own values becomes `--define`. A value that does not fit
+   * is said so and the run does not start; an older CLI that cannot take
+   * `--define` is told apart from a program with none, so nothing is silently
+   * dropped.
+   *
+   * @returns {Promise<{ failed?: boolean, extras?: { defines?: string[], inputs?: object, locale?: string } }>}
+   */
+  async function inputExtras(project, program, node, action) {
+    if (action !== 'run' && action !== 'build') return {};
+    const locale = typeof node?.locale === 'string' && node.locale !== '' ? node.locale : undefined;
+    const overrides = node?.inputs ?? projects.unitState.inputs(project.dir, program ?? '');
+    if (!overrides || Object.keys(overrides).length === 0) return { extras: locale ? { locale } : {} };
+    const unit = await projects.unitProject(project);
+    const unitProgram = units.programNamed(unit, program ?? unit.main);
+    if (unit.legacy || !unitProgram?.definesRead) {
+      output.appendLine(`Inputs ignored for ${program ?? unit.main ?? project.name}: this project's 8bs cannot list its inputs (update @8bitscript/cli).`);
+      if (node?.inputs) {
+        vscode.window.showWarningMessage('This project\'s 8bs is too old to take inputs (--define). Update @8bitscript/cli to use them.');
+      }
+      return { extras: locale ? { locale } : {} };
+    }
+    const result = units.inputArgs(unitProgram, overrides);
+    if (result.errors.length > 0) {
+      vscode.window.showErrorMessage(`Not run: ${result.errors.join('; ')}`);
+      return { failed: true };
+    }
+    return { extras: { defines: result.args, inputs: result.applied, ...(locale ? { locale } : {}) } };
   }
 
   /**
@@ -1233,14 +1484,151 @@ function registerRunner(context, output) {
     void quietly('8BitScript project refresh', () => projects.refresh());
   }
 
+  /** A project given as the object, or as its directory. */
+  function projectOf(value) {
+    if (value && typeof value === 'object' && typeof value.dir === 'string') return value;
+    if (typeof value === 'string') return projects.all.find((project) => project.dir === value) ?? null;
+    return null;
+  }
+
+  /**
+   * `system` as a caller spells it — a machine id, or the name of one of the
+   * project's named systems — as what a run needs: `{ target }`, or the named
+   * system's target, region and fitting.
+   */
+  async function systemFor(project, system) {
+    if (!system) return {};
+    const named = ((await projects.loadTargets(project.dir))?.systems ?? []).find((entry) => entry.name === system);
+    if (!named) return { target: system };
+    return {
+      target: named.target,
+      system: named.name,
+      region: named.region ?? settings.getRegion(),
+      hardware: { profile: named.profile, options: named.hardware },
+    };
+  }
+
+  /** Say why a runtime cannot be used and, when the person can fix it, offer to. */
+  function explainUnavailable(message, cell) {
+    const choices = cell.fix === 'doctor' ? ['Run Doctor'] : (cell.fix === 'install-emulator' ? ['Install emulator…', 'Run Doctor'] : []);
+    void Promise.resolve(vscode.window.showWarningMessage(message, ...choices)).then((choice) => {
+      if (choice === 'Run Doctor') vscode.commands.executeCommand('8bitscript.doctor');
+      else if (choice === 'Install emulator…') vscode.commands.executeCommand('8bitscript.doctorSetup');
+    });
+  }
+
+  /**
+   * Run one program on one system in one runtime — the single place that
+   * decides it. Editor, Browser and Native are separate commands that all
+   * land here with the runtime fixed; `8bitscript.run` and `runUnit` land
+   * here with it open, and the answer is the one remembered for the
+   * program, else Editor (Native if the deprecated `preferWebPreview` is off),
+   * else whichever works. A runtime that cannot work is not run: the person
+   * is told why. Starting the same run again replaces it; another runtime
+   * of the same program is left running beside it.
+   *
+   * @param {{ project?: object|string, program?: string, system?: string,
+   *   runtime?: 'editor'|'browser'|'native', inputs?: object, locale?: string,
+   *   x16emu?: boolean, web?: boolean }} [node]
+   * @param {'editor'|'browser'|'native'} [forced] the runtime the command name fixes
+   */
+  async function launchUnit(node = {}, forced) {
+    if (projects.all.length === 0) await projects.refresh();
+    const project = projectOf(node.project) ?? selected() ?? (await pickProject('run', projects.all));
+    if (!project) return undefined;
+    const { system: spelled, ...rest } = node;
+    const resolved = await targetOf({ ...rest, ...(await systemFor(project, spelled)), project }, 'run');
+    if (!resolved) return undefined;
+    const program = resolved.program !== undefined ? resolved.program : await programOf(project, node, 'run');
+    if (program === undefined) return undefined;
+    const { target } = resolved;
+    const unit = await projects.unitProject(project);
+    const stateName = program ?? unit.main ?? '';
+    const matrix = await projects.matrix(project, stateName || null, target);
+    let runtime = forced ?? node.runtime ?? (node.web === true ? 'editor' : (node.web === false ? 'native' : undefined));
+    if (!runtime) {
+      runtime = units.defaultRuntime({
+        matrix,
+        remembered: projects.unitState.runtime(project.dir, stateName),
+        preferEditor: settings.getPreferWebPreview(),
+      });
+    }
+    const label = units.programNamed(unit, stateName)?.label ?? project.name;
+    if (!runtime || !units.RUNTIMES.includes(runtime)) {
+      const why = matrix.native.reason ?? matrix.editor.reason ?? 'no runtime works';
+      vscode.window.showWarningMessage(why.startsWith(label) ? `${why}.` : `${label} cannot run on ${target}: ${why}.`);
+      return undefined;
+    }
+    const cell = matrix[runtime];
+    if (!cell.available) {
+      // "tiny does not target c64" already says it; anything else is a reason
+      // this runtime in particular cannot work.
+      explainUnavailable(
+        cell.reason.startsWith(label)
+          ? `${cell.reason}.`
+          : `${units.RUNTIME_LABELS[runtime]} is not available for ${label} on ${target}: ${cell.reason}`,
+        cell,
+      );
+      return undefined;
+    }
+    // The real x16emu as WebAssembly is the X16's own opt-in; every other wasm page is the lightweight one.
+    const x16emu = node.x16emu === true && runtime !== 'native' && matrix.wasmEmulator.available;
+    // One tab, one editor run per machine: a new Editor run takes the tab over.
+    if (runtime === 'editor') projects.running.stop(project.dir, target, { runtime: 'editor' });
+    projects.running.stopRun(units.runKey({ dir: project.dir, program: program || undefined, system: resolved.system, target, runtime }));
+    const launchedAt = Date.now();
+    const started = await execute('run', {
+      ...resolved,
+      project,
+      program,
+      runtime,
+      x16emu: x16emu || undefined,
+      inputs: node.inputs,
+      locale: node.locale,
+    });
+    if (!started) return undefined;
+    await projects.unitState.setRuntime(project.dir, stateName, runtime);
+    await projects.unitState.setSystem(project.dir, stateName, resolved.system ?? target);
+    if (runtime === 'editor') {
+      await vscode.commands.executeCommand('8bitscript.previewTab.show', { dir: project.dir, target, launchedAt });
+    }
+    return started;
+  }
+
+  /** Open the machine's emulator with nothing loaded. */
+  async function openBareEmulator(node) {
+    if (projects.all.length === 0) await projects.refresh();
+    const project = projectOf(node?.project) ?? selected() ?? (await pickProject('boot', projects.all));
+    if (!project) return undefined;
+    const { system: spelled, ...rest } = node ?? {};
+    const resolved = await targetOf({ ...rest, ...(await systemFor(project, spelled)), project }, 'boot');
+    if (!resolved) return undefined;
+    const matrix = await projects.matrix(project, false, resolved.target);
+    if (!matrix.boot.available) {
+      explainUnavailable(`Cannot open a bare ${resolved.target} emulator: ${matrix.boot.reason}`, matrix.boot);
+      return undefined;
+    }
+    return execute('boot', resolved);
+  }
+
   const command = (id, handler) =>
     context.subscriptions.push(vscode.commands.registerCommand(id, handler));
 
   command('8bitscript.refresh', () => projects.refresh());
   command('8bitscript.toggleExamples', () => settings.setShowExamples(!settings.getShowExamples()));
   command('8bitscript.saveSystem', saveSystem);
-  command('8bitscript.selectProject', chooseProject);
-  command('8bitscript.selectSystem', chooseSystem);
+  // Project and system are chosen in the launcher now; these two palette
+  // commands still work, and say so once.
+  const withNotice = (id, message, handler) => async (...args) => {
+    const key = `notice.${id}`;
+    if (!context.globalState?.get(key)) {
+      void context.globalState?.update(key, true);
+      vscode.window.showInformationMessage(message);
+    }
+    return handler(...args);
+  };
+  command('8bitscript.selectProject', withNotice('selectProject', 'The project is chosen at the top of the 8BitScript side bar; this command still works.', chooseProject));
+  command('8bitscript.selectSystem', withNotice('selectSystem', 'The system is chosen in the 8BitScript side bar; this command still works.', chooseSystem));
   command('8bitscript.selectRegion', chooseRegion);
   command('8bitscript.launchStudio', () => launch('app', 'Studio', (p) => p.name === '@8bitscript/studio'));
   // The side bar's big button: Studio on the Commander X16, the machine
@@ -1346,36 +1734,48 @@ function registerRunner(context, output) {
   command('8bitscript.install', install);
   command('8bitscript.useLocal', useLocal);
   command('8bitscript.usePublished', usePublished);
-  command('8bitscript.run', async (node) => {
-    // Resolved once, here, rather than left to execute()'s own targetOf:
-    // deciding whether this run defaults to --web needs the target before
-    // the task starts, and a node already carrying {project, target} (this
-    // resolved one) makes execute()'s own targetOf a same-answer no-op
-    // rather than a second quick pick.
-    const resolved = await targetOf(node, 'run');
-    if (!resolved) return;
-    const { project, target } = resolved;
-    const web = node?.web !== undefined ? node.web : WEB_PREVIEW_READY.has(target) && settings.getPreferWebPreview();
-    if (web) { await runInPreviewTab(project, target); return; }
-    await execute('run', resolved);
-  });
+  // Three runtimes, three commands, none needing another; `runUnit` and the
+  // older `run` take the runtime as an argument (or use the one remembered).
+  command('8bitscript.runUnit', (node) => launchUnit(node));
+  command('8bitscript.runEditor', (node) => launchUnit(node, 'editor'));
+  command('8bitscript.runBrowser', (node) => launchUnit(node, 'browser'));
+  command('8bitscript.runNative', (node) => launchUnit(node, 'native'));
+  command('8bitscript.run', (node) => launchUnit(node));
   command('8bitscript.build', (node) => execute('build', node));
-  command('8bitscript.boot', (node) => execute('boot', node));
+  command('8bitscript.openBareEmulator', openBareEmulator);
+  command('8bitscript.boot', openBareEmulator);
   command('8bitscript.viewGeneratedAssembly', viewGeneratedAssembly);
   command('8bitscript.viewGeneratedAssemblyFor', viewGeneratedAssemblyFor);
   command('8bitscript.assemblyView.openForMachine', () => assemblyView.openForMachine(vscode.window.activeTextEditor));
   command('8bitscript.assemblyView.toggleExplain', () => assemblyView.toggleExplain());
   command('8bitscript.stop', (node) => {
-    if (node?.dir) projects.running.stop(node.dir, node.target);
+    if (node?.runId) projects.running.stopRun(node.runId);
+    else if (node?.dir) projects.running.stop(node.dir, node.target);
     else for (const execution of projects.running.executions) execution.terminate();
   });
   command('8bitscript.openConfig', (node) => {
     const project = node?.project ?? selected();
     if (project) vscode.window.showTextDocument(vscode.Uri.file(project.configPath));
   });
+  // The entry of the program the caller names, else the one chosen in the
+  // launcher — not always the project's `main`, which is what this opened
+  // while the program picker was ignored.
   command('8bitscript.openEntry', (node) => {
-    const project = node?.project ?? selected();
-    if (project) vscode.window.showTextDocument(vscode.Uri.file(project.entry));
+    const project = projectOf(node?.project) ?? selected();
+    if (!project) return;
+    const name = node?.program
+      ?? (hasSeveralPrograms(project) ? resolveProgram(project, settings.getProgram(project.dir)) : null);
+    const program = name ? project.programs.find((entry) => entry.name === name) : null;
+    vscode.window.showTextDocument(vscode.Uri.file(program?.entry ?? project.entry));
+  });
+  // Show where a program is declared in the config.
+  command('8bitscript.revealProgram', async (node) => {
+    const project = projectOf(node?.project) ?? selected();
+    if (!project) return;
+    const document = await vscode.workspace.openTextDocument(vscode.Uri.file(project.configPath));
+    const at = node?.program ? units.programOffset(document.getText(), node.program) : -1;
+    const position = document.positionAt(at >= 0 ? at : 0);
+    await vscode.window.showTextDocument(document, { selection: new vscode.Range(position, position) });
   });
 
   void quietly('8BitScript project refresh', () => projects.refresh());

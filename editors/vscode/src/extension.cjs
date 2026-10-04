@@ -25,6 +25,8 @@ const { isCheckout, managedCheckoutDir, resolveCheckoutRoot, checkoutCli } = req
 const { registerDevReload } = require('./devReload.cjs');
 const { registerExtensionLink } = require('./extensionLink.cjs');
 const { registerRunner } = require('./runner.cjs');
+const { quietly } = require('./quietly.cjs');
+const { offerIconTheme } = require('./iconTheme.cjs');
 const { registerLauncherView } = require('./launcherView.cjs');
 const { registerControllerView } = require('./controllerView.cjs');
 const { registerStudioView } = require('./studioView.cjs');
@@ -128,6 +130,7 @@ function activate(context) {
   registerDoctorView(context, projects);
 
   tryStart();
+  void quietly('8BitScript icon theme offer', () => offerIconTheme(context));
 }
 
 function deactivate() {
