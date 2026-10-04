@@ -11,55 +11,19 @@
 // the screen in different places and the 8K one puts the program right
 // after it (packages/vic20/AGENTS.md, "Graphics").
 //
-// The capture's geometry is the raster test's: 520 x 234 (NTSC), the
-// picture from x = 40 and picture line 0 on row 22, a character cell
-// 16 pixels wide and 8 tall, 22 x 23 of them.
+// The capture's geometry and the reads are in gfx.mjs.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 
 import { encodePNG } from '../../cli/src/png.mjs';
-import { decode, lit, onPath, runCli } from './capture.mjs';
-
-const HERE = dirname(fileURLToPath(import.meta.url));
-const CHECKOUT = join(HERE, '..', '..', '..');
-
-const LEFT = 40;
-const TOP = 22;
-const CELL_W = 16;
-const CELL_H = 8;
-const COLUMNS = 22;
-const ROWS = 23;
-
-const MACHINES = {
-  unexpanded: [],
-  '8k': ['--hardware', 'ram=8k'],
-};
+import {
+  MACHINES, COLUMNS, ROWS, assertObject, bitsOf, cellsOf, litCells, maskOf, picture, shootFiles, skip,
+} from './gfx.mjs';
 
 // --- the assets ------------------------------------------------------------
-
-/** A PNG whose opaque black pixels are the blocks of `rows` ('1' = ink),
- *  each `scale` pixels square, the rest transparent. */
-function picture(rows, scale) {
-  const width = rows[0].length * scale;
-  const height = rows.length * scale;
-  const rgba = Buffer.alloc(width * height * 4);
-  rows.forEach((row, ry) => {
-    [...row].forEach((ch, rx) => {
-      if (ch !== '1') return;
-      for (let y = 0; y < scale; y++) {
-        for (let x = 0; x < scale; x++) {
-          rgba.writeUInt32BE(0x000000ff, ((ry * scale + y) * width + rx * scale + x) * 4);
-        }
-      }
-    });
-  });
-  return encodePNG(width, height, rgba);
-}
 
 // A 16x16 object in 4x4-pixel blocks, so each cell is a 2x2 mask:
 //   cell (0,0): lit TL, BR     cell (1,0): lit TR, BL
@@ -188,62 +152,9 @@ async function project(scratch, program) {
 }
 
 async function shoot(scratch, name, machine, frames, program) {
-  const file = await project(scratch, program);
-  const shot = join(scratch, `${name}.png`);
-  const { code, stdout, stderr } = await runCli([
-    'run', 'vic20', '--checkout', CHECKOUT, ...MACHINES[machine], '--frames', String(frames), '--screenshot', shot, file,
-  ]);
-  assert.equal(code, 0, `8bs run vic20 (${machine}) failed:\n${stdout}${stderr}`);
-  return decode(readFileSync(shot));
+  await project(scratch, program);
+  return shootFiles(scratch, name, machine, frames);
 }
-
-// --- reading a capture ------------------------------------------------------
-
-const cellX = (col) => LEFT + col * CELL_W;
-const cellY = (row) => TOP + row * CELL_H;
-
-/** The cell's four quadrants as bits: TL 8, TR 4, BL 2, BR 1. */
-function maskOf(pixel, col, row) {
-  const at = (qx, qy) => (lit(pixel(cellX(col) + qx, cellY(row) + qy)) ? 1 : 0);
-  return (at(4, 2) << 3) | (at(12, 2) << 2) | (at(4, 6) << 1) | at(12, 6);
-}
-
-/** The cell's pixels, '#' lit and '.' not, row by row. */
-function bitsOf(pixel, col, row) {
-  let s = '';
-  for (let y = 0; y < CELL_H; y++) {
-    for (let x = 0; x < CELL_W; x++) s += lit(pixel(cellX(col) + x, cellY(row) + y)) ? '#' : '.';
-    s += '/';
-  }
-  return s;
-}
-
-/** Every cell with a lit pixel in it, as 'col,row'. */
-function litCells(pixel) {
-  const found = new Set();
-  for (let row = 0; row < ROWS; row++) {
-    for (let col = 0; col < COLUMNS; col++) {
-      if (bitsOf(pixel, col, row).includes('#')) found.add(`${col},${row}`);
-    }
-  }
-  return found;
-}
-
-function cellsOf(col, row, masks) {
-  const out = [];
-  masks.forEach((line, dy) => line.forEach((mask, dx) => {
-    if (mask !== 0) out.push(`${col + dx},${row + dy}`);
-  }));
-  return out;
-}
-
-function assertObject(pixel, col, row, masks, label) {
-  masks.forEach((line, dy) => line.forEach((mask, dx) => {
-    assert.equal(maskOf(pixel, col + dx, row + dy), mask, `${label}: cell (${col + dx}, ${row + dy}) is ${maskOf(pixel, col + dx, row + dy).toString(2)}, wanted ${mask.toString(2)}`);
-  }));
-}
-
-const skip = !onPath('xvic') && 'xvic is not on PATH';
 
 // --- the scenarios ----------------------------------------------------------
 

@@ -436,39 +436,80 @@ before). A picture with fewer than four ink pixels becomes the single glyph
   program, which is the same kind of bug as the RAM charset's. (The first
   bytes there are the BASIC stub, already run by then, so the test reads the
   right edge, where the wrap onto the next row shows, as well.)
-- **Moving.** An object that moves has the cells it was drawn in blanked
-  (screen code 32) before every object on the screen is drawn again, later
-  slots on top. It does not put back what was there: text printed where an
-  object stands is gone once the object moves, and a program prints where
-  objects are not. Every update redraws every placed object, so one a
+- **Moving and hiding.** An object that moves, or is hidden, has the cells it
+  was drawn in blanked (screen code 32, color RAM white) before every object
+  on the screen is drawn again, later slots on top. It does not put back what
+  was there: text printed where an object stands is gone once the object
+  moves, and a program prints where objects are not. The color goes back to
+  white (`INK`) because color RAM is the object's too: an unreset cell would
+  show a character stored there with `text.putChar` — which writes no color —
+  in the object's ink. Every update redraws every placed object, so one a
   program printed over comes back.
 - **Frames.** An object with more than one frame steps every `every`
   updates, in the order its `animation` names the frames, and starts over
   after the last. The first 8 frames are kept; a longer animation is cut and
-  says so.
+  says so. `setFrame` shows from the next `update()` and clamps (a frame
+  past the last is the last) and starts the update count again; `animate`
+  pauses or resumes the stepping object by object.
+- **Color.** `color(slot, c)` sets the color RAM value the object's cells are
+  drawn with, from the next `update()`. Color RAM bit 3 is the multicolor
+  switch, so `c` is masked to three bits (8–15 wrap, as `text.putColor`
+  does); an unmasked `color(slot, 9)` made the cells multicolor garbage
+  until 2026-10-04.
 - **Limits.** Eight objects (`MAX`, like the other targets), and 64 bytes of
   codes among all of them (`POOL`): sixteen frames of a 2×2 object, or any
-  mix. An object that does not fit is not drawn. Both arrays are in the
-  program image, so they count in `memory.program`, not in the variables.
+  mix. The last byte is usable; an object that would pass it is not drawn,
+  every call on it does nothing, and the objects that fit are not touched. A
+  media module sees one sprite at a time, so the build cannot add them up:
+  each sprite's `8BS2111` note says what it takes ("taking 12 of the 64 pool
+  bytes every object shares"), and the sum is the program's to keep under 64.
+  Both arrays are in the program image, so they count in `memory.program`,
+  not in the variables.
 - **Slots.** The compiler numbers sprites across the whole build, not per
   `.8bg` file. It used to start each file at 0, so `mark.8bg` and
   `player.8bg` in `examples/media-walk` shared slot 0 and the second
   placement moved the first.
 
 Measured with `8bs build vic20 --size` on `packages/examples/media-walk`
-(2026-10-03): 2455 bytes of program and 49 of variables, unexpanded and 8K
-alike. Before this change it was 2383 and 41, and held a 256-byte table and
-a runtime reduction of every object. A draw's cost in cycles is not measured:
-update is one pass over the placed objects, a few dozen stores each.
+(2026-10-04): 2515 bytes of program and 48 of variables, unexpanded and 8K
+alike. It was 2493 and 48 before `color` was masked and blanking reset color
+RAM (22 bytes for the two), 2455 and 49 before the portable contract, and
+2383 and 41 before that, when it held a 256-byte table and a runtime
+reduction of every object. The all-operations probe in
+`packages/graphics/test/vic20-ops.test.mjs` is 1710 bytes of program and
+44 of variables, on both layouts, and that test fails if it passes 1800. A
+draw's cost in cycles is not measured: update is one pass over the placed
+objects, a few dozen stores each.
 
-Verified on screen under xvic (`test/graphics.test.mjs`, NTSC, unexpanded
-and 8K): an 8×8 object takes one cell and leaves its neighbours' text
-intact; a faint picture is one glyph; objects from two `.8bg` files are both
-there; a moved object leaves no trail; objects placed at the bottom-right
-corner and along the right edge do not wrap onto the next row or reach the
-program; an animation alternates its two frames every four updates and
-blanks the cells the frame leaves. Not verified: PAL (the cells do not move
-with the region), the 3K and 16K/24K layouts, and real hardware.
+Verified two ways. Under xvic (`test/graphics.test.mjs` and
+`test/graphics-ops.test.mjs`, NTSC, unexpanded and 8K): an 8×8 object takes
+one cell and leaves its neighbours' text intact; a faint picture is one
+glyph; objects from two `.8bg` files are both there; a moved object leaves
+no trail; objects placed at the bottom-right corner and along the right edge
+do not wrap onto the next row or reach the program; an animation alternates
+its two frames every four updates and blanks the cells the frame leaves;
+`hide` empties the object's cells and `place` brings it back; a paused
+object holds the frame `setFrame` gave it while another plays on; `color`
+tints one object, 9 is white and not multicolor, and a letter stored where an
+object stood is white; two eight-frame objects fill the pool exactly and a
+third is not drawn; an object is the same in both halves of a
+`Slot.CHARSET` split. And without an emulator
+(`packages/graphics/test/vic20-ops.test.mjs`, which CI runs): the twin
+imported into a web-target program, whose wasm runs in node, copies the
+VIC-20's screen and color RAM after each step, so every cell the twin wrote
+is read back exactly on both memory maps — and each of ten deliberate
+breakages of the twin (unmasked color, color RAM left behind, the pool a
+byte over or short, no clipping, no clamp, no pause, no blank on hide, no
+slot guard) fails its check. Not verified: PAL (the cells do not move with
+the region), the 3K and 16K/24K layouts, and real hardware.
+
+Two traps for whoever adds an operation. The wasm run reads the twin's
+tables from the web build's memory (about `$2100`) to prove an out-of-range
+slot touches none of them; an index past an array lands in the next array and
+nothing on the screen shows it. And a capture's `--frames` counts the
+start-up: a program acts after its own n-th `waitFrame()` about `n + 190`
+frames into the capture (`BOOT_FRAMES` in `test/gfx.mjs`, measured by printing
+one mark per ten frames).
 
 ## Raster splits
 
@@ -729,9 +770,12 @@ packages/vic20/src/text.8bs             @8bitscript/vic20/text: ASCII → screen
 packages/vic20/src/rasterline.8bs       @8bitscript/vic20/rasterline (behind @8bitscript/raster): the list, commit()'s plan in the cassette buffer ($033C-$03CB), vic20RasterFrame — the frame hook, two timed copies (NTSC, PAL)
 packages/vic20/test/raster-probe.8bs    the probe: a list built once, both slots, an adjacent entry, a merged line, setValue after fifty frames, a frame counter
 packages/vic20/test/raster-charset-probe.8bs   eight CHARSET entries mid-row on screen code 66 (a different glyph on all eight lines in the two sets), two merged with BORDER
-packages/vic20/media/index.cjs          the `.8bg` and `.8ba` lowering: pictures reduced to quadrant-block screen codes at build time, songs to VIC register events
+packages/vic20/media/index.cjs          the `.8bg` and `.8ba` lowering: pictures reduced to quadrant-block screen codes at build time (each sprite's 8BS2111 note says its share of the 64-byte `POOL`, which the twin repeats), songs to VIC register events
 packages/graphics/src/index.vic20.8bs   @8bitscript/graphics' drawing loop: codes in a pool, clipped to the screen, blank-then-draw on a move
 packages/vic20/test/graphics.test.mjs   under xvic: cells by position, 8x8 vs 16x16, a glyph, two modules, no trail, the corner, an animation
+packages/vic20/test/graphics-ops.test.mjs   under xvic: hide, setFrame/animate, color (wrap, ink left behind), the pool, an object across a Slot.CHARSET split
+packages/vic20/test/gfx.mjs             the graphics tests' shared reads: capture geometry, quadrant masks, ink colors, BOOT_FRAMES
+packages/graphics/test/vic20-ops.test.mjs   the twin run cell by cell under wasm (CI), with its breakages, and the 6502 build's size
 packages/vic20/test/capture.mjs         the tests' shared helpers: run the CLI, decode a capture
 packages/vic20/test/raster.test.mjs     links the probes; under xvic, NTSC and PAL (and NTSC 8K for CHARSET), two consecutive frames each, every split on its line and whole
 packages/compiler/src/mos/index.ts     FRAME_SYNC.vic20 ($9004 poll; frameHook vic20RasterFrame); the SEI a waitFrame() program starts with

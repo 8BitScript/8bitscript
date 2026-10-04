@@ -157,7 +157,7 @@ screen yet — that is the next piece of work on that machine.
 | Machine | `place` / `update` | `hide` | `setFrame` | `animate` | `color` |
 | --- | --- | --- | --- | --- | --- |
 | PET | verified | verified | verified | verified | stub (`RECOLORS` false) |
-| VIC-20 | verified | links | links | links | links |
+| VIC-20 | verified | verified | verified | verified | verified |
 | C64 | verified (under the playfield-pixel rule) | verified | verified | verified | verified |
 | Commander X16 | verified | verified | verified | verified | verified |
 | Web | verified | verified | verified | verified | verified |
@@ -177,7 +177,7 @@ nearest evidence for it.
 | NES | CHR tiles from `$E0` and an OAM sprite. |
 | PET | A 4×4 quadrant-block object, one sprite-layer shape a frame of the animation — seven shapes in all, shared by every picture in the program — or a small centre block if the picture is too faint to survive the downsample (`8BS2111` either way, and again when frames are dropped or a picture finds no shape left). |
 | Atari 8-bit | A software glyph; frames collapsed (`8BS2111`). Player/missile shapes are a later slice. |
-| VIC-20 | Quadrant-block characters from the ROM, worked out at build time: one cell for a source of 8 pixels or fewer, 2×2 cells for anything larger (scaled down), one screen code a cell a frame, the animation's frames (the first 8) stepping every `every` updates; a picture with almost no ink becomes one glyph (`8BS2111` either way). Moving an object blanks the cells it left; cells off the screen are not drawn. |
+| VIC-20 | Quadrant-block characters from the ROM, worked out at build time: one cell for a source of 8 pixels or fewer, 2×2 cells for anything larger (scaled down), one screen code a cell a frame, the animation's frames (the first 8) stepping every `every` updates; a picture with almost no ink becomes one glyph (`8BS2111` either way, and each sprite says how many of the 64 pool bytes it takes). Moving or hiding an object blanks the cells it left and puts their colour back to white; cells off the screen are not drawn. See [On the VIC-20](#on-the-vic-20). |
 | Commander X16 | A VERA hardware sprite in its own 15-colour palette; 8, 16, 32 or 64 px a side, real animation frames (`8BS2110` over 15 colours, `8BS2111` for padding or cut frames). See [Commander X16](#commander-x16). |
 | Web | One cell of real art per animation step: `packages/web/media/index.cjs` reduces each frame at build time to an 8×8 bitmap (eight row bytes, bit 0 the leftmost pixel; an 8×8 source is carried pixel for pixel, a larger one by area, a glyph pixel lit at half its source pixels or more), `packages/graphics/src/index.web.8bs` writes it into the runtime's redefinable glyph table (`@8bitscript/web/charset`, character codes 176–255) and draws it as a cell, up to eight pictures of eight steps, stepped every `every` calls to `graphics.update()`. One ink per cell (`graphics.color()` tints it); a source with more than one colour, or a larger size, or steps past eight is adapted and the build says so (`8BS2111`). A true sprite layer is a later item for the web runtime (`packages/web/AGENTS.md`). |
 | every other machine | The same glyph path, quantized to that machine's cell size: one glyph per animation step, up to four (`8BS2111` names what was dropped). |
@@ -215,6 +215,38 @@ on the C64.
 Unused `target` blocks are not in this slice. A NES build does not
 contain VIC-II sprite data.
 
+### On the VIC-20
+
+Every call of the contract is verified on the VIC-20, in two ways that
+cover each other: the twin's own code run cell by cell without an emulator
+(`packages/graphics/test/vic20-ops.test.mjs`, which CI runs, and which fails
+on each of ten deliberate breakages of the twin) and the 6502 build under
+xvic by pixel (`packages/vic20/test/graphics-ops.test.mjs`), unexpanded and
+with 8K.
+
+- **`hide`** blanks the object's cells and puts their colour RAM back to
+  white, at once; hiding twice, or updating while hidden, changes nothing.
+  `place` shows it again, wherever it is told.
+- **`setFrame`** shows from the next `update()`, and a frame past the last is
+  the last. **`animate(false)`** holds the frame an object is on while the
+  others play; **`animate(true)`** carries on from that frame and update count
+  (`setFrame` starts the count again, so a frame it sets lasts a full `every`
+  updates).
+- **`color`** takes the first eight colours: a character's colour RAM bit 3
+  would make its cells multicolor, so 8–15 wrap to 0–7 (`color(slot, 9)` is
+  `color(slot, 1)`), the way `text.putColor` does. It shows from the next
+  `update()`. The cells an object leaves are white, not left in its ink, so a
+  character stored there later is not tinted.
+- **The pool.** Every object's codes live in one 64-byte pool — an object
+  takes frames × cells bytes, 4 for a still 16×16 picture, 32 for an
+  eight-frame one — and the last byte is usable. An object that would pass it
+  is not drawn, every call on it does nothing, and the others are not
+  affected. The build says what each sprite takes (`8BS2111`: "taking 12 of
+  the 64 pool bytes every object shares"), but one sprite at a time, so
+  adding them up is the program's job; a media module cannot see the others.
+- **With a raster `Slot.CHARSET` split** an object is the same object in
+  either half: its quadrant blocks are in both ROM sets.
+
 ## Diagnostics (`8BS21xx`)
 
 | Code | Means |
@@ -244,7 +276,7 @@ with a user-port speaker so the VIA song actually plays.
 | --- | --- | --- |
 | PET 3032 + speaker | 3787 | 50 |
 | C64 | 4692 | 46 |
-| VIC-20 8K | 2493 | 48 |
+| VIC-20 8K | 2515 | 48 |
 | Commander X16 | 4114 | 70 |
 | Web (wasm module bytes) | 1956 | 203 |
 
@@ -282,7 +314,10 @@ The VIC-20 row was measured again on 2026-10-03, after its twin changed: it
 was 2383 and 41 on the same example before, and the 256-byte glyph table it
 then kept is gone. The example's arrays count in the program figure (they are
 zero-filled bytes in the image), not in the variables one. The unexpanded
-machine builds the same program at the same size.
+machine builds the same program at the same size. Verifying `color` and
+`hide` on 2026-10-04 found two faults and fixed them for 22 bytes (2493 to
+2515, the same 48 of RAM): `color` now masks its argument to three bits, and
+a blanked cell's colour RAM goes back to white.
 
 The C64 row was measured again on 2026-10-04 once the position guard
 (below) went in: 4637 → 4692 bytes of program, 46 of variables. The 55
