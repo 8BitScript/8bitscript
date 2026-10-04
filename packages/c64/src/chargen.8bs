@@ -4,8 +4,8 @@
 // data: 4096 bytes, two sets of 256 glyphs of eight bytes, bit 7 the leftmost
 // pixel. Set 0 is upper case and graphics, set 1 lower and upper case; codes
 // 128-255 of each are the reversed copies. Linked only by index.c64.web.8bs,
-// which copies it to $D000 the way the native setupVideo() copies the ROM, so
-// the page draws from the program's own memory (see that file).
+// which copies it to the character RAM the way the native setupVideo() copies
+// the ROM, so the page draws from the program's own memory (see that file).
 export const CHARGEN: array<u8, 4096> = [
     0x3C, 0x66, 0x6E, 0x6E, 0x60, 0x62, 0x3C, 0x00, 0x18, 0x3C, 0x66, 0x7E, 0x66, 0x66, 0x66, 0x00,
     0x7C, 0x66, 0x66, 0x7C, 0x66, 0x66, 0x7C, 0x00, 0x3C, 0x66, 0x60, 0x60, 0x60, 0x66, 0x3C, 0x00,
