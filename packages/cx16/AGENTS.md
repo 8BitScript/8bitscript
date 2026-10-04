@@ -460,8 +460,10 @@ What belongs here is what the next person touching it must keep true:
   emits 32 palette bytes (entry 0 zero, then GGGGBBBB / 0000RRRR) and then
   each frame, linear 4 bpp, left pixel in the **high** nibble.
   `src/index.cx16.8bs` takes `bind(slot, index, value)` with `index < 32` as
-  palette and the rest as pixels. `test/graphics.test.mjs` pins both ends and
-  reads the result off a screenshot; change one side and that test says so.
+  palette and the rest as pixels. `packages/compiler/test/media-cx16.test.mjs` pins the
+  lowering's bytes, `test/graphics.test.mjs` reads the driver's result off a
+  screenshot, and `packages/graphics/test/graphics.test.mjs` pins the numbers
+  the two share; change one side and one of them says so.
 - **VERA's sprite attributes are eight bytes, not four.** A sprite's pixel
   address is in 32-byte units (`byte0` = bits 12:5, `byte1` low nibble =
   16:13, bit 7 = 8 bpp), position is 10-bit X and Y over four bytes,
@@ -502,7 +504,8 @@ packages/cx16/test/mouse-probe.8bs       run under x16emu: green border when pre
 packages/cx16/src/text.8bs               @8bitscript/cx16/text: text.print/printNumber/setColor/setReverse/putChar/putColor, CELL_COUNT 4256, COLUMNS 76, TextColor
 packages/graphics/src/index.cx16.8bs     @8bitscript/graphics on the X16: VERA sprites, palette block, frames, the Y line
 packages/cx16/media/index.cjs            the X16's .8bg/.8ba lowering: palette + linear 4bpp frames; PSG songs
-packages/cx16/test/graphics.test.mjs     lowering as data; under x16emu, sprites on their pixels, animation, with a raster list
+packages/cx16/test/graphics.test.mjs     under x16emu, sprites on their pixels, animation, with a raster list
+packages/compiler/test/media-cx16.test.mjs   the lowering as data: palette, nibble order, padding, windows
 packages/cx16/src/rasterline.8bs         @8bitscript/cx16/rasterline (behind @8bitscript/raster): the list and plan in Golden RAM ($0401-$077F), the VERA line-IRQ handler on CINV
 packages/cx16/test/raster-probe.8bs      the probe: every slot at a known line, an adjacent pair, setValue after sixty frames
 packages/cx16/test/raster.test.mjs       links the probe; under x16emu, each split on its line, whole, and live through input.poll()

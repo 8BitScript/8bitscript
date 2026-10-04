@@ -1,7 +1,8 @@
 // @8bitscript/graphics on the X16 — a .8bg picture becomes a VERA hardware
-// sprite. Two layers: the media lowering is checked as data (no emulator),
-// and, when x16emu and ffmpeg are installed, a program that places three
-// sprites is run and every pixel that matters is read off the screenshot.
+// sprite. The media lowering is checked as data in
+// packages/compiler/test/media-cx16.test.mjs (which CI runs); this file links
+// the probe and, when x16emu and ffmpeg are installed, runs a program that
+// places three sprites and reads every pixel that matters off the screenshot.
 // packages/cx16/AGENTS.md, "Graphics", has the measurements behind it.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -9,7 +10,6 @@ import { spawn } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { delimiter, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createRequire } from 'node:module';
 
 import { encodePng } from '../../graphics-tools/src/index.mjs';
 import { pixelAt } from '../../cli/src/png.mjs';
@@ -20,8 +20,6 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
 const CHECKOUT = join(ROOT, '..', '..');
 const CLI_BIN = join(ROOT, '..', 'cli', 'bin', '8bs.mjs');
-const require = createRequire(import.meta.url);
-const media = require('../media/index.cjs');
 
 function onPath(name) {
   return (process.env.PATH ?? '').split(delimiter).some((dir) => dir && existsSync(join(dir, name)));
@@ -65,82 +63,6 @@ function tagSheet() {
     return lx < 8 ? GREEN : YELLOW;
   });
 }
-
-function frameRgba(sheet, sheetW, fx, fw, fh) {
-  const rgba = new Uint8Array(fw * fh * 4);
-  for (let y = 0; y < fh; y += 1) {
-    for (let x = 0; x < fw; x += 1) {
-      rgba.set(sheet.subarray(((y * sheetW) + fx * fw + x) * 4, ((y * sheetW) + fx * fw + x) * 4 + 4), (y * fw + x) * 4);
-    }
-  }
-  return { rgba, width: fw, height: fh };
-}
-
-const lower = (sprite, frames) => media.lowerGraphics(sprite, frames, {}, 'x.8bg', (code, message) => ({ code, message }));
-
-test('the lowering hands the driver a palette, then linear 4bpp frames with the left pixel in the high nibble', () => {
-  const sheet = tagSheet();
-  const frames = [frameRgba(sheet, 32, 0, 16, 16), frameRgba(sheet, 32, 1, 16, 16)];
-  const out = lower({ name: 'tag', animations: [{ frames: [0, 1], every: 4 }] }, frames);
-  assert.equal(out.kind, 5);
-  assert.equal(out.frames, 2);
-  assert.equal(out.every, 4);
-  assert.equal(out.width, 16);
-  assert.equal(out.height, 16);
-  assert.equal(out.data.length, 32 + 2 * 128);
-  // Entry 0 is transparent: always zero.
-  assert.deepEqual(out.data.slice(0, 2), [0, 0]);
-  // Palette entries come out in VERA's order: GGGGBBBB, then 0000RRRR.
-  const entry = (i) => ({ gb: out.data[i * 2], r: out.data[i * 2 + 1] });
-  const colorOf = (index) => {
-    const e = entry(index);
-    return [e.r * 17, (e.gb >> 4) * 17, (e.gb & 15) * 17];
-  };
-  // Row 0 of frame 0: the first byte is [white, red] — white on the left,
-  // so in the high nibble.
-  const first = out.data[32];
-  assert.deepEqual(colorOf(first >> 4), WHITE);
-  assert.deepEqual(colorOf(first & 15), RED);
-  // The last byte of frame 0 is [blue, magenta].
-  const last = out.data[32 + 127];
-  assert.deepEqual(colorOf(last >> 4), BLUE);
-  assert.deepEqual(colorOf(last & 15), MAGENTA);
-  // Frame 1 starts one frame (128 bytes) on, in the same palette.
-  assert.deepEqual(colorOf(out.data[32 + 128] >> 4), GREEN);
-});
-
-test('a picture is padded up to the next legal sprite size, and the padding is transparent', () => {
-  const rgba = picture(20, 12, () => ORANGE);
-  const out = lower({ name: 'big' }, [{ rgba, width: 20, height: 12 }]);
-  assert.equal(out.width, 32);
-  assert.equal(out.height, 16);
-  assert.equal(out.data.length, 32 + 32 * 16 / 2);
-  const row = (y) => out.data.slice(32 + y * 16, 32 + (y + 1) * 16);
-  // 20 pixels = ten full bytes of color 1, then transparent.
-  assert.deepEqual(row(0).slice(0, 10), new Array(10).fill(0x11));
-  assert.deepEqual(row(0).slice(10), new Array(6).fill(0));
-  // Rows 12..15 are all padding.
-  assert.deepEqual(row(12), new Array(16).fill(0));
-});
-
-test('more than fifteen colours is 8BS2110, and the nearest kept color is used', () => {
-  const rgba = picture(8, 8, (x, y) => [x * 32, y * 32, 0]);
-  const out = lower({ name: 'wash' }, [{ rgba, width: 8, height: 8 }]);
-  assert.ok(out.diagnostics.some((d) => d.code === '8BS2110'));
-  for (let i = 32; i < out.data.length; i += 1) {
-    assert.ok((out.data[i] >> 4) <= 15 && (out.data[i] & 15) <= 15);
-    assert.ok(out.data[i] !== 0, 'every pixel is opaque, so none may land on the transparent index');
-  }
-});
-
-test('frames that do not fit the sprite\'s 4096-byte window are cut and say so', () => {
-  const sheet = picture(64, 64, () => RED);
-  const frame = { rgba: sheet, width: 64, height: 64 };
-  const out = lower({ name: 'huge', animations: [{ frames: [0, 0, 0], every: 8 }] }, [frame]);
-  assert.equal(out.width, 64);
-  assert.equal(out.frames, 2);
-  assert.ok(out.diagnostics.some((d) => d.code === '8BS2111' && /do not fit/.test(d.message)));
-});
 
 function runCli(args, { timeoutMs = 180_000 } = {}) {
   return new Promise((resolvePromise) => {
