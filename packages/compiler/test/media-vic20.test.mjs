@@ -76,6 +76,17 @@ test('more frames than the pool takes are cut, and the cut is reported', () => {
   assert.ok(result.diagnostics.some((d) => d.severity === 'warning' && /first 8/.test(d.message)));
 });
 
+test('each sprite says how much of the 64-byte pool it takes, since the build cannot add the sprites up', () => {
+  // frames × cells: three frames of 2×2 cells is 12 bytes, a single 8×8 is 1.
+  const three = lower([frame(16, () => true), frame(16, (x) => x < 8), frame(16, (x) => x >= 8)], [{ name: 'go', frames: [0, 1, 2], every: 4 }]);
+  const note = three.diagnostics.map((d) => d.message).join('\n');
+  assert.match(note, /2×2-cell quadrant-block object/);
+  assert.match(note, /taking 12 of the 64 pool bytes every object shares/);
+  assert.match(note, /one that does not fit is not drawn/);
+  const one = lower([frame(8, () => true)]);
+  assert.match(one.diagnostics.map((d) => d.message).join('\n'), /taking 1 of the 64 pool bytes/);
+});
+
 test('a sprite with almost no ink is one glyph, and says so', () => {
   const result = lower([frame(16, (x, y) => x === y && x < 2)]);
   assert.equal(result.kind, 0);

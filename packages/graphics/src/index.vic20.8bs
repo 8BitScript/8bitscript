@@ -42,12 +42,14 @@
 //    22 × 23 cells at `Video.SCREEN`, and on a machine with 8K or more the
 //    program starts right after it ($1201), so a store one cell past the
 //    last would be a store into the program.
-//  * Moving an object blanks the cells it was drawn in before it is drawn
-//    in the new ones, so it leaves no trail. What was under it is not put
-//    back — this is not the PET's `sprites` twin, which keeps what it
-//    covered. Text printed where an object stands stays until the object
-//    moves, and is blanked when it does; a program prints where objects
-//    are not.
+//  * Moving or hiding an object blanks the cells it was drawn in before it
+//    is drawn in the new ones, so it leaves no trail — and puts their color
+//    RAM back to white (`INK`, the color text.8bs defaults to), so a
+//    character a program stores there later is not in the object's color.
+//    What was under it is not put back — this is not the PET's `sprites`
+//    twin, which keeps what it covered. Text printed where an object stands
+//    stays until the object moves, and is blanked when it does; a program
+//    prints where objects are not.
 //  * Every update redraws every object that is on the screen, after the
 //    ones that moved have been blanked, so objects that overlap come out
 //    the same whichever of them moved (the later slot is on top), and an
@@ -104,6 +106,7 @@ function paint(slot: utinyint, blank: bool): void {
                 let cell: usmallint = line + c;
                 if (blank) {
                     memory.write(Video.SCREEN + cell, SPACE);
+                    memory.write(Video.COLOR + cell, INK); // not left in the ink it was drawn in
                 } else {
                     memory.write(Video.SCREEN + cell, pool[at]);
                     memory.write(Video.COLOR + cell, ink[slot]);
@@ -238,12 +241,14 @@ export namespace graphics {
         }
     }
 
-    // The color shows from the next update().
+    // The color shows from the next update(). A character takes one of the
+    // first eight colors; color RAM's bit 3 would make its cells multicolor,
+    // so 8–15 wrap to 0–7 — text.putColor does the same.
     function color(slot: utinyint, c: utinyint): void {
         if (slot >= SLOTS) {
             return;
         }
-        ink[slot] = c;
+        ink[slot] = c & 0x07;
     }
 
     function update(): void {

@@ -26,6 +26,11 @@ const GLYPH = 0x51; // a ball, the screen code a faint sprite is drawn as
 // How many frames one sprite may carry. The driver's pool of codes is
 // fixed (index.vic20.8bs POOL); a sprite is cut to this and says so.
 const MAX_FRAMES = 8;
+// The bytes of that pool, shared by every object in the build
+// (index.vic20.8bs POOL; packages/graphics/test/vic20-ops.test.mjs holds the
+// two together). An object that does not fit is not drawn, and a media
+// module sees one sprite at a time, so each sprite says what it takes.
+const POOL = 64;
 
 // Screen code for each 2×2 pattern, indexed by TL<<3 | TR<<2 | BL<<1 | BR.
 const QUAD = [32, 108, 123, 98, 124, 225, 255, 254, 126, 127, 97, 252, 226, 251, 236, 160];
@@ -112,7 +117,9 @@ function lowerGraphics(sprite, frames, _facts, file, diagnostic) {
   const ch = h > 8 ? 2 : 1;
   diagnostics.push(diagnostic(
     '8BS2111',
-    `sprite '${sprite.name}' is a ${cw}×${ch}-cell quadrant-block object on the VIC-20`,
+    `sprite '${sprite.name}' is a ${cw}×${ch}-cell quadrant-block object on the VIC-20, `
+      + `taking ${used.length * cw * ch} of the ${POOL} pool bytes every object shares; `
+      + 'one that does not fit is not drawn',
     file, sprite.start, sprite.length, 'warning',
   ));
   return {
