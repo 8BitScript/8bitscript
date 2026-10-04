@@ -465,7 +465,7 @@ test('a pinned scalar (@address(...)) round-trips at its own fixed address, not 
 // reference itself doesn't need to be semantically sound — build() refuses
 // the global's own bad shape in the globals pass, before main's body is
 // ever lowered.
-test('refuses a pinned *array* (@address(...) on an array), by name — the one pinned shape still not lowered', async () => {
+test('a pinned *array* is refused on the synthetic rail, by name — hardware another machine would map', async () => {
   const globals: IrGlobal[] = [{ name: 'REG', type: 'utinyint', address: 0xe000, array: 4, constant: false, init: null }];
   const scratch = await mkdtemp(join(tmpdir(), '8bs-web-native-'));
   try {
@@ -473,7 +473,85 @@ test('refuses a pinned *array* (@address(...) on an array), by name — the one 
     const body = [{ kind: 'storeIndex', array: { kind: 'ref', name: 'REG' }, index: num(0, 'utinyint'), value: num(0, 'utinyint'), elementType: 'utinyint' }];
     const result = await build({ entry: 'main', functions: [{ name: 'main', body }], globals }, { outFile, frameRate: 60 });
     assert.equal(result.ok, false);
-    assert.match(result.ok ? '' : result.error, /'REG'.*pinned \*array\*/);
+    assert.match(result.ok ? '' : result.error, /'REG'.*pinned global/);
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+// A pinned array (a screen matrix, a colour RAM, a block of sprite shapes)
+// is a fixed run of linear memory at its pin on a real machine's own build:
+// indexed like any array, no data segment, and read back by whatever paints
+// the page. The two directions are checked against the memory itself, so a
+// pin that quietly landed in the data section instead would show.
+test('a pinned array round-trips at its own fixed address, one byte an element', async () => {
+  const globals: IrGlobal[] = [{ name: 'screenRam', type: 'utinyint', address: 0xe000, array: 1000, constant: false, init: null }];
+  const main: IrFunction = {
+    name: 'main',
+    returnType: 'utinyint',
+    body: [
+      { kind: 'storeIndex', array: { kind: 'ref', name: 'screenRam' }, index: num(999, 'usmallint'), value: num(0x2a, 'utinyint'), elementType: 'utinyint' },
+      { kind: 'storeIndex', array: { kind: 'ref', name: 'screenRam' }, index: num(0, 'usmallint'), value: num(7, 'utinyint'), elementType: 'utinyint' },
+      { kind: 'return', value: { kind: 'index', array: { kind: 'ref', name: 'screenRam' }, index: num(999, 'usmallint'), elementType: 'utinyint', type: 'utinyint' } },
+    ],
+  };
+  const { value, memory } = await execute(main, globals, '8bs-web-native-');
+  assert.equal(value, 0x2a);
+  assert.equal(memory[0xe000 + 999], 0x2a);
+  assert.equal(memory[0xe000], 7);
+  // Nothing else moved: the byte before the pin and the byte after the run are still zero.
+  assert.equal(memory[0xe000 - 1], 0);
+  assert.equal(memory[0xe000 + 1000], 0);
+});
+
+test('a pinned array of two-byte elements is little-endian at its pin', async () => {
+  const globals: IrGlobal[] = [{ name: 'POS', type: 'usmallint', address: 0xd000, array: 8, constant: false, init: null }];
+  const main: IrFunction = {
+    name: 'main',
+    returnType: 'usmallint',
+    body: [
+      { kind: 'storeIndex', array: { kind: 'ref', name: 'POS' }, index: num(3, 'utinyint'), value: num(0x1234, 'usmallint'), elementType: 'usmallint' },
+      { kind: 'return', value: { kind: 'index', array: { kind: 'ref', name: 'POS' }, index: num(3, 'utinyint'), elementType: 'usmallint', type: 'usmallint' } },
+    ],
+  };
+  const { value, memory } = await execute(main, globals, '8bs-web-native-');
+  assert.equal(value, 0x1234);
+  assert.equal(memory[0xd000 + 6], 0x34);
+  assert.equal(memory[0xd000 + 7], 0x12);
+});
+
+test('a pinned array running past the 64 KiB address space is refused, by name', async () => {
+  const globals: IrGlobal[] = [{ name: 'BIG', type: 'utinyint', address: 0xff00, array: 512, constant: false, init: null }];
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-web-native-'));
+  try {
+    const outFile = join(scratch, 'out.wasm');
+    const body = [{ kind: 'storeIndex', array: { kind: 'ref', name: 'BIG' }, index: num(0, 'utinyint'), value: num(0, 'utinyint'), elementType: 'utinyint' }];
+    const result = await build({ entry: 'main', functions: [{ name: 'main', body }], globals }, { outFile, frameRate: 60, allowPinnedScalars: true });
+    assert.equal(result.ok, false);
+    assert.match(result.ok ? '' : result.error, /'BIG'.*past the 64 KiB/);
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+test('program data that would sit under a pinned array is refused, not silently aliased', async () => {
+  // A const array of 4,000 bytes starts at the data floor (8192) and runs to
+  // ~12,200; a pinned array over 10,000..10,100 would read that data as
+  // whatever it is the page paints.
+  const init = new Array(4000).fill(1);
+  const globals: IrGlobal[] = [
+    { name: 'TABLE', type: 'utinyint', address: null, array: 4000, constant: true, init },
+    { name: 'PINNED', type: 'utinyint', address: 10000, array: 100, constant: false, init: null },
+  ];
+  const body = [
+    { kind: 'storeIndex', array: { kind: 'ref', name: 'PINNED' }, index: num(0, 'utinyint'), value: { kind: 'index', array: { kind: 'ref', name: 'TABLE' }, index: num(0, 'usmallint'), elementType: 'utinyint', type: 'utinyint' }, elementType: 'utinyint' },
+  ];
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-web-native-'));
+  try {
+    const outFile = join(scratch, 'out.wasm');
+    const result = await build({ entry: 'main', functions: [{ name: 'main', body }], globals }, { outFile, frameRate: 60, allowPinnedScalars: true });
+    assert.equal(result.ok, false);
+    assert.match(result.ok ? '' : result.error, /'PINNED'.*would sit under this pinned array/);
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }

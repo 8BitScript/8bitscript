@@ -92,9 +92,10 @@ export interface IrGlobal {
   type: string;
   /** Non-null for an `@address(...)`-pinned global — a hardware register,
    * or, for an array, hardware-mapped memory (a screen RAM, say) — not
-   * owned by this backend either way; not lowered yet (nothing in
-   * @8bitscript/web declares one today, per mos/index.ts's own precedent
-   * this backend reads for the same field). */
+   * owned by this backend either way. Lowered (as a fixed region of linear
+   * memory at the pin) only when `allowPinnedScalars` says this is a real
+   * machine's own package; refused on the synthetic web target, which owns
+   * no hardware address (mos/index.ts reads the same field the same way). */
   address: number | null;
   /** A scalar global's own initial value (always a plain number by the
    * time linked IR reaches a backend — linker/index.mjs resolves every
@@ -250,11 +251,13 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   // PET's `viaPeripheralControl`, say) — there is no chip behind it here
   // either, so it becomes exactly what a pinned array already becomes: a
   // fixed byte (or two) in linear memory a host can read or write
-  // directly (lower.ts's own `Ctx.pinned`). A pinned *array* is still
-  // refused below: nothing needed one yet to test this against.
+  // directly (lower.ts's own `Ctx.pinned`). A pinned *array* is lowered the
+  // same way as of the C64's wasm port: a screen matrix, a colour RAM, a
+  // block of sprite shapes — a fixed run of linear memory at the pin.
   const globalDefs: { name: string; init: number }[] = [];
   const arrayGlobals: { name: string; type: string; length: number; init: number[] | null; mutable: boolean }[] = [];
   const pinnedGlobals: { name: string; address: number; width: number }[] = [];
+  const pinnedArrays: { name: string; address: number; elementWidth: number; length: number }[] = [];
   for (const g of globals) {
     if (g.address !== null && g.address !== undefined && g.array === undefined) {
       if (!options.allowPinnedScalars) {
@@ -268,7 +271,24 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
       continue;
     }
     if (g.address !== null && g.address !== undefined) {
-      return { ok: false, error: `'${g.name}': a pinned *array* (@address(...) on an array) is not lowered yet — only a pinned scalar is so far` };
+      // A pinned *array* is the same either/or as a pinned scalar: a real
+      // machine's own package may declare one over a screen matrix, a
+      // colour RAM, a sprite-shape block — memory a chip would read — and
+      // there is no chip here, so it becomes exactly what it names: a fixed
+      // run of linear memory at the pin, indexed like any array and painted
+      // from by the page or the host. Refused on the synthetic web target
+      // for the same reason a pinned scalar is (nothing it owns lives at a
+      // hardware address), and only for the 1- and 2-byte element widths
+      // the rest of this backend knows how to index.
+      if (!options.allowPinnedScalars) {
+        return { ok: false, error: `'${g.name}': a pinned global (@address(...)) is not lowered on this rail — hardware another machine would map, nothing this build owns` };
+      }
+      const elementWidth = storageBytes(g.type);
+      if (elementWidth !== 1 && elementWidth !== 2) {
+        return { ok: false, error: `'${g.name}': a pinned array<${g.type}, ${g.array}> is not lowered yet — only a 1- or 2-byte element is` };
+      }
+      pinnedArrays.push({ name: g.name, address: g.address, elementWidth, length: g.array! });
+      continue;
     }
     if (g.array !== undefined) {
       // Const and `let` arrays alike get a fixed linear-memory address
@@ -334,11 +354,29 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
     // already zero, which is its declared starting state.
     cursor += a.length * elementWidth;
   }
+  // A pinned array is a window onto memory that already has an address: it
+  // takes no space from the data section and writes no segment, but the
+  // module's memory has to reach its end, and nothing the data section
+  // placed may sit under it — two things that would otherwise alias without
+  // a word (a string literal read back as a screen cell).
+  const dataStart = dataBaseFor(options.reserved);
+  let pinnedEnd = 0;
+  for (const p of pinnedArrays) {
+    const end = p.address + p.length * p.elementWidth;
+    if (end > 0xffff + 1) {
+      return { ok: false, error: `'${p.name}': a pinned array<${p.length}> at ${p.address} runs to ${end}, past the 64 KiB a 6502 machine's address space ends at` };
+    }
+    if (cursor > dataStart && p.address < cursor && end > dataStart) {
+      return { ok: false, error: `'${p.name}': the program's own data (${dataStart}..${cursor}) would sit under this pinned array (${p.address}..${end}) — more data than this machine's free memory below it holds` };
+    }
+    arrayIndex.set(p.name, { address: p.address, elementWidth: p.elementWidth, mutable: true });
+    pinnedEnd = Math.max(pinnedEnd, end);
+  }
   // MEMORY_PAGES stays the floor; a program whose own data outgrows one
   // page gets exactly as many more as its own layout needs, rounded up —
   // most programs' data is nowhere close, and still get one page, same as
   // every earlier milestone.
-  const memoryPages = Math.max(MEMORY_PAGES, Math.ceil(cursor / PAGE_BYTES));
+  const memoryPages = Math.max(MEMORY_PAGES, Math.ceil(Math.max(cursor, pinnedEnd) / PAGE_BYTES));
 
   // Whether the module needs the `env.waitFrame` import at all — decided
   // once, up front, from the whole program, the same two-pass shape as
