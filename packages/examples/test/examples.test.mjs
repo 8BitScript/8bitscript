@@ -163,6 +163,27 @@ test('fancy keeps its raster effect behind #fact(video.raster), and its wobble b
   }
 });
 
+// On the C64 the sprite layer's update() is `raster.clear()`, the plan,
+// `raster.commit()` — it rebuilds the whole raster list on every call. fancy
+// builds its own list once with raster.at() and only rewrites values, so a
+// graphics.update() in its frame loop on the C64 wiped the colour bands and the
+// wobble from the first frame: they were gone from the four-pillars release
+// (2026-09-24) until 2026-10-04, found by a screenshot with a black border and
+// confirmed by bisecting (53c655a works, 499c62d does not). The pixel proof
+// is packages/c64/test/layers.test.mjs (VICE); this pins the shape where CI
+// runs: on the C64 the still Mark sprite is published once, before the list,
+// and the loop does not call update(); every other machine keeps the
+// per-frame call (their layers do not rebuild a program's list).
+test('fancy publishes its sprite once on the C64 and never rebuilds the raster list from its frame loop', () => {
+  const main = readFileSync(join(ROOT, 'fancy', 'src', 'main.8bs'), 'utf8');
+  const loop = main.slice(main.indexOf('while (true)'));
+  const setup = main.slice(main.indexOf('export function main'), main.indexOf('while (true)'));
+  assert.match(setup, /if \(#system\(\) == System\.C64\) \{\s*graphics\.update\(\);\s*\}/, 'the C64 publishes Mark once, before it builds its list');
+  assert.ok(setup.indexOf('graphics.update()') < setup.indexOf('raster.clear()'), 'and does so before raster.clear() starts the program\'s list');
+  assert.match(loop, /if \(#system\(\) != System\.C64\) \{\s*graphics\.update\(\);\s*\}/, 'the loop calls update() only where it leaves a program\'s list alone');
+  assert.equal((loop.match(/graphics\.update\(\)/g) ?? []).length, 1, 'one call in the loop, and it is the guarded one above');
+});
+
 test('the release targets fancy builds against include the 4032 PET and 8K VIC-20', () => {
   assert.equal(releaseTargets.pet.hardware.model, '4032');
   assert.equal(releaseTargets.vic20.hardware.ram, '8k');
