@@ -57,6 +57,8 @@ programs: {
 
 Reach one with `8bs build --target c64 --program format` or `8bs run c64 --program format`. Without `--program`, it's `main`, or the only one there is.
 
+A program can be handed values, too: `8bs run c64 --program slot5x5 --define SEED=42 --define FORCE_BONUS=true` sets what its `#define("SEED", 10)` reads ([§1.11](core.md#111-values-the-build-is-handed)), or a `define: { SEED: 42 }` under it in the config does so on every build.
+
 ## §4.3 Package a cartridge or a disk image
 
 These are two different build steps, kept apart on purpose:
@@ -100,7 +102,8 @@ A system is `{ target, profile?, hardware?, region? }`, reached everywhere by `-
 | `8bs check <files…>` | Front-end diagnostics only, no build. Real example from 2048: `8bs check src/2048.8bs src/game.8bs src/Screen.8bx` |
 | `8bs build --target <t>` | Real output for that machine. `--profile <name>` a catalog preset; `--hardware opt=value,…` single options on top; `--size` prints the byte breakdown ([§7.2](examples.md#72-2048s-screen8bx-byte-for-byte)); `--program <name>` for a multi-program project ([§4.2](#42-build-several-programs-in-one-project)). No `--target` builds the config's `baseline`, when it names one. `--release` builds every artifact the config declares and says what each is short of the baseline by ([config](../config.md#the-baseline)). |
 | `8bs run <t>` | Builds and boots in the real emulator (or a browser tab for `web`). No `<t>` runs the config's `baseline`, when it names one. `--screenshot <file.png> --frames <n>` for a headless capture instead of an interactive window. |
-| `8bs targets [--json]` | Lists every target and its hardware catalog, the project's systems, floor and baseline; `--json` is what the editor reads. |
+| `8bs targets [--json]` | Lists every target and its hardware catalog, the project's systems, floor and baseline; `--json` is what the editor reads. Each machine says how it can be run — natively, as a wasm page, as the real x16emu in wasm, or booted bare — and why not when it cannot. |
+| `8bs project [--json]` | The project in this directory, read by the CLI's own loader: its programs (title, group, the machines each builds for, the `#define` values each takes with the defaults found in its source), targets, locales and named systems. `--json` is what the editor reads ([docs/project/units.md](../project/units.md)). |
 | `8bs boot <t>` | Opens the target's own emulator fitted with `--profile`/`--hardware`/`--pal` exactly as `8bs run` would, but loads nothing: the stock machine booting to its own prompt. For checking a hardware combination boots before spending a build on it. Refused for `web`, which has no emulator without a program. |
 | `8bs doctor` | Checks Node, pnpm, git, and the emulators are in place. A FAIL on pnpm, or a missing packaged emulator doctor can install, offers `[i]` / `[s]` / `[a]` / `[q]` to install it (`npx get-pnpm`, brew/apt/pacman, or `8bs setup <target>`). `--install` runs the offers without a prompt. `--want vice,atari800` narrows the offer; the report still lists every machine. A GUI-launched editor does not read `.zshrc`; doctor still finds pnpm in the installer's real location (`~/Library/pnpm` on macOS). |
 | `8bs setup <mega65\|cx16>` | Builds that machine's emulator and installs a ROM. |

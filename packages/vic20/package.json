@@ -16,7 +16,10 @@
       "screenshot": "vice",
       "framesUnit": "cycles",
       "defaultFrames": 8000000,
-      "installer": "vice"
+      "installer": "vice",
+      "wasm": {
+        "available": true
+      }
     },
     "media": "./media/index.cjs",
     "entry": "./src/index.8bs",

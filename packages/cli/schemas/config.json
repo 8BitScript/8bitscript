@@ -30,7 +30,29 @@
         "properties": {
           "entry": { "type": "string", "pattern": "\\.8bs$", "description": "A .8bs file. An .8bx declares composition and is imported, never a program." },
           "targets": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/machine" }, "description": "A subset of the project's targets." },
-          "requires": { "$ref": "#/$defs/requires", "description": "Floors raised above the project's; never lowered." }
+          "requires": { "$ref": "#/$defs/requires", "description": "Floors raised above the project's; never lowered." },
+          "title": { "type": "string", "minLength": 1, "description": "Display only: what an editor calls this program. Changes nothing about the build." },
+          "description": { "type": "string", "minLength": 1, "description": "Display only: one line on what running this program shows." },
+          "group": { "type": "string", "minLength": 1, "description": "Display only: the heading an editor files this program under." },
+          "define": {
+            "type": "object",
+            "description": "Values this program is handed on every build, read in the source with #define(\"NAME\", default). `--define NAME=VALUE` on the command line wins over these; these win over the default in the source. Each is a whole number, true or false, or a string — or { value, description } to say what it is for.",
+            "propertyNames": { "pattern": "^[A-Z][A-Z0-9_]*$" },
+            "additionalProperties": {
+              "oneOf": [
+                { "type": ["integer", "boolean", "string"], "minimum": 0 },
+                {
+                  "type": "object",
+                  "required": ["value"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "value": { "type": ["integer", "boolean", "string"], "minimum": 0 },
+                    "description": { "type": "string" }
+                  }
+                }
+              ]
+            }
+          }
         }
       }
     },

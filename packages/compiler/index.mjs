@@ -27,7 +27,7 @@ export { parse, normalizeBxText } from './src/parser/index.mjs';
 export { NodeType, walk } from './src/ast/index.mjs';
 export { check } from './src/checker/index.mjs';
 export { bind, bindImports, bindImportedComponents, componentOf, SymbolKind, resolveSymbol } from './src/binder/index.mjs';
-export { foldCompileTime, DURATION_CLOCKS, DURATION_UNITS, SYSTEMS } from './src/fold/index.mjs';
+export { foldCompileTime, DURATION_CLOCKS, DURATION_UNITS, SYSTEMS, DEFINE_NAME, defineKind } from './src/fold/index.mjs';
 export {
   FACTS, PROGRAM_FACTS, LOGICAL_CONTROLS, CONTROLLER_KINDS, controllerKind,
   factConstName, factPlaceholder, factProblems,
@@ -78,14 +78,17 @@ export { tokenizeMedia, analyzeMedia, isMediaKind } from './src/media/index.mjs'
  *
  * @param {string} text
  * @param {string} file
- * @param {{ resolveImports?: boolean, frameRate?: number, machine?: string, facts?: object, locale?: string, i18n?: object, checkout?: string|null, sourceKind?: '.8bs'|'.8bx'|'.8bg'|'.8ba', bx?: { strict?: boolean } }} [options]
+ * @param {{ resolveImports?: boolean, frameRate?: number, machine?: string, facts?: object, locale?: string, defines?: Record<string, number|boolean|string>, defineSites?: object[], i18n?: object, checkout?: string|null, sourceKind?: '.8bs'|'.8bx'|'.8bg'|'.8ba', bx?: { strict?: boolean } }} [options]
  *   `machine` is the target when one is known; without it `#system()` and
  *   `#fact(...)` fold to placeholders and are valid-but-target-dependent,
  *   as a `.<machine>.8bs` import is. `facts` is the machine's hardware
  *   fact sheet, wanted whenever `machine` is given and a fact is read. `frameRate` (default 60) is the project's logical frame rate — see
  *   8bitscript.config.8bs — that every `#frames(...)` call folds against, mirroring
  *   link()'s option of the same name so `8bs check`/the editor and a real
- *   build agree on what a duration means.
+ *   build agree on what a duration means. `defines` (name → number |
+ *   boolean | string) is what `#define("NAME", default)` takes over its
+ *   default, and `defineSites`, when given, collects the names the file
+ *   reads (see fold/index.mjs).
  * @returns {object[]} diagnostics, in source order
  */
 export function analyze(text, file = '<unknown>', options = {}) {
@@ -129,7 +132,7 @@ export function analyze(text, file = '<unknown>', options = {}) {
   // Folding runs before check(), same ordering as the linker: a
   // #frames(...) call needs to already be a plain IntegerLiteral by the
   // time the width-fit rule walks the tree.
-  const folding = foldCompileTime(ast, file, { frameRate: options.frameRate, machine: options.machine, facts: options.facts, locale: options.locale });
+  const folding = foldCompileTime(ast, file, { frameRate: options.frameRate, machine: options.machine, facts: options.facts, locale: options.locale, defines: options.defines, defineSites: options.defineSites });
   const all = [...lexical, ...syntax, ...binding, ...catalogCharset, ...folding, ...check(ast, file, text, { skipScreenText: catalog })];
   // A few rules — the template layout above all — are deliberately run by
   // both check() and lower(), so that `check()` alone is a complete

@@ -16,7 +16,7 @@ the linker touches the filesystem.
 | --- | --- | --- |
 | lexer | source text (`.8bs` or `.8bx`) | tokens and lexical diagnostics; in `.8bx`, tag/children/expression modes give element syntax its own tokens |
 | parser | tokens | AST and syntax diagnostics |
-| fold | AST | the same tree, with `#name(...)` calls resolved (`#frames`, `#system`, `#fact`, `#locale`, `#package`) |
+| fold | AST | the same tree, with `#name(...)` calls resolved (`#frames`, `#system`, `#fact`, `#locale`, `#package`, `#define`) |
 | catalogs | `@8bitscript/i18n/catalog` | the selected `src/i18n/<locale>.8bs`, schema-checked against the default locale, missing keys filled from the fallback, Latin extras transliterated, `i18n.format` folded to a literal |
 | binder | AST | symbols, scopes, binding diagnostics |
 | checker | AST | type/range/component diagnostics |
@@ -82,6 +82,9 @@ Catalog diagnostics (`packages/compiler/src/i18n`):
 | 8BS1044 | Two locale catalogs do not export the same namespaces and string const names |
 | 8BS1045 | A catalog string's `{name}` placeholders do not match the default locale's |
 | 8BS1046 | `i18n.format` could not fold: a missing param, a non-const argument, or a record used somewhere other than as its second argument |
+| 8BS1047 | `#define(...)` is not a name in quotes (capitals, digits, `_`) and a default that is a whole number, `true`/`false`, or a string |
+| 8BS1048 | A value handed to `#define("NAME", ...)` (`--define`, or the config's `define` block) is not the kind of value its default is |
+| 8BS1049 | Two `#define("NAME", ...)` calls in one program have different defaults |
 
 ## Debug output: `.lst` and `.8bs.debug.json`
 

@@ -16,7 +16,10 @@
       "family": "browser",
       "screenshot": "web",
       "framesUnit": "frames",
-      "defaultFrames": 180
+      "defaultFrames": 180,
+      "wasm": {
+        "available": true
+      }
     },
     "media": "./media/index.cjs",
     "entry": "./src/index.8bs",

@@ -166,6 +166,25 @@ test('hover explains #package("version")', () => {
   assert.match(info.markdown, /8BS1042/);
 });
 
+test('hover explains #define("NAME", default)', () => {
+  const text = 'const SEED: utinyint = #define("SEED", 10);';
+  const info = getHoverInfo(text, at(text, 'define'));
+  assert.ok(info);
+  assert.match(info.markdown, /\*\*#define\("NAME", default\)\*\*/);
+  assert.match(info.markdown, /--define SEED=42/);
+  assert.match(info.markdown, /define: \{ SEED: 42 \}/);
+  assert.match(info.markdown, /8BS1047/);
+  assert.match(info.markdown, /8BS1048/);
+  assert.match(info.markdown, /8BS1049/);
+});
+
+test('completion after # offers define alongside the other compile-time functions', () => {
+  const text = 'const SEED: utinyint = #de';
+  const items = getCompletions(text, text.length);
+  const define = items.find((item) => item.label === '#define' || item.label === 'define');
+  assert.ok(define, JSON.stringify(items.map((i) => i.label)));
+});
+
 test('hover on frames does not require a valid call — helps a reader mid-edit too', () => {
   const text = 'let x: utinyint = #frames();';
   const info = getHoverInfo(text, at(text, 'frames'));
@@ -231,7 +250,7 @@ test('completion outside a type position offers the program\'s own names, not th
 test('completion after a # offers the compile-time functions, inserting without a second #', () => {
   const typed = 'let x: utinyint = #';
   const items = getCompletions(typed, typed.length);
-  assert.deepEqual(items.map((i) => i.label), ['#frames', '#system', '#fact', '#package']);
+  assert.deepEqual(items.map((i) => i.label), ['#frames', '#system', '#fact', '#package', '#define']);
   const [item] = items;
   assert.equal(item.label, '#frames');
   assert.equal(item.kind, 'function');
@@ -253,7 +272,7 @@ test('completion in the unit slot offers the units, and nothing elsewhere in the
 
 test('completion inside a ${...} field answers as it would outside one', () => {
   const field = 'text.print(0, `T ${#';
-  assert.deepEqual(getCompletions(field, field.length).map((i) => i.label), ['#frames', '#system', '#fact', '#package']);
+  assert.deepEqual(getCompletions(field, field.length).map((i) => i.label), ['#frames', '#system', '#fact', '#package', '#define']);
   const unit = 'text.print(0, `T ${#frames(0.5, ';
   assert.deepEqual(getCompletions(unit, unit.length).map((i) => i.label), ['seconds']);
   const text = 'text.print(0, `T ';

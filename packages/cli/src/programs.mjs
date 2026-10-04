@@ -24,6 +24,7 @@ import { basename, resolve } from 'node:path';
 
 import { MACHINES, requiresProblems, sourceKindOf, stripSourceExtension } from '@8bitscript/compiler';
 
+import { resolveDefineBlock } from './defines.mjs';
 import { listedTargets } from './hardware.mjs';
 
 const DEFAULT_ENTRY = 'src/main.8bs';
@@ -60,6 +61,12 @@ const DISK_NAME_LIMIT = 16;
  * @property {boolean} stemFromFilename  true for the `entry:` spelling: the stem is the file's name
  * @property {string[]|null} targets     the machines this program builds for; null means the project's
  * @property {object} requires    fact floors: the project's, raised by the program's own
+ * @property {string|null} title        display only: what an editor calls this program
+ * @property {string|null} description  display only: one line on what running it shows
+ * @property {string|null} group        display only: the heading an editor files it under
+ * @property {Array<{ name: string, value: number|boolean|string, kind: string, description: string|null }>} define
+ *   the values this program is handed on every build (`define: { SEED: 10 }`), over each
+ *   `#define`'s default and under `--define`
  */
 
 /**
@@ -97,7 +104,7 @@ export function resolvePrograms(config) {
       ok: true,
       programs: [{
         name: DEFAULT_PROGRAM, entry: config?.entry ?? DEFAULT_ENTRY, stemFromFilename: true,
-        targets: null, requires: projectRequires,
+        targets: null, requires: projectRequires, title: null, description: null, group: null, define: [],
       }],
     };
   }
@@ -170,7 +177,16 @@ export function resolvePrograms(config) {
       }
       requires = { ...projectRequires, ...spec.requires };
     }
-    programs.push({ name, entry: spec.entry, stemFromFilename: false, targets, requires });
+    const display = {};
+    for (const key of ['title', 'description', 'group']) {
+      if (spec[key] !== undefined && (typeof spec[key] !== 'string' || spec[key].length === 0)) {
+        return { ok: false, error: `${at}.${key} must be a non-empty string (it is shown by editors; it changes nothing about the build)` };
+      }
+      display[key] = spec[key] ?? null;
+    }
+    const defines = resolveDefineBlock(spec.define, at + '.define');
+    if (!defines.ok) return { ok: false, error: defines.error };
+    programs.push({ name, entry: spec.entry, stemFromFilename: false, targets, requires, ...display, define: defines.define });
   }
   return { ok: true, programs };
 }

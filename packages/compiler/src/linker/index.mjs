@@ -86,7 +86,7 @@ function parseModule(file, text, diagnostics) {
  * are known: element checks, 8BX elaboration, folding, checking, and
  * lowering to this module's IR.
  */
-function finishModule(module, diagnostics, { frameRate, machine, facts, bx, locale, i18n, checkout, mediaSlots }) {
+function finishModule(module, diagnostics, { frameRate, machine, facts, bx, locale, i18n, checkout, mediaSlots, defines, defineSites }) {
   if (module.media) {
     elaborateMedia(module, diagnostics, { machine, facts, checkout, mediaSlots });
     return module;
@@ -102,7 +102,7 @@ function finishModule(module, diagnostics, { frameRate, machine, facts, bx, loca
   // plain IntegerLiteral by the time the width-fit rule walks the tree, so
   // e.g. #frames(100, seconds) overflowing a utinyint gets that diagnostic for free,
   // with no separate rule duplicating it here.
-  diagnostics.push(...foldCompileTime(ast, file, { frameRate, machine, facts, locale }));
+  diagnostics.push(...foldCompileTime(ast, file, { frameRate, machine, facts, locale, defines, defineSites }));
   diagnostics.push(...check(ast, file, text, { skipScreenText: catalog }));
   const { ir, diagnostics: lowering } = lower(ast, file, text);
   // The template layout runs in both check() (so the editor sees it) and
@@ -137,7 +137,7 @@ function loadGraph(entryText, entryFile, diagnostics, sources, options) {
   // once each however many modules import the package — keyed by canonical
   // path for the same pnpm-symlink reason `byPath` is.
   const nativeSources = new Map();
-  const finishOptions = { frameRate: options.frameRate, machine: options.machine, facts: options.facts, bx: options.bx, locale: options.locale, i18n: options.i18n, checkout: options.checkout, mediaSlots: { graphics: 0 } };
+  const finishOptions = { frameRate: options.frameRate, machine: options.machine, facts: options.facts, bx: options.bx, locale: options.locale, i18n: options.i18n, checkout: options.checkout, mediaSlots: { graphics: 0 }, defines: options.defines, defineSites: options.defineSites };
 
   // Whether a module is the program's own: the entry, and whatever it
   // reaches by a relative path or a project alias — never through a bare
@@ -1215,7 +1215,7 @@ function checkEntryExports(module) {
  *
  * @param {string} entryText  The entry module's source.
  * @param {string} entryFile  Its absolute path, the root imports resolve from.
- * @param {{ machine?: string, tags?: string[], profile?: string, frameRate?: number, facts?: object, locale?: string }} [options]
+ * @param {{ machine?: string, tags?: string[], profile?: string, frameRate?: number, facts?: object, locale?: string, defines?: Record<string, number|boolean|string>, defineSites?: object[] }} [options]
  *   `machine` is the target being built for; packages with target-
  *   conditional entries resolve to that machine's implementation, and any
  *   `.8bs` file with a `.<machine>.8bs` twin beside it resolves to the
@@ -1231,25 +1231,32 @@ function checkEntryExports(module) {
  *   names a machine and reads a fact without one is `8BS1038`. `locale`
  *   is the build's locale, if it has one: a file's `.<locale>` twin is
  *   taken where it exists (see the resolver), and `#locale("de")` folds
- *   to whether this is it.
- * @returns {{ ir: object|null, diagnostics: object[], sources: Map<string,string>, factsTested: string[] }}
+ *   to whether this is it. `defines` is the values the build was handed
+ *   (`--define NAME=VALUE`, a program's `define` block): every
+ *   `#define("NAME", default)` folds to its value in place of the default.
+ * @returns {{ ir: object|null, diagnostics: object[], sources: Map<string,string>, factsTested: string[], defineSites: Array<{ name: string, kind: string, default: number|boolean|string, file: string, start: number }> }}
  *   `factsTested` is every fact the program's own files test (see testedFacts).
+ *   `defineSites` is each `#define` name the program reads, once, with its
+ *   source default.
  */
 export function link(entryText, entryFile, options = {}) {
   const diagnostics = [];
   const sources = new Map();
 
-  const { modules, nativeSources } = loadGraph(entryText, entryFile, diagnostics, sources, options);
+  // Every `#define("NAME", default)` the program reads lands here, once per
+  // name, for the caller that wants to know which names a program takes.
+  const defineSites = options.defineSites ?? [];
+  const { modules, nativeSources } = loadGraph(entryText, entryFile, diagnostics, sources, { ...options, defineSites });
   const factsTested = testedFacts(modules);
   // modules[0] is the entry: loadGraph enqueues it before walking imports.
   const entry = checkEntryExports(modules[0]);
   diagnostics.push(...entry.diagnostics);
   bindImports(modules, diagnostics);
-  if (hasError(diagnostics)) return { ir: null, diagnostics, sources, factsTested };
+  if (hasError(diagnostics)) return { ir: null, diagnostics, sources, factsTested, defineSites };
 
   assignOutputNames(modules);
   resolvePendingConsts(modules, diagnostics);
-  if (hasError(diagnostics)) return { ir: null, diagnostics, sources, factsTested };
+  if (hasError(diagnostics)) return { ir: null, diagnostics, sources, factsTested, defineSites };
 
   // `nativeSources` is not IR the backends translate — it is the list of
   // files a backend passes through untouched (the 6502 backend receives
@@ -1365,7 +1372,7 @@ export function link(entryText, entryFile, options = {}) {
 
   injectMediaBinds(ir);
 
-  if (hasError(diagnostics)) return { ir: null, diagnostics, sources, factsTested };
+  if (hasError(diagnostics)) return { ir: null, diagnostics, sources, factsTested, defineSites };
   specializeInstances(ir, diagnostics);
   // A module's own lowering types what it can see; a ref to an imported
   // global, an imported array's element read, and every binop over either
@@ -1383,9 +1390,9 @@ export function link(entryText, entryFile, options = {}) {
   // the same reason: every const and `#fact` is inlined by this point,
   // and was not before it.
   checkUnrollDecorators(ir, functionFiles, diagnostics);
-  if (hasError(diagnostics)) return { ir: null, diagnostics, sources, factsTested };
+  if (hasError(diagnostics)) return { ir: null, diagnostics, sources, factsTested, defineSites };
   ir.memory = memoryOf(ir);
-  return { ir, diagnostics, sources, factsTested };
+  return { ir, diagnostics, sources, factsTested, defineSites };
 }
 
 /**

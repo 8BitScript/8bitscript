@@ -36,7 +36,7 @@ plain `export default { … }` is still a config.
 | Key | Meaning |
 | --- | --- |
 | `entry` | The `.8bs` file a build starts from — an `.8bx` is refused by name: a program starts from `.8bs` and reaches a component by importing it and calling it (`Hello();` is `<Hello />` the way `.8bs` spells it). A `.<machine>.8bs` twin beside it is used on that machine. An object `{ default, nes }` still works. The one-program spelling of `programs`, below. |
-| `programs` | Several programs in one project, each its own build from its own `.8bs` entry: `{ main: { entry }, format: { entry, targets?, requires? } }`. Cannot be given together with `entry`. See below. |
+| `programs` | Several programs in one project, each its own build from its own `.8bs` entry: `{ main: { entry }, format: { entry, targets?, requires?, title?, description?, group?, define? } }`. Cannot be given together with `entry`. See below. |
 | `images` | Disk images over the programs — a `.d64` holding several of them plus data files. Checked by every build; written by a later release. See below. |
 | `locale` | The locale every build is for, unless a target's `locale`, a `release` entry's `locale`, or `--locale` says otherwise. A name of two to eight lower-case letters with an optional `-region` (`de`, `pt-br`) — never a machine's name or one of its hardware tags. With one, a file's `.<locale>` twin is read where it exists (`strings.de.8bs`; `strings.pet.de.8bs` for the PET's own twin; `strings.pet.8032.de.8bs` for the 8032's), the artifact's name carries it (`2048-pet-de.prg`, `program-de.wasm`), and `#locale("de")` folds to `true`. Without one — the default — no locale's file is read, every name stays as it was, and `#locale(...)` is `false`. A locale never changes *which* machine twin is chosen; it refines it, and a machine twin with no version in the locale is used with a warning (`8BS3005`) when the plain file has one. See below. |
 | `bx` | 8BX settings: `{ strict: false }` turns the ordinary-code lint in `.8bx` files off (`8BS2021`, a warning on a top-level function that composes nothing or a top-level `let`). The hard rules — no `asm6502` in `.8bx` (`8BS2020`), no `.8bx` program entry — stay. |
@@ -183,7 +183,43 @@ Reaching one: `8bs build --target c64 --program format`, `8bs run c64
 one there is. `8bs build --release` builds every program for every target
 it (or the project) lists, once per name in that target's `release`
 array. `8bs targets` lists the programs; `8bs targets --json` carries them
-as `programs` for the editor.
+as `programs` for the editor, and `8bs project --json` describes them in
+full.
+
+### A program is a work unit: a title, a group, and the values it is handed
+
+A program is also the unit an editor lets you run on its own — a lobby, one
+game, a test screen. Four optional keys say how to show it and what to feed
+it:
+
+```ts
+programs: {
+  slot5x5: {
+    entry: 'src/labs/slot5x5.8bs',
+    title: 'Slot 5×5',                  // what an editor calls it
+    description: 'Five reels, a free-spin bonus, four jackpots.',
+    group: 'Slots',                     // the heading it is filed under
+    define: {                           // handed to every build of it
+      SEED: 10,
+      FORCE_BONUS: { value: true, description: 'Start inside the bonus round' },
+    },
+  },
+},
+```
+
+`title`, `description` and `group` are display only: nothing about the
+build changes. `define` is a value the build hands the program, read in the
+source with `#define("SEED", 10)` ([core.md §1.11](language/core.md#111-values-the-build-is-handed))
+— the config's value wins over the default in the source, and
+`--define NAME=VALUE` on the command line wins over the config. A name in
+`define` that the program never reads is a warning, and a `--define` for
+one is an error naming the nearest name that is read. This is what
+replaces a second entry file per variant of a program: the variant is a
+value, not a copy.
+
+`8bs project --json` reads all of this with the CLI's own loader, and lists
+each program's defines with the defaults found in its source; the shape is
+in [docs/project/units.md](project/units.md).
 
 ## One binary per locale
 
