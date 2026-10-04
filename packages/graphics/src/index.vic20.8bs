@@ -1,4 +1,5 @@
-// @8bitscript/graphics on the VIC-20: four quadrant-block cells in a 2×2 grid.
+// @8bitscript/graphics on the VIC-20: quadrant-block cells, one or two wide
+// and one or two high.
 //
 // This used to write the object's bitmap into a RAM character set at $1400
 // and leave it at that. Three things were wrong with it, and the first one
@@ -20,86 +21,118 @@
 // So this draws the way @8bitscript/pet does instead, for the same reason
 // that package gives: the ROM already has the sixteen quadrant blocks, and
 // using them costs no RAM, no character set, and nothing of the program.
-// An object is four cells, each the one block that describes its corner.
+//
+// ---- what the build hands over -------------------------------------------
+//
+// packages/vic20/media/index.cjs works the picture out while the program is
+// built: the sprite's frames are reduced to screen codes there, and what
+// arrives here is those codes, `cells wide × cells high` per frame, frame
+// after frame (`bind`), then the object's size, frame count and animation
+// speed (`meta`). Nothing is worked out on the machine except where to put
+// them. The codes live in one small pool shared by every object
+// (`POOL` bytes); an object that does not fit is not drawn.
+//
+// ---- what drawing does ----------------------------------------------------
+//
+// The object is at the cell its position falls in — x and y are stage
+// pixels, a cell is 8 of them, and the smallest move that shows is one
+// cell. It is drawn into screen memory and color RAM, and:
+//
+//  * Cells that would fall off the screen are not drawn. The screen is the
+//    22 × 23 cells at `Video.SCREEN`, and on a machine with 8K or more the
+//    program starts right after it ($1201), so a store one cell past the
+//    last would be a store into the program.
+//  * Moving an object blanks the cells it was drawn in before it is drawn
+//    in the new ones, so it leaves no trail. What was under it is not put
+//    back — this is not the PET's `sprites` twin, which keeps what it
+//    covered. Text printed where an object stands stays until the object
+//    moves, and is blanked when it does; a program prints where objects
+//    are not.
+//  * Every update redraws every object that is on the screen, after the
+//    ones that moved have been blanked, so objects that overlap come out
+//    the same whichever of them moved (the later slot is on top), and an
+//    object a program has printed over comes back on the next update.
+//  * An object with more than one frame advances one frame every `every`
+//    updates and starts over after the last.
 import { Video } from "@8bitscript/vic20/geometry";
-import { text } from "@8bitscript/text";
 
 const MAX: utinyint = 8;
-const KIND_VIC20: utinyint = 4;
+const POOL: utinyint = 64;
 const INK: utinyint = 1; // white, the color text.8bs also defaults to
+const SPACE: utinyint = 32;
+const OFF: utinyint = 40; // a cell number past either edge of the screen
 
-// Screen code for each of the sixteen 2x2 on/off patterns, indexed by
-// (topLeft<<3 | topRight<<2 | bottomLeft<<1 | bottomRight) — the same table
-// @8bitscript/pet/blocks carries, and the same codes here: measured against
-// this machine's own character ROM under xvic rather than assumed from the
-// PET's, by reading $8000 + code*8. Code 108 is $0F on its bottom four rows
-// (bottom-right), 123 is $F0 on them (bottom-left), 98 is $FF (the bottom
-// half), 124 is $0F on the top four (top-right), 126 is $F0 on them
-// (top-left) and 97 is $F0 on all eight (the left half) — each one its
-// index's own bits. The entries past 127 are the hardware reverse of the
-// ones below, which is what covers the patterns this ROM does not draw.
-const QUAD: array<utinyint, 16> = [
-    32,  108, 123, 98,
-    124, 225, 255, 254,
-    126, 127, 97,  252,
-    226, 251, 236, 160,
-];
+let pool: array<u8, 64>;     // the screen codes of every object's frames
+let base: array<u8, 8>;      // where in the pool the object's codes start
+let wide: array<u8, 8>;      // cells across, 1 or 2
+let high: array<u8, 8>;      // cells down, 1 or 2
+let stride: array<u8, 8>;    // cells in a frame: wide × high
+let frames: array<u8, 8>;    // how many frames; 0 for an object that did not fit
+let every: array<u8, 8>;     // updates per frame
+let tick: array<u8, 8>;      // updates since the frame last changed
+let frame: array<u8, 8>;     // the frame showing
+let col: array<u8, 8>;       // the cell the object is placed at; OFF past the screen
+let row: array<u8, 8>;
+let seen: array<u8, 8>;      // 1 once placed
+let drawn: array<u8, 8>;     // 1 while cells of it are on the screen
+let drawnCol: array<u8, 8>;  // where they are
+let drawnRow: array<u8, 8>;
+let moved: array<u8, 8>;     // 1 until the cells it was drawn in have been blanked
+let top: utinyint = 0;       // the first free byte of the pool
 
-let code0: array<u8, 8>;
-let code1: array<u8, 8>;
-let code2: array<u8, 8>;
-let code3: array<u8, 8>;
-let glyph: array<u8, 256>;
-let px: array<u16, 8>;
-let py: array<u16, 8>;
-let shown: array<u8, 8>;
-
-// One cell of the object, as the block that best describes it. The object
-// arrives as a 16x16 bitmap — four 8x8 cells, eight rows each — and this
-// machine has no redefinable glyphs to put it in, so a quadrant counts as
-// lit when any pixel in its 4x4 corner is. A 16x16 object therefore draws
-// at 4x4 pseudo-pixels, which is the resolution a PET renders one at too.
-function quadrantOf(slot: utinyint, charIndex: utinyint): utinyint {
-    let base: usmallint = (slot << 5) + (charIndex << 3);
-    let bits: utinyint = 0;
-    let row: utinyint = 0;
-    while (row < 8) {
-        let pixels: utinyint = glyph[base + row];
-        if ((pixels & 0xF0) != 0) {
-            if (row < 4) {
-                bits = bits | 8;
-            } else {
-                bits = bits | 2;
-            }
-        }
-        if ((pixels & 0x0F) != 0) {
-            if (row < 4) {
-                bits = bits | 4;
-            } else {
-                bits = bits | 1;
-            }
-        }
-        row = row + 1;
+// The object's cells, drawn or (with `blank`) blanked at the cell it was
+// drawn in. A cell past the screen's edge is skipped: `col` and `row` are
+// capped at OFF, so adding a cell or two to either cannot wrap a byte.
+function paint(slot: utinyint, blank: bool): void {
+    let c0: utinyint = col[slot];
+    let r0: utinyint = row[slot];
+    if (blank) {
+        c0 = drawnCol[slot];
+        r0 = drawnRow[slot];
     }
-    return QUAD[bits];
+    let at: usmallint = base[slot] + frame[slot] * stride[slot];
+    let dy: utinyint = 0;
+    while (dy < high[slot]) {
+        let r: usmallint = r0 + dy; // 16 bits: row 12 times 22 does not fit a byte
+        let line: usmallint = r * Video.COLUMNS;
+        let dx: utinyint = 0;
+        while (dx < wide[slot]) {
+            let c: utinyint = c0 + dx;
+            if (c < Video.COLUMNS && r < Video.ROWS) {
+                let cell: usmallint = line + c;
+                if (blank) {
+                    memory.write(Video.SCREEN + cell, SPACE);
+                } else {
+                    memory.write(Video.SCREEN + cell, pool[at]);
+                    memory.write(Video.COLOR + cell, INK);
+                }
+            }
+            at = at + 1;
+            dx = dx + 1;
+        }
+        dy = dy + 1;
+    }
 }
 
-// The color goes down with the code: screen.blank() clears the screen
-// matrix but not color RAM, so a cell drawn without one shows in whatever
-// the last thing to use it left behind.
-function putScreen(cell: usmallint, screenCode: utinyint): void {
-    memory.write(Video.SCREEN + cell, screenCode);
-    memory.write(Video.COLOR + cell, INK);
-}
-
-function drawBlock(slot: utinyint): void {
-    let col: utinyint = px[slot] / 8;
-    let row: utinyint = py[slot] / 8;
-    let base: usmallint = row * text.COLUMNS + col;
-    putScreen(base, code0[slot]);
-    putScreen(base + 1, code1[slot]);
-    putScreen(base + text.COLUMNS, code2[slot]);
-    putScreen(base + text.COLUMNS + 1, code3[slot]);
+function flush(): void {
+    let slot: utinyint = MAX;
+    while (slot > 0) {
+        slot = slot - 1;
+        if (moved[slot] != 0 && drawn[slot] != 0) {
+            paint(slot, true);
+            drawn[slot] = 0;
+        }
+    }
+    while (slot < MAX) {
+        if (seen[slot] != 0) {
+            paint(slot, false);
+            drawn[slot] = 1;
+            drawnCol[slot] = col[slot];
+            drawnRow[slot] = row[slot];
+            moved[slot] = 0;
+        }
+        slot = slot + 1;
+    }
 }
 
 export namespace graphics {
@@ -108,57 +141,68 @@ export namespace graphics {
             return;
         }
         if (index == 0) {
-            code0[slot] = value;
-            return;
+            base[slot] = top;
         }
-        if (index == 1) {
-            code1[slot] = value;
-            return;
+        let at: usmallint = base[slot] + index;
+        if (at < POOL) {
+            pool[at] = value;
         }
-        if (index == 2) {
-            code2[slot] = value;
-            return;
-        }
-        if (index == 3) {
-            code3[slot] = value;
-            return;
-        }
-        let g: utinyint = index - 4;
-        glyph[(slot << 5) + g] = value;
     }
 
-    function meta(slot: utinyint, frames: utinyint, every: utinyint, which: utinyint, width: utinyint, height: utinyint): void {
+    function meta(slot: utinyint, count: utinyint, rate: utinyint, which: utinyint, width: utinyint, height: utinyint): void {
         if (slot >= MAX) {
             return;
         }
-        if (which == KIND_VIC20) {
-            // The four codes bind() was handed name a RAM character set
-            // that does not exist here; the object's own bitmap does, so
-            // the cells come from that instead.
-            code0[slot] = quadrantOf(slot, 0);
-            code1[slot] = quadrantOf(slot, 1);
-            code2[slot] = quadrantOf(slot, 2);
-            code3[slot] = quadrantOf(slot, 3);
+        wide[slot] = width >> 3;
+        high[slot] = height >> 3;
+        stride[slot] = wide[slot] * high[slot];
+        let end: usmallint = base[slot] + count * stride[slot];
+        if (end > POOL) {
+            frames[slot] = 0;
+            return;
         }
+        top = end;
+        frames[slot] = count;
+        every[slot] = rate;
+        tick[slot] = 0;
+        frame[slot] = 0;
     }
 
     function place(slot: utinyint, x: usmallint, y: usmallint): void {
         if (slot >= MAX) {
             return;
         }
-        px[slot] = x;
-        py[slot] = y;
-        shown[slot] = 1;
-        drawBlock(slot);
+        if (frames[slot] == 0) {
+            return;
+        }
+        col[slot] = OFF;
+        if (x < 320) {
+            col[slot] = x >> 3;
+        }
+        row[slot] = OFF;
+        if (y < 320) {
+            row[slot] = y >> 3;
+        }
+        seen[slot] = 1;
+        moved[slot] = 1;
+        flush();
     }
 
     function update(): void {
         let slot: utinyint = 0;
         while (slot < MAX) {
-            if (shown[slot] != 0) {
-                drawBlock(slot);
+            if (seen[slot] != 0 && frames[slot] > 1) {
+                tick[slot] = tick[slot] + 1;
+                if (tick[slot] >= every[slot]) {
+                    tick[slot] = 0;
+                    frame[slot] = frame[slot] + 1;
+                    if (frame[slot] >= frames[slot]) {
+                        frame[slot] = 0;
+                    }
+                }
             }
             slot = slot + 1;
         }
+        flush();
     }
 }

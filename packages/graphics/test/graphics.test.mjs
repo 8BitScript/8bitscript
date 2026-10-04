@@ -8,7 +8,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const SRC = join(HERE, '..', 'src');
 
 test('every twin exports graphics.bind, meta, place, and update', () => {
-  for (const name of ['index.8bs', 'index.c64.8bs', 'index.nes.8bs', 'index.pet.8bs']) {
+  for (const name of ['index.8bs', 'index.c64.8bs', 'index.nes.8bs', 'index.pet.8bs', 'index.vic20.8bs']) {
     const src = readFileSync(join(SRC, name), 'utf8');
     assert.match(src, /function bind\(/, name);
     assert.match(src, /function meta\(/, name);

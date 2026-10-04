@@ -411,6 +411,65 @@ facts, and these are the ones that are wrong on this machine:
   The `vic21` model is a 16K NTSC machine and is what `--hardware ram=16k`
   on NTSC already builds for.
 
+## Graphics (`@8bitscript/graphics`)
+
+A `.8bg` object is drawn as the ROM's quadrant-block characters, and the
+picture is reduced to them while the program is built, not on the machine.
+`packages/vic20/media/index.cjs` takes each animation frame and cuts it
+onto a grid of pseudo-pixels two to a cell in each direction: one cell
+across (or down) for a source of 8 pixels or fewer, two for anything
+larger, scaled down to fit — the PET's reduction, which it reads the same
+way. A pseudo-pixel is lit if any opaque dark pixel of the source falls in
+it. The result is one screen code per cell per frame, `QUAD` in that file
+(the sixteen patterns, read off this machine's own character ROM under
+xvic, the same codes `packages/graphics/src/index.vic20.8bs` drew with
+before). A picture with fewer than four ink pixels becomes the single glyph
+`$51` instead, and either choice is reported as `8BS2111`.
+
+`packages/graphics/src/index.vic20.8bs` is then only a drawing loop:
+
+- **Where.** x and y are stage pixels and the object is at the cell they
+  fall in (`x >> 3`, `y >> 3`), so the smallest move that shows is one cell.
+- **Clipping.** Cells past column 21 or row 22 are not written. On 8K and up
+  the screen ends at `$11F9` and the program starts at `$1201`: an object
+  at the bottom-right corner, unclipped, reaches `$1210`, a store into the
+  program, which is the same kind of bug as the RAM charset's. (The first
+  bytes there are the BASIC stub, already run by then, so the test reads the
+  right edge, where the wrap onto the next row shows, as well.)
+- **Moving.** An object that moves has the cells it was drawn in blanked
+  (screen code 32) before every object on the screen is drawn again, later
+  slots on top. It does not put back what was there: text printed where an
+  object stands is gone once the object moves, and a program prints where
+  objects are not. Every update redraws every placed object, so one a
+  program printed over comes back.
+- **Frames.** An object with more than one frame steps every `every`
+  updates, in the order its `animation` names the frames, and starts over
+  after the last. The first 8 frames are kept; a longer animation is cut and
+  says so.
+- **Limits.** Eight objects (`MAX`, like the other targets), and 64 bytes of
+  codes among all of them (`POOL`): sixteen frames of a 2×2 object, or any
+  mix. An object that does not fit is not drawn. Both arrays are in the
+  program image, so they count in `memory.program`, not in the variables.
+- **Slots.** The compiler numbers sprites across the whole build, not per
+  `.8bg` file. It used to start each file at 0, so `mark.8bg` and
+  `player.8bg` in `examples/media-walk` shared slot 0 and the second
+  placement moved the first.
+
+Measured with `8bs build vic20 --size` on `packages/examples/media-walk`
+(2026-10-03): 2455 bytes of program and 49 of variables, unexpanded and 8K
+alike. Before this change it was 2383 and 41, and held a 256-byte table and
+a runtime reduction of every object. A draw's cost in cycles is not measured:
+update is one pass over the placed objects, a few dozen stores each.
+
+Verified on screen under xvic (`test/graphics.test.mjs`, NTSC, unexpanded
+and 8K): an 8×8 object takes one cell and leaves its neighbours' text
+intact; a faint picture is one glyph; objects from two `.8bg` files are both
+there; a moved object leaves no trail; objects placed at the bottom-right
+corner and along the right edge do not wrap onto the next row or reach the
+program; an animation alternates its two frames every four updates and
+blanks the cells the frame leaves. Not verified: PAL (the cells do not move
+with the region), the 3K and 16K/24K layouts, and real hardware.
+
 ## Raster splits
 
 `src/rasterline.8bs` is the VIC-20 behind `@8bitscript/raster`, and the
@@ -670,6 +729,10 @@ packages/vic20/src/text.8bs             @8bitscript/vic20/text: ASCII → screen
 packages/vic20/src/rasterline.8bs       @8bitscript/vic20/rasterline (behind @8bitscript/raster): the list, commit()'s plan in the cassette buffer ($033C-$03CB), vic20RasterFrame — the frame hook, two timed copies (NTSC, PAL)
 packages/vic20/test/raster-probe.8bs    the probe: a list built once, both slots, an adjacent entry, a merged line, setValue after fifty frames, a frame counter
 packages/vic20/test/raster-charset-probe.8bs   eight CHARSET entries mid-row on screen code 66 (a different glyph on all eight lines in the two sets), two merged with BORDER
+packages/vic20/media/index.cjs          the `.8bg` and `.8ba` lowering: pictures reduced to quadrant-block screen codes at build time, songs to VIC register events
+packages/graphics/src/index.vic20.8bs   @8bitscript/graphics' drawing loop: codes in a pool, clipped to the screen, blank-then-draw on a move
+packages/vic20/test/graphics.test.mjs   under xvic: cells by position, 8x8 vs 16x16, a glyph, two modules, no trail, the corner, an animation
+packages/vic20/test/capture.mjs         the tests' shared helpers: run the CLI, decode a capture
 packages/vic20/test/raster.test.mjs     links the probes; under xvic, NTSC and PAL (and NTSC 8K for CHARSET), two consecutive frames each, every split on its line and whole
 packages/compiler/src/mos/index.ts     FRAME_SYNC.vic20 ($9004 poll; frameHook vic20RasterFrame); the SEI a waitFrame() program starts with
 packages/compiler/src/mos/startup/waitframe.ts   rasterWait, and waitFrameRoutine's JSR to the frame hook after it
