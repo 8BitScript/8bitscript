@@ -88,6 +88,7 @@ function createVscodeMock() {
   const openedExternal = [];
   const webviewPanels = [];
   const executedCommands = [];
+  const extraCommands = [];
   const viewProviders = new Map();
 
   function nextFrom(name) {
@@ -168,6 +169,11 @@ function createVscodeMock() {
       // forward the port; the Studio tab frames whatever comes back.
       asExternalUri: (uri) => Promise.resolve(uri),
       openExternal: (uri) => { openedExternal.push(uri.toString()); return Promise.resolve(true); },
+      // What the last writeText() put on the clipboard, for a test to read.
+      clipboard: {
+        text: '',
+        writeText(value) { this.text = value; return Promise.resolve(); },
+      },
     },
     EventEmitter,
     Task,
@@ -186,6 +192,7 @@ function createVscodeMock() {
     Uri: {
       file: uriFor,
       parse: uriParse,
+      joinPath: (base, ...parts) => uriFor(require('node:path').join(base.fsPath, ...parts)),
     },
     ViewColumn: { One: 1, Two: 2, Three: 3, Beside: -2 },
     TextEditorRevealType: { Default: 0, InCenter: 1, InCenterIfOutsideViewport: 2, AtTop: 3 },
@@ -324,6 +331,8 @@ function createVscodeMock() {
         commandHandlers.set(id, handler);
         return makeDisposable(() => commandHandlers.delete(id));
       },
+      // The ids registered so far, plus any a test lists in __mock.extraCommands.
+      getCommands: () => Promise.resolve([...commandHandlers.keys(), ...extraCommands]),
       executeCommand: (id, ...args) => {
         executedCommands.push({ id, args });
         const handler = commandHandlers.get(id);
@@ -343,6 +352,7 @@ function createVscodeMock() {
       openedExternal,
       webviewPanels,
       executedCommands,
+      extraCommands,
       viewProviders,
       taskEmitters,
       fireSelectionChange: (event) => selectionEmitter.fire(event),
@@ -365,6 +375,8 @@ function createVscodeMock() {
         openedExternal.length = 0;
         webviewPanels.length = 0;
         executedCommands.length = 0;
+        extraCommands.length = 0;
+        vscode.env.clipboard.text = '';
         viewProviders.clear();
         vscode.workspace.workspaceFolders = undefined;
         vscode.workspace.openTextDocument = defaultOpenTextDocument;
