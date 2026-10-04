@@ -2,32 +2,28 @@
 // block object, an animation is one shape a frame, and the sprite layer's
 // seven shapes are shared by every picture in the program.
 //
-// Three layers, cheapest first: the lowering on its own (packages/pet/media),
-// the link (what the compiler hands the driver, in what order, with what
-// warnings), and the real thing under xpet — a program built from generated
-// pictures, screenshotted headless, and read by pixel. The fixtures are
-// written to a scratch directory at run time so no PNG lives in the tree.
+// This file is the real thing under xpet: a program built from generated
+// pictures, screenshotted headless, and read by pixel. The lowering and the
+// link — slots, bind order, the budget's warnings — are tested in
+// packages/compiler/test/media-lower.test.mjs, where CI runs them. The
+// fixtures are written to a scratch directory at run time so no PNG lives
+// in the tree.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
-import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { delimiter, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { inflateSync } from 'node:zlib';
 
-import { link } from '../../compiler/index.mjs';
 import { encodePng } from '../../graphics-tools/src/index.mjs';
-import { stockFacts } from '../../cli/src/hardware.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
 const CHECKOUT = join(ROOT, '..', '..');
 const CLI_BIN = join(ROOT, '..', 'cli', 'bin', '8bs.mjs');
-const require = createRequire(import.meta.url);
-const petMedia = require('../media/index.cjs');
 
 // ---- fixtures ---------------------------------------------------------------
 
@@ -88,154 +84,6 @@ ${places.join('\n')}
   writeFileSync(file, text);
   return { file, text };
 }
-
-function linkPet(program, model = '3032') {
-  return link(program.text, program.file, {
-    machine: 'pet', facts: stockFacts('pet'), tags: [model], checkout: CHECKOUT,
-  });
-}
-
-// ---- the lowering ------------------------------------------------------------
-
-function wrap(code, message, file, start, length, severity = 'error') {
-  return { code, message, file, start, length, severity };
-}
-
-function frameOf(rows) {
-  const width = 16;
-  const rgba = new Uint8Array(width * 16 * 4);
-  for (let y = 0; y < 16; y += 1) {
-    for (let x = 0; x < 16; x += 1) {
-      if ((rows[y >> 2] >> (3 - (x >> 2))) & 1) rgba[(y * width + x) * 4 + 3] = 255;
-    }
-  }
-  return { rgba, width, height: 16 };
-}
-
-const sprite = (name, animation) => ({
-  name, width: 16, height: 16, start: 0, length: 1, animations: animation ? [animation] : [],
-});
-
-test('every animation frame is lowered, four row nibbles each, in the order the animation names them', () => {
-  const frames = WALK.map(frameOf);
-  const walk = petMedia.lowerGraphics(sprite('walk', { name: 'go', frames: [0, 1, 2, 3], every: 6 }), frames, {}, 't.8bg', wrap);
-  assert.equal(walk.kind, 3);
-  assert.equal(walk.frames, 4);
-  assert.equal(walk.every, 6);
-  assert.deepEqual(walk.data, WALK.flat());
-  assert.deepEqual(walk.diagnostics.map((d) => d.code), ['8BS2111']);
-  assert.match(walk.diagnostics[0].message, /4 frames/);
-
-  // The animation picks and orders the sheet's frames: 2 then 0 is two frames.
-  const picked = petMedia.lowerGraphics(sprite('pick', { name: 'go', frames: [2, 0], every: 8 }), frames, {}, 't.8bg', wrap);
-  assert.equal(picked.frames, 2);
-  assert.deepEqual(picked.data, [...WALK[2], ...WALK[0]]);
-
-  // No animation: one frame, the sheet's first.
-  const still = petMedia.lowerGraphics(sprite('ring'), [frameOf(RING)], {}, 't.8bg', wrap);
-  assert.equal(still.frames, 1);
-  assert.deepEqual(still.data, RING);
-  assert.doesNotMatch(still.diagnostics[0].message, /frames/);
-});
-
-test('a picture holds at most seven frames — the sprite layer has seven shapes — and says which it dropped', () => {
-  const frames = Array.from({ length: 9 }, (_, i) => frameOf(WALK[i % 4]));
-  const long = petMedia.lowerGraphics(sprite('long', { name: 'go', frames: [0, 1, 2, 3, 0, 1, 2, 3, 0], every: 4 }), frames, {}, 't.8bg', wrap);
-  assert.equal(long.frames, 7);
-  assert.equal(long.data.length, 28);
-  assert.match(long.diagnostics[0].message, /last 2 frames dropped/);
-});
-
-test('the shapes are one budget for the whole program: a later picture gets what is left, then nothing', () => {
-  const shared = {};
-  const frames = WALK.map(frameOf);
-  const go = { name: 'go', frames: [0, 1, 2, 3], every: 4 };
-  const first = petMedia.lowerGraphics(sprite('a', go), frames, {}, 't.8bg', wrap, shared);
-  const second = petMedia.lowerGraphics(sprite('b', go), frames, {}, 't.8bg', wrap, shared);
-  const third = petMedia.lowerGraphics(sprite('c'), [frameOf(RING)], {}, 't.8bg', wrap, shared);
-  assert.equal(first.frames, 4);
-  assert.equal(second.frames, 3, 'seven shapes minus the four the first took');
-  assert.match(second.diagnostics[0].message, /last 1 frame dropped/);
-  assert.equal(third.frames, 0, 'nothing left');
-  assert.deepEqual(third.data, []);
-  assert.match(third.diagnostics[0].message, /not drawn/);
-  assert.equal(third.diagnostics[0].severity, 'warning');
-  assert.equal(shared.petShapes, 7);
-});
-
-test('what is the shape: transparency when the picture has any, brightness only when it is fully opaque', () => {
-  const paint = (rows, ink, paper) => {
-    const rgba = new Uint8Array(16 * 16 * 4);
-    for (let y = 0; y < 16; y += 1) {
-      for (let x = 0; x < 16; x += 1) {
-        const on = (rows[y >> 2] >> (3 - (x >> 2))) & 1;
-        const colour = on ? ink : paper;
-        rgba.set(colour, (y * 16 + x) * 4);
-      }
-    }
-    return { rgba, width: 16, height: 16 };
-  };
-  const WHITE = [255, 255, 255, 255];
-  const BLACK = [0, 0, 0, 255];
-  const CLEAR = [0, 0, 0, 0];
-  const lower = (frame) => petMedia.lowerGraphics(sprite('p'), [frame], {}, 't.8bg', wrap);
-
-  // White pixel art on a clear background is a white shape, as on the C64.
-  assert.deepEqual(lower(paint(RING, WHITE, CLEAR)).data, RING);
-  // Black ink on opaque white paper: the colours are all there is to go on.
-  assert.deepEqual(lower(paint(RING, BLACK, WHITE)).data, RING);
-  // Dark ink on a clear background, the case the examples draw.
-  assert.deepEqual(lower(paint(RING, BLACK, CLEAR)).data, RING);
-});
-
-test('a PNG that could not be read lowers to nothing but a placeholder, and an animation naming a frame the sheet lacks falls back to the first', () => {
-  // The unreadable-source diagnostic is the compiler's; the lowering is
-  // handed no frames and must not throw.
-  const none = petMedia.lowerGraphics(sprite('gone'), [], {}, 't.8bg', wrap);
-  assert.equal(none.kind, 0);
-  assert.equal(none.frames, 1);
-  assert.deepEqual(none.diagnostics, []);
-
-  const frames = [frameOf(RING)];
-  const stray = petMedia.lowerGraphics(sprite('stray', { name: 'go', frames: [0, 9], every: 8 }), frames, {}, 't.8bg', wrap);
-  assert.equal(stray.frames, 2);
-  assert.deepEqual(stray.data, [...RING, ...RING], 'frame 9 does not exist; the first stands in');
-});
-
-test('a picture too faint to survive the downsample becomes a small centre block, one shape, and says so', () => {
-  const blank = frameOf([0, 0, 0, 0]);
-  const dot = petMedia.lowerGraphics(sprite('dot'), [blank], {}, 't.8bg', wrap);
-  assert.equal(dot.kind, 3);
-  assert.equal(dot.frames, 1);
-  assert.deepEqual(dot.data, [0, 6, 6, 0]);
-  assert.match(dot.diagnostics[0].message, /centre block/);
-  assert.equal(dot.diagnostics[0].severity, 'warning');
-});
-
-// ---- the link ---------------------------------------------------------------
-
-test('two .8bg files get slots 0 and 1 and are bound in the order they are declared; the budget warnings reach the build', async () => {
-  const scratch = await mkdtemp(join(tmpdir(), '8bs-pet-gfx-link-'));
-  try {
-    const program = writeProgram(scratch, [['alpha', WALK, 16, 16], ['beta', WALK, 120, 16], ['gamma', [RING], 224, 16]]);
-    const { ir, diagnostics } = linkPet(program);
-    assert.deepEqual(diagnostics.filter((d) => d.severity !== 'warning'), []);
-
-    const entry = ir.functions.find((f) => f.name === ir.entry);
-    const binds = entry.body.filter((s) => s.kind === 'call' && /__8bs_media_bind_/.test(s.name)).map((s) => s.name.replace(/^.*__8bs_media_bind_/, ''));
-    assert.deepEqual(binds, ['alpha', 'beta', 'gamma']);
-    const slots = entry.body.filter((s) => s.kind === 'call' && /graphics_place$/.test(s.name)).map((s) => s.args[0].value);
-    assert.deepEqual(slots, [0, 1, 2]);
-
-    const messages = diagnostics.filter((d) => d.code === '8BS2111').map((d) => d.message);
-    assert.equal(messages.length, 3);
-    assert.match(messages[0], /alpha.*4 frames/);
-    assert.match(messages[1], /beta.*last 1 frame dropped/);
-    assert.match(messages[2], /gamma.*not drawn/);
-  } finally {
-    await rm(scratch, { recursive: true, force: true });
-  }
-});
 
 // ---- under xpet ---------------------------------------------------------------
 
