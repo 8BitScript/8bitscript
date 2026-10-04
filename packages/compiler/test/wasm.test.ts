@@ -534,6 +534,38 @@ test('a pinned array running past the 64 KiB address space is refused, by name',
   }
 });
 
+test('data, and a pinned array, that would reach into a reserved range are refused, by name', async () => {
+  // A reserved range is memory the page reads that no pinned global names (the
+  // C64's character RAM): the program's own stores fill it, so nothing else may.
+  const reserved = [{ start: 0xa000, end: 0xb000, label: 'the character RAM' }];
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-web-native-'));
+  try {
+    const outFile = join(scratch, 'out.wasm');
+    const body = [{ kind: 'storeIndex', array: { kind: 'ref', name: 'TILES' }, index: num(0, 'utinyint'), value: num(1, 'utinyint'), elementType: 'utinyint' }];
+    const into = await build(
+      { entry: 'main', functions: [{ name: 'main', body }], globals: [{ name: 'TILES', type: 'utinyint', address: 0x9f00, array: 512, constant: false, init: null }] },
+      { outFile, frameRate: 60, allowPinnedScalars: true, reservedRanges: reserved },
+    );
+    assert.equal(into.ok, false);
+    assert.match(into.ok ? '' : into.error, /'TILES'.*overlaps the character RAM/);
+    const beside = await build(
+      { entry: 'main', functions: [{ name: 'main', body }], globals: [{ name: 'TILES', type: 'utinyint', address: 0x9000, array: 512, constant: false, init: null }] },
+      { outFile, frameRate: 60, allowPinnedScalars: true, reservedRanges: reserved },
+    );
+    assert.equal(beside.ok, true, 'a pinned array clear of the range builds');
+    // Data: 40,000 bytes from the floor (8192) runs past 0xa000 (40960).
+    const bigBody = [{ kind: 'return', value: { kind: 'index', array: { kind: 'ref', name: 'DATA' }, index: num(0, 'usmallint'), elementType: 'utinyint', type: 'utinyint' } }];
+    const data = await build(
+      { entry: 'main', functions: [{ name: 'main', returnType: 'utinyint', body: bigBody }], globals: [{ name: 'DATA', type: 'utinyint', address: null, array: 40000, constant: true, init: new Array(40000).fill(1) }] },
+      { outFile, frameRate: 60, reservedRanges: reserved },
+    );
+    assert.equal(data.ok, false);
+    assert.match(data.ok ? '' : data.error, /own data.*reach into the character RAM/);
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
 test('program data that would sit under a pinned array is refused, not silently aliased', async () => {
   // A const array of 4,000 bytes starts at the data floor (8192) and runs to
   // ~12,200; a pinned array over 10,000..10,100 would read that data as

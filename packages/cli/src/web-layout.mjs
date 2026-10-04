@@ -445,7 +445,7 @@ const REAL_MACHINE_LAYOUT = {
   // every glyph out of the character RAM — eight bytes a glyph, bit 7 the
   // leftmost pixel — which the web twin of setupVideo() fills with the
   // character ROM and a program redefines with @8bitscript/c64/charset. The
-  // RAM is at $C000 here, not the machine's $D000: that is under the I/O area
+  // RAM is at $A000 here, not the machine's $D000: that is under the I/O area
   // on the machine and the chips' own registers in flat memory
   // (packages/c64/src/geometry.c64.web.8bs says why). So
   // there is no font id here: the glyphs a cell draws are whatever the program
@@ -461,9 +461,9 @@ const REAL_MACHINE_LAYOUT = {
     // Memory the page reads that no pinned global names: the character RAM,
     // which the web twin of setupVideo() fills and a program redefines. The
     // backend refuses a build whose data would reach into it.
-    reservedRanges: [{ start: 0xc000, end: 0xd000, label: "the C64's character RAM" }],
+    reservedRanges: [{ start: 0xa000, end: 0xb000, label: "the C64's character RAM" }],
     vic: {
-      charsetBase: 0xc000,
+      charsetBase: 0xa000,
       setStride: 0x800,
       selectRegister: 0xd018,
       selectMask: 0x02,

@@ -376,6 +376,11 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
     if (cursor > dataStart && p.address < cursor && end > dataStart) {
       return { ok: false, error: `'${p.name}': the program's own data (${dataStart}..${cursor}) would sit under this pinned array (${p.address}..${end}) — more data than this machine's free memory below it holds` };
     }
+    for (const r of options.reservedRanges ?? []) {
+      if (p.address < r.end && end > r.start) {
+        return { ok: false, error: `'${p.name}': this pinned array (${p.address}..${end}) overlaps ${r.label} (${r.start}..${r.end}), memory the page reads that this machine's wasm build keeps for itself` };
+      }
+    }
     arrayIndex.set(p.name, { address: p.address, elementWidth: p.elementWidth, mutable: true });
     pinnedEnd = Math.max(pinnedEnd, end);
   }

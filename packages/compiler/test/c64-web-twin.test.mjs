@@ -1,5 +1,5 @@
-// The C64's wasm build links four `.web` twins of its package files
-// (index, text, geometry and rasterline `.c64.web.8bs`) because the
+// The C64's wasm build links five `.web` twins of its package files
+// (index, text, geometry, rasterline and input `.c64.web.8bs`) because the
 // native files speak to the chips with machine code the wasm backend never
 // lowers. A twin is a copy with a few bodies replaced, and a copy drifts: a
 // register added to index.8bs and not to its twin builds natively and fails
@@ -48,6 +48,7 @@ const PAIRS = [
   ['text.8bs', 'text.c64.web.8bs'],
   ['geometry.8bs', 'geometry.c64.web.8bs'],
   ['rasterline.8bs', 'rasterline.c64.web.8bs'],
+  ['input.8bs', 'input.c64.web.8bs'],
 ];
 
 for (const [native, twin] of PAIRS) {
@@ -62,9 +63,11 @@ for (const [native, twin] of PAIRS) {
       assert.equal(twinExports.get(name), declaration, `${name}: the declaration the same`);
     }
     // Every member of every namespace (text.print, Video.CHARSET, ...): the same names and shapes.
-    const nativeSpaces = scanModule(a);
-    const twinSpaces = scanModule(b);
-    assert.deepEqual([...twinSpaces.keys()].sort(), [...nativeSpaces.keys()].sort(), 'the same namespaces');
+    // Only the exported ones: a namespace a file keeps to itself (input's `Edge` bits) is its own business.
+    const exported = (all, exports) => new Map([...all].filter(([name]) => exports.get(name)?.startsWith('namespace')));
+    const nativeSpaces = exported(scanModule(a), nativeExports);
+    const twinSpaces = exported(scanModule(b), twinExports);
+    assert.deepEqual([...twinSpaces.keys()].sort(), [...nativeSpaces.keys()].sort(), 'the same exported namespaces');
     for (const [space, members] of nativeSpaces) {
       assert.deepEqual([...twinSpaces.get(space).keys()].sort(), [...members.keys()].sort(), `${space}: the same members`);
       for (const [member, info] of members) {

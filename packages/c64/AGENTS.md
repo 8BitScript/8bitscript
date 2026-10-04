@@ -353,7 +353,11 @@ Do not describe more than this as working:
   `8bs targets --json` says what it does not model in `runtime.wasm.limits`
   (this package's `package.json`, `emulator.wasm`): text mode only — sprites,
   bitmap, multicolour and extended-colour modes are not drawn; no SID; no
-  keyboard or joystick yet; NTSC at 60 Hz (`detectRegion()` answers NTSC);
+  keyboard matrix, joystick or mouse (the portable `@8bitscript/input` works —
+  the page writes arrow keys, Enter and Escape at one byte of the program's
+  memory and `input.c64.web.8bs` reads it — but `@8bitscript/c64/keyboard` and
+  `/joystick` read the CIA and see nothing); NTSC at 60 Hz (`detectRegion()`
+  answers NTSC);
   the address-form raster list (`@8bitscript/c64/raster`, `border`, `idle`,
   `multiplex`) is machine code and is not built — the portable
   `@8bitscript/raster` is, applied at picture-line granularity (an entry at
@@ -369,21 +373,24 @@ Do not describe more than this as working:
   **every glyph from the character RAM**, eight bytes a glyph, bit 7 the
   leftmost pixel, reversed copies at codes 128-255 — so `charset.define`,
   `copy`, `restore()` and reverse video are exactly the bytes there. Four
-  `.web` twins replace the files that are machine code: `index.c64.web.8bs`
+  `.web` twins replace the files that are machine code or read chips: `index.c64.web.8bs`
   (`setupVideo()` copies the ROM, which is data in `src/chargen.8bs`, to the
   character RAM with ordinary stores; the I/O-banking windows are no-ops;
   `detectRegion()` answers NTSC), `text.c64.web.8bs` (`print`, `printNumber`
   and `fill` as the plain loops the PET's text.8bs has), `geometry.c64.web.8bs`
-  and `rasterline.c64.web.8bs` (the portable raster list written into the
-  page's list instead of the interrupt list; its three offsets are held to the
-  layout by a test). `src/chargen.8bs` is generated from VICE's
+  `rasterline.c64.web.8bs` (the portable raster list written into the page's
+  list instead of the interrupt list; its three offsets are held to the layout
+  by a test) and `input.c64.web.8bs` (the page's input byte instead of the
+  CIA scan; its offset likewise). `src/chargen.8bs` is generated from VICE's
   `chargen-901225-01.bin` by `scripts/chargen-web.mjs`.
-  **Rules for this rail.** The character RAM is at `$C000`, not the machine's
+  **Rules for this rail.** The character RAM is at `$A000`, not the machine's
   `$D000`: on the machine it is the RAM *under* the I/O area, and in flat
   memory `$D000-$DFFF` is the VIC-II, SID, CIAs and colour RAM themselves
   (copying the ROM there overwrote `$D018`, `$D020` and every colour); the
-  backend refuses a build whose data would reach into it
-  (`reservedRanges`). A twin is a copy: add a name to the native file and
+  backend refuses a build whose data, or a program's own `@address` array,
+  would reach into it (`reservedRanges`; Vegas Nights keeps its tile and strip
+  buffers at `$C000`, `$8000` and `$9800`, which is why the RAM is at `$A000`
+  and not `$C000`). A twin is a copy: add a name to the native file and
   `packages/compiler/test/c64-web-twin.test.mjs` fails until the twin has it,
   and no twin may contain `asm6502`. The wasm backend folds a constant added to
   an 8-bit array index into the address, as the 6502 backend does

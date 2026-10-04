@@ -17,8 +17,9 @@ import { join, resolve } from 'node:path';
 
 import { compile } from '../src/build.mjs';
 import { captureScreenshot } from '../src/screenshot.mjs';
+import { FrameLimitReached, instantiateProgram } from '../src/wasm-host.mjs';
 import { pixelAt } from '../src/png.mjs';
-import { BORDER_PX, C64_PALETTE, layoutForRealMachine } from '../src/web-layout.mjs';
+import { BORDER_PX, C64_PALETTE, InputEdge, layoutForRealMachine } from '../src/web-layout.mjs';
 
 const REPO = resolve(import.meta.dirname, '..', '..', '..');
 const PROBE = join(REPO, 'packages', 'c64', 'test', 'web-text-probe.8bs');
@@ -99,11 +100,11 @@ test('the layout the page paints the C64 from names the real VIC-II registers an
   assert.equal(layout.charBase, 0xe000, 'the screen matrix is where geometry.8bs puts it');
   assert.equal(layout.colorBase, 0xd800, 'colour RAM is fixed at $D800');
   assert.deepEqual(layout.vic, {
-    charsetBase: 0xc000, setStride: 0x800, selectRegister: 0xd018, selectMask: 0x02,
+    charsetBase: 0xa000, setStride: 0x800, selectRegister: 0xd018, selectMask: 0x02,
     borderRegister: 0xd020, backgroundRegister: 0xd021, scrollRegister: 0xd016,
   });
   assert.equal(layout.colorPerCell, true);
-  assert.deepEqual(layout.reservedRanges, [{ start: 0xc000, end: 0xd000, label: "the C64's character RAM" }]);
+  assert.deepEqual(layout.reservedRanges, [{ start: 0xa000, end: 0xb000, label: "the C64's character RAM" }]);
 });
 
 test('hello-world on the C64 wasm build draws "Hello World!" in the ROM\'s own mixed-case glyphs on a black screen', async () => {
@@ -248,4 +249,109 @@ test("the C64 raster twin's list offsets are the ones the page reads for this ma
   assert.equal(constant('LIST_CONTROL'), layout.rasterControlOffset);
   assert.equal(constant('LIST_COUNT'), layout.rasterCountOffset);
   assert.equal(constant('LIST_BASE'), layout.rasterBase);
+});
+
+// The page writes the keys it hears at one byte of the program's memory
+// (agreementFor's inputOffset); the portable `input` on the C64's wasm build
+// reads it once a frame and reports what began. This presses keys the way the
+// page does — a byte poked between frames — and reads the screen the program
+// prints its tallies on.
+const INPUT_PROGRAM = [
+  'import { input } from "@8bitscript/input";',
+  'import { screen } from "@8bitscript/screen";',
+  'import { text } from "@8bitscript/text";',
+  '',
+  'export function main(): void {',
+  '    screen.blank();',
+  '    input.begin();',
+  '    let confirms: usmallint = 0;',
+  '    let cancels: usmallint = 0;',
+  '    let lefts: usmallint = 0;',
+  '    let rights: usmallint = 0;',
+  '    let ups: usmallint = 0;',
+  '    let downs: usmallint = 0;',
+  '    while (true) {',
+  '        waitFrame();',
+  '        input.poll();',
+  '        if (input.confirm()) { confirms++; }',
+  '        if (input.cancel()) { cancels++; }',
+  '        if (input.left()) { lefts++; }',
+  '        if (input.right()) { rights++; }',
+  '        if (input.up()) { ups++; }',
+  '        if (input.down()) { downs++; }',
+  '        text.printNumber(0, confirms, 2);',
+  '        text.printNumber(40, cancels, 2);',
+  '        text.printNumber(80, lefts, 2);',
+  '        text.printNumber(120, rights, 2);',
+  '        text.printNumber(160, ups, 2);',
+  '        text.printNumber(200, downs, 2);',
+  '    }',
+  '}',
+  '',
+].join('\n');
+
+/** Runs `source` on the C64's wasm build for `frames` frames: `setup(mem)` once before the program starts, then `onFrame(frame, mem)` as each waitFrame() is reached. */
+async function runWithKeys(source, frames, onFrame, setup = () => {}) {
+  const dir = await mkdtemp(join(tmpdir(), '8bs-web-c64-keys-'));
+  const prev = process.cwd();
+  try {
+    await writeFile(join(dir, 'main.8bs'), source);
+    process.chdir(dir);
+    const result = await silently(() => compile('c64', join(dir, 'main.8bs'), { checkout: REPO, web: true }));
+    assert.equal(result.ok, true, 'builds for the C64 through the wasm backend');
+    const bytes = await readFile(result.outFile);
+    let frame = 0;
+    let mem = null;
+    const program = await instantiateProgram(bytes, {
+      waitFrame() {
+        onFrame(frame, mem);
+        frame += 1;
+        if (frame > frames) throw new FrameLimitReached(frames);
+      },
+    });
+    mem = new Uint8Array(program.memory.buffer);
+    setup(mem);
+    try {
+      program.entry();
+    } catch (error) {
+      if (!(error instanceof FrameLimitReached)) throw error;
+    }
+    return mem;
+  } finally {
+    process.chdir(prev);
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
+/** The number the program printed in two cells at `cell`, read back out of screen memory ('0' is screen code 48). */
+const printed = (mem, cell) => (mem[0xe000 + cell] - 48) * 10 + (mem[0xe000 + cell + 1] - 48);
+
+test("the C64 wasm build's portable input reports a press once, on the frame it begins, and not a key already down at start-up", async () => {
+  const layout = layoutForRealMachine('c64', { facts: { 'video.columns': 40, 'video.rows': 25 } });
+  const text = await readFile(join(REPO, 'packages', 'c64', 'src', 'input.c64.web.8bs'), 'utf8');
+  assert.equal(Number(/const INPUT_BYTE: usmallint = (\d+);/.exec(text)?.[1]), layout.inputOffset, 'the twin reads the byte the page writes');
+  const held = (frame) => {
+    // RETURN is already down when the program starts (set up below) and let go at frame 2: no press.
+    if (frame < 2) return InputEdge.CONFIRM;
+    // A real press of confirm held across frames 5-7 counts once; a second one at frame 12.
+    if (frame >= 5 && frame < 8) return InputEdge.CONFIRM;
+    if (frame === 12) return InputEdge.CONFIRM;
+    // Up and down together on frame 9; cancel, left and right on their own frames.
+    if (frame === 9) return InputEdge.UP | InputEdge.DOWN;
+    if (frame === 14) return InputEdge.CANCEL;
+    if (frame === 16) return InputEdge.LEFT;
+    if (frame === 18) return InputEdge.RIGHT;
+    return 0;
+  };
+  const mem = await runWithKeys(INPUT_PROGRAM, 22, (frame, memory) => {
+    memory[layout.inputOffset] = held(frame);
+  }, (memory) => {
+    memory[layout.inputOffset] = InputEdge.CONFIRM;
+  });
+  assert.equal(printed(mem, 0), 2, 'confirm: two presses, not the key down at start-up and not the frames it was held');
+  assert.equal(printed(mem, 40), 1, 'cancel');
+  assert.equal(printed(mem, 80), 1, 'left');
+  assert.equal(printed(mem, 120), 1, 'right');
+  assert.equal(printed(mem, 160), 1, 'up');
+  assert.equal(printed(mem, 200), 1, 'down');
 });

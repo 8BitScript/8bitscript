@@ -108,7 +108,7 @@ export namespace Video {
     const BANK: usmallint = 0xC000; // VIC bank 3, selected through CIA2 port A bits 0-1 (= %00)
     const SCREEN: usmallint = SCREEN_ADDRESS; // screen matrix: one screen code per cell
     const COLOR: usmallint = COLOR_ADDRESS; // color RAM: one nybble per cell, same cell index, never moves
-    const CHARSET: usmallint = 0xC000; // the character RAM: upper-case set here, lower-case at +$0800 — NOT $D000 on this rail, see the header
+    const CHARSET: usmallint = 0xA000; // the character RAM: upper-case set here, lower-case at +$0800 — NOT $D000 on this rail, see the header
     const SPRITE_POINTERS: usmallint = SPRITE_POINTERS_ADDRESS; // eight bytes: shape block per sprite (address / 64 within the bank)
     const SHAPES: usmallint = SHAPES_ADDRESS; // first sprite shape block
     const SHAPE_BLOCK_FIRST: utinyint = 144; // (SHAPES - BANK) / 64

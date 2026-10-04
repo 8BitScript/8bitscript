@@ -22,7 +22,7 @@
         "limits": [
           "text mode only: sprites, bitmap, multicolour and extended-colour modes are not drawn (their registers are plain memory)",
           "no sound: the SID is plain memory",
-          "no keyboard or joystick input yet",
+          "no keyboard matrix, joystick or mouse: the portable @8bitscript/input works (arrow keys, Enter, Escape through the page), but @8bitscript/c64/keyboard and /joystick read the CIA and see nothing",
           "the C64-only raster list (@8bitscript/c64/raster, border, idle, the sprite multiplexer) is machine code and is not built; the portable @8bitscript/raster works, one picture line earlier than the machine's handler lands it",
           "NTSC 60 Hz only: detectRegion() answers NTSC"
         ]
