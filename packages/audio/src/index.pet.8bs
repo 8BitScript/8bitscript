@@ -11,27 +11,32 @@ let row: utinyint = 0;
 let tick: utinyint = 0;
 let sfxLeft: utinyint = 0;
 
-// T2 low byte for notes C3..B4, then repeat the last for higher. The VIA
-// shift rate is a square wave, not equal temperament — close enough for
-// the one-voice song this slice plays.
+// T2 low byte for notes C4..B5 (the .8ba index 48..71, C0 = 0, A4 = 57).
+// The VIA's shift clock is half the T2 rate, so it shifts a bit out every
+// 2 (T2 + 2) cycles and the pattern $0F is eight bits a wave: a note is
+// 1,000,000 / (16 (T2 + 2)) Hz. C4 is 261.6 Hz (T2 237) and B5 987.8 Hz
+// (T2 61); the register's low byte stops the range below at 243 Hz. Measured
+// under xpet (VICE 3.10, 4032 with a speaker): A4 played 441.0 Hz, A5 the
+// same wave an octave up at T2 140. A note outside C4..B5 moves by whole
+// octaves into it: the pitch class survives, the octave does not. The wave
+// is a square, not equal temperament; the steps round to a whole T2.
 const T2: array<u8, 24> = [
-    238, 224, 212, 200, 189, 178, 168, 158, 149, 141, 133, 125,
-    118, 111, 105, 99, 93, 88, 83, 78, 74, 70, 66, 62,
+    237, 223, 211, 199, 188, 177, 167, 157, 148, 140, 132, 125,
+    117, 111, 104, 98, 93, 87, 82, 78, 73, 69, 65, 61,
 ];
 
 function periodOf(note: utinyint): utinyint {
     let n: utinyint = note;
-    if (n < 36) {
-        n = 36;
+    while (n < 48) {
+        n = n + 12;
     }
-    n = n - 36;
-    if (n >= 24) {
-        n = 23;
+    while (n > 71) {
+        n = n - 12;
     }
-    return T2[n];
+    return T2[n - 48];
 }
 
-function tone(note: utinyint): void {
+function playNote(note: utinyint): void {
     memory.write(0xE84B, 0x10); // ACR: shift out at T2
     memory.write(0xE84A, 0x0F); // square
     memory.write(0xE848, periodOf(note));
@@ -56,6 +61,11 @@ function eventAt(atRow: utinyint, field: utinyint): utinyint {
 }
 
 export namespace audio {
+    // The playable notes (the .8ba index, C0 = 0, A4 = 57): the VIA's
+    // shift register is 8 bits of T2, so C4..B5.
+    const NOTE_LOW: utinyint = 48;
+    const NOTE_HIGH: utinyint = 71;
+
     function bind(kind: utinyint, slot: utinyint, index: utinyint, value: utinyint): void {
         if (slot != 0 || index >= DATA_MAX) {
             return;
@@ -82,8 +92,24 @@ export namespace audio {
         if (sfxLen[slot] < 2) {
             return;
         }
-        tone(sfx[1]);
+        playNote(sfx[1]);
         sfxLeft = 8;
+    }
+
+    // One square tone for `frames` calls of update(), then quiet. Replaces
+    // whatever tone is sounding. With no speaker fitted (audio.voices 0)
+    // the CB2 wave still runs but nothing hears it. Nothing blocks.
+    function tone(note: utinyint, frames: utinyint): void {
+        playNote(note);
+        sfxLeft = frames;
+        if (frames == 0) {
+            sfxLeft = 1;
+        }
+    }
+
+    function silence(): void {
+        quiet();
+        sfxLeft = 0;
     }
 
     function music(slot: utinyint): void {
@@ -118,7 +144,7 @@ export namespace audio {
         }
         let note: utinyint = eventAt(row, 1);
         if (note != 255) {
-            tone(note);
+            playNote(note);
         }
         row = row + 1;
         if (row >= length) {

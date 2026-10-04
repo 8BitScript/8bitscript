@@ -432,6 +432,16 @@ borders and the background strip read per row):
   shadow; the registers are write-only and writes during BUSY are lost.
 - PSG envelopes are software. PCM is FIFO-driven with deadlines: prefill,
   then start; service on the low-water interrupt.
+- **`@8bitscript/cx16/psg` is verified to play** (x16emu r50, recorded WAV,
+  2026-10-04: note 57 measures 439.9 Hz, 69 measures 881.0 Hz). A voice is four
+  bytes at VRAM `$1F9C0 + 4 * voice`: the 16-bit frequency word (Hz · 2^17 /
+  48828.125, a table in the module for C3..B7), a volume byte whose bits 7:6
+  are the channel enables (`00` disables the voice whatever its volume — the
+  module wrote none, and played nothing, until this was found), and a
+  waveform byte with the waveform in bits 7:6 (0 pulse, 1 sawtooth, 2
+  triangle, 3 noise) and a pulse width below. `@8bitscript/audio`'s X16 twin
+  plays its `audio.tone` on voice 0 with `psg.play`; `packages/audio/AGENTS.md`
+  has the capture recipe (`-wav`, `SDL_AUDIODRIVER=dummy`).
 
 ### Storage, input, expansion, testing
 

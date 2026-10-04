@@ -19,7 +19,17 @@ function waveOf(code: utinyint): utinyint {
     if (code == 2) {
         return 2;
     }
+    if (code == 3) {
+        return 1;
+    }
     return 0;
+}
+
+function ensure(): void {
+    if (!ready) {
+        psg.reset();
+        ready = true;
+    }
 }
 
 function eventAt(atRow: utinyint, field: utinyint): utinyint {
@@ -37,6 +47,11 @@ function eventAt(atRow: utinyint, field: utinyint): utinyint {
 }
 
 export namespace audio {
+    // The playable notes (the .8ba index, C0 = 0, A4 = 57): VERA's PSG
+    // table is C3..B7. A note outside moves by whole octaves into it.
+    const NOTE_LOW: utinyint = 36;
+    const NOTE_HIGH: utinyint = 95;
+
     function bind(kind: utinyint, slot: utinyint, index: utinyint, value: utinyint): void {
         if (slot != 0 || index >= DATA_MAX) {
             return;
@@ -57,10 +72,7 @@ export namespace audio {
         } else {
             songLen[slot] = length;
         }
-        if (!ready) {
-            psg.reset();
-            ready = true;
-        }
+        ensure();
     }
 
     function play(slot: utinyint): void {
@@ -69,6 +81,24 @@ export namespace audio {
         }
         psg.play(0, sfx[1], waveOf(sfx[0]), 15);
         sfxLeft = 8;
+    }
+
+    // One square-wave tone on voice 0 for `frames` calls of update(), then
+    // silence. Replaces whatever tone is sounding. Nothing blocks.
+    function tone(note: utinyint, frames: utinyint): void {
+        ensure();
+        psg.play(0, note, 0, 15);
+        sfxLeft = frames;
+        if (frames == 0) {
+            sfxLeft = 1;
+        }
+    }
+
+    function silence(): void {
+        if (ready) {
+            psg.silence(0);
+        }
+        sfxLeft = 0;
     }
 
     function music(slot: utinyint): void {

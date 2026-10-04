@@ -1,0 +1,60 @@
+// @8bitscript/audio on the web: audio.tone and audio.silence play through the
+// host's one Web Audio oscillator (@8bitscript/web/voice). A sample or a song
+// from a .8ba still has no driver here: bind, meta, play and music keep their
+// handles valid and do nothing, as the generic file does, and the build says
+// 8BS2211. Web audio is the one sound this host has; there is no chip to be
+// faithful to, so the range is a decision: C2..B7, 65 Hz to 3951 Hz.
+import { voice } from "@8bitscript/web/voice";
+
+let sfxLeft: utinyint = 0;
+
+export namespace audio {
+    // The playable notes (the .8ba index, C0 = 0, A4 = 57). A note outside
+    // moves by whole octaves into the range.
+    const NOTE_LOW: utinyint = 24;
+    const NOTE_HIGH: utinyint = 95;
+
+    function bind(kind: utinyint, slot: utinyint, index: utinyint, value: utinyint): void {
+    }
+
+    function meta(kind: utinyint, slot: utinyint, length: utinyint, a: utinyint, b: utinyint, c: utinyint): void {
+    }
+
+    // One tone for `frames` calls of update(), then silence. Replaces whatever
+    // tone is sounding. Nothing blocks. The page reads the voice once a paint,
+    // so a tone of one frame can fall between two and not be heard.
+    function tone(note: utinyint, frames: utinyint): void {
+        let n: utinyint = note;
+        while (n < 24) {
+            n = n + 12;
+        }
+        while (n > 95) {
+            n = n - 12;
+        }
+        voice.on(n);
+        sfxLeft = frames;
+        if (frames == 0) {
+            sfxLeft = 1;
+        }
+    }
+
+    function silence(): void {
+        voice.off();
+        sfxLeft = 0;
+    }
+
+    function play(slot: utinyint): void {
+    }
+
+    function music(slot: utinyint): void {
+    }
+
+    function update(): void {
+        if (sfxLeft != 0) {
+            sfxLeft = sfxLeft - 1;
+            if (sfxLeft == 0) {
+                voice.off();
+            }
+        }
+    }
+}

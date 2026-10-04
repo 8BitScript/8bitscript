@@ -1,0 +1,41 @@
+// @8bitscript/web/voice — the web host's one tone voice, as four registers.
+//
+// Named by "8bitscript".exports["./voice"] in this package's package.json:
+//
+//     import { voice } from "@8bitscript/web/voice";
+//
+//     voice.on(57);   // A4 starts sounding
+//     voice.off();    // and stops
+//
+// The synthetic web host has no sound chip to be faithful to, so its sound is
+// an agreement like its screen: four bytes in the program's memory (Video.
+// AUDIO_BASE, packages/web/src/geometry.8bs) that the page reads at every
+// paint and plays through one Web Audio oscillator. GATE is nonzero while the
+// voice sounds, NOTE is the @8bitscript/audio note index (octave * 12 +
+// semitone, C0 = 0, A4 = 57), WAVE is 0 square, 1 triangle or 2 sawtooth, and
+// VOLUME is 0-15. packages/cli/src/web-audio.mjs is the plain statement of
+// what those four bytes sound like. A real machine's own --web build
+// (pet, vic20, c64 through --web) has no such region: its sound is its
+// chip's, and this module is for the synthetic web target.
+//
+// What is checked is the mapping, not a speaker: the page's mapping from the
+// four bytes to a frequency, waveform and level is held to web-audio.mjs, and
+// a program's writes are held to the bytes below by compiling and running it.
+// A real browser tab was not available to listen to.
+import { Video } from "./geometry.8bs";
+
+export namespace voice {
+    // The note index sounds at once, on a square wave at full volume. A tone
+    // shorter than the page's paint (about 16 ms) can be missed: the page
+    // reads the registers once a paint, not once a logical frame.
+    function on(note: utinyint): void {
+        memory.write(Video.AUDIO_BASE + 1, note);
+        memory.write(Video.AUDIO_BASE + 2, 0);
+        memory.write(Video.AUDIO_BASE + 3, 15);
+        memory.write(Video.AUDIO_BASE, 1);
+    }
+
+    function off(): void {
+        memory.write(Video.AUDIO_BASE, 0);
+    }
+}

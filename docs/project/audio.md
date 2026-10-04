@@ -64,9 +64,62 @@ audio.update();
 | NES | DPCM when the encoder can represent the clip; otherwise the synth fallback (`8BS2210`). Saw is unroutable (`8BS2212`). | Pulse + noise through `@8bitscript/nes/apu`. |
 | PET | Synth fallback only if the one VIA voice can play it; noise is omitted. Stock 2001 has `audio.voices` 0, so playback is omitted (`8BS2211`). | VIA CB2 square wave when a speaker is attached. |
 | Atari 8-bit | Not volume-only PCM. Synth fallback (`8BS2210`). | Drives `@8bitscript/atari8/pokey`. |
-| VIC-20 | No driver: **no sample bytes**, `8BS2211`. | No driver: **no song bytes**, `8BS2211`. |
-| Commander X16 | No driver: **no sample bytes**, `8BS2211`. | No driver: **no song bytes**, `8BS2211`. |
+| VIC-20 | The first note on the soprano voice (the synth fallback). | The soprano voice, one note at a time. |
+| Commander X16 | The first note on PSG voice 0. | PSG voice 0, one note at a time. |
+| Web | No driver: **no sample bytes**, `8BS2211`. | No driver: **no song bytes**, `8BS2211`. |
 | every other machine | No driver: **no sample bytes**, `8BS2211`. | No driver: **no song bytes**, `8BS2211`. Silence is a declared fallback. |
+
+## A single tone: `audio.tone`
+
+A game's blips (a reel tick, a win jingle) do not need a `.8ba` file. The
+same package plays one tone, and a game strings tones into a jingle:
+
+```8bs
+import { audio } from "@8bitscript/audio";
+
+audio.tone(57, 30);   // A4 for thirty calls of update()
+audio.update();       // once a frame; counts the tone down, then silence
+audio.silence();      // stop now
+```
+
+`note` is the `.8ba` index, `octave * 12 + semitone` with C0 = 0 and A4 = 57
+(the SID's `Note` index). `frames` is how many calls of `audio.update()` it
+sounds for, so it is timed in the program's own frames, not in seconds; 0
+is 1. A new tone replaces whatever is sounding. Nothing blocks.
+
+Each machine can play a different range, and says which in two constants a
+program folds on: `audio.NOTE_LOW` and `audio.NOTE_HIGH`. A note outside the
+range is moved by whole octaves into it, so the pitch class survives and the
+octave is what a small chip gives up. A machine with no driver answers 0 and
+0, and `audio.tone` costs it nothing.
+
+| Machine | Voice | Notes | Measured |
+| --- | --- | --- | --- |
+| C64 | SID voice 0, pulse | C0..B6 (0-83) | register dump: Fn 7218 → 440.0 Hz, 14436 → 879.9 Hz |
+| VIC-20 | soprano, 7-bit divisor | C3..B5 (36-71) | WAV: 443.5 Hz, 887.6 Hz (+15 cents); the table is NTSC, a PAL machine plays about a semitone and a half sharp |
+| PET | the VIA's CB2 square wave | C4..B5 (48-71) | WAV: 441.0 Hz, 880.5 Hz; needs `audio.voices` 1 (the CRTC models, or `speaker=attached`) to be heard |
+| Commander X16 | VERA PSG voice 0, pulse | C3..B7 (36-95) | WAV: 439.9 Hz, 881.0 Hz |
+| Web | one Web Audio oscillator, square | C2..B7 (24-95) | not heard: see below |
+| every other machine | none | none (0-0) | — |
+
+"Measured" is a headless run: VICE 3.10 and x16emu r50, 2026-10-04,
+`packages/audio/test/tone.test.mjs`. The SID and the VIC-I are also read
+register by register from VICE's `dump` sound device, which needs no audio
+device. The PET and X16 are measured on a recorded WAV.
+
+**The web.** The synthetic web host has no chip to be faithful to, so its
+voice is four bytes in the program's memory — gate, note, wave, volume —
+that the page reads at every paint and plays through one Web Audio
+oscillator (`packages/web/src/voice.8bs`, `packages/cli/src/web-audio.mjs`).
+What is tested is every step but the speaker: the program writes the right
+bytes, the bytes map to the right frequency, waveform and level, and the page
+drives an oscillator from them (with a stand-in `AudioContext`), and the
+register timeline of a real compiled program renders to samples that measure
+at the pitch and length it asked for. **A real browser tab was not
+available, so the sound itself has not been heard.** The browser starts audio
+only after a key press or a tap; until then the page's context is suspended
+and resumes at the first paint after one. A tone shorter than one paint (about
+16 ms) can fall between two paints and not be heard.
 
 Voice assignment in this slice is one monophonic track, `polyphony 1`,
 routed to the first channel that can play `pulse` or `noise`. No stealing.

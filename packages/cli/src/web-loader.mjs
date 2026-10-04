@@ -266,6 +266,10 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
   var GLYPH_BASE = ${layout.glyphBase ?? -1};
   var GLYPH_FIRST = ${layout.glyphFirst ?? GLYPH_FIRST};
   var GLYPH_COUNT = ${layout.glyphCount ?? GLYPH_COUNT};
+  // The tone registers (web-layout.mjs AudioRegister): gate, note, wave,
+  // volume, at AUDIO_BASE in the program's memory; negative on a host with
+  // none (a real machine's own build).
+  var AUDIO_BASE = ${layout.audioBase ?? -1};
   var GRID_COLS = ${layout.cols};
   var GRID_ROWS = ${layout.rows};
   var CHAR_W = ${layout.charWidth ?? CHAR_W};
@@ -357,6 +361,55 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
     if (scale < ${ANY_BORDER_SCALE}) return ${BORDER_MIN_PX};
     if ((box && box.coarse) || scale < ${FULL_BORDER_SCALE}) return ${BORDER_HAIRLINE_PX};
     return BORDER_PX;
+  }
+
+  // --- the tone voice -----------------------------------------------------
+  // toneHz and voiceState are hand-mirrored copies of packages/cli/src/
+  // web-audio.mjs, checked against it in web-audio.test.mjs. audioStep is the
+  // page's side: one oscillator, made the first time the program sounds
+  // anything, re-pitched and re-levelled from the registers at every paint.
+  // A browser lets a page play only after a key press or a tap; until then
+  // the context stays suspended and audioStep asks it to resume each time the
+  // voice is on, which is the first moment it is allowed to work.
+  function toneHz(note) {
+    return 440 * Math.pow(2, (note - 57) / 12);
+  }
+
+  function voiceState(mem, audioBase) {
+    if (audioBase < 0) return { on: false, hz: 0, wave: 'square', level: 0 };
+    var waves = ['square', 'triangle', 'sawtooth'];
+    var wave = waves[mem[audioBase + 2]] || 'square';
+    var volume = mem[audioBase + 3] & 15;
+    var on = mem[audioBase] !== 0 && volume !== 0;
+    return { on: on, hz: toneHz(mem[audioBase + 1]), wave: wave, level: on ? (volume / 15) * 0.5 : 0 };
+  }
+
+  var voice = null;
+  function audioStep(mem, AudioContextClass) {
+    if (AUDIO_BASE < 0) return;
+    var state = voiceState(mem, AUDIO_BASE);
+    if (!voice) {
+      if (!state.on || !AudioContextClass) return;
+      var context = new AudioContextClass();
+      var osc = context.createOscillator();
+      var gain = context.createGain();
+      gain.gain.value = 0;
+      osc.connect(gain);
+      gain.connect(context.destination);
+      osc.start();
+      voice = { context: context, osc: osc, gain: gain, wave: 'square' };
+    }
+    var now = voice.context.currentTime;
+    if (voice.wave !== state.wave) {
+      voice.osc.type = state.wave;
+      voice.wave = state.wave;
+    }
+    voice.osc.frequency.setTargetAtTime(state.hz, now, 0.002);
+    voice.gain.gain.setTargetAtTime(state.level, now, 0.004);
+    if (state.on && voice.context.state === 'suspended') {
+      var resumed = voice.context.resume();
+      if (resumed && resumed.catch) resumed.catch(function () {});
+    }
   }
 
   // --- the renderer -------------------------------------------------------
@@ -578,6 +631,7 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
     if (next.glyphBase != null) GLYPH_BASE = next.glyphBase;
     if (next.glyphFirst != null) GLYPH_FIRST = next.glyphFirst;
     if (next.glyphCount != null) GLYPH_COUNT = next.glyphCount;
+    if (next.audioBase != null) AUDIO_BASE = next.audioBase;
     if (next.rasterMaxEntries != null) RASTER_MAX_ENTRIES = next.rasterMaxEntries;
     if (typeof next.colorPerCell === 'boolean') COLOR_PER_CELL = next.colorPerCell;
     if (next.aspect) ASPECT = next.aspect;
@@ -928,7 +982,10 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
           fpsWindowStart = now;
         }
       }
-      if (mem) paint(ctx, mem, border);
+      if (mem) {
+        paint(ctx, mem, border);
+        audioStep(mem, global.AudioContext || global.webkitAudioContext);
+      }
       raf = requestAnimationFrame(tick);
     }
 
@@ -1117,6 +1174,11 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
     // Exposed the same way borderFor/gridFor/swipeEdge are: so the inlined
     // compositor can be held to web-scanline.mjs in web-loader.test.mjs.
     paint: paint,
+    // The tone voice, exposed for the same reason: web-audio.test.mjs holds
+    // these to web-audio.mjs and drives audioStep with a stand-in context.
+    toneHz: toneHz,
+    voiceState: voiceState,
+    audioStep: audioStep,
     defaultFrameRate: DEFAULT_FRAME_RATE,
     elementName: ELEMENT_NAME,
     COLORS: COLORS,

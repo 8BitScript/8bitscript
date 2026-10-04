@@ -27,6 +27,16 @@ function waveOf(code: utinyint): utinyint {
     return Waveform.PULSE;
 }
 
+function ensure(): void {
+    if (!ready) {
+        sid.detectRegion();
+        sid.setVolume(15);
+        sid.setEnvelope(0, 0, 9, 8, 6);
+        sid.setPulseWidth(0, 2048);
+        ready = true;
+    }
+}
+
 function eventAt(dataBase: utinyint, length: utinyint, atRow: utinyint, field: utinyint): utinyint {
     // bytes 0..3 header; each event 4 bytes: row, note, wave, voice
     let count: utinyint = song[dataBase + 3];
@@ -46,6 +56,11 @@ function eventAt(dataBase: utinyint, length: utinyint, atRow: utinyint, field: u
 }
 
 export namespace audio {
+    // The playable notes (the .8ba index, C0 = 0, A4 = 57): the SID's
+    // table is C0..B6, so nothing folds.
+    const NOTE_LOW: utinyint = 0;
+    const NOTE_HIGH: utinyint = 83;
+
     function bind(kind: utinyint, slot: utinyint, index: utinyint, value: utinyint): void {
         if (slot != 0 || index >= DATA_MAX) {
             return;
@@ -66,12 +81,7 @@ export namespace audio {
         } else {
             songLen[slot] = length;
         }
-        if (!ready) {
-            sid.setVolume(15);
-            sid.setEnvelope(0, 0, 9, 8, 6);
-            sid.setPulseWidth(0, 2048);
-            ready = true;
-        }
+        ensure();
     }
 
     function play(slot: utinyint): void {
@@ -81,6 +91,27 @@ export namespace audio {
         sid.setWaveform(0, waveOf(sfx[0]));
         sid.play(0, sfx[1]);
         sfxLeft = 8;
+    }
+
+    // One pulse tone on voice 0 for `frames` calls of update(), then the
+    // gate closes and the release runs. Replaces whatever tone is sounding.
+    // The first tone finds the PAL/NTSC clock from the raster (two frames,
+    // once) so the pitch is right. Nothing else blocks.
+    function tone(note: utinyint, frames: utinyint): void {
+        ensure();
+        sid.setWaveform(0, Waveform.PULSE);
+        sid.play(0, note);
+        sfxLeft = frames;
+        if (frames == 0) {
+            sfxLeft = 1;
+        }
+    }
+
+    function silence(): void {
+        if (ready) {
+            sid.release(0);
+        }
+        sfxLeft = 0;
     }
 
     function music(slot: utinyint): void {

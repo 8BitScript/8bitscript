@@ -108,13 +108,15 @@ test('the data section starts past the register agreement on every host: registe
     assert.equal(layout.resizable, host.resizable === true, machine);
     // The synthetic hosts carry the redefinable glyph table after the raster list.
     assert.equal(layout.glyphBase, layout.rasterBase + RASTER_MAX_ENTRIES * RASTER_ENTRY_SIZE, machine);
-    assert.equal(layout.reservedEnd, layout.glyphBase + GLYPH_BYTES, machine);
+    // And the four tone registers after that.
+    assert.equal(layout.audioBase, layout.glyphBase + GLYPH_BYTES, machine);
+    assert.equal(layout.reservedEnd, layout.audioBase + 4, machine);
     const dataBase = dataBaseFor(layout.reservedEnd);
     assert.ok(dataBase >= layout.reservedEnd, `${machine}: data at ${dataBase} would sit inside an agreement ending at ${layout.reservedEnd}`);
   }
   // The fixed skins keep their data where it always was; only Modern moves.
   assert.equal(dataBaseFor(layoutFromHardware({ facts: {}, options: { machine: 'c64' } }).reservedEnd), 8192);
-  assert.equal(dataBaseFor(layoutFromHardware({ facts: {}, options: { machine: 'hifi' } }).reservedEnd), 9216, 'Modern: past the glyph table, which ends at 9032');
+  assert.equal(dataBaseFor(layoutFromHardware({ facts: {}, options: { machine: 'hifi' } }).reservedEnd), 9216, 'Modern: past the glyph table (which ends at 9032) and the tone registers (9036)');
 });
 
 // layoutFromHardware() computes charBase/colorBase from grid size because
