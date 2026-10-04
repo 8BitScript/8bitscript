@@ -522,6 +522,29 @@ test('textDocument/hover explains #package("version")', async () => {
   });
 });
 
+test('textDocument/hover explains #define("NAME", default), and a malformed call reaches the editor as 8BS1047', async () => {
+  await withServer(async (client) => {
+    await client.request('initialize', { processId: null, rootUri: null, capabilities: {} });
+    client.notify('initialized', {});
+
+    const text = 'const SEED: utinyint = #define("SEED", 10);\nconst BAD: utinyint = #define("seed");\n';
+    client.notify('textDocument/didOpen', {
+      textDocument: { uri: URI, languageId: '8bitscript', version: 1, text },
+    });
+    const published = await client.waitForNotification('textDocument/publishDiagnostics');
+    assert.ok(published.params.diagnostics.some((d) => String(d.code) === '8BS1047'), JSON.stringify(published.params.diagnostics));
+
+    const response = await client.request('textDocument/hover', {
+      textDocument: { uri: URI },
+      position: positionAt(text, text.indexOf('define') + 2),
+    });
+
+    assert.ok(response.result);
+    assert.match(response.result.contents.value, /#define\("NAME", default\)/);
+    assert.match(response.result.contents.value, /--define SEED=42/);
+  });
+});
+
 test('textDocument/hover explains #fact(...) and a key inside it', async () => {
   await withServer(async (client) => {
     await client.request('initialize', { processId: null, rootUri: null, capabilities: {} });

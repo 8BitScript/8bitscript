@@ -192,5 +192,12 @@
     "body": [
       "const VERSION: string = #package(\"${1:version}\");"
     ]
+  },
+  "Compile-time define": {
+    "prefix": "#define",
+    "description": "#define(\"NAME\", default) — a value the build is handed (--define NAME=VALUE, or a program's define block in the config), with the default written here; folded at compile time.",
+    "body": [
+      "const ${1:SEED}: utinyint = #define(\"${1:SEED}\", ${2:10});"
+    ]
   }
 }

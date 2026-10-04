@@ -159,3 +159,25 @@ export function main(): void {
 Once folded it *is* the literal — the same bytes as writing `"0.6.0"`, and the same checks: a name outside the portable character set is refused where it would be printed (`8BS1026`). The readable fields are `"version"` and `"name"`; any other field, or anything but one field name in quotes, is `8BS1041`. No `package.json` above the file, one that does not parse, or one without the field is `8BS1042`, naming the file. `8bs check` and the editor resolve it from the file exactly as a build does, so what they show is what the build prints. Nearest-above-the-file, not the directory the build runs from: a module inside a package reads that package's own version.
 
 A string is not a number field, so a version cannot go inside a template's `${…}`; print it as its own argument. Its `.length` is a run-time value today, not a `const` initializer — right-align it with a field width you choose, or count on it being short.
+
+## §1.11 Values the build is handed
+
+`#define("NAME", default)` is a value the *build* supplies — a seed for a test run, whether to force a bonus round, the credits to start with — with the default written right where it is read:
+
+```8bs
+const SEED: utinyint = #define("SEED", 10);
+const FORCE_BONUS: bool = #define("FORCE_BONUS", false);
+const THEME: string = #define("THEME", "classic");
+```
+
+A plain build, `8bs check` and the editor all use the default, so the call never fails for want of a value. A build can replace it: `8bs run c64 --define SEED=42 --define FORCE_BONUS=true` (repeatable), or, for one program every time, a `define` block under it in `8bitscript.config.8bs`:
+
+```ts
+programs: {
+  slot5x5: { entry: 'src/slot5x5.8bs', define: { SEED: 10, FORCE_BONUS: true } },
+}
+```
+
+The command line wins over the config, and the config over the default. The default is **required** and is a whole number (not negative), `true`/`false`, or a string; the name is in quotes, in capitals (`8BS1047` otherwise). A value handed in keeps the kind its default has — `--define SEED=true` for a number is `8BS1048` — and one name with two different defaults in one program is `8BS1049`. A name that was handed in but that no `#define` in the program reads is refused by the CLI, naming the nearest name that is read, so a typo cannot silently do nothing.
+
+Once folded it *is* the literal: the same bytes as writing the number, so a program that reads no defines costs nothing, and a different value is a different build — the machine never sees the question. `8bs project --json` lists every program's defines with the defaults found in its source, which is what an editor builds its "run with these settings" controls from.

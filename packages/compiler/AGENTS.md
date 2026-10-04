@@ -142,6 +142,31 @@ range; completion in `.8bx` knows a tag from the lexer's own tag tokens
 component's remaining props inside its tag. The language server is
 protocol glue over these three calls.
 
+## `#define("NAME", default)`: a value the build is handed
+
+A program reads a value the build supplies — a seed, a flag, a starting
+amount — with `#define("SEED", 10)` (`src/fold/index.mjs`
+`foldDefineCall`), which folds to an `IntegerLiteral`, `BooleanLiteral` or
+`StringLiteral` before the checker runs, so a build with it is
+byte-identical to one with the literal written out
+(`test/define-intrinsic.test.mjs`). Three rules shaped it. **The default is
+required**: `8bs check`, the editor and a plain build have no `--define`
+and must still work, which is why this is not `#fact` (a key the machine's
+catalog has) and not an environment read. **The value travels in as an
+option**, `defines` (name → number | boolean | string), the way `locale`
+does — `analyze()`, `link()` and `foldCompileTime()` all take it — so a
+different value is a different link and nothing is cached across values.
+**The reader is asked, not searched**: `defineSites`, an array the caller
+may pass to `link()` and gets back, collects one `{ name, kind, default,
+file, start }` per name, once, which is how `8bs project --json` lists a
+program's defines from the source itself and how the CLI's typo guard
+knows which names a program takes. A name read twice with different
+defaults is `8BS1049`; a handed value of another kind than the default is
+`8BS1048`; a malformed call is `8BS1047` (UPPER_SNAKE name in quotes, and a
+literal default — a whole number, `true`/`false`, or a string — never an
+expression). Not done: negative defaults (the language has no signed
+literal to fold into), and a typed `array` or `ptr` define.
+
 ## `#package("version")`: the program's own package.json
 
 A program reads its package's `version` and `name` with `#package("…")`
