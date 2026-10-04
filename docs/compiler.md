@@ -68,7 +68,11 @@ component, then finishes each module — element checks, elaboration,
 folding, checking, lowering — and links the IR. Backends receive
 optimized IR; they do not parse 8BX. A component call whose arguments are
 all compile-time values is inlined by the linker's optimizer, so a static
-composition costs what hand-written calls would.
+composition costs what hand-written calls would. A `const` is inlined
+with the type it was declared with, whichever module it is read from — a
+namespace member's declared type travels on the IR namespace
+(`constTypes`), so an imported `usmallint` that holds 24 does not shrink to
+the narrowest type that fits 24 and wrap a sum at 8 bits.
 
 Catalog diagnostics (`packages/compiler/src/i18n`):
 

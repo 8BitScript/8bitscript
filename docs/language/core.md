@@ -82,7 +82,7 @@ text.print(0, `TICK ${ticks:1}`);
 
 ## §1.5 Functions and control flow
 
-Functions with parameters and return values, arithmetic, `if`/`while`/`for` — the ordinary compiled subset. `const`s are inlined at compile time wherever they're used.
+Functions with parameters and return values, arithmetic, `if`/`while`/`for` — the ordinary compiled subset. `const`s are inlined at compile time wherever they're used, and keep the type they were declared with across an import: `sprites.ORIGIN_X` is a `usmallint`, so `sprites.ORIGIN_X + 236` is a 16-bit sum.
 
 A plain counted `for` loop — `for (let i: T = 0; i < N; i++) { … }`, N a compile-time value — can be marked `@unroll` to pay code size for the cycles a branch back to the loop's top costs every iteration:
 
