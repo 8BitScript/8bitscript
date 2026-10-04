@@ -58,11 +58,41 @@ with `8BS2111` naming the adaptation.
 | --- | --- |
 | C64 | 24×21 VIC-II sprite bytes (16×16 is padded). Extra colours are quantized (`8BS2110`). |
 | NES | CHR tiles from `$E0` and an OAM sprite. |
-| PET | A 4×4 quadrant-block object, or a single glyph if the picture cannot survive that (`8BS2111` either way). |
+| PET | A 4×4 quadrant-block object, one sprite-layer shape a frame of the animation — seven shapes in all, shared by every picture in the program — or a small centre block if the picture is too faint to survive the downsample (`8BS2111` either way, and again when frames are dropped or a picture finds no shape left). |
 | Atari 8-bit | A software glyph; frames collapsed (`8BS2111`). Player/missile shapes are a later slice. |
 | VIC-20 | Quadrant-block characters from the ROM, worked out at build time: one cell for a source of 8 pixels or fewer, 2×2 cells for anything larger (scaled down), one screen code a cell a frame, the animation's frames (the first 8) stepping every `every` updates; a picture with almost no ink becomes one glyph (`8BS2111` either way). Moving an object blanks the cells it left; cells off the screen are not drawn. |
 | Commander X16 | The glyph path, quantized to 8×8 cells (`8BS2111`). |
 | every other machine | The same glyph path, quantized to that machine's cell size. |
+
+### On the PET
+
+A picture's frames are the sheet's frames its `animation` names, in that
+order. The sprite layer holds seven shapes (`sprites.SHAPES`), so the
+program as a whole can have seven frames: a still picture spends one,
+a four-frame walk four. They are handed out in the order the `.8bg`
+files are imported and the sprites declared; the build says when a
+picture is cut short (`8BS2111`: "the last 1 frame dropped") or finds
+none left ("not drawn"), and the program shows exactly that, nothing
+quieter. All of a picture's frames are defined once, before `main()`
+runs, so changing frame is one shape switch and costs the frame
+nothing to speak of; the sprite layer then redraws the picture where
+it stands like any other moved sprite (about 2,600 cycles on a 3032).
+
+That redraw happens right after `waitFrame()` returns, with the beam
+already on its way down the picture: a picture that changes frame
+near the top of the screen can be seen part-old, part-new for that one
+frame (`packages/sprites/src/index.pet.8bs`, header). A picture in the
+lower half of the screen is clear of it.
+
+What counts as the picture: if the PNG has transparent pixels, every
+pixel that is not transparent (as on the C64, whatever its colour); a
+fully opaque PNG has only its colours to go on, so bright pixels are
+taken for paper and dark ones for ink. Each 4×4 pseudo-pixel is lit
+when at least 30% of the source pixels under it are.
+
+`graphics.update()` counts its own calls — `every 4` is four
+`update()` calls, one per `waitFrame()` in the usual loop — exactly as
+on the C64.
 
 Unused `target` blocks are not in this slice. A NES build does not
 contain VIC-II sprite data.
@@ -86,13 +116,15 @@ contain VIC-II sprite data.
 ## What it costs
 
 `packages/examples/media-walk`, `memory.program` then RAM
-(`8bs build <target> --size`, 2026-09-24). The stock PET 2001's 4K is
-too small (the program ends 284 bytes past `$1000`); the measured PET is
-the 32K 3032 with a user-port speaker so the VIA song actually plays.
+(`8bs build <target> --size`, 2026-09-24; the PET row re-measured
+2026-10-03, after its animation landed — 3591 before the animation
+driver, 3765 with it). The stock PET 2001's 4K is too small (the
+program ends 284 bytes past `$1000`); the measured PET is the 32K 3032
+with a user-port speaker so the VIA song actually plays.
 
 | Machine | Program | Variables |
 | --- | --- | --- |
-| PET 3032 + speaker | 3493 | 46 |
+| PET 3032 + speaker | 3765 | 50 |
 | C64 | 4276 | 45 |
 | VIC-20 8K | 2455 | 49 |
 | Commander X16 | 2918 | 58 |

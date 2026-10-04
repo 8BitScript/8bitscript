@@ -162,8 +162,42 @@ test('PET lowering picks a 4×4 quadrant-block for a solid picture', () => {
     assert.ok(diagnostics.some((d) => d.code === Codes.GFX_ADAPTED || d.code === '8BS2111'));
     const gfx = ir.globals.find((g) => g.name.includes('8bg') && Array.isArray(g.init));
     assert.ok(gfx);
-    assert.ok(gfx.init.length === 4 || gfx.init.length === 1);
+    // Four animation frames, four row nibbles each; the driver turns each
+    // into its own shape.
+    assert.equal(gfx.init.length, 16);
   });
+});
+
+test('two .8bg files each hold one sprite: their slots are 0 and 1, not both 0', () => {
+  const dir = mkdtempSync(join(tmpdir(), '8bs-media-slots-'));
+  try {
+    writeFileSync(join(dir, 'player.png'), solidSheet());
+    writeFileSync(join(dir, 'player.8bg'), SPRITE);
+    writeFileSync(join(dir, 'enemy.png'), solidSheet());
+    writeFileSync(join(dir, 'enemy.8bg'), SPRITE.replace('sprite player', 'sprite enemy').replace('./player.png', './enemy.png'));
+    const text = `import { player } from "./player.8bg";
+import { enemy } from "./enemy.8bg";
+import { graphics } from "@8bitscript/graphics";
+
+export function main(): void {
+    graphics.place(player, 8, 8);
+    graphics.place(enemy, 40, 8);
+}
+`;
+    for (const machine of ['pet', 'c64']) {
+      const { ir, diagnostics } = link(text, join(dir, 'main.8bs'), { machine, facts: stockFacts(machine), checkout: CHECKOUT });
+      assert.deepEqual(diagnostics.filter((d) => d.severity !== 'warning'), [], machine);
+      const entry = ir.functions.find((f) => f.name === ir.entry);
+      // The sprite names are consts folded into each call: the slot is the first argument.
+      const placed = entry.body.filter((s) => s.kind === 'call' && /graphics_place$/.test(s.name)).map((s) => s.args[0].value);
+      assert.deepEqual(placed, [0, 1], `${machine}: player then enemy`);
+      // The binds run in declaration order, ahead of anything main() does.
+      const calls = entry.body.filter((s) => s.kind === 'call' && /__8bs_media_bind_/.test(s.name)).map((s) => s.name.replace(/^.*__8bs_media_bind_/, ''));
+      assert.deepEqual(calls, ['player', 'enemy'], machine);
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('Atari 8-bit lowering reports a glyph and a POKEY song', () => {

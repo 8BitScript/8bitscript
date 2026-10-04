@@ -236,7 +236,7 @@ export function elaborateMedia(module, diagnostics, options = {}) {
       ir.consts.push(constHandle(sprite.name, slot, sprite));
       const frames = decodeSpriteSource(sprite, file, diagnostics);
       const result = lowering?.lowerGraphics
-        ? lowering.lowerGraphics(sprite, frames, facts, file, wrapDiagnostic)
+        ? lowering.lowerGraphics(sprite, frames, facts, file, wrapDiagnostic, options.mediaSlots)
         : lowerGraphicsDefault(sprite, frames, file);
       diagnostics.push(...(result.diagnostics ?? []));
       const dataName = `__8bg_${sprite.name}`;

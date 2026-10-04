@@ -1,17 +1,27 @@
-// @8bitscript/graphics on the PET: a 4×4 quadrant-block object, or a
-// glyph if the lowering said the picture could not survive that.
+// @8bitscript/graphics on the PET: a 4×4 quadrant-block object. The
+// compiler's PET media lowering (packages/pet/media) hands over four bytes
+// a frame, one nibble per row — a picture too faint to survive the
+// downsample arrives as a small centre block, one frame — and bind() turns
+// each frame into a shape of @8bitscript/sprites as it arrives.
+//
+// An animation spends one shape a frame, all defined here, once, before
+// main() runs: the sprite layer erases a sprite by the shape it was drawn
+// with, so a shape cannot be redefined while it is on screen, and
+// defining one costs more than a frame. Changing frame is then one
+// setShape(). The layer holds `sprites.SHAPES` shapes in all, shared by
+// every picture in the program: a picture that does not fit gets the
+// frames that do, and one that finds none left is not drawn. A static
+// picture costs one shape, a four-frame walk four.
 import { sprites } from "@8bitscript/sprites";
 
 const MAX: utinyint = 8;
-const KIND_GLYPH: utinyint = 0;
-const KIND_PET: utinyint = 3;
-let row0: array<u8, 8>;
-let row1: array<u8, 8>;
-let row2: array<u8, 8>;
-let row3: array<u8, 8>;
-let kind: array<u8, 8>;
-let glyph: array<u8, 8>;
-let bindIndex: array<u8, 8>;
+let base: array<u8, 8>;       // a picture's first shape
+let frameCount: array<u8, 8>; // frames it has shapes for; 0: it is not drawn
+let interval: array<u8, 8>;
+let tick: array<u8, 8>;
+let frame: array<u8, 8>;
+let held: array<u8, 3>;       // the rows of the frame bind() is part-way through
+let used: utinyint = 0;       // shapes handed out so far
 let started: bool = false;
 
 function ensure(): void {
@@ -26,33 +36,42 @@ export namespace graphics {
         if (slot >= MAX) {
             return;
         }
+        ensure();
         if (index == 0) {
-            row0[slot] = value;
-            glyph[slot] = value;
+            base[slot] = used;
         }
-        if (index == 1) {
-            row1[slot] = value;
+        let row: utinyint = index & 3;
+        if (row < 3) {
+            held[row] = value;
+            return;
         }
-        if (index == 2) {
-            row2[slot] = value;
+        let shape: utinyint = base[slot] + (index >> 2);
+        if (shape < sprites.SHAPES) {
+            sprites.defineShape(shape, held[0], held[1], held[2], value);
+            used = shape + 1;
         }
-        if (index == 3) {
-            row3[slot] = value;
-        }
-        bindIndex[slot] = index;
     }
 
     function meta(slot: utinyint, frames: utinyint, every: utinyint, which: utinyint, width: utinyint, height: utinyint): void {
         if (slot >= MAX) {
             return;
         }
-        kind[slot] = which;
         ensure();
-        if (which == KIND_PET) {
-            sprites.defineShape(slot, row0[slot], row1[slot], row2[slot], row3[slot]);
-            sprites.setShape(slot, slot);
-        } else {
-            sprites.setShape(slot, glyph[slot]);
+        tick[slot] = 0;
+        frame[slot] = 0;
+        interval[slot] = every;
+        // bind() stopped at the last shape that existed, so what was
+        // defined is what `used` has moved past.
+        let have: utinyint = 0;
+        if (used > base[slot]) {
+            have = used - base[slot];
+        }
+        if (have > frames) {
+            have = frames;
+        }
+        frameCount[slot] = have;
+        if (have > 0) {
+            sprites.setShape(slot, base[slot]);
         }
     }
 
@@ -61,12 +80,29 @@ export namespace graphics {
             return;
         }
         ensure();
+        if (frameCount[slot] == 0) {
+            return;
+        }
         sprites.place(slot, x, y);
     }
 
     function update(): void {
         if (!started) {
             return;
+        }
+        for (let slot: utinyint = 0; slot < MAX; slot++) {
+            if (frameCount[slot] < 2) {
+                continue;
+            }
+            tick[slot] = tick[slot] + 1;
+            if (tick[slot] >= interval[slot]) {
+                tick[slot] = 0;
+                frame[slot] = frame[slot] + 1;
+                if (frame[slot] >= frameCount[slot]) {
+                    frame[slot] = 0;
+                }
+                sprites.setShape(slot, base[slot] + frame[slot]);
+            }
         }
         sprites.update();
     }
