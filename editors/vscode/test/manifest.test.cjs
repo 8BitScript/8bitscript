@@ -44,21 +44,21 @@ test('examples can be hidden, but ship visible by default', () => {
 
 test('a native cx16 run from the launcher includes capture and fullscreen flags by default', () => {
   assert.match(read('src', 'runner.cjs'), /cx16NativeWindowCliArgs/);
-  assert.match(read('src', 'launcherView.cjs'), /machine === 'cx16' && runtime === 'native' \? settings\.cx16NativeWindowCliArgs\(/);
+  assert.match(read('src', 'launcherView.cjs'), /machine === 'cx16' && runtime === 'native'\) args\.push\(\.\.\.settings\.cx16NativeWindowCliArgs\(/);
   const props = MANIFEST.contributes.configuration.properties;
   assert.equal(props['8bitscript.cx16.captureMouse'].default, true);
   assert.equal(props['8bitscript.cx16.fullscreen'].default, false);
 });
 
 test('a web run from the launcher listens on the LAN by default', () => {
-  const runner = read('src', 'runner.cjs');
-  assert.match(runner, /getWebLan\(\)/);
-  assert.match(runner, /args\.push\('--port', '0'\)/, 'an ephemeral port so two web runs can coexist');
-  assert.match(runner, /args\.push\('--local'\)/);
+  assert.match(read('src', 'runner.cjs'), /getWebLan\(\)/);
+  // The flags a runtime adds are one function (units.runtimeArgs), which the
+  // runner and the launcher both call with the LAN setting.
+  const unitsSource = read('src', 'units.cjs');
+  assert.match(unitsSource, /\['--port', '0', \.\.\.local\]/, 'an ephemeral port so two web runs can coexist');
+  assert.match(unitsSource, /const local = webLan \? \[\] : \['--local'\]/);
   assert.match(read('src', 'settings.cjs'), /function getWebLan/);
-  const view = read('src', 'launcherView.cjs');
-  assert.match(view, /--port', '0'/);
-  assert.match(view, /--local/);
+  assert.match(read('src', 'launcherView.cjs'), /units\.runtimeArgs\(runtime, machine, \{ webLan: settings\.getWebLan\(\) \}\)/, 'the launcher shows the flags the run uses');
   const props = MANIFEST.contributes.configuration.properties['8bitscript.webLan'];
   assert.equal(props.default, true);
   assert.equal(props.type, 'boolean');
@@ -163,14 +163,21 @@ test('Configure System and Show Project are first-class commands', () => {
   assert.ok(MANIFEST.contributes.menus['view/title'].some((m) => m.command === '8bitscript.showProject'));
 });
 
-test('the 8bs task type offers every target this release builds for', () => {
-  const { ALL_TARGETS } = require('../src/projects.cjs');
+test('the 8bs task type names a machine by any id the CLI lists, and says where a run goes', () => {
   const definition = MANIFEST.contributes.taskDefinitions.find((d) => d.type === '8bs');
-  assert.deepEqual(definition.properties.target.enum, ALL_TARGETS);
-  // The Studio tab's run is told apart from a native one by this key, so
-  // it has to be part of the declared definition, not a private extra.
+  // The machines are the toolchain's to list (`8bs targets`), not a
+  // hand-kept enum that goes stale the day one is added.
+  assert.equal(definition.properties.target.type, 'string');
+  assert.equal(definition.properties.target.enum, undefined, 'no hand-kept list of machines');
+  assert.deepEqual(definition.properties.runtime.enum, ['editor', 'browser', 'native']);
+  // `web` was declared as "run --web" and is the browser runtime, said so.
   assert.equal(definition.properties.web?.type, 'boolean');
-  assert.match(definition.properties.web.description, /cx16 --web/);
+  assert.match(definition.properties.web.description, /browser/);
+  for (const key of ['system', 'define', 'locale', 'profile', 'hardware']) {
+    assert.ok(definition.properties[key], `${key} is part of the declared definition, not a private extra`);
+  }
+  assert.equal(definition.properties.define.type, 'object');
+  assert.ok(definition.properties.command.enum.includes('boot'));
 });
 
 test('every command the page can name is one the extension registers', () => {
@@ -182,8 +189,5 @@ test('every command the page can name is one the extension registers', () => {
   ].map((m) => m[1]))];
   assert.ok(ids.length >= 8, 'the page names a real set of commands');
   const declared = new Set(MANIFEST.contributes.commands.map((c) => c.command));
-  // runUnit is the unit model's command, not yet declared on every build; the
-  // view asks the editor whether it exists before using it.
-  const optional = new Set(['8bitscript.runUnit']);
-  for (const id of ids) assert.ok(declared.has(id) || optional.has(id), `${id} is neither declared nor optional`);
+  for (const id of ids) assert.ok(declared.has(id), `${id} is not declared in package.json`);
 });

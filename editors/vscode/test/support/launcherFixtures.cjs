@@ -4,7 +4,8 @@
 // that renders the real page to PNG (docs/design/wired).
 'use strict';
 
-const { availability, normalizeState, primaryRuntime, commandLine, defineFlags } = require('../../src/launcherState.cjs');
+const units = require('../../src/units.cjs');
+const { availabilityFromMatrix, movedNote, normalizeState } = require('../../src/launcherState.cjs');
 
 const SYSTEMS = [
   { id: 'pet', short: 'PET', name: 'Commodore PET', spec: '4032 · 32 KB', region: 'NTSC', emulator: 'xpet' },
@@ -38,7 +39,6 @@ const PROGRAMS = [
   { id: 'slot5x5-retrigger-jackpot-seeded-ruler', group: 'Test rigs', title: 'slot5x5-retrigger-jackpot-seeded-ruler', entry: 'src/labs/slot5x5/retrigger-jackpot-seeded-ruler.8bs', targets: ALL, inputs: [] },
 ];
 
-const WASM_READY = new Set(['pet', 'vic20', 'cx16', 'web']);
 
 /**
  * A ready state for Vegas Nights.
@@ -52,23 +52,26 @@ const WASM_READY = new Set(['pet', 'vic20', 'cx16', 'web']);
  */
 function vegas({ system = 'c64', program = 'slot3x3', remembered = {}, values = {}, missing = [], running = [], history = [], notices = [], programs = PROGRAMS, live = {} } = {}) {
   const machine = sys(system);
+  const doctor = machine.emulator && missing.includes(machine.emulator) ? { notInstalled: [system], failed: [], ready: [] } : null;
   const list = programs.map((p) => {
     const onSystem = p.targets.includes(system);
-    const wasmBlock = p.wasmBlock?.[system];
-    const av = availability({
-      system: machine,
-      wasm: wasmBlock ? { ok: false, reason: wasmBlock } : (WASM_READY.has(system) ? undefined : { ok: false, reason: `The ${machine.name} WASM build isn't ready yet, so Editor and Browser can't run it. Native runs the real emulator.` }),
-      emulatorMissing: Boolean(machine.emulator) && missing.includes(machine.emulator),
-    });
-    const { runtime, moved } = onSystem ? primaryRuntime(av, remembered[p.id], { preferEditor: true }) : { runtime: null };
+    const matrix = units.runtimeMatrix({ runtime: units.legacyRuntime(system), target: system, program: { label: p.title, targets: p.targets }, doctor });
+    const av = availabilityFromMatrix(matrix, { emulator: machine.emulator });
+    const block = p.wasmBlock?.[system];
+    if (block) { av.editor = { ok: false, reason: block, use: 'native' }; av.browser = av.editor; }
+    const works = Object.fromEntries(Object.keys(av).map((id) => [id, { available: av[id].ok }]));
+    const primary = onSystem ? units.defaultRuntime({ matrix: works, remembered: remembered[p.id], preferEditor: true }) : null;
+    const moved = primary ? movedNote(remembered[p.id], primary, av) : '';
     return {
       id: p.id, title: p.title, group: p.group, description: p.description ?? '', entry: p.entry, onSystem,
       inputs: p.inputs.map((i) => ({ ...i, value: values[p.id]?.[i.name] ?? i.def })),
-      runtimes: av, primary: runtime, ...(moved ? { primaryMoved: moved } : {}), live: live[p.id] ?? [],
+      runtimes: av, primary, ...(moved ? { primaryMoved: moved } : {}), live: live[p.id] ?? [],
     };
   });
   const selected = list.find((p) => p.id === program);
-  const base = ['run', system, '--program', program, '--size'];
+  const changed = selected.inputs.filter((i) => i.value !== i.def);
+  const base = ['run', system, '--program', program, ...changed.flatMap((i) => ['--define', `${i.name}=${i.value}`]), '--size'];
+  const command = units.formatCommand([...base, ...units.runtimeArgs(selected.primary ?? 'native', system)]);
   return normalizeState({
     phase: 'ready',
     notices,
@@ -80,7 +83,7 @@ function vegas({ system = 'c64', program = 'slot3x3', remembered = {}, values = 
     programs: list,
     program,
     collapsedGroups: ['Test rigs'],
-    command: commandLine(base, selected.primary ?? 'native', defineFlags(selected.inputs)),
+    command,
     running,
     history,
   });

@@ -1,7 +1,8 @@
 // The extension side of the launcher, end to end under the vscode mock: the
-// page it serves, the state it builds for a real project on disk, and the
-// command each message from the page runs. The page itself is tested in
-// launcher.test.cjs over a real DOM; the rules in launcherState.test.cjs.
+// page it serves, the state it builds from the unit model for a real project
+// on disk, and the command each message from the page runs. The page itself is
+// tested in launcher.test.cjs over a real DOM; the mappers in
+// launcherState.test.cjs; the model's own rules in units.test.cjs.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -12,13 +13,57 @@ const { installVscodeMock } = require('./support/vscodeMock.cjs');
 
 const vscode = installVscodeMock();
 const { registerRunner } = require('../src/runner.cjs');
-const { registerLauncherView, inputsFromDefine, runId, wasmFor } = require('../src/launcherView.cjs');
+const { registerLauncherView, runtimeOfRow } = require('../src/launcherView.cjs');
 
 const tick = () => new Promise((resolve) => setImmediate(resolve));
 const plain = (value) => JSON.parse(JSON.stringify(value));
 
-/** A project in the shape of vegas-nights: a lobby, a slot and a small lab. */
-function writeLab(dir) {
+const ALL = ['pet', 'c64', 'vic20', 'web'];
+const cell = (available, reason) => ({ available, ...(reason ? { reason } : {}) });
+const runtimeRow = (emulator, { wasm = true, native = true } = {}) => ({
+  native: { ...cell(native, native ? undefined : 'the browser has no native emulator; it runs in the browser'), emulator, installed: native ? true : null },
+  wasm: cell(wasm, wasm ? undefined : `no wasm build for ${emulator ?? 'web'} yet`),
+  wasmEmulator: cell(false, 'no real emulator is vendored as WebAssembly for this machine'),
+  boot: cell(native, 'the browser cannot boot bare'),
+});
+
+/** What the fake `8bs` answers for `project --json`, `targets --json` and `doctor --json`. */
+function cliData(dir, { systems = [], problems = [], configError = null, defines = true, notInstalled = [] } = {}) {
+  const program = (name, extra = {}) => ({
+    name, entry: `src/${name}.8bs`, entryExists: true, targets: ALL, requires: {}, definesRead: true, defines: [], problems: [], ...extra,
+  });
+  return {
+    project: {
+      version: 1, dir, name: 'my-game', configPath: path.join(dir, '8bitscript.config.8bs'), hasConfig: true, configError,
+      targets: ALL.map((id) => ({ id, hardware: {}, profiles: [], locale: null })),
+      programs: [
+        program('main', { title: 'Lobby', group: 'Slots', description: 'The front door.' }),
+        program('slot', {
+          title: 'Slot', group: 'Slots', description: 'A slot machine.', definesRead: defines,
+          defines: defines ? [
+            { name: 'SEED', kind: 'int', default: 7, value: 7, description: 'Fixes the draws.', source: 'source' },
+            { name: 'FORCE_BONUS', kind: 'bool', default: false, value: false, description: null, source: 'source' },
+          ] : [],
+        }),
+        program('tiny', { title: 'Tiny', group: 'Test rigs', targets: ['pet', 'vic20'] }),
+      ],
+      systems: [], problems,
+    },
+    targets: {
+      targets: [
+        { id: 'pet', title: 'Commodore PET', emulator: 'xpet', region: false, runtime: runtimeRow('xpet') },
+        { id: 'c64', title: 'Commodore 64', emulator: 'x64sc', region: true, runtime: runtimeRow('x64sc', { wasm: false }) },
+        { id: 'vic20', title: 'Commodore VIC-20', emulator: 'xvic', region: true, runtime: runtimeRow('xvic') },
+        { id: 'web', title: 'Web', emulator: null, region: false, runtime: runtimeRow(null, { native: false }) },
+      ],
+      systems,
+    },
+    doctor: { ready: ALL.filter((id) => !notInstalled.includes(id)), notInstalled, failed: [] },
+  };
+}
+
+/** A project in the shape of vegas-nights on disk, with a fake `8bs` that answers from `cliData`. */
+function writeLab(dir, options) {
   fs.mkdirSync(path.join(dir, 'src'), { recursive: true });
   for (const entry of ['main', 'slot', 'tiny']) fs.writeFileSync(path.join(dir, 'src', `${entry}.8bs`), 'export function main(): void {}\n');
   fs.writeFileSync(path.join(dir, '8bitscript.config.8bs'), `export default {
@@ -27,13 +72,14 @@ function writeLab(dir) {
     slot: { entry: 'src/slot.8bs' },
     tiny: { entry: 'src/tiny.8bs', targets: ['pet', 'vic20'] },
   },
-  targets: ['pet', 'vic20', 'c64', 'web'],
+  targets: ['pet', 'c64', 'vic20', 'web'],
 };
 `);
   const cli = path.join(dir, 'fake-8bs.mjs');
-  fs.writeFileSync(cli, `console.log(JSON.stringify({ targets: [
-    { id: 'pet', title: 'Commodore PET', emulator: 'xpet' }, { id: 'vic20', title: 'Commodore VIC-20', emulator: 'xvic' },
-    { id: 'c64', title: 'Commodore 64', emulator: 'x64sc' }, { id: 'web', title: 'Web', emulator: null } ], systems: [] }));\n`);
+  fs.writeFileSync(cli, `const d = ${JSON.stringify(cliData(dir, options))};
+const a = process.argv.slice(2);
+console.log(JSON.stringify(a.includes('project') ? d.project : a.includes('doctor') ? d.doctor : d.targets));
+`);
   return cli;
 }
 
@@ -56,7 +102,7 @@ function fakeView() {
   };
 }
 
-/** Everything after the first state the panel posts, which takes a process to compute. */
+/** The next real state the panel posts after `seen` of them, which takes a process or two. */
 async function stateAfter(view, seen = 0) {
   for (let i = 0; i < 300; i += 1) {
     const states = view.posted.filter((m) => m.type === 'state' && m.state.phase !== 'loading');
@@ -67,16 +113,19 @@ async function stateAfter(view, seen = 0) {
 }
 const readyStates = (view) => view.posted.filter((m) => m.type === 'state' && m.state.phase !== 'loading').length;
 
-async function withLauncher(fn, { settings = {}, configure } = {}) {
+/** The run commands do real work in the runner; here they only record what the view asked for. */
+const STUBBED = ['8bitscript.runUnit', '8bitscript.build', '8bitscript.openBareEmulator', '8bitscript.previewTab.show'];
+
+async function withLauncher(fn, { settings = {}, configure, cli: cliOptions } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), '8bs-launcher-'));
   const store = new Map();
   const context = {
     subscriptions: [],
     globalStorageUri: { fsPath: path.join(dir, '.storage') },
-    workspaceState: { get: (k) => store.get(k), update: (k, v) => { store.set(k, v); return Promise.resolve(); } },
+    workspaceState: { get: (k, fallback) => (store.has(k) ? store.get(k) : fallback), update: (k, v) => { store.set(k, v); return Promise.resolve(); } },
   };
   try {
-    const cli = writeLab(dir);
+    const cli = writeLab(dir, cliOptions);
     vscode.__mock.reset();
     vscode.__mock.configStore.set('project', dir);
     vscode.__mock.configStore.set('system', 'c64');
@@ -84,6 +133,7 @@ async function withLauncher(fn, { settings = {}, configure } = {}) {
     vscode.workspace.findFiles = () => Promise.resolve([{ fsPath: path.join(dir, '8bitscript.config.8bs') }]);
     const projects = registerRunner(context, { appendLine() {} });
     await tick();
+    for (const id of STUBBED) vscode.__mock.commandHandlers.set(id, () => undefined);
     projects.projects[0].toolchain = cli;
     if (configure) configure(projects.projects[0], dir);
     const provider = registerLauncherView(context, projects, null);
@@ -165,29 +215,31 @@ test('the first thing posted is the loading state, then the real one', async () 
   });
 });
 
-test('the state describes the project, its programs, its systems and the selected program', async () => {
+test('the state describes the project from the model: its programs with titles, groups and descriptions, and its systems', async () => {
   await withLauncher(({ first, dir }) => {
     assert.equal(first.phase, 'ready');
-    assert.equal(first.project.name, 'my-game' === first.project.name ? 'my-game' : first.project.name);
-    assert.deepEqual(first.programs.map((p) => p.id), ['main', 'slot', 'tiny']);
+    assert.equal(first.project.id, dir);
+    assert.deepEqual(first.programs.map((p) => [p.id, p.title, p.group]), [['main', 'Lobby', 'Slots'], ['slot', 'Slot', 'Slots'], ['tiny', 'Tiny', 'Test rigs']]);
+    assert.equal(first.programs[1].description, 'A slot machine.');
+    assert.deepEqual(first.programs.map((p) => p.entry), ['src/main.8bs', 'src/slot.8bs', 'src/tiny.8bs']);
     assert.equal(first.program, 'main', 'nothing chosen, and a main: main');
     assert.deepEqual(first.runtimes.map((r) => r.id), ['editor', 'browser', 'native']);
     assert.equal(first.system, 'c64');
-    assert.deepEqual(first.systems.map((s) => s.id), ['pet', 'c64', 'vic20', 'web'], 'in the extension\'s own machine order');
+    assert.deepEqual(first.systems.map((s) => s.id), ['pet', 'c64', 'vic20', 'web'], 'in the order the project lists them');
     assert.equal(first.systems.find((s) => s.id === 'c64').name, 'Commodore 64');
     assert.ok(first.systems.every((s) => s.enabled), 'main targets all of them');
-    assert.deepEqual(first.programs.map((p) => p.entry), ['src/main.8bs', 'src/slot.8bs', 'src/tiny.8bs']);
-    assert.equal(first.projects.length >= 1, true);
+    assert.deepEqual(first.collapsedGroups, ['Test rigs'], 'groups that start with Test start folded');
     assert.ok(first.projects.some((p) => p.id === dir));
   });
 });
 
-test('the C64 has no WASM build in the extension\'s own list, so Editor and Browser are off and Native is the primary', async () => {
+test('the C64 has no WASM build in the CLI\'s own report, so Editor and Browser are off with its reason and Native is the primary', async () => {
   await withLauncher(({ first }) => {
     const main = first.programs[0];
     assert.equal(main.runtimes.editor.ok, false);
     assert.equal(main.runtimes.browser.ok, false);
-    assert.match(main.runtimes.editor.reason, /Commodore 64 WASM build isn't ready/);
+    assert.equal(main.runtimes.editor.reason, 'No wasm build for x64sc yet.');
+    assert.equal(main.runtimes.editor.use, 'native');
     assert.equal(main.runtimes.native.ok, true);
     assert.equal(main.primary, 'native');
     assert.deepEqual(main.live, []);
@@ -208,26 +260,34 @@ test('preferWebPreview off makes Native the default where everything works', asy
   }, { settings: { system: 'pet', preferWebPreview: false } });
 });
 
-test('the Web system has no native emulator, and no bare emulator either', async () => {
+test('the Web system has no native emulator, and says so in the CLI\'s words', async () => {
   await withLauncher(({ first }) => {
     const main = first.programs[0];
     assert.equal(main.runtimes.native.ok, false);
-    assert.match(main.runtimes.native.reason, /no native emulator/);
+    assert.equal(main.runtimes.native.reason, 'The browser has no native emulator; it runs in the browser.');
     assert.equal(main.primary, 'editor');
     assert.equal(first.systems.find((s) => s.id === 'web').emulator, null);
   }, { settings: { system: 'web' } });
 });
 
-test('the command is the exact line the primary runtime would run, with --program and --define', async () => {
+test('an emulator Doctor says is not installed is a fixable reason that names it', async () => {
+  await withLauncher(({ first }) => {
+    const native = first.programs[0].runtimes.native;
+    assert.deepEqual(native, { ok: false, reason: 'xpet is not installed.', fixable: true, emulator: 'xpet', use: 'editor' });
+    assert.equal(first.programs[0].primary, 'editor');
+  }, { settings: { system: 'pet' }, cli: { notInstalled: ['pet'] } });
+});
+
+test('the command is the exact line a click on the primary runtime runs', async () => {
   await withLauncher(async ({ view, first }) => {
-    assert.equal(first.command, '8bs run c64 --program main --size', 'main of several programs on the C64: native, the program named as Run names it');
-  });
-  await withLauncher(async ({ view }) => {
+    assert.equal(first.command, '8bs run pet --program main --size --web --no-open --port 0', 'main of several programs on the PET: the Editor tab');
     const state = await send(view, { type: 'select', program: 'slot' });
     assert.equal(state.program, 'slot');
-    assert.equal(state.command, '8bs run pet --program slot --web --no-open --port 0 --size', 'the PET\'s default is the Editor tab');
-    const done = await send(view, { type: 'selectRuntime', program: 'slot', runtime: 'browser' });
-    assert.equal(done.command, '8bs run pet --program slot --web --size');
+    assert.equal(state.command, '8bs run pet --program slot --size --web --no-open --port 0');
+    const browser = await send(view, { type: 'selectRuntime', program: 'slot', runtime: 'browser' });
+    assert.equal(browser.command, '8bs run pet --program slot --size --web');
+    const native = await send(view, { type: 'selectRuntime', program: 'slot', runtime: 'native' });
+    assert.equal(native.command, '8bs run pet --program slot --size');
   }, { settings: { system: 'pet' } });
 });
 
@@ -239,18 +299,17 @@ test('picking a program the machine does not target moves the machine, and the s
     assert.equal(state.system, 'pet');
     assert.deepEqual(state.systems.map((s) => [s.id, s.enabled]), [['pet', true], ['c64', false], ['vic20', true], ['web', false]]);
     assert.equal(state.programs.find((p) => p.id === 'tiny').onSystem, true);
-    assert.equal(state.programs.find((p) => p.id === 'slot').onSystem, true);
   });
 });
 
-test('a program name the config does not have changes nothing', async () => {
-  await withLauncher(async ({ view, dir }) => {
+test('a program the project does not have changes nothing', async () => {
+  await withLauncher(async ({ view }) => {
     await send(view, { type: 'select', program: 'nope' });
     assert.equal(vscode.__mock.configStore.get('program'), undefined);
   });
 });
 
-test('picking a system stores the machine and wipes stale hardware; an unknown one is ignored', async () => {
+test('picking a system stores the machine and wipes stale hardware; one the project does not target is ignored', async () => {
   await withLauncher(async ({ view }) => {
     vscode.__mock.configStore.set('hardware', { pet: { profile: '3032', options: {} } });
     const state = await send(view, { type: 'select', system: 'pet' });
@@ -264,7 +323,6 @@ test('picking a system stores the machine and wipes stale hardware; an unknown o
 
 test('picking a project stores it and keeps a machine it can run on', async () => {
   await withLauncher(async ({ view, dir }) => {
-    vscode.__mock.configStore.set('system', 'c64');
     await send(view, { type: 'select', project: dir });
     assert.equal(vscode.__mock.configStore.get('project'), dir);
     assert.equal(vscode.__mock.configStore.get('system'), 'c64');
@@ -273,52 +331,15 @@ test('picking a project stores it and keeps a machine it can run on', async () =
 
 // ── run, build, boot ────────────────────────────────────────────────────────
 
-test('Native runs the existing run command with web off and the chosen program', async () => {
+test('every runtime goes through the unit command with its program, its inputs and the chosen machine', async () => {
   await withLauncher(async ({ view, dir }) => {
-    await send(view, { type: 'run', runtime: 'native', program: 'slot', system: 'c64', inputs: {} });
-    const run = ran('8bitscript.run').at(-1);
-    assert.equal(run.args[0].web, false);
-    assert.equal(run.args[0].target, 'c64');
-    assert.equal(run.args[0].program, 'slot');
-    assert.equal(run.args[0].project.dir, dir);
-    assert.deepEqual(vscode.__mock.configStore.get('program'), { [dir]: 'slot' }, 'the run acts on the program it named');
-  });
-});
-
-test('Editor runs the same command with web on', async () => {
-  await withLauncher(async ({ view }) => {
-    await send(view, { type: 'run', runtime: 'editor', program: 'main', system: 'pet', inputs: {} });
-    assert.equal(ran('8bitscript.run').at(-1).args[0].web, true);
-  }, { settings: { system: 'pet' } });
-});
-
-test('Browser cannot run through today\'s command, and says so instead of running something else', async () => {
-  await withLauncher(async ({ view }) => {
-    await send(view, { type: 'run', runtime: 'browser', program: 'main', system: 'pet', inputs: {} });
-    assert.equal(ran('8bitscript.run').length, 0);
-    assert.equal(vscode.__mock.calls.showInformationMessage.length, 1);
-    assert.match(vscode.__mock.calls.showInformationMessage[0][0], /Browser runs need the 8BitScript unit commands/);
-  }, { settings: { system: 'pet' } });
-});
-
-test('with the unit commands present, every runtime goes through runUnit with its inputs', async () => {
-  await withLauncher(async ({ view }) => {
-    vscode.__mock.extraCommands.push('8bitscript.runUnit');
     for (const runtime of ['editor', 'browser', 'native']) {
       await send(view, { type: 'run', runtime, program: 'slot', system: 'pet', inputs: { SEED: 10 } });
     }
-    const calls = ran('8bitscript.runUnit').map((c) => [c.args[0].runtime, c.args[0].program, c.args[0].inputs]);
-    assert.deepEqual(calls, [['editor', 'slot', { SEED: 10 }], ['browser', 'slot', { SEED: 10 }], ['native', 'slot', { SEED: 10 }]]);
+    const calls = ran('8bitscript.runUnit').map((c) => c.args[0]);
+    assert.deepEqual(calls.map((c) => [c.runtime, c.program, c.inputs, c.target]), [['editor', 'slot', { SEED: 10 }, 'pet'], ['browser', 'slot', { SEED: 10 }, 'pet'], ['native', 'slot', { SEED: 10 }, 'pet']]);
+    assert.equal(calls[0].project.dir, dir);
     assert.equal(ran('8bitscript.run').length, 0, 'and the old command is not used');
-    assert.equal(vscode.__mock.calls.showInformationMessage.length, 0);
-  }, { settings: { system: 'pet' } });
-});
-
-test('a run remembers its runtime for that program, and the page then draws it as primary', async () => {
-  await withLauncher(async ({ view }) => {
-    const state = await send(view, { type: 'run', runtime: 'native', program: 'slot', system: 'pet', inputs: {} });
-    assert.equal(state.programs.find((p) => p.id === 'slot').primary, 'native');
-    assert.equal(state.programs.find((p) => p.id === 'main').primary, 'editor', 'another program keeps its default');
   }, { settings: { system: 'pet' } });
 });
 
@@ -326,11 +347,11 @@ test('a runtime that is not one of the three runs nothing', async () => {
   await withLauncher(async ({ view }) => {
     view.webview.__fire({ type: 'run', runtime: 'cloud', program: 'main', system: 'c64', inputs: {} });
     await tick();
-    assert.equal(ran('8bitscript.run').length + ran('8bitscript.runUnit').length, 0);
+    assert.equal(ran('8bitscript.runUnit').length, 0);
   });
 });
 
-test('Build acts on the named program and Boot on no program at all', async () => {
+test('Build acts on the named program and Boot opens the bare emulator on no program at all', async () => {
   await withLauncher(async ({ view, dir }) => {
     view.webview.__fire({ type: 'build', program: 'slot', system: 'c64' });
     await tick();
@@ -339,36 +360,53 @@ test('Build acts on the named program and Boot on no program at all', async () =
     assert.deepEqual(vscode.__mock.configStore.get('program'), { [dir]: 'slot' });
     view.webview.__fire({ type: 'boot', system: 'c64' });
     await tick();
-    const boot = ran('8bitscript.boot').at(-1);
+    const boot = ran('8bitscript.openBareEmulator').at(-1);
     assert.equal(boot.args[0].target, 'c64');
     assert.equal(boot.args[0].program, undefined);
   });
 });
 
+test('the runtime a person picks is remembered for that program only, and the primary then follows it', async () => {
+  await withLauncher(async ({ view }) => {
+    const state = await send(view, { type: 'selectRuntime', program: 'slot', runtime: 'native' });
+    assert.equal(state.programs.find((p) => p.id === 'slot').primary, 'native');
+    assert.equal(state.programs.find((p) => p.id === 'main').primary, 'editor', 'another program keeps its default');
+  }, { settings: { system: 'pet' } });
+});
+
+test('a remembered runtime that stopped working moves the primary and says why', async () => {
+  await withLauncher(async ({ view }) => {
+    const state = await send(view, { type: 'selectRuntime', program: 'main', runtime: 'native' });
+    assert.equal(state.programs[0].primary, 'editor');
+    assert.equal(state.programs[0].primaryMoved, 'Native is unavailable here, so Editor is the default.');
+  }, { settings: { system: 'web' } });
+});
+
 // ── inputs ──────────────────────────────────────────────────────────────────
 
-test('a program\'s define block becomes inputs with the right kinds, and the page\'s edits are remembered per program', async () => {
+test('a program\'s inputs come from the model, and the person\'s edits are remembered per program and shown in the command', async () => {
   await withLauncher(async ({ view, first }) => {
     const slot = first.programs.find((p) => p.id === 'slot');
-    assert.deepEqual(slot.inputs.map((i) => [i.name, i.kind, i.def, i.value]), [['SEED', 'number', 7, 7], ['FORCE_BONUS', 'bool', false, false], ['THEME', 'select', 'classic', 'classic']]);
+    assert.deepEqual(slot.inputs.map((i) => [i.name, i.kind, i.def, i.value]), [['SEED', 'number', 7, 7], ['FORCE_BONUS', 'bool', false, false]]);
+    assert.equal(first.programs.find((p) => p.id === 'main').inputs.length, 0);
     let state = await send(view, { type: 'select', program: 'slot' });
     state = await send(view, { type: 'input', program: 'slot', name: 'SEED', value: 10 });
     assert.equal(state.programs.find((p) => p.id === 'slot').inputs[0].value, 10);
-    assert.match(state.command, /--define SEED=10$/);
+    assert.match(state.command, /--define SEED=10 --size/);
     assert.equal(state.programs.find((p) => p.id === 'main').inputs.length, 0, 'main has no inputs to change');
+    state = await send(view, { type: 'input', program: 'slot', name: 'SEED', value: 7 });
+    assert.doesNotMatch(state.command, /--define/, 'back to what a plain run uses is forgotten, not stored');
+    await send(view, { type: 'input', program: 'slot', name: 'FORCE_BONUS', value: true });
     state = await send(view, { type: 'inputsReset', program: 'slot' });
-    assert.equal(state.programs.find((p) => p.id === 'slot').inputs[0].value, 7);
+    assert.equal(state.programs.find((p) => p.id === 'slot').inputs[1].value, false);
     assert.doesNotMatch(state.command, /--define/);
-  }, { configure: (project) => { project.programs.find((p) => p.name === 'slot').define = { SEED: 7, FORCE_BONUS: false, THEME: { value: 'classic', options: ['classic', 'cosmic'] } }; } });
+  }, { settings: { system: 'pet' } });
 });
 
-test('inputsFromDefine reads both spellings and derives the kind from the default', () => {
-  const inputs = inputsFromDefine({ SEED: 7, GO: true, NAME: 'x', CREDITS: { value: 1000, description: 'Bank.', label: 'Credits' }, MODE: { value: 'a', options: ['a', 'b'] } }, { SEED: 9 });
-  assert.deepEqual(inputs.map((i) => [i.name, i.kind, i.def, i.value]), [['SEED', 'number', 7, 9], ['GO', 'bool', true, true], ['NAME', 'text', 'x', 'x'], ['CREDITS', 'number', 1000, 1000], ['MODE', 'select', 'a', 'a']]);
-  assert.equal(inputs[3].label, 'Credits');
-  assert.equal(inputs[3].help, 'Bank.');
-  assert.equal(inputs[0].label, 'Seed', 'a label is made from the name when none is given');
-  assert.deepEqual(inputsFromDefine(null), []);
+test('a toolchain that cannot list a program\'s inputs shows none rather than guessing', async () => {
+  await withLauncher(({ first }) => {
+    assert.deepEqual(first.programs.find((p) => p.id === 'slot').inputs, []);
+  }, { cli: { defines: false } });
 });
 
 // ── the rest of the page's messages ─────────────────────────────────────────
@@ -392,8 +430,7 @@ test('Reveal asks the explorer to reveal the same file', async () => {
   await withLauncher(async ({ view, dir }) => {
     view.webview.__fire({ type: 'reveal', program: 'slot' });
     await tick();
-    const reveal = ran('revealInExplorer').at(-1);
-    assert.equal(reveal.args[0].fsPath, path.join(dir, 'src', 'slot.8bs'));
+    assert.equal(ran('revealInExplorer').at(-1).args[0].fsPath, path.join(dir, 'src', 'slot.8bs'));
   });
 });
 
@@ -461,31 +498,32 @@ test('Focus shows the Editor tab', async () => {
 // ── what is running ─────────────────────────────────────────────────────────
 
 function fakeExecution(projects, definition, startedAt = Date.now() - 65000) {
-  const execution = { task: { definition, name: 'x', detail: `8bs run ${definition.target} --size  (proj)` }, terminated: false, terminate() { this.terminated = true; } };
+  const full = { type: '8bs', command: 'run', commandLine: `8bs run ${definition.target} --size`, ...definition };
+  const execution = { task: { definition: full, name: 'x', detail: '' }, terminated: false, terminate() { this.terminated = true; } };
   projects.running.executions.add(execution);
   projects.running.startedAt.set(execution, startedAt);
   return execution;
 }
 
-test('a live run appears in Running with its runtime, and lights the program row it belongs to', async () => {
-  await withLauncher(async ({ view, projects, dir, provider }) => {
-    fakeExecution(projects, { type: '8bs', command: 'run', projectDir: dir, target: 'pet', program: 'slot', web: true });
-    fakeExecution(projects, { type: '8bs', command: 'run', projectDir: dir, target: 'pet', program: 'slot' });
-    fakeExecution(projects, { type: '8bs', command: 'doctor', projectDir: dir });
+test('a live run appears in Running with its runtime and command, and lights the program row it belongs to', async () => {
+  await withLauncher(async ({ view, projects, dir }) => {
+    fakeExecution(projects, { projectDir: dir, target: 'pet', program: 'slot', runtime: 'editor', web: true, commandLine: '8bs run pet --program slot --size --web --no-open --port 0' });
+    fakeExecution(projects, { projectDir: dir, target: 'pet', program: 'slot', runtime: 'native' });
+    fakeExecution(projects, { projectDir: dir, command: 'doctor' });
     const state = await send(view, { type: 'ready' });
-    assert.deepEqual(state.running.map((r) => [r.system, r.runtime, r.title, r.programId]).sort(), [['pet', 'editor', 'slot', 'slot'], ['pet', 'native', 'slot', 'slot']]);
+    assert.deepEqual(state.running.map((r) => [r.system, r.runtime, r.title, r.programId]).sort(), [['pet', 'editor', 'Slot', 'slot'], ['pet', 'native', 'Slot', 'slot']]);
     assert.deepEqual(state.programs.find((p) => p.id === 'slot').live.sort(), ['editor', 'native']);
     assert.deepEqual(state.programs.find((p) => p.id === 'main').live, []);
     assert.match(state.running[0].elapsed, /^1m /);
-    assert.equal(state.running[0].command, '8bs run pet --size', 'the command, without the project path');
+    assert.ok(state.running.some((r) => r.command === '8bs run pet --program slot --size --web --no-open --port 0'), 'the command the run was started with');
   }, { settings: { system: 'pet' } });
 });
 
 test('Stop ends exactly the run it names, even when two runs share a program', async () => {
   await withLauncher(async ({ view, projects, dir }) => {
-    const editor = fakeExecution(projects, { type: '8bs', command: 'run', projectDir: dir, target: 'pet', program: 'slot', web: true }, 1000);
-    const native = fakeExecution(projects, { type: '8bs', command: 'run', projectDir: dir, target: 'pet', program: 'slot' }, 2000);
-    const id = runId(1000, editor.task.definition);
+    const editor = fakeExecution(projects, { projectDir: dir, target: 'pet', program: 'slot', runtime: 'editor', web: true }, 1000);
+    const native = fakeExecution(projects, { projectDir: dir, target: 'pet', program: 'slot', runtime: 'native' }, 2000);
+    const id = projects.running.list().find((r) => r.runtime === 'editor').runId;
     view.webview.__fire({ type: 'stop', runId: id });
     await tick();
     assert.equal(editor.terminated, true);
@@ -500,44 +538,37 @@ test('Open in browser opens the run\'s own local address', async () => {
   await withLauncher(async ({ view, projects, dir }) => {
     fs.mkdirSync(path.join(dir, 'dist'), { recursive: true });
     fs.writeFileSync(path.join(dir, 'dist', '.8bs-last-pet-web.json'), JSON.stringify({ target: 'pet', url: 'http://127.0.0.1:4173/' }));
-    const exec = fakeExecution(projects, { type: '8bs', command: 'run', projectDir: dir, target: 'pet', web: true }, 5);
-    view.webview.__fire({ type: 'openInBrowser', runId: runId(5, exec.task.definition) });
+    fakeExecution(projects, { projectDir: dir, target: 'pet', runtime: 'editor', web: true }, 5);
+    view.webview.__fire({ type: 'openInBrowser', runId: projects.running.list()[0].runId });
     await tick();
     assert.deepEqual(vscode.__mock.openedExternal, ['http://127.0.0.1:4173/']);
   }, { settings: { system: 'pet' } });
 });
 
 test('a run\'s runtime is read from the task: tab, browser or native', () => {
-  assert.equal(runId(1, { target: 'pet', web: true, program: 'p' }), '1:pet:editor:p');
-  assert.equal(runId(1, { target: 'web' }), '1:web:browser:');
-  assert.equal(runId(1, { target: 'c64' }), '1:c64:native:');
-  assert.equal(runId(1, { target: 'c64', runtime: 'browser' }), '1:c64:browser:', 'a task that names its runtime wins');
+  assert.equal(runtimeOfRow({ runtime: 'browser', target: 'c64' }), 'browser', 'a task that names its runtime wins');
+  assert.equal(runtimeOfRow({ web: true, target: 'pet' }), 'editor');
+  assert.equal(runtimeOfRow({ target: 'web' }), 'browser', 'the web target is itself the browser');
+  assert.equal(runtimeOfRow({ target: 'c64' }), 'native');
 });
 
 // ── named systems ───────────────────────────────────────────────────────────
 
-/** A fake CLI that answers `targets --json` with project systems from each origin. */
-function systemsCli(dir) {
-  const cli = path.join(dir, 'fake-8bs.mjs');
-  fs.writeFileSync(cli, `console.log(JSON.stringify({ targets: [
-    { id: 'pet', title: 'Commodore PET', emulator: 'xpet' }, { id: 'c64', title: 'Commodore 64', emulator: 'x64sc' },
-    { id: 'vic20', title: 'Commodore VIC-20', emulator: 'xvic' }, { id: 'web', title: 'Web', emulator: null } ],
-    systems: [
-      { name: 'C64 with a mouse', target: 'c64', label: 'mouse', origin: 'project', profile: null, hardware: { mouse: 'on' }, region: 'ntsc' },
-      { name: 'My PET', target: 'pet', label: 'stock', origin: 'user', profile: '3032', hardware: {}, region: null },
-      { name: 'Advertised VIC', target: 'vic20', label: '8k', origin: 'advertised', profile: null, hardware: {}, region: 'pal' } ] }));\n`);
-  return cli;
-}
+const SYSTEMS = [
+  { name: 'C64 with a mouse', target: 'c64', label: 'mouse', origin: 'project', profile: null, hardware: { mouse: 'on' }, region: 'ntsc' },
+  { name: 'My PET', target: 'pet', label: 'stock', origin: 'user', profile: '3032', hardware: {}, region: null },
+  { name: 'Advertised VIC', target: 'vic20', label: '8k', origin: 'advertised', profile: null, hardware: {}, region: 'pal' },
+];
 
 test('named systems are offered by origin above the machines, and an empty selection is the machine id', async () => {
   await withLauncher(async ({ first }) => {
     const named = first.systems.filter((s) => s.group !== 'Machines');
     assert.deepEqual(named.map((s) => [s.group, s.name]), [['This clone', 'C64 with a mouse'], ['This machine', 'My PET'], ['Advertised', 'Advertised VIC']]);
-    assert.equal(first.systems.findIndex((s) => s.group === 'Machines') > 2, true, 'machines come after the named systems');
+    assert.ok(first.systems.findIndex((s) => s.group === 'Machines') > 2, 'machines come after the named systems');
     assert.equal(first.system, 'web', 'no named system fits: the machine id, never a blank');
     assert.equal(named[0].spec, 'c64 · mouse');
     assert.equal(named[1].spec, 'pet', 'a stock system just names its machine');
-  }, { settings: { system: 'web' }, configure: (project, dir) => { project.toolchain = systemsCli(dir); } });
+  }, { settings: { system: 'web' }, cli: { systems: SYSTEMS } });
 });
 
 test('picking a named system fits its machine, hardware and region together, and the picker then shows it', async () => {
@@ -549,15 +580,15 @@ test('picking a named system fits its machine, hardware and region together, and
     assert.deepEqual(vscode.__mock.configStore.get('hardware').c64, { profile: null, options: { mouse: 'on' } });
     assert.equal(state.system, 'C64 with a mouse', 'the named system, not the bare machine');
     assert.match(state.summary.name, /C64 with a mouse/);
-    assert.match(state.command, /--system C64 with a mouse|run --system/);
-  }, { configure: (project, dir) => { project.toolchain = systemsCli(dir); } });
+    assert.match(state.command, /^8bs run --system 'C64 with a mouse'/);
+  }, { cli: { systems: SYSTEMS } });
 });
 
 test('picking a project with systems of its own starts on the first of them', async () => {
   await withLauncher(async ({ view, dir }) => {
     await send(view, { type: 'select', project: dir });
     assert.equal(vscode.__mock.configStore.get('namedSystem'), 'C64 with a mouse');
-  }, { configure: (project, dir) => { project.toolchain = systemsCli(dir); } });
+  }, { cli: { systems: SYSTEMS } });
 });
 
 // ── notices and the toolchain's own answers ─────────────────────────────────
@@ -572,13 +603,12 @@ test('a project without a toolchain says so and offers the install', async () =>
   }, { configure: (project) => { project.toolchain = null; } });
 });
 
-test('the CLI\'s own capability report beats the extension\'s list when it gives one', () => {
-  assert.deepEqual(wasmFor('c64', { title: 'Commodore 64', runtimes: { wasm: { available: true } } }), { ok: true, reason: undefined });
-  assert.deepEqual(wasmFor('pet', { runtimes: { wasm: { available: false, reason: 'asm6502 blocks.' } } }), { ok: false, reason: 'asm6502 blocks.' });
-  assert.deepEqual(wasmFor('pet', null), { ok: true });
-  assert.deepEqual(wasmFor('web', null), { ok: true });
-  assert.equal(wasmFor('c64', { title: 'C64' }).ok, false);
-  assert.match(wasmFor('c64', { title: 'C64' }).reason, /^The C64 WASM build isn't ready yet/);
+test('the problems the CLI found, and a config that would not load, are shown inline', async () => {
+  await withLauncher(({ first }) => {
+    const texts = first.notices.map((n) => n.text);
+    assert.ok(texts.includes('The config would not load.'));
+    assert.ok(texts.includes('programs.slot: entry src/slot.8bs does not exist'));
+  }, { cli: { configError: 'The config would not load.', problems: [{ scope: 'programs.slot', message: 'entry src/slot.8bs does not exist' }] } });
 });
 
 test('a state with no project is the empty state, with whatever notices there are', async () => {

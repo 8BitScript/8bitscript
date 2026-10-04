@@ -1,9 +1,14 @@
-// What the launcher page is told, and the rules that decide it.
+// What the launcher page is told, and how.
 //
-// This file is pure — no `vscode`, no file system — so every rule below is
-// testable on its own, and the page (media/launcher.js) can be rendered from
-// the same fixtures the tests use. The page holds no truth of its own: the
-// extension builds one `LauncherState`, posts it, and the page draws it.
+// This file is pure — no `vscode`, no file system — so it is testable on its
+// own, and the page (media/launcher.js) can be rendered from the same
+// fixtures the tests use. The page holds no truth of its own: the extension
+// builds one `LauncherState`, posts it, and the page draws it.
+//
+// The *rules* — which runtimes a program can use on a machine, which one is
+// the default, which inputs a program has and the `--define` flags they become
+// — are the unit model's (units.cjs), not this file's; this file only says how
+// the page is told what the model decided.
 //
 // ── The vocabulary ──────────────────────────────────────────────────────────
 //   Project  a folder with an 8bitscript.config.8bs
@@ -71,90 +76,72 @@ const RUNTIMES = Object.freeze([
 
 const RUNTIME_IDS = RUNTIMES.map((r) => r.id);
 
-const WEB_NO_NATIVE = 'The Web system runs in a browser, so it has no native emulator.';
-
 /**
- * What each runtime can do for one program on one system.
- *
- * @param {object} input
- * @param {{ id: string, emulator?: string|null }} input.system
- * @param {{ ok: boolean, reason?: string } | undefined} [input.wasm] whether the
- *   machine has a WASM build the program can use; undefined means yes
- * @param {boolean} [input.emulatorMissing] the native emulator is not installed
- * @param {boolean} [input.nativeFails] it is installed but cannot boot
- * @returns {Record<'editor'|'browser'|'native', { ok: boolean, reason?: string, use?: string, fixable?: boolean, emulator?: string }>}
+ * A reason as a sentence: the model's are lower-case fragments without a stop.
+ * A reason that begins with a program's name (`x64sc is not installed`) keeps it
+ * as written.
  */
-function availability({ system, wasm, emulatorMissing = false, nativeFails = false }) {
-  const av = { editor: { ok: true }, browser: { ok: true }, native: { ok: true } };
-  if (wasm && wasm.ok === false) {
-    const reason = wasm.reason || `There is no WASM build of ${system.id} for this program yet.`;
-    av.editor = { ok: false, reason, use: 'native' };
-    av.browser = { ok: false, reason, use: 'native' };
-  }
-  if (!system.emulator) {
-    av.native = { ok: false, reason: WEB_NO_NATIVE, use: 'editor' };
-  } else if (emulatorMissing) {
-    av.native = {
-      ok: false, fixable: true, emulator: system.emulator,
-      reason: `${system.emulator} isn't installed, so Native can't run.`, use: 'editor',
-    };
-  } else if (nativeFails) {
-    av.native = {
-      ok: false, fixable: true, emulator: system.emulator,
-      reason: `${system.emulator} is installed but cannot boot.`, use: 'editor',
-    };
-  }
-  return av;
+function sentence(text, { keep = null } = {}) {
+  const t = String(text ?? '').trim();
+  if (t === '') return '';
+  const head = keep && t.startsWith(keep) ? t[0] : t[0].toUpperCase();
+  return `${head}${t.slice(1)}${/[.!?]$/.test(t) ? '' : '.'}`;
 }
 
 /**
- * The runtime a primary button means. The remembered one when it still works;
- * otherwise the first that does. With nothing remembered the default is the
- * Editor tab (`preferEditor`) and Native after it — Browser is never a default,
- * because it opens a window outside the editor.
+ * The page's view of the unit model's runtime matrix: for each runtime whether
+ * it works, why not, whether the reason can be fixed (an emulator to install,
+ * Doctor to run), and the runtime to switch to instead.
  *
- * @returns {{ runtime: string|null, moved?: string }}
+ * @param {Record<string, { available: boolean, reason: string|null, fix: string|null }>} matrix
+ *   `units.runtimeMatrix(...)`
+ * @param {{ emulator?: string|null }} [options] the native emulator's name, for the install button
  */
-function primaryRuntime(av, remembered, { preferEditor = true } = {}) {
-  const order = preferEditor ? ['editor', 'native', 'browser'] : ['native', 'editor', 'browser'];
+function availabilityFromMatrix(matrix, { emulator = null } = {}) {
+  const out = {};
+  for (const id of RUNTIME_IDS) {
+    const cell = matrix[id] ?? { available: false, reason: null, fix: null };
+    out[id] = cell.available ? { ok: true } : {
+      ok: false,
+      reason: sentence(cell.reason, { keep: emulator }),
+      ...(cell.fix ? { fixable: true, emulator: emulator ?? undefined } : {}),
+    };
+  }
+  for (const id of RUNTIME_IDS) {
+    if (out[id].ok) continue;
+    const alternative = ['editor', 'native', 'browser'].find((other) => other !== id && out[other].ok);
+    if (alternative) out[id].use = alternative;
+  }
+  return out;
+}
+
+/** Said when the runtime a program last used no longer works and another is the default now. */
+function movedNote(remembered, got, availability) {
+  if (!remembered || !got || remembered === got || availability[remembered]?.ok !== false) return '';
   const label = (id) => RUNTIMES.find((r) => r.id === id).label;
-  if (remembered && av[remembered]?.ok) return { runtime: remembered };
-  const next = order.find((id) => av[id]?.ok) ?? null;
-  if (remembered && next && av[remembered]) {
-    return { runtime: next, moved: `${label(remembered)} is unavailable here, so ${label(next)} is the default.` };
-  }
-  return { runtime: next };
+  return `${label(remembered)} is unavailable here, so ${label(got)} is the default.`;
 }
-
-/** The inputs whose value differs from the default. */
-const changedInputs = (inputs = []) => inputs.filter((i) => i.value !== i.def);
-
-/** `NAME=value` for each changed input, as `--define` takes them. */
-const defineFlags = (inputs = []) => changedInputs(inputs).map((i) => `${i.name}=${i.value}`);
 
 /**
- * The `8bs` command a click runs, from the base argv (`run c64 --program p
- * ...`, as projects.commandArgs builds it), the runtime and the changed inputs.
+ * One input of the unit model as the page's form draws it. The kind follows the
+ * model's (`int` is a number, `string` is text); its *value* is what a plain run
+ * uses, so "changed" means "differs from a plain run".
  *
- * @param {string[]} base
- * @param {string} runtime
- * @param {string[]} [defines]
- * @returns {string}
+ * @param {{ name: string, kind: string, default: unknown, value: unknown, description: string|null }} input
+ * @param {Record<string, unknown>} [overrides] what the person has typed
  */
-function commandLine(base, runtime, defines = []) {
-  const args = [...base];
-  const runtimeFlags = runtime === 'editor' ? ['--web', '--no-open', '--port', '0']
-    : runtime === 'browser' ? ['--web'] : [];
-  // Keep `--size` last, where the CLI prints it, and the defines after it so
-  // an input is always the tail of the line.
-  const at = args.indexOf('--size');
-  if (at >= 0) args.splice(at, 0, ...runtimeFlags);
-  else args.push(...runtimeFlags);
-  for (const d of defines) args.push('--define', d);
-  return ['8bs', ...args].join(' ');
+function inputRow(input, overrides = {}) {
+  const base = input.value ?? input.default;
+  return {
+    name: input.name,
+    label: input.name.toLowerCase().replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase()),
+    kind: input.kind === 'bool' ? 'bool' : input.kind === 'string' ? 'text' : 'number',
+    def: base,
+    value: Object.prototype.hasOwnProperty.call(overrides, input.name) ? overrides[input.name] : base,
+    help: input.description ?? '',
+    options: [],
+  };
 }
-
-const GROUP_ORDER = ['Projects', 'Examples', 'Apps'];
 
 /** Make a posted state safe to draw: every list is a list, every string a string. */
 function normalizeState(raw = {}) {
@@ -196,7 +183,4 @@ function normalizeState(raw = {}) {
   };
 }
 
-module.exports = {
-  GROUP_ORDER, RUNTIMES, RUNTIME_IDS, WEB_NO_NATIVE,
-  availability, changedInputs, commandLine, defineFlags, normalizeState, primaryRuntime,
-};
+module.exports = { RUNTIMES, RUNTIME_IDS, availabilityFromMatrix, inputRow, movedNote, normalizeState, sentence };

@@ -283,12 +283,12 @@ extension maps them like this:
 
 | Message | Becomes |
 | --- | --- |
-| `run {runtime, program, system, inputs}` | `8bitscript.runUnit` when the extension has it, else `8bitscript.run` (`web: false` for Native, `true` for Editor; Browser says it cannot yet) |
-| `build {program}` / `boot {}` | `8bitscript.build` / `8bitscript.boot`, the program chosen first |
+| `run {runtime, program, system, inputs}` | `8bitscript.runUnit`, which runs exactly that runtime (Editor, Browser or Native) and remembers it for the program |
+| `build {program}` / `boot {}` | `8bitscript.build` (the program chosen first) / `8bitscript.openBareEmulator` |
 | `select {project\|program\|system}` | the settings the old pickers wrote (`project`, `program`, `system`, `namedSystem`, `hardware`) |
-| `selectRuntime`, `input`, `inputsReset` | the workspace state (`launcher.runtime`, `launcher.inputs`), never `settings.json` |
+| `selectRuntime`, `input`, `inputsReset` | the unit model's workspace state (`launcher.runtime`, `launcher.inputs`), never `settings.json`; an input set back to what a plain run uses is forgotten |
 | `openSource {program}` | opens that program's entry file (it used to open `main`'s, whatever was picked) |
-| `stop {runId}` | ends exactly that run |
+| `stop {runId}` | `projects.running.stopRun`: ends exactly that run, and the same program's other runtimes live on |
 
 **Keyboard.** The program list is one tab stop. Inside it: ↑ ↓ move between rows and group
 headers, ← → move between a row's name and its three buttons, Home / End jump to the first and
@@ -300,14 +300,16 @@ closes and returns to the trigger.
 **Where it differs from the prototype, and why.**
 
 - **Real availability, not drawn availability.** The prototype showed the C64 with all three
-  runtimes. The extension's own list says the C64 has no WASM build yet, so Editor and Browser
-  are off there with that reason until the CLI's runtime report says otherwise. When WASM and the
-  emulator are *both* unavailable the note gives each reason once and offers the fix only.
+  runtimes. The launcher draws what the CLI's own runtime report (`8bs targets --json`) and
+  Doctor say, through the unit model's matrix, in the CLI's words ("No wasm build for x64sc
+  yet."). When WASM and the emulator are *both* unavailable the note gives each reason once and
+  offers the fix only — never a switch to a runtime that is itself unavailable.
 - **The summary line** reads the hardware and region the extension knows; it has no language
   yet (the extension does not track a locale).
-- **Programs have no title, description, group or inputs** until the toolchain's
-  `8bs project --json` feeds them in (the page and the host already handle them). Without
-  them a project's programs are listed by name in one unnamed group.
+- **Programs without a title, description, group or inputs** (an older toolchain, or a
+  config that sets none) are listed by name in one unnamed group, and a toolchain that cannot
+  list a program's inputs (the model's `definesRead`) shows no Inputs rather than an empty form.
+  Titles, groups, descriptions and inputs come from `8bs project --json`.
 - **Groups named "Test…" start folded**, as the owner chose for "Test rigs"; which groups
   fold first is a rule in `launcherView.cjs`, not a config key yet.
 - **Disclosures, folds and the filter** are remembered by the page itself (the webview's own

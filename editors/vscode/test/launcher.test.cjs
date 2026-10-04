@@ -96,7 +96,7 @@ test('a runtime that cannot work stays focusable, says why, and does not run', (
   assert.equal(editor.getAttribute('aria-disabled'), 'true');
   assert.equal(editor.hasAttribute('disabled'), false, 'aria-disabled, never disabled, so a keyboard can reach it');
   assert.match(editor.getAttribute('aria-label'), /unavailable/);
-  assert.match(editor.getAttribute('title'), /WASM build isn't ready/);
+  assert.match(editor.getAttribute('title'), /No wasm build for c64 yet/);
   page.click(editor);
   assert.equal(page.messages('run').length, 0, 'clicking it runs nothing');
   assert.equal(page.active().getAttribute('data-key'), 'reason:slot3x3', 'it moves focus to the reason instead');
@@ -115,7 +115,7 @@ test('the Web system disables Native with the right reason and offers Editor ins
   const page = mount(vegas({ system: 'web' }));
   assert.equal(page.byKey('run:slot3x3:native').getAttribute('aria-disabled'), 'true');
   const reason = page.byKey('reason:slot3x3');
-  assert.match(norm(reason), /Native is unavailable\. The Web system runs in a browser, so it has no native emulator\./);
+  assert.match(norm(reason), /Native is unavailable\. The browser has no native emulator; it runs in the browser\./);
   assert.equal(page.byKey('use:editor'), null, 'Editor is already the primary, so there is nothing to switch to');
 });
 
@@ -123,7 +123,7 @@ test('a missing emulator is a fixable, amber note with an install button and Doc
   const page = mount(vegas({ system: 'vic20', missing: ['xvic'], remembered: { slot3x3: 'native' } }));
   const reason = page.byKey('reason:slot3x3');
   assert.match(reason.className, /warn/);
-  assert.match(norm(reason), /xvic isn't installed, so Native can't run/);
+  assert.match(norm(reason), /xvic is not installed/);
   assert.match(norm(page.app), /Native is unavailable here, so Editor is the default/, 'and the primary moved, saying so');
   page.click(page.byKey('fix:emulator'));
   page.click(page.byKey('fix:doctor'));
@@ -135,8 +135,8 @@ test('when WASM and the emulator are both unavailable the note says each reason 
   const reason = page.byKey('reason:slot3x3');
   const lines = Array.from(reason.querySelectorAll('.why-line')).map(norm);
   assert.deepEqual(lines, [
-    "Editor and Browser are unavailable. The Commodore 64 WASM build isn't ready yet, so Editor and Browser can't run it. Native runs the real emulator.",
-    "Native is unavailable. x64sc isn't installed, so Native can't run.",
+    'Editor and Browser are unavailable. No wasm build for c64 yet.',
+    'Native is unavailable. x64sc is not installed.',
   ]);
   assert.ok(page.byKey('fix:emulator'), 'the install is offered');
   assert.equal(page.byKey('use:native'), null, 'and so is no switch to the runtime that is itself unavailable');
@@ -237,10 +237,10 @@ test('Reset to defaults posts and clears every changed mark', () => {
 
 test('Command shows the exact line, wraps between flags, and copies it', () => {
   const page = mount(vegas({ program: 'slot5x5', values: { slot5x5: { SEED: 10 } }, system: 'c64' }), { open: { 'command:slot5x5': true } });
-  assert.equal(norm(page.one('.code .cmd')), '8bs run c64 --program slot5x5 --size --define SEED=10');
+  assert.equal(norm(page.one('.code .cmd')), '8bs run c64 --program slot5x5 --define SEED=10 --size');
   assert.ok(page.all('.code .nb').length >= 4, 'every flag is its own unbreakable chunk');
   page.click(page.byKey('copy:slot5x5'));
-  assert.deepEqual(page.last(), { type: 'copy', text: '8bs run c64 --program slot5x5 --size --define SEED=10' });
+  assert.deepEqual(page.last(), { type: 'copy', text: '8bs run c64 --program slot5x5 --define SEED=10 --size' });
 });
 
 test('the ⋯ menu offers a bare emulator, copying the command and revealing the file, and closes on Escape', () => {

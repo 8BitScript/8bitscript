@@ -120,9 +120,10 @@ Rules that are easy to break without noticing:
   can reach it and hear why. Clicking one only moves focus to the reason.
 - **Every control that posts is a `<button>`** with a name a screen reader can read;
   icons are `aria-hidden`.
-- **The launcher never decides what runs.** Whether a runtime works comes from
-  `availability()` (and, once the unit model lands, from the CLI's own runtime report);
-  the page only draws it.
+- **The launcher never decides what runs.** Whether a runtime works, which is the default
+  and which inputs a program has are the unit model's (`units.cjs`, reached through the
+  runner); `launcherState.cjs` only says how the page is told. Do not add a rule here that
+  the model should own.
 - **The icon font is a subset.** `media/codicon.woff2` holds exactly the glyphs in the
   `CP` table at the top of `launcher.js`. To add an icon, add its codepoint there *and*
   regenerate the subset from `@vscode/codicons` (fonttools: `pyftsubset … --unicodes=…`);
