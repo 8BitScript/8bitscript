@@ -46,7 +46,22 @@ Do not describe more than this as working:
   on the 2001, 3032, 4032 and 8032. A picture that changes frame near
   the top of the screen can be seen part-old, part-new for that frame —
   the sprite layer redraws against the beam (`packages/sprites`
-  header) — so the test keeps animated pictures in the lower half. A `.8ba` song drives the VIA's CB2 square
+  header) — so the test keeps animated pictures in the lower half.
+  The contract's other calls are shown under xpet by `test/graphics-ops.test.mjs`
+  on a frame-counter timeline (2001, 3032, 4032, 8032): `hide` removes the
+  object and puts back what it covered (text printed under a picture is
+  exactly as it was), `place` after `hide` draws it again elsewhere with
+  nothing left behind, `setFrame` shows that frame, clamps a frame past the
+  end to the last one, and on a hidden object takes effect when the object
+  is placed, `animate(false)` holds a picture's frame while another keeps
+  stepping and `animate(true)` resumes it. An object that does not fit the
+  screen whole (any cell past the right edge, bottom, or off it) is not
+  drawn at all, never wrapped onto the next row. `color` is an honest
+  no-op (`graphics.RECOLORS` false): one ink. The same behaviour is pinned
+  where CI runs it by `packages/compiler/test/graphics-pet-ops.test.mjs`.
+  A capture of a still picture can be torn too when other pictures animate
+  (a row of its 2 × 2 cells blank for one look), so every claim there is
+  made over a few looks. A `.8ba` song drives the VIA's CB2 square
   wave when `audio.voices` is 1; the stock 2001 has no speaker
   (`audio.voices` 0) and playback is omitted (`8BS2211`). Noise samples
   cannot play on that one square wave.

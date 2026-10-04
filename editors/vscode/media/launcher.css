@@ -88,6 +88,7 @@ button.wide:disabled:hover { background: var(--vscode-button-secondaryBackground
  * program — then the project, with Build on its row. */
 .fields { margin-top: 14px; }
 .field + .field { margin-top: 8px; }
+.field[hidden] { display: none; }
 .field-label {
   display: block;
   margin: 0 0 3px;

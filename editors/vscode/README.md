@@ -167,6 +167,7 @@ bar with one thing in it: a launcher.
 
   QUICK LAUNCH
     PROGRAM  [ 2048  —  ../2048                 ▾ ] 📄
+    ENTRY    [ main                             ▾ ]   (only with several `programs`)
     SYSTEM   [ PET 2001 (8K)                    ▾ ]
     fitted as Commodore PET · ram=8 · NTSC
 
@@ -197,6 +198,15 @@ live in editor tabs — **Configure System** and **Show Project** — the
 same pattern as Controller Setup. The hardware matrix is not in the
 side bar.
 
+- **Entry** — a project whose config lists several `programs` (a lobby and
+  a set of small labs, say) gets an **Entry** dropdown under Program. Run and
+  Build pass the choice on as `--program <name>`, the System list narrows to
+  the machines that program's own `targets` allow, and the pick is remembered
+  per project (`8bitscript.program`). With a `main` and nothing chosen, `main`
+  runs; with several programs and no `main`, Run asks once. Tasks: Run Task
+  lists every program on each of its machines, and a `tasks.json` entry can
+  name its own with `"program": "<name>"`. A project with one program shows no
+  dropdown and passes no flag.
 - **Run** — starts `8bs run --system '<name>' --size` (or `8bs run <machine>`) for the selected project as a task in
   its own terminal, from the project's directory. A **Use local 8BitScript**
   toggle runs this checkout's CLI (`--checkout`) instead of

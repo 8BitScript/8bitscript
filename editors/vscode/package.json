@@ -528,6 +528,14 @@
           "default": "pet",
           "description": "The machine the launcher's Run and Build buttons use when no named system is selected. Set from the System dropdown in the 8BitScript side bar, or 8BitScript: Select System. Named systems live in 8bitscript.namedSystem."
         },
+        "8bitscript.program": {
+          "type": "object",
+          "default": {},
+          "description": "Which program Run and Build act on in a project with several `programs` in its config: an object keyed by the project's directory, each value a program name (`8bs run --program`). A project with a `main` program, or only one, needs no entry here; the launcher's Entry dropdown writes it.",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
         "8bitscript.namedSystem": {
           "type": "string",
           "default": "",
@@ -644,6 +652,10 @@
               "web"
             ],
             "description": "The system to build for or run on. Required for run and build."
+          },
+          "program": {
+            "type": "string",
+            "description": "Which of the project's several `programs` to run or build (`8bs run --program`). Optional: without it the program chosen in the launcher is used, or `main`."
           },
           "pal": {
             "type": "boolean",
