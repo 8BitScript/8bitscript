@@ -65,8 +65,9 @@ export namespace screen {
 
 // The same eight names every machine's BorderColor/BackgroundColor share,
 // and the same values screen.8bs's own namespaces use — unchanged by this
-// twin, since VERA's default palette is the C64's sixteen colors in the
-// C64's own order (screen.8bs's own header).
+// twin, since VERA's default palette is the C64's sixteen names in the
+// C64's own order (screen.8bs's own header). The page paints them with VERA's
+// own RGB (VERA_PALETTE in packages/cli/src/web-layout.mjs), not the C64's.
 export namespace BorderColor {
     const BLACK: utinyint = 0;
     const WHITE: utinyint = 1;

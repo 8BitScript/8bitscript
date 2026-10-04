@@ -695,13 +695,15 @@ test('registerRunner: launchApp runs the one shipped app straight away', async (
   }
 });
 
-test('registerRunner: openStudio runs Studio on the X16 with no picker and no change to the selection', async () => {
+test('registerRunner: openStudio opens Studio in the editor tab on our own wasm build — no picker, no x16emu, no native window, no change to the selection', async () => {
   const dir = tmpDir();
   try {
     vscode.__mock.reset();
     vscode.workspace.findFiles = () => Promise.resolve([]);
     vscode.__mock.configStore.set('project', '/somewhere/else');
     vscode.__mock.configStore.set('system', 'pet');
+    const shown = [];
+    vscode.commands.registerCommand('8bitscript.studioTab.show', (run) => shown.push(run));
     await withRunner(path.join(dir, '.storage'), { appendLine() {} }, async (projects) => {
       const cli = writeFakeCli(dir);
       projects.apps = [fakeProject(dir, {
@@ -714,6 +716,12 @@ test('registerRunner: openStudio runs Studio on the X16 with no picker and no ch
       assert.ok(executed, 'Studio launched');
       assert.equal(executed.task.definition.command, 'run');
       assert.equal(executed.task.definition.target, 'cx16', 'on the machine it is designed on');
+      assert.equal(executed.task.definition.web, true, 'in the WebAssembly build, not a native window');
+      const args = executed.task.execution.args;
+      assert.deepEqual(args.slice(-4), ['--web', '--no-open', '--port', '0'], 'our wasm backend, served for the tab');
+      assert.ok(!args.includes('--x16emu'), 'never the vendored x16emu unless asked for by name');
+      assert.equal(shown.length, 1, 'the Studio tab follows it');
+      assert.equal(shown[0].target, 'cx16');
       assert.equal(vscode.__mock.configStore.get('project'), '/somewhere/else', 'the selected project is untouched');
       assert.equal(vscode.__mock.configStore.get('system'), 'pet', 'and so is the selected system');
     });
@@ -722,7 +730,52 @@ test('registerRunner: openStudio runs Studio on the X16 with no picker and no ch
   }
 });
 
-test('registerRunner: openStudioTab stops the tab\'s earlier run, starts Studio on the X16 in the WebAssembly emulator, and shows the tab', async () => {
+test('registerRunner: launchStudio (the rocket) does the same as openStudio and does not ask', async () => {
+  const dir = tmpDir();
+  try {
+    vscode.__mock.reset();
+    vscode.workspace.findFiles = () => Promise.resolve([]);
+    const shown = [];
+    vscode.commands.registerCommand('8bitscript.studioTab.show', (run) => shown.push(run));
+    await withRunner(path.join(dir, '.storage'), { appendLine() {} }, async (projects) => {
+      const cli = writeFakeCli(dir);
+      projects.apps = [fakeProject(dir, { kind: 'app', name: '@8bitscript/studio', title: 'Studio', toolchain: cli, installed: true })];
+      await vscode.__mock.trigger('8bitscript.launchStudio');
+      await tick();
+      const executed = vscode.__mock.executedTasks.at(-1);
+      assert.equal(executed.task.definition.web, true);
+      assert.deepEqual(executed.task.execution.args.slice(-4), ['--web', '--no-open', '--port', '0']);
+      assert.equal(shown.length, 1);
+    });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('registerRunner: openStudioNative runs the real emulator, and only that, when it is asked for by name', async () => {
+  const dir = tmpDir();
+  try {
+    vscode.__mock.reset();
+    vscode.workspace.findFiles = () => Promise.resolve([]);
+    const shown = [];
+    vscode.commands.registerCommand('8bitscript.studioTab.show', (run) => shown.push(run));
+    await withRunner(path.join(dir, '.storage'), { appendLine() {} }, async (projects) => {
+      const cli = writeFakeCli(dir);
+      projects.apps = [fakeProject(dir, { kind: 'app', name: '@8bitscript/studio', title: 'Studio', toolchain: cli, installed: true })];
+      await vscode.__mock.trigger('8bitscript.openStudioNative');
+      await tick();
+      const executed = vscode.__mock.executedTasks.at(-1);
+      assert.equal(executed.task.definition.target, 'cx16');
+      assert.ok(!executed.task.definition.web, 'a native run, not the wasm one');
+      assert.ok(!executed.task.execution.args.includes('--web'));
+      assert.equal(shown.length, 0, 'and no tab opens for it');
+    });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('registerRunner: openStudioTab (kept for old bindings) stops the tab\'s earlier run, starts Studio on the X16 in our wasm build, and shows the tab', async () => {
   const dir = tmpDir();
   try {
     vscode.__mock.reset();
@@ -747,7 +800,8 @@ test('registerRunner: openStudioTab stops the tab\'s earlier run, starts Studio 
       assert.ok(executed, 'Studio launched');
       assert.equal(executed.task.definition.target, 'cx16');
       assert.equal(executed.task.definition.web, true);
-      assert.deepEqual(executed.task.execution.args.slice(-5), ['--web', '--no-open', '--port', '0', '--x16emu']);
+      assert.deepEqual(executed.task.execution.args.slice(-4), ['--web', '--no-open', '--port', '0']);
+      assert.ok(!executed.task.execution.args.includes('--x16emu'));
       assert.equal(shown.length, 1);
       assert.equal(shown[0].dir, dir);
       assert.equal(shown[0].target, 'cx16');
@@ -760,6 +814,28 @@ test('registerRunner: openStudioTab stops the tab\'s earlier run, starts Studio 
       await vscode.__mock.trigger('8bitscript.openStudioTab');
       await tick();
       assert.equal(vscode.__mock.executedTasks.length, 0);
+      assert.equal(shown.length, 1);
+    });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('registerRunner: openStudioX16emu is the vendored x16emu in the tab, by name only', async () => {
+  const dir = tmpDir();
+  try {
+    vscode.__mock.reset();
+    vscode.workspace.findFiles = () => Promise.resolve([]);
+    const shown = [];
+    vscode.commands.registerCommand('8bitscript.studioTab.show', (run) => shown.push(run));
+    await withRunner(path.join(dir, '.storage'), { appendLine() {} }, async (projects) => {
+      const cli = writeFakeCli(dir);
+      projects.apps = [fakeProject(dir, { kind: 'app', name: '@8bitscript/studio', title: 'Studio', toolchain: cli, installed: true })];
+      await vscode.__mock.trigger('8bitscript.openStudioX16emu');
+      await tick();
+      const executed = vscode.__mock.executedTasks.at(-1);
+      assert.equal(executed.task.definition.web, true);
+      assert.deepEqual(executed.task.execution.args.slice(-5), ['--web', '--no-open', '--port', '0', '--x16emu']);
       assert.equal(shown.length, 1);
     });
   } finally {
@@ -807,7 +883,7 @@ test('registerRunner: previewOn picks a project and target (a single one of each
   }
 });
 
-test('registerRunner: openStudio opens Studio on the system the menu named — a named system or a bare machine — and on the X16 for one it no longer lists', async () => {
+test('registerRunner: openStudioNative opens Studio on the system it was told to — a named system or a bare machine — and on the X16 for one it no longer lists', async () => {
   const dir = tmpDir();
   try {
     vscode.__mock.reset();
@@ -818,18 +894,18 @@ test('registerRunner: openStudio opens Studio on the system the menu named — a
         kind: 'app', name: '@8bitscript/studio', title: 'Studio', toolchain: cli, installed: true,
       })];
       // The fake CLI lists one named system for the app: "Named C64".
-      await vscode.__mock.trigger('8bitscript.openStudio', { system: 'Named C64' });
+      await vscode.__mock.trigger('8bitscript.openStudioNative', { system: 'Named C64' });
       await tick();
       let executed = vscode.__mock.executedTasks.at(-1);
       assert.equal(executed.task.definition.target, 'c64');
       assert.match(executed.task.name, /Named C64/);
 
-      await vscode.__mock.trigger('8bitscript.openStudio', { system: 'pet' });
+      await vscode.__mock.trigger('8bitscript.openStudioNative', { system: 'pet' });
       await tick();
       executed = vscode.__mock.executedTasks.at(-1);
       assert.equal(executed.task.definition.target, 'pet', 'a bare machine from the Machines group');
 
-      await vscode.__mock.trigger('8bitscript.openStudio', { system: 'A system Studio forgot' });
+      await vscode.__mock.trigger('8bitscript.openStudioNative', { system: 'A system Studio forgot' });
       await tick();
       executed = vscode.__mock.executedTasks.at(-1);
       assert.equal(executed.task.definition.target, 'cx16', 'the baseline, when the name is stale');

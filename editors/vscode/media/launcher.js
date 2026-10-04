@@ -393,7 +393,12 @@
 
   function tools() {
     const row = (ico, name, sub, action) => h('button', { class: 'row-btn', 'data-action': action, 'data-key': `tool:${action}` }, icon(ico), h('span', { class: 'who' }, h('div', null, name), h('div', { class: 'sub' }, sub)), icon('chevron-right'));
-    return [sectionLabel('Tools'), h('div', { class: 'rows' }, row('rocket', 'Studio', 'Edit sprites, sound and tiles', 'studio'), row('pulse', 'Doctor', 'Check the toolchains and emulators', 'doctor'), row('info', 'Project details', 'Config, packages, systems', 'details'))];
+    // Studio opens in an editor tab on our own wasm build; the real emulator is a
+    // separate, labelled button beside it, not a hidden fallback.
+    const studio = h('div', { class: 'row-split' },
+      row('rocket', 'Studio', 'Edit sprites, sound and tiles, in an editor tab', 'studio'),
+      h('button', { class: 'ibtn', 'data-action': 'studioNative', 'data-key': 'tool:studioNative', title: 'Open Studio in the native emulator (x16emu)', 'aria-label': 'Open Studio in the native emulator' }, icon('device-desktop')));
+    return [sectionLabel('Tools'), h('div', { class: 'rows' }, studio, row('pulse', 'Doctor', 'Check the toolchains and emulators', 'doctor'), row('info', 'Project details', 'Config, packages, systems', 'details'))];
   }
 
   // ── the whole page ────────────────────────────────────────────────────────
@@ -540,7 +545,7 @@
         break;
       }
       default:
-        // doctor, details, configureSystem, saveSystem, studio, openFolder, tryExample, learn
+        // doctor, details, configureSystem, saveSystem, studio, studioNative, openFolder, tryExample, learn
         post({ type: a });
         if (ui.menu) { ui.menu = null; render(); }
     }

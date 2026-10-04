@@ -62,7 +62,7 @@
 //   { type: 'openInBrowser', runId }
 //   { type: 'rerun',    historyId }
 //   { type: 'fix',      kind: 'emulator'|'packages' }
-//   { type: 'doctor' | 'details' | 'configureSystem' | 'saveSystem' | 'studio'
+//   { type: 'doctor' | 'details' | 'configureSystem' | 'saveSystem' | 'studio' | 'studioNative'
 //         | 'openFolder' | 'tryExample' | 'learn' | 'rebuildExtension'
 //         | 'reloadWindow' | 'ready' }
 'use strict';

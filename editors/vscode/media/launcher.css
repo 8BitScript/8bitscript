@@ -186,6 +186,8 @@ button { cursor: pointer; }
 .rows { display: grid; grid-template-columns: minmax(0, 1fr); }
 .row-btn { display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 4px 8px; border: 0; border-radius: var(--r); background: transparent; text-align: left; }
 .row-btn:hover { background: var(--vscode-list-hoverBackground); }
+.row-split { display: flex; align-items: center; gap: 4px; }
+.row-split > .row-btn { flex: 1; min-width: 0; }
 .row-btn .who { flex: 1; min-width: 0; }
 .row-btn .sub { font-size: 11px; line-height: 16px; color: var(--muted); }
 .row-btn > .codicon:first-child { color: var(--vscode-icon-foreground); }

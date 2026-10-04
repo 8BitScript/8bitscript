@@ -86,9 +86,9 @@ function parseModule(file, text, diagnostics) {
  * are known: element checks, 8BX elaboration, folding, checking, and
  * lowering to this module's IR.
  */
-function finishModule(module, diagnostics, { frameRate, machine, facts, bx, locale, i18n, checkout, mediaSlots, defines, defineSites }) {
+function finishModule(module, diagnostics, { frameRate, machine, tags, facts, bx, locale, i18n, checkout, mediaSlots, defines, defineSites }) {
   if (module.media) {
-    elaborateMedia(module, diagnostics, { machine, facts, checkout, mediaSlots });
+    elaborateMedia(module, diagnostics, { machine, tags, facts, checkout, mediaSlots });
     return module;
   }
   const { file, text, ast, bound } = module;
@@ -137,7 +137,7 @@ function loadGraph(entryText, entryFile, diagnostics, sources, options) {
   // once each however many modules import the package — keyed by canonical
   // path for the same pnpm-symlink reason `byPath` is.
   const nativeSources = new Map();
-  const finishOptions = { frameRate: options.frameRate, machine: options.machine, facts: options.facts, bx: options.bx, locale: options.locale, i18n: options.i18n, checkout: options.checkout, mediaSlots: { graphics: 0 }, defines: options.defines, defineSites: options.defineSites };
+  const finishOptions = { frameRate: options.frameRate, machine: options.machine, tags: options.tags, facts: options.facts, bx: options.bx, locale: options.locale, i18n: options.i18n, checkout: options.checkout, mediaSlots: { graphics: 0 }, defines: options.defines, defineSites: options.defineSites };
 
   // Whether a module is the program's own: the entry, and whatever it
   // reaches by a relative path or a project alias — never through a bare

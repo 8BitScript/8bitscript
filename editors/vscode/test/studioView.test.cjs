@@ -135,7 +135,7 @@ test('the tab follows a run: building until a fresh URL lands, framed once it do
     assert.deepEqual(projects.stopped, [{ dir, target: 'cx16', only: { web: true } }], 'only the tab\'s run, never a native window');
     panel.webview.__fire({ type: 'rebuild' });
     await tick();
-    assert.ok(vscode.__mock.executedCommands.some((c) => c.id === '8bitscript.openStudioTab'));
+    assert.ok(vscode.__mock.executedCommands.some((c) => c.id === '8bitscript.openStudio'), 'a tab with no word on its mode rebuilds the default way: our wasm build');
     panel.webview.__fire({ type: 'something-else' });
     await tick();
 
@@ -292,6 +292,76 @@ test('"Open in emulator": named only when Doctor reports it installed, and click
     await tick();
     assert.equal(panel.posted.at(-1).nativeEmulator, null, 'not installed: no button to open it');
     panel.__dispose(); // see the earlier "ready" test's own note on why this matters
+  } finally {
+    for (const subscription of context.subscriptions) subscription.dispose?.();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('Studio on our own wasm build: the tab reads the -web report, is labelled a wasm build with no mouse line, and Rebuild runs the same way again', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), '8bs-studio-wasm-'));
+  const context = { subscriptions: [] };
+  try {
+    vscode.__mock.reset();
+    const projects = fakeProjects();
+    registerStudioView(context, projects);
+    const launchedAt = Date.now();
+    projects.runs.push({ dir, target: 'cx16', web: true });
+    await vscode.__mock.trigger('8bitscript.studioTab.show', { dir, target: 'cx16', launchedAt, x16emu: false });
+    await tick();
+    const panel = vscode.__mock.webviewPanels.at(-1);
+    assert.match(panel.webview.html, /Commander X16 <span class="sub">wasm build<\/span>/, 'not "x16emu (WebAssembly)"');
+    assert.match(panel.webview.html, /__8bsHasMouse = false/, 'our model of the X16 has no mouse to describe');
+
+    // A native-file report (what the x16emu mode writes) is not this tab's: still building.
+    writeLastRun(dir, 'cx16', { url: 'http://127.0.0.1:1111/', emulator: 'x16emu r49 (WebAssembly)', writtenAt: new Date(launchedAt + 50).toISOString() }, false);
+    projects.changed.fire();
+    await tick();
+    assert.doesNotMatch(panel.webview.html, /<iframe/, 'the plain file is the other mode\'s');
+    // Its own file, written by the wasm backend build.
+    writeLastRun(dir, 'cx16', { url: 'http://127.0.0.1:3333/', emulator: 'browser', memory: { program: 299 }, writtenAt: new Date(launchedAt + 100).toISOString() }, true);
+    projects.changed.fire();
+    await tick();
+    await tick();
+    assert.match(panel.webview.html, /<iframe id="frame" src="http:\/\/127\.0\.0\.1:3333\/"/);
+    panel.webview.__fire({ type: 'ready' });
+    await tick();
+    assert.deepEqual(panel.posted.at(-1), { type: 'state', phase: 'running', emulator: 'browser', program: 299, nativeEmulator: null });
+
+    panel.webview.__fire({ type: 'rebuild' });
+    await tick();
+    assert.ok(vscode.__mock.executedCommands.some((c) => c.id === '8bitscript.openStudio'));
+    assert.ok(!vscode.__mock.executedCommands.some((c) => c.id === '8bitscript.openStudioX16emu'));
+    panel.__dispose(); // the tab is a singleton: the next test gets its own
+  } finally {
+    for (const subscription of context.subscriptions) subscription.dispose?.();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('Studio on the vendored x16emu keeps its own labels, mouse line and native report, and Rebuild runs x16emu again', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), '8bs-studio-x16emu-'));
+  const context = { subscriptions: [] };
+  try {
+    vscode.__mock.reset();
+    const projects = fakeProjects();
+    registerStudioView(context, projects);
+    const launchedAt = Date.now();
+    projects.runs.push({ dir, target: 'cx16', web: true });
+    await vscode.__mock.trigger('8bitscript.studioTab.show', { dir, target: 'cx16', launchedAt, x16emu: true });
+    await tick();
+    const panel = vscode.__mock.webviewPanels.at(-1);
+    assert.match(panel.webview.html, /x16emu \(WebAssembly\)/);
+    assert.match(panel.webview.html, /__8bsHasMouse = true/);
+    writeLastRun(dir, 'cx16', { url: 'http://127.0.0.1:2222/', emulator: 'x16emu r49 (WebAssembly)', memory: { program: 6186 }, writtenAt: new Date(launchedAt + 100).toISOString() }, false);
+    projects.changed.fire();
+    await tick();
+    await tick();
+    assert.match(panel.webview.html, /<iframe id="frame" src="http:\/\/127\.0\.0\.1:2222\/"/, 'the plain file, as before');
+    panel.webview.__fire({ type: 'rebuild' });
+    await tick();
+    assert.ok(vscode.__mock.executedCommands.some((c) => c.id === '8bitscript.openStudioX16emu'), 'back into the same mode');
+    panel.__dispose();
   } finally {
     for (const subscription of context.subscriptions) subscription.dispose?.();
     fs.rmSync(dir, { recursive: true, force: true });

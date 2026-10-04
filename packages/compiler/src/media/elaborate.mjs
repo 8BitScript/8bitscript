@@ -29,6 +29,15 @@ function loadMachineMedia(machine, fromFile, options) {
     if (existsSync(pkgPath)) {
       try {
         const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
+        // A --web build of a machine with no hardware sprites in the page (the
+        // wasm rail models a flat screen, not VERA) draws a picture the way the
+        // web target does, so it lowers with that target's module: the package
+        // names it in "8bitscript".wasmMedia, and the build's internal `web`
+        // tag (build.mjs) says this is such a build.
+        const wasmMedia = pkg['8bitscript']?.wasmMedia;
+        if (wasmMedia && machine !== wasmMedia && options.tags?.includes('web')) {
+          return loadMachineMedia(wasmMedia, fromFile, { ...options, tags: options.tags.filter((tag) => tag !== 'web') });
+        }
         const rel = pkg['8bitscript']?.media;
         if (!rel) return null;
         const require = createRequire(pkgPath);
@@ -208,7 +217,7 @@ function wrapDiagnostic(code, message, file, start, length, severity = 'error') 
 /**
  * @param {object} module  parseMediaModule's result (media.gir / media.air)
  * @param {object[]} diagnostics
- * @param {{ machine?: string, facts?: object, checkout?: string|null, mediaSlots?: { graphics: number } }} options
+ * @param {{ machine?: string, tags?: string[], facts?: object, checkout?: string|null, mediaSlots?: { graphics: number } }} options
  *   `mediaSlots` is one counter for the whole link, so sprites in different
  *   .8bg files get different slots.
  */

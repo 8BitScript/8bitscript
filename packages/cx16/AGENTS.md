@@ -548,6 +548,41 @@ and updates one 16×16 sprite is 2025 / 65; adding `hide`, `setFrame`,
 `hide` 60, `animate` 28. The sprites' own data is 32 + 128 bytes a 16×16
 frame.
 
+## The wasm build (`8bs run cx16 --web`): our model, and what it leaves out
+
+The WebAssembly build is the primary way to run anything for this machine in the
+editor or a browser: our own backend compiles the program to wasm and our own
+model of the X16 runs it. It is deliberately flat — **no VERA**: a write to a
+VERA port is a plain store, so the tile layers, the bitmap layers and the 128
+hardware sprites do not exist there. What the page does draw is
+`packages/cli/src/web-layout.mjs` `REAL_MACHINE_LAYOUT.cx16`:
+
+- a text screen of 76 x 56 cells on the synthetic host font, written by the
+  `.web` twins (`text.cx16.web.8bs`, `screen.cx16.web.8bs`);
+- **VERA's own default palette** for entries 0-15 (`VERA_PALETTE`: the C64's
+  names in the C64's order, but VERA's colours — blue is `$00A`, `#0000aa`,
+  which is what x16emu draws for `BorderColor.BLUE`; the C64's `#40318d` was
+  wrong here and shipped that way until Studio's tab was compared with the
+  native window);
+- the redefinable **glyph table** (character codes 176-255, 80 glyphs of eight
+  row bytes) after the raster list, `userGlyphs: true`. A `.8bg` picture is
+  carried there, because there is no sprite to put it in: this package's
+  `"wasmMedia": "web"` makes the compiler lower pictures with the web target's
+  module on a `--web` build (the build's internal `web` tag), and
+  `packages/graphics/src/index.cx16.web.8bs` writes them at `GLYPH_BASE` (the
+  address the page reads; `packages/cli/test/web-cx16.test.mjs` pins the two
+  together) and draws the character. One cell, one ink, no restore; colour is
+  dropped with 8BS2111. The native build keeps its VERA sprites.
+
+Not there: sound (8BS2211, `.8ba` has no wasm driver and `audio.tone` is not
+wired for this build), the mouse and the X16-only modules that talk to VERA, the
+KERNAL or the banks (`@8bitscript/cx16/mouse`, `/pointer`, `/psg`, `/banks`), and
+the raster list (machine code, so a program that uses it does not build here).
+The list is `wasm.limits` in this package's manifest, shown by
+`8bs targets --json` and by the editor. A feature in that list is not a bug in
+the program: it is the model's edge, and moving it is a change here.
+
+
 ## Where things live
 
 ```

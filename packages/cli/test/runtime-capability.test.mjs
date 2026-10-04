@@ -57,6 +57,17 @@ test('the C64 runs in the browser as a model, and says in `limits` what the page
   assert.deepEqual(pet.wasm.limits, [], 'a machine that declares no limits has none to show');
 });
 
+test('the X16 runs in the browser on our own backend, and says what its flat model of VERA leaves out', () => {
+  const { cx16 } = byId();
+  assert.equal(cx16.wasm.available, true);
+  assert.equal(cx16.wasm.reason, null);
+  const limits = cx16.wasm.limits.join('\n');
+  assert.match(limits, /sprites/, 'VERA sprites are not modelled: a picture is a glyph');
+  assert.match(limits, /sound|8BS2211/, 'there is no audio driver');
+  assert.match(limits, /raster/, 'the VERA raster list is machine code and does not build');
+  assert.match(limits, /mouse/, 'the X16-only modules see nothing');
+});
+
 test('the real x16emu as WebAssembly is the X16\'s alone', () => {
   const runtime = byId();
   assert.equal(runtime.cx16.wasmEmulator.available, true);
