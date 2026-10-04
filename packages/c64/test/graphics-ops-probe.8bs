@@ -1,0 +1,88 @@
+// Every @8bitscript/graphics operation on the C64, end to end, read back by
+// pixel (graphics-ops.test.mjs). Eighteen graphics sprites: more than the
+// VIC-II's eight, so the multiplexer reuses hardware sprites, and the
+// recoloured staircase dots are reused ones.
+//
+//   stepper   setFrame(9) clamps to the last frame (3); animate(false) holds it
+//   runner    animate(false) for four updates, then true: twelve more updates
+//             at `every 2` are six steps, so frame 2
+//   mover     placed, hidden, placed again somewhere else
+//   gone      placed, then hidden and never placed again
+//   recol     green, recoloured to purple while the other dots keep theirs
+//   s0..s9    a staircase (a sprite per 8 lines, 20 pixels across); s5 and s9
+//             are recoloured, s9 being a reused hardware sprite
+//   edgeRight at the stage's x = 300: the last 4 of its 24 columns are in the
+//             right border, so 20 columns show and nothing wraps
+//   edgeBottom at y = 190: 10 of its 21 rows are above the bottom border
+//   edgeBelow at y = 210: past the last playfield line the sprite layer can
+//             place (the chip's y byte tops out at 254), so it is not drawn
+import { screen } from "@8bitscript/screen";
+import { graphics } from "@8bitscript/graphics";
+import { sprites } from "@8bitscript/sprites";
+import { stepper, runner, mover, gone, recol, s0, s1, s2, s3, s4, s5, s6, s7, s8, s9, edgeRight, edgeBottom, edgeBelow, edgeFar, edgeHuge } from "./graphics-ops-probe.8bg";
+
+const PURPLE: utinyint = 4;
+const LIGHT_BLUE: utinyint = 14;
+
+export function main(): void {
+    screen.blank();
+    graphics.place(stepper, 40, 20);
+    graphics.place(runner, 100, 20);
+    graphics.place(mover, 0, 0);
+    graphics.place(gone, 250, 150);
+    graphics.place(recol, 260, 40);
+    graphics.place(s0, 16, 90);
+    graphics.place(s1, 36, 98);
+    graphics.place(s2, 56, 106);
+    graphics.place(s3, 76, 114);
+    graphics.place(s4, 96, 122);
+    graphics.place(s5, 116, 130);
+    graphics.place(s6, 136, 138);
+    graphics.place(s7, 156, 146);
+    graphics.place(s8, 176, 154);
+    graphics.place(s9, 196, 162);
+    graphics.place(edgeRight, 300, 60);
+    graphics.place(edgeBottom, 120, 190);
+    graphics.place(edgeBelow, 60, 210);
+
+    graphics.hide(mover);
+    graphics.place(mover, 60, 150);
+    graphics.hide(gone);
+    graphics.color(recol, PURPLE);
+    graphics.color(s5, LIGHT_BLUE);
+    graphics.color(s9, PURPLE);
+
+    // Past the right border (stage x 300 + 24 + 24 > 343, and far enough
+    // that the chip's 9-bit X would overflow): not drawn, not wrapped.
+    graphics.place(edgeFar, 500, 100);
+    // A y near 65535: not drawn. (The 16-bit sum with the playfield's
+    // 50-line offset wraps to a small number, which only shows with the
+    // vertical border open: graphics-wrap-probe.8bs is that case.)
+    graphics.place(edgeHuge, 60, 65500);
+    // Slots outside what the layer holds, and a slot inside it that no .8bg
+    // declared: every call is ignored or draws nothing, and none writes
+    // outside the twin's tables (the sprites above stay as placed).
+    graphics.place(40, 150, 30);
+    graphics.hide(40);
+    graphics.setFrame(40, 1);
+    graphics.animate(40, true);
+    graphics.color(40, 5);
+    graphics.place(21, 150, 30);
+
+    graphics.setFrame(stepper, 9);
+    graphics.animate(stepper, false);
+    graphics.animate(runner, false);
+    for (let n: utinyint = 0; n < 4; n++) {
+        waitFrame();
+        graphics.update();
+    }
+    graphics.animate(runner, true);
+    for (let n: utinyint = 0; n < 12; n++) {
+        waitFrame();
+        graphics.update();
+    }
+    while (true) {
+        waitFrame();
+        sprites.update();
+    }
+}

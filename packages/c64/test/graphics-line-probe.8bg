@@ -1,0 +1,73 @@
+// Twelve green dots for graphics-line-probe.8bs, which puts them all on one
+// raster line: the VIC-II shows eight sprites on a line, so four are over.
+sprite d0 {
+  source "./graphics-probe-dot-green.png"
+  size 8x8
+  transparent auto
+}
+
+sprite d1 {
+  source "./graphics-probe-dot-green.png"
+  size 8x8
+  transparent auto
+}
+
+sprite d2 {
+  source "./graphics-probe-dot-green.png"
+  size 8x8
+  transparent auto
+}
+
+sprite d3 {
+  source "./graphics-probe-dot-green.png"
+  size 8x8
+  transparent auto
+}
+
+sprite d4 {
+  source "./graphics-probe-dot-green.png"
+  size 8x8
+  transparent auto
+}
+
+sprite d5 {
+  source "./graphics-probe-dot-green.png"
+  size 8x8
+  transparent auto
+}
+
+sprite d6 {
+  source "./graphics-probe-dot-green.png"
+  size 8x8
+  transparent auto
+}
+
+sprite d7 {
+  source "./graphics-probe-dot-green.png"
+  size 8x8
+  transparent auto
+}
+
+sprite d8 {
+  source "./graphics-probe-dot-green.png"
+  size 8x8
+  transparent auto
+}
+
+sprite d9 {
+  source "./graphics-probe-dot-green.png"
+  size 8x8
+  transparent auto
+}
+
+sprite d10 {
+  source "./graphics-probe-dot-green.png"
+  size 8x8
+  transparent auto
+}
+
+sprite d11 {
+  source "./graphics-probe-dot-green.png"
+  size 8x8
+  transparent auto
+}

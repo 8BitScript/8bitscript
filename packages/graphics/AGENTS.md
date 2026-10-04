@@ -40,6 +40,12 @@ both together; the test fails if a twin and the table disagree.
 - **No `show()`.** Every layer underneath defines `hide` as "not drawn until
   placed again". A `show` would make each twin keep a position per slot. A
   program that hides and reshows an object calls `place` again.
+- **A twin may add a call of its own, and a program that uses it is that
+  machine's.** The C64's `graphics.step()` advances the animations and
+  nothing else, so a program with raster entries of its own can build its
+  frame (`docs/project/graphics.md`, "On the C64"). The contract test checks
+  the calls above exist and ignores the rest; the portable `index.8bs` has no
+  such call, and a portable program never writes one.
 - **Private names don't collide with the public ones.** A twin's private slot
   count is `SLOTS`; `MAX` is the public constant inside `namespace graphics`.
 

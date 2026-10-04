@@ -57,7 +57,8 @@ Do not describe more than this as working:
   `sprites.begin` runs once and `multiplex.setCount` follows the highest
   slot a `.8bg` declared, so a program with three sprites does not pay the
   multiplexer for 24. Measured on `examples/media-walk`: 4485 → 4577 bytes of
-  program, 45 → 46 of variables (`8bs build c64 --size`, 2026-10-03).
+  program, 45 → 46 of variables (`8bs build c64 --size`, 2026-10-03), then
+  4692 after the position guard below (2026-10-04).
   `graphics.place` takes **playfield pixels** (the portable contract,
   docs/project/graphics.md): the twin adds `sprites.ORIGIN_X`/`ORIGIN_Y`
   itself, so `place(slot, 0, 0)` is text cell (0, 0) and a position past 255
@@ -67,6 +68,28 @@ Do not describe more than this as working:
   (260): an imported namespace const keeps its declared type, so it no longer
   wraps at 8 bits to 4 under the left border (pinned by
   `packages/compiler/test/imported-const-width.test.mjs`).
+  **Every contract call is verified under x64sc** (`test/graphics-ops.test.mjs`,
+  eighteen sprites, pixel counts; each of six mutations of the twin fails it — the
+  X guard, the Y guard, the `setFrame` clamp, the pause flag, `color`, `hide`):
+  `setFrame` clamps past `FRAMES`, `animate(false)` holds a frame and `true`
+  resumes, `hide` then `place`, `color` on a first-eight and on a multiplexer-reused
+  sprite, an unplaced `.8bg` sprite stays hidden, a slot the layer does not hold is
+  ignored. **A sprite that starts at or past the playfield's right edge (stage x of
+  320) or below its last chip row (stage y over 204) is sent to the sprite layer's
+  "not drawn" y**, because the chip's X register is nine bits (a stage x of 500 came
+  out at X 268) and a 16-bit stage y near 65535 wraps when the origin is added (drawn
+  in the opened top border with `sprites.extend(true)`); `PLAYFIELD_WIDTH` and
+  `LAST_Y` are checked against `Video.COLUMNS * 8` and `sprites.ORIGIN_Y` by
+  `packages/graphics/test/c64-ops.test.mjs`, which CI runs. **Eight draw on one
+  raster line**: the first eight in slot order, no flicker rotation, the rest
+  dropped every frame (`sprites.dropped()`). **`graphics.update()` clears and
+  commits the raster list**, so a program with raster entries of its own builds the
+  frame itself — `graphics.step()` (C64 only: the animations, nothing else),
+  `raster.clear()`, `sprites.plan()`, its `raster.insert()`s, one `raster.commit()` —
+  measured clean with twelve sprites and four entries; entries added after
+  `graphics.update()` with a second commit worked with two and put a stray patch of a
+  hardware sprite on screen with three (cause not found, so not offered). The
+  details and the numbers are `docs/project/graphics.md`, "On the C64".
 
 - **The picture lives in VIC bank 3** (`src/geometry.8bs`, the `Video`
   namespace and the arrays over it): screen matrix `$E000`, sprite

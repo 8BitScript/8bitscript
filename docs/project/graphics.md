@@ -94,9 +94,10 @@ the program. A program that mixes the two adds the origin to the second.)
 A position that is not a multiple of `STEP_X`/`STEP_Y` is rounded down to
 one. A position outside the playfield clips: the picture is not drawn, it
 does not wrap onto the next row, and it never writes outside the machine's
-own tables. On the C64 the playfield's right and bottom edges are not the
-limit — sprites show through the border — so a position past 255 is
-fine there.
+own tables. On the C64 a sprite that straddles the right or bottom edge
+shows the part inside the playfield (the border covers the rest), one that
+starts past the playfield is not drawn, and a position past 255 is fine
+until then — see [On the C64](#on-the-c64).
 
 ### The constants
 
@@ -155,7 +156,7 @@ screen yet — that is the next piece of work on that machine.
 | --- | --- | --- | --- | --- | --- |
 | PET | verified | verified | verified | verified | stub (`RECOLORS` false) |
 | VIC-20 | verified | links | links | links | links |
-| C64 | verified (under the playfield-pixel rule) | links | links | links | links |
+| C64 | verified (under the playfield-pixel rule) | verified | verified | verified | verified |
 | Commander X16 | verified | verified | verified | verified | verified |
 | Web | verified | verified | verified | verified | verified |
 | NES (parked) | links | links | links | links | stub |
@@ -170,7 +171,7 @@ nearest evidence for it.
 
 | Machine | What the PNG becomes |
 | --- | --- |
-| C64 | 24×21 VIC-II sprite bytes (16×16 is padded), one colour: the palette entry nearest the PNG's most common opaque colour. Extra colours are quantized (`8BS2110`). Up to 24 sprites (eight per raster line, reused down the screen) of up to 4 frames each; a longer animation is cut to 4 (`8BS2111`). A position past X = 255 must be a `usmallint` sum — `sprites.ORIGIN_X + 236` wraps at 8 bits. |
+| C64 | 24×21 VIC-II sprite bytes (16×16 is padded), one colour: the palette entry nearest the PNG's most common opaque colour. Extra colours are quantized (`8BS2110`). Up to 24 sprites (eight per raster line, reused down the screen) of up to 4 frames each; a longer animation is cut to 4 (`8BS2111`). See [On the C64](#on-the-c64) for what a position, a recolour and a crowded line do. |
 | NES | CHR tiles from `$E0` and an OAM sprite. |
 | PET | A 4×4 quadrant-block object, one sprite-layer shape a frame of the animation — seven shapes in all, shared by every picture in the program — or a small centre block if the picture is too faint to survive the downsample (`8BS2111` either way, and again when frames are dropped or a picture finds no shape left). |
 | Atari 8-bit | A software glyph; frames collapsed (`8BS2111`). Player/missile shapes are a later slice. |
@@ -240,7 +241,7 @@ with a user-port speaker so the VIA song actually plays.
 | Machine | Program | Variables |
 | --- | --- | --- |
 | PET 3032 + speaker | 3787 | 50 |
-| C64 | 4637 | 46 |
+| C64 | 4692 | 46 |
 | VIC-20 8K | 2493 | 48 |
 | Commander X16 | 4114 | 70 |
 | Web (wasm module bytes) | 1820 | 267 |
@@ -275,6 +276,79 @@ was 2383 and 41 on the same example before, and the 256-byte glyph table it
 then kept is gone. The example's arrays count in the program figure (they are
 zero-filled bytes in the image), not in the variables one. The unexpanded
 machine builds the same program at the same size.
+
+The C64 row was measured again on 2026-10-04 once the position guard
+(below) went in: 4637 → 4692 bytes of program, 46 of variables. The 55
+bytes are the two 16-bit comparisons in `place()` and the "not drawn" branch
+they select; nothing a program does after `place()` pays for them.
+
+## On the C64
+
+Everything here was read back from `x64sc` screenshots
+(`packages/c64/test/graphics-ops.test.mjs`, headless, NTSC), and the part
+that can run without an emulator is in CI
+(`packages/graphics/test/c64-ops.test.mjs`).
+
+**Every call is verified.** In one program of eighteen sprites (more than the
+VIC-II's eight, so the multiplexer reuses hardware sprites):
+
+- `setFrame(slot, 9)` on a four-frame picture shows frame 3, the last, and
+  `animate(slot, false)` keeps it there through sixteen `update()`s; a second
+  picture that is paused for four updates and then resumed has taken exactly
+  the six steps twelve further updates make at `every 2` (frame 2).
+- `hide(slot)` then `place` puts the picture at the second position and not the
+  first; a sprite that is hidden and never placed again is absent. A sprite a
+  `.8bg` declared and a program never placed is hidden too, not a ghost.
+- `color(slot, c)` recolours only that sprite — one that was in the first
+  eight and one the multiplexer reuses (the tenth of a staircase), each whole,
+  with every other dot keeping the colour its PNG gave it.
+- A call with a slot the layer does not hold (40), or one inside the range that no
+  `.8bg` declared (21), changes nothing and draws nothing.
+
+**Where a position lands.** Stage pixels, `place(slot, 0, 0)` at text cell
+(0, 0), a pixel at a time. A sprite that straddles the right or bottom edge shows
+the part inside the playfield (24 columns at x = 300 leave 20; 21 rows at
+y = 190 leave 10) because the border covers the rest. One that *starts* past
+the playfield — x of 320 or more, y of 205 or more — is not drawn, and
+`place()` says so itself rather than leave it to the chip: the sprite chip's
+X register is nine bits, and a stage x of 500 (chip X 524) used to set the ninth bit and
+come out at X 268, in the middle of the picture; a stage y near 65535 plus the
+playfield's 50-line offset wraps a 16-bit sum back to a small number, which the
+closed border hides but `sprites.extend(true)` (the opened vertical border) does
+not — 192 pixels of a wrapped sprite were measured at the top of the capture.
+Both are in the tests, each fails without its guard.
+
+**Eight on a line.** Twelve sprites placed on one raster line, 26 pixels
+apart and right to left so that slot order and screen order disagree: exactly
+eight draw, the first eight in slot order (`d0`–`d7`); `d8`–`d11` are dropped,
+every frame, and the same eight show at `--frames 300` and `340`. There is no
+flicker rotation, so a program that needs a ninth on a line decides which one
+loses (spread them over lines, or swap which slots it places). `sprites.dropped()`
+counts them.
+
+**A raster list in the same frame.** `graphics.update()` owns the list: it clears
+it at the start and commits it at the end, as `sprites.update()` does. So:
+
+- Entries built *before* `graphics.update()` are gone — a border split at picture line 60,
+  built with the portable `raster.clear()`/`raster.at()` first, did not appear.
+- Entries added *after* it, with a second `raster.commit()`, edit the page the first
+  commit just handed over. With two entries it was clean; with three, a stray 8 × 6
+  patch of a hardware sprite's power-on colour showed at one place in two of three
+  runs. The cause was not found (the entry count was 13, nowhere near the 63 the list
+  holds), so this order is not offered.
+- The order that is clean builds the whole frame once: `graphics.step()` (this twin's one
+  addition to the contract — it advances the animations and does nothing else, so a program
+  that uses it is a C64 program), `raster.clear()`, `sprites.plan()`, the program's own
+  entries with `raster.insert()`, and one `raster.commit()` (`raster.enable()` the first
+  frame). Measured with twelve sprites (four of them reused), a border band at picture lines
+  100–149 and two more entries at 10 and 20: the band is exactly there (the left border is yellow
+  on capture rows 123–173, the entry showing from the line after it), black above
+  and below, and all twelve sprites whole and in place
+  (`test/graphics-raster-probe.8bs`). The sprite plan's entries and the program's share the list's
+  63; the plan used 13 here, one to five per reuse.
+
+Not done on the C64: multicolour sprites (`COLORS` would be 3; the lowering keeps one
+colour), expansion, priority against the background, collisions. PAL builds were not captured.
 
 ## Commander X16
 

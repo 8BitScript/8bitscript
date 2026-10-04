@@ -1,0 +1,29 @@
+// Twelve graphics sprites on one raster line (the same y), 26 pixels apart,
+// placed right to left so that slot order and screen order disagree. The
+// VIC-II draws eight sprites on a line. The multiplexer keeps the first
+// eight in slot order (its sort is stable on a tie) and drops the rest,
+// every frame and without flicker, so the same eight show in any two
+// captures (graphics-ops.test.mjs takes two): d0..d7, the right-hand eight.
+import { screen } from "@8bitscript/screen";
+import { graphics } from "@8bitscript/graphics";
+import { d0, d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11 } from "./graphics-line-probe.8bg";
+
+export function main(): void {
+    screen.blank();
+    graphics.place(d0, 290, 100);
+    graphics.place(d1, 264, 100);
+    graphics.place(d2, 238, 100);
+    graphics.place(d3, 212, 100);
+    graphics.place(d4, 186, 100);
+    graphics.place(d5, 160, 100);
+    graphics.place(d6, 134, 100);
+    graphics.place(d7, 108, 100);
+    graphics.place(d8, 82, 100);
+    graphics.place(d9, 56, 100);
+    graphics.place(d10, 30, 100);
+    graphics.place(d11, 4, 100);
+    while (true) {
+        waitFrame();
+        graphics.update();
+    }
+}
