@@ -188,6 +188,20 @@ test('what is the shape: transparency when the picture has any, brightness only 
   assert.deepEqual(lower(paint(RING, BLACK, CLEAR)).data, RING);
 });
 
+test('a PNG that could not be read lowers to nothing but a placeholder, and an animation naming a frame the sheet lacks falls back to the first', () => {
+  // The unreadable-source diagnostic is the compiler's; the lowering is
+  // handed no frames and must not throw.
+  const none = petMedia.lowerGraphics(sprite('gone'), [], {}, 't.8bg', wrap);
+  assert.equal(none.kind, 0);
+  assert.equal(none.frames, 1);
+  assert.deepEqual(none.diagnostics, []);
+
+  const frames = [frameOf(RING)];
+  const stray = petMedia.lowerGraphics(sprite('stray', { name: 'go', frames: [0, 9], every: 8 }), frames, {}, 't.8bg', wrap);
+  assert.equal(stray.frames, 2);
+  assert.deepEqual(stray.data, [...RING, ...RING], 'frame 9 does not exist; the first stands in');
+});
+
 test('a picture too faint to survive the downsample becomes a small centre block, one shape, and says so', () => {
   const blank = frameOf([0, 0, 0, 0]);
   const dot = petMedia.lowerGraphics(sprite('dot'), [blank], {}, 't.8bg', wrap);
