@@ -58,7 +58,7 @@ codes (reverse space, a ball) are PETSCII and draw nothing there.
 
 | Machine | What the PNG becomes |
 | --- | --- |
-| C64 | 24×21 VIC-II sprite bytes (16×16 is padded). Extra colours are quantized (`8BS2110`). |
+| C64 | 24×21 VIC-II sprite bytes (16×16 is padded), one colour: the palette entry nearest the PNG's most common opaque colour. Extra colours are quantized (`8BS2110`). Up to 24 sprites (eight per raster line, reused down the screen) of up to 4 frames each; a longer animation is cut to 4 (`8BS2111`). A position past X = 255 must be a `usmallint` sum — `sprites.ORIGIN_X + 236` wraps at 8 bits. |
 | NES | CHR tiles from `$E0` and an OAM sprite. |
 | PET | A 4×4 quadrant-block object, one sprite-layer shape a frame of the animation — seven shapes in all, shared by every picture in the program — or a small centre block if the picture is too faint to survive the downsample (`8BS2111` either way, and again when frames are dropped or a picture finds no shape left). |
 | Atari 8-bit | A software glyph; frames collapsed (`8BS2111`). Player/missile shapes are a later slice. |
@@ -128,7 +128,7 @@ with a user-port speaker so the VIA song actually plays.
 | Machine | Program | Variables |
 | --- | --- | --- |
 | PET 3032 + speaker | 3765 | 50 |
-| C64 | 4276 | 45 |
+| C64 (re-measured 2026-10-03) | 4577 | 46 |
 | VIC-20 8K | 2455 | 49 |
 | Commander X16 | 2918 | 58 |
 | Web (wasm module bytes) | 1797 | 259 |

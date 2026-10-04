@@ -42,6 +42,29 @@ Do not describe more than this as working:
   plays through `@8bitscript/c64/sid`. A sample is the declared
   `fallback { synth … }`, not a `$D418` digi (`8BS2210`).
 
+- **`@8bitscript/graphics` on the C64** (`packages/graphics/src/index.c64.8bs`,
+  checked by `test/graphics.test.mjs` under x64sc). Up to 24 `.8bg`
+  sprites (`multiplex.MAX`; eight on any one raster line, the rest reuse
+  the hardware sprites as the multiplexer does), each with up to 4
+  animation frames: slot *n* owns shape blocks `FIRST_BLOCK + 4n … + 3`,
+  so 24 slots take 96 of the 111 blocks. A longer animation is cut to its
+  first 4 frames with `8BS2111` — `graphics.bind` takes its byte index as a
+  `utinyint`, so 4 × 63 = 252 bytes is the most it can address. The sprite's
+  colour is the VIC-II (Pepto) palette entry nearest the PNG's most common
+  opaque colour, carried in `graphics.meta`'s `kind` byte (low nibble 1, the
+  C64; high nibble the colour) — the other machines' twins take the same six
+  parameters. A black PNG is a black sprite, which a black background hides.
+  `sprites.begin` runs once and `multiplex.setCount` follows the highest
+  slot a `.8bg` declared, so a program with three sprites does not pay the
+  multiplexer for 24. Measured on `examples/media-walk`: 4485 → 4577 bytes of
+  program, 45 → 46 of variables (`8bs build c64 --size`, 2026-10-03).
+  **X past 255 must be a `usmallint` sum**: `sprites.ORIGIN_X + 236` is two
+  untyped small numbers and wraps at 8 bits to 4, which is under the left
+  border (an imported namespace const's declared type is not tracked across
+  the import — `rewriteExpression`'s `namespaceConst` case in the linker); put
+  it in a `usmallint` variable (`let far: usmallint = sprites.ORIGIN_X; far =
+  far + 236;`) or write the literal, as `test/graphics-probe.8bs` does.
+
 - **The picture lives in VIC bank 3** (`src/geometry.8bs`, the `Video`
   namespace and the arrays over it): screen matrix `$E000`, sprite
   pointers `$E3F8`, 111 sprite shape blocks `$E400`–`$FFBF` (blocks

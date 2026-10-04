@@ -278,6 +278,55 @@ test('direct C64 pack of a 16×16 opaque block is 63 bytes, padded to 24×21', (
   assert.equal(result.data[2], 0x00);
 });
 
+// --- C64 graphics: the sprite's colour and its frame budget ---------------
+
+function solidFrame(width, height, [r, g, b]) {
+  const rgba = new Uint8Array(width * height * 4);
+  for (let i = 0; i < width * height; i += 1) rgba.set([r, g, b, 255], i * 4);
+  return { rgba, width, height };
+}
+
+function c64Lower(name, frames, animation = []) {
+  return c64Media.lowerGraphics(
+    { name, width: 16, height: 16, animations: animation, start: 0, length: 1 },
+    frames,
+    {},
+    't.8bg',
+    wrap,
+  );
+}
+
+test('C64 graphics: the kind byte carries the VIC-II colour nearest the PNG, in its high nibble', () => {
+  // Pepto palette entries: 2 red, 5 green, 7 yellow, 14 light blue, and the
+  // rest by nearest distance. A black sprite stays kind 1 (colour 0).
+  for (const [rgb, color] of [[[0x81, 0x33, 0x38], 2], [[0x56, 0xac, 0x4d], 5], [[0xed, 0xf1, 0x71], 7], [[0x70, 0x6d, 0xeb], 14], [[255, 255, 255], 1], [[0, 0, 0], 0], [[250, 250, 240], 1]]) {
+    const result = c64Lower('p', [solidFrame(16, 16, rgb)]);
+    assert.equal(result.kind & 15, 1, 'the low nibble is still the C64 kind');
+    assert.equal(result.kind >> 4, color, `rgb ${rgb} → colour ${color}`);
+  }
+});
+
+test('C64 graphics: the colour is the one most opaque pixels have, over the kept frames', () => {
+  const frame = solidFrame(16, 16, [0x56, 0xac, 0x4d]); // green
+  for (let i = 0; i < 20; i += 1) frame.rgba.set([0x81, 0x33, 0x38, 255], i * 4); // a few red pixels
+  for (let i = 100; i < 110; i += 1) frame.rgba[i * 4 + 3] = 0; // and transparent ones, which vote for nothing
+  const result = c64Lower('p', [frame]);
+  assert.equal(result.kind >> 4, 5);
+  assert.ok(result.diagnostics.some((d) => d.code === '8BS2110'), 'the second colour is still reported as quantized');
+});
+
+test('C64 graphics: an animation keeps at most 4 frames — what the driver\'s 4 shape blocks and a byte index hold — and says so', () => {
+  const frames = [0, 1, 2, 3, 4, 5].map(() => solidFrame(16, 16, [255, 255, 255]));
+  const result = c64Lower('walker', frames, [{ frames: [0, 1, 2, 3, 4, 5], every: 2 }]);
+  assert.equal(result.frames, 4);
+  assert.equal(result.data.length, 4 * 63);
+  assert.ok(result.data.length <= 255, 'graphics.bind takes the byte index as a utinyint');
+  assert.ok(result.diagnostics.some((d) => d.code === '8BS2111' && /6 animation frames/.test(d.message) && /frames collapsed/.test(d.message)));
+  const four = c64Lower('walker', frames.slice(0, 4), [{ frames: [0, 1, 2, 3], every: 2 }]);
+  assert.equal(four.frames, 4);
+  assert.deepEqual(four.diagnostics, [], 'four frames fit without a word');
+});
+
 test('direct NES lowering emits four CHR tiles for 16×16', () => {
   const width = 16;
   const height = 16;

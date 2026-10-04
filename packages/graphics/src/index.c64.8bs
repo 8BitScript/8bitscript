@@ -2,16 +2,24 @@
 // C64 media lowering padded the PNG to 24×21 and bind() copies those 63
 // bytes into a shape block. Animation is several blocks, one pointer write
 // a frame.
+//
+// Up to 24 sprites (the multiplexer's MAX, eight of them on any one raster
+// line), each with up to 4 animation frames: slot n owns the shape blocks
+// FIRST_BLOCK + 4n .. +3, so 24 slots take 96 of the 111 blocks. The sprite's
+// colour is the `kind` byte's high nibble, which the C64 media lowering
+// (packages/c64/media/index.cjs) sets to the VIC-II colour nearest the PNG's.
 import { sprites } from "@8bitscript/sprites";
 import { sprites as hardware } from "@8bitscript/c64/sprites";
+import { multiplex } from "@8bitscript/c64/multiplex";
 
-const MAX: utinyint = 8;
+const MAX: utinyint = multiplex.MAX;
 const BYTES: utinyint = 63;
-let frameCount: array<u8, 8>;
-let interval: array<u8, 8>;
-let tick: array<u8, 8>;
-let frame: array<u8, 8>;
+let frameCount: array<u8, 24>;
+let interval: array<u8, 24>;
+let tick: array<u8, 24>;
+let frame: array<u8, 24>;
 let started: bool = false;
+let used: utinyint = 0;     // one past the highest slot a .8bg declared
 
 function baseBlock(slot: utinyint): utinyint {
     return hardware.FIRST_BLOCK + slot * 4;
@@ -48,7 +56,11 @@ export namespace graphics {
         frame[slot] = 0;
         ensure();
         sprites.setShape(slot, baseBlock(slot));
-        sprites.setColor(slot, 1);
+        sprites.setColor(slot, kind >> 4);
+        if (slot >= used) {
+            used = slot + 1;
+            multiplex.setCount(used);
+        }
     }
 
     function place(slot: utinyint, x: usmallint, y: usmallint): void {
@@ -63,7 +75,7 @@ export namespace graphics {
         if (!started) {
             return;
         }
-        for (let slot: utinyint = 0; slot < MAX; slot++) {
+        for (let slot: utinyint = 0; slot < used; slot++) {
             if (frameCount[slot] < 2) {
                 continue;
             }

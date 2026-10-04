@@ -36,3 +36,14 @@ test('the web twin holds exactly as many animation steps as the web lowering kee
   assert.equal(Number(/let codes: array<u8, (\d+)>;/.exec(src)?.[1]), max * steps);
   assert.equal(steps, 8, 'the (slot << 3) indexing assumes eight steps');
 });
+
+// --- C64 twin: capacity and colour (packages/c64/test/graphics.test.mjs runs it) ---
+
+test('the C64 twin holds as many graphics sprites as the multiplexer has virtual ones, and colours each from its kind byte', () => {
+  const src = readFileSync(join(SRC, 'index.c64.8bs'), 'utf8');
+  assert.match(src, /import \{ multiplex \} from "@8bitscript\/c64\/multiplex";/);
+  assert.match(src, /const MAX: utinyint = multiplex\.MAX;/);
+  assert.match(src, /let frameCount: array<u8, 24>;/);
+  assert.match(src, /sprites\.setColor\(slot, kind >> 4\);/);
+  assert.doesNotMatch(src, /sprites\.setColor\(slot, 1\);/, 'the colour is no longer white for every sprite');
+});
