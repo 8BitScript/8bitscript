@@ -4,7 +4,7 @@
 //
 //     import { charset } from "@8bitscript/c64/charset";
 //
-//     // Screen code 1 ('A' as text prints it) becomes a solid block with a hole.
+//     // Screen code 1 (the upper-case set's 'A') becomes a solid block with a hole.
 //     charset.define(1, 0xFF, 0x81, 0x81, 0x81, 0x81, 0x81, 0x81, 0xFF);
 //     charset.copy(2, 1);             // and code 2 the same
 //     charset.restore();              // the ROM's glyphs again
@@ -13,12 +13,20 @@
 // ROM in the RAM under the I/O area ($D000, ./geometry.8bs), and a copy is
 // writable: a program's own tiles, a font, a map's terrain are glyphs
 // written over the ROM's, each 8 bytes — one byte a pixel row, bit 7 the
-// left pixel — at `Video.CHARSET + 8 * code`. The upper-case set (256
-// glyphs at $D000-$D7FF) is the one @8bitscript/text selects on every
-// print, so it is the one to define into: codes 1-26 are what text prints
-// for 'A'-'Z', 32-63 the digits and punctuation, 64-127 the graphics, and
-// 128-255 the same in reverse video. A program that never prints text is
-// free to use all 256.
+// left pixel — at `Video.CHARSET + 8 * code`. `define`, `setRow`, `copy`,
+// `fill` and `readRow` all work on the upper-case set (256 glyphs at
+// $D000-$D7FF): codes 1-26 are the letters the ROM draws there, 32-63 the
+// digits and punctuation, 64-127 the graphics, and 128-255 the same in
+// reverse video. Any code 0-255 works, including 32 and up (the address is
+// computed at 16 bits).
+//
+// WHICH SET IS SHOWING is a separate question. @8bitscript/text prints in
+// the mixed-case set (`Video.MEMORY_POINTER_LOWERCASE`, the one holding both
+// cases of the alphabet) and selects it at the start of every print run, so
+// after a `text.print` the glyphs defined here are not on screen until the
+// program calls `charset.useUppercase()`. `screen.blank()` and a fresh
+// start leave the upper-case set selected. A program that never prints text
+// is free to use all 256 codes and never needs to think about it.
 //
 // Every write here is a window with the I/O area banked out (./index.8bs,
 // writeUnderIo): `define` is one window for a glyph's 8 bytes, `copy`
@@ -31,8 +39,9 @@
 // color RAM nybble has bit 3 set, pixels are pairs — %00 the background,
 // %01 $D022, %10 $D023, %11 the low three bits of the cell's color — and
 // a cell without bit 3 is drawn hi-res in that color, so one screen mixes
-// both. `useLowercase` selects the ROM's other set at $D800 for a program
-// that wants it; @8bitscript/text's next print selects upper-case again.
+// both. `useLowercase` selects the ROM's mixed-case set at $D800 (the one
+// @8bitscript/text's next print selects anyway); `useUppercase` selects the
+// set the `define` family writes to.
 import {
     control2, memoryPointer, backgroundColor1, backgroundColor2,
     setupVideo, copyCharacterRom, videoMode, VideoMode, bankIoOut, bankIoIn, readUnderIo,
@@ -43,9 +52,13 @@ export namespace charset {
     const COUNT: usmallint = 256;
     const BYTES: utinyint = 8; // a glyph: one byte a row
 
-    // Where glyph `code`'s 8 bytes start, in the upper-case set.
+    // Where glyph `code`'s 8 bytes start, in the upper-case set. `code` is
+    // widened before the shift: a binop computes at its operands' own width,
+    // so `code * 8` with a utinyint `code` wrapped at 8 bits and every glyph
+    // from 32 up was written 256 bytes (32 glyphs) low.
     function offset(code: utinyint): usmallint {
-        return Video.CHARSET + code * 8;
+        let wide: usmallint = code;
+        return Video.CHARSET + (wide << 3);
     }
 
     // Glyph `code` becomes the eight rows given, top to bottom.
@@ -124,8 +137,8 @@ export namespace charset {
         backgroundColor2 = color2 & 15;
     }
 
-    // The ROM's lower-case set (text mode only; the next text print
-    // selects upper-case again).
+    // The ROM's mixed-case set (text mode only). @8bitscript/text's next
+    // print selects it again on its own.
     function useLowercase(): void {
         setupVideo();
         if (videoMode == VideoMode.TEXT) {
@@ -133,6 +146,8 @@ export namespace charset {
         }
     }
 
+    // The upper-case/graphics set: the one `define`, `setRow`, `copy` and
+    // `fill` write to. Call it after a text print to see their glyphs.
     function useUppercase(): void {
         setupVideo();
         if (videoMode == VideoMode.TEXT) {

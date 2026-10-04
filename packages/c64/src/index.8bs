@@ -362,20 +362,25 @@ export function detectRegion(): utinyint {
 //
 // $D000-$DFFF is RAM the VIC reads (the character set, and in bitmap mode
 // the color matrix and the sprite pointers) that the CPU can only reach
-// with the I/O area banked out — so every write there is a window: `sei`,
-// CHAREN clear (%100 from %101: RAM everywhere), the writes, I/O back,
-// `cli` if the raster interrupt is on. Nothing between bankIoOut() and
-// bankIoIn() may touch a register, and the window is kept short: the
-// raster interrupt, if enabled, is late by the window's length.
+// with the I/O area banked out — so every access there is a window: `sei`,
+// LORAM clear (%100 from %101: RAM everywhere, the port's bits being
+// CHAREN, HIRAM, LORAM), the accesses, I/O back, `cli` if the raster
+// interrupt is on. Nothing between bankIoOut() and bankIoIn() may touch a
+// register, and the window is kept short: the raster interrupt, if enabled,
+// is late by the window's length. It is LORAM that has to go, not CHAREN:
+// clearing CHAREN from %101 gives %001, where the CPU's WRITES still reach
+// the RAM but its READS see the character ROM — so a read through that
+// window (charset `copy`, `readRow`) returned the ROM's glyph, not the
+// program's own.
 export function bankIoOut(): void {
     asm6502 {
         sei
     }
-    processorPort = processorPort & 0xFB;
+    processorPort = processorPort & 0xFE;
 }
 
 export function bankIoIn(): void {
-    processorPort = processorPort | 0x04;
+    processorPort = processorPort | 0x01;
     if (interruptsOn) {
         asm6502 {
             cli
