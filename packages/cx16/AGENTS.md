@@ -98,7 +98,8 @@ Do not describe more than this as working:
   those commits.
 
 There is no banked-memory model in the language, no far pointer, no VRAM
-allocator, no asset pipeline, no sprite/tile/audio/storage API, and no
+allocator, no tile/audio/storage API (the `.8bg` sprites and `.8ba` songs
+below are the asset pipeline's whole slice), and no
 capability probing yet — for any machine. The X16's mouse is the exception
 on the input side; GETIN as characters, and ALT, are still unanswered. The rules
 below are what to hold that work to when it comes; don't write docs
@@ -449,6 +450,45 @@ borders and the background strip read per row):
   on PATH) — see [`docs/setup/verify.md`](../../docs/setup/verify.md#screenshots)
   before reaching for the raw flags directly.
 
+## Graphics (`.8bg` sprites)
+
+`@8bitscript/graphics` on the X16 is VERA's own sprites; the design and the
+measurements are in [docs/project/graphics.md](../../docs/project/graphics.md#commander-x16).
+What belongs here is what the next person touching it must keep true:
+
+- **The media module and the driver are one format.** `media/index.cjs`
+  emits 32 palette bytes (entry 0 zero, then GGGGBBBB / 0000RRRR) and then
+  each frame, linear 4 bpp, left pixel in the **high** nibble.
+  `src/index.cx16.8bs` takes `bind(slot, index, value)` with `index < 32` as
+  palette and the rest as pixels. `packages/compiler/test/media-cx16.test.mjs` pins the
+  lowering's bytes, `test/graphics.test.mjs` reads the driver's result off a
+  screenshot, and `packages/graphics/test/graphics.test.mjs` pins the numbers
+  the two share; change one side and one of them says so.
+- **VERA's sprite attributes are eight bytes, not four.** A sprite's pixel
+  address is in 32-byte units (`byte0` = bits 12:5, `byte1` low nibble =
+  16:13, bit 7 = 8 bpp), position is 10-bit X and Y over four bytes,
+  `byte6` is collision mask / **Z-depth** (zero hides the sprite) / flips, and
+  `byte7` is height, width and the palette offset. The previous driver
+  wrote four bytes a sprite at stride 4 and left Z at zero, so nothing was
+  ever drawn; the sprite on the screenshot is how you know it is fixed.
+- **Memory map.** Sprite N is VERA sprite N + 1 (0 is the KERNAL's mouse
+  cursor), pixels in `$4000 + N * $1000` (bank 0, below the KERNAL's own
+  sprite data at `$13000`), palette in entries `128 + N * 16`
+  (`$1FB00 + N * 32`). A new VRAM user picks outside `$4000–$BFFF` and
+  palette entries 128–255.
+- **The Y line.** With a nonzero `DC_VSTART` (`screen.blank()`) a sprite
+  lands one line above where the text grid's matching pixel is: x16emu
+  puts a sprite at (X, Y) on screenshot row `16 + Y - 1`. The driver reads
+  `DC_VSTART` once and adds the line, so `graphics.place(0, 0)` and text
+  cell 0 share a corner. Measured with a one-pixel marker, not derived.
+- **Interrupt safety.** `DC_VIDEO` is changed once, with DCSEL put back; the
+  data port writes stream through ADDR0, which the raster handler and the
+  KERNAL's own IRQ users save and restore.
+
+Measured (`packages/examples/media-walk`, `8bs build cx16 --size`):
+3982 bytes of program and 70 of RAM, of which the driver's functions are
+about 1.1 KB. The sprites' own data is 32 + 128 bytes a 16×16 frame.
+
 ## Where things live
 
 ```
@@ -462,6 +502,10 @@ packages/cx16/test/input.test.mjs        KERNAL $FF53/$FF9F/$FF56; SNES bits aga
 packages/cx16/src/pointer.8bs            @8bitscript/cx16/pointer: the firmware arrow; update() empty unless recovering from hide()
 packages/cx16/test/mouse-probe.8bs       run under x16emu: green border when present(); test/mouse.test.mjs reads it
 packages/cx16/src/text.8bs               @8bitscript/cx16/text: text.print/printNumber/setColor/setReverse/putChar/putColor, CELL_COUNT 4256, COLUMNS 76, TextColor
+packages/graphics/src/index.cx16.8bs     @8bitscript/graphics on the X16: VERA sprites, palette block, frames, the Y line
+packages/cx16/media/index.cjs            the X16's .8bg/.8ba lowering: palette + linear 4bpp frames; PSG songs
+packages/cx16/test/graphics.test.mjs     under x16emu, sprites on their pixels, animation, with a raster list
+packages/compiler/test/media-cx16.test.mjs   the lowering as data: palette, nibble order, padding, windows
 packages/cx16/src/rasterline.8bs         @8bitscript/cx16/rasterline (behind @8bitscript/raster): the list and plan in Golden RAM ($0401-$077F), the VERA line-IRQ handler on CINV
 packages/cx16/test/raster-probe.8bs      the probe: every slot at a known line, an adjacent pair, setValue after sixty frames
 packages/cx16/test/raster.test.mjs       links the probe; under x16emu, each split on its line, whole, and live through input.poll()

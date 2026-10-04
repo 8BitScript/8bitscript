@@ -47,3 +47,35 @@ test('the C64 twin holds as many graphics sprites as the multiplexer has virtual
   assert.match(src, /sprites\.setColor\(slot, kind >> 4\);/);
   assert.doesNotMatch(src, /sprites\.setColor\(slot, 1\);/, 'the colour is no longer white for every sprite');
 });
+
+// ---- Commander X16 (index.cx16.8bs) ----------------------------------------
+// The driver and packages/cx16/media/index.cjs are two halves of one format;
+// packages/cx16/test/graphics.test.mjs runs it under x16emu. These pin the
+// numbers the halves share, so changing one without the other fails here.
+
+test('cx16 twin exports the four graphics members, with a 16-bit bind index', () => {
+  const src = readFileSync(join(SRC, 'index.cx16.8bs'), 'utf8');
+  assert.match(src, /function bind\(slot: utinyint, index: usmallint, value: utinyint\)/);
+  for (const fn of ['meta', 'place', 'update']) assert.match(src, new RegExp(`function ${fn}\\(`));
+});
+
+test('cx16 driver and media lowering agree on the palette header, the window, and the sprite kind', () => {
+  const driver = readFileSync(join(SRC, 'index.cx16.8bs'), 'utf8');
+  const media = readFileSync(join(HERE, '..', '..', 'cx16', 'media', 'index.cjs'), 'utf8');
+  // 16 entries x 2 bytes, then pixels.
+  assert.match(driver, /const PALETTE_BYTES: utinyint = 32;/);
+  assert.match(media, /new Array\(32\)\.fill\(0\)/);
+  // A sprite's window of video memory.
+  assert.match(driver, /const WINDOW: usmallint = 0x1000;/);
+  assert.match(media, /const WINDOW_BYTES = 4096;/);
+  // The kind meta() is called with.
+  assert.match(driver, /const KIND_CX16: utinyint = 5;/);
+  assert.match(media, /const KIND_CX16 = 5;/);
+});
+
+test('cx16 sprites keep clear of sprite 0 (the KERNAL mouse cursor) and of the palette below entry 128', () => {
+  const src = readFileSync(join(SRC, 'index.cx16.8bs'), 'utf8');
+  assert.match(src, /\(wide \+ 1\) \* 8/, 'slot N is VERA sprite N + 1');
+  assert.match(src, /const PALETTE_LOW: usmallint = 0xFB00;/, 'palette entry 128 is $1FB00');
+  assert.match(src, /const FIRST_PALETTE_OFFSET: utinyint = 8;/, 'attribute palette offset 8 is entry 128');
+});

@@ -63,7 +63,7 @@ codes (reverse space, a ball) are PETSCII and draw nothing there.
 | PET | A 4×4 quadrant-block object, one sprite-layer shape a frame of the animation — seven shapes in all, shared by every picture in the program — or a small centre block if the picture is too faint to survive the downsample (`8BS2111` either way, and again when frames are dropped or a picture finds no shape left). |
 | Atari 8-bit | A software glyph; frames collapsed (`8BS2111`). Player/missile shapes are a later slice. |
 | VIC-20 | Quadrant-block characters from the ROM, worked out at build time: one cell for a source of 8 pixels or fewer, 2×2 cells for anything larger (scaled down), one screen code a cell a frame, the animation's frames (the first 8) stepping every `every` updates; a picture with almost no ink becomes one glyph (`8BS2111` either way). Moving an object blanks the cells it left; cells off the screen are not drawn. |
-| Commander X16 | The glyph path, quantized to 8×8 cells (`8BS2111`). |
+| Commander X16 | A VERA hardware sprite in its own 15-colour palette; 8, 16, 32 or 64 px a side, real animation frames (`8BS2110` over 15 colours, `8BS2111` for padding or cut frames). See [Commander X16](#commander-x16). |
 | Web | One cell as a 2×2 quadrant-block glyph (codes 128–143) per animation step, up to eight steps, stepped every `every` calls to `graphics.update()`; colours dropped (`8BS2111`). A 16×16 picture is four quadrants of 8×8 source pixels. A true sprite layer is a later item for the web runtime (`packages/web/AGENTS.md`). |
 | every other machine | The same glyph path, quantized to that machine's cell size. |
 
@@ -130,7 +130,7 @@ with a user-port speaker so the VIA song actually plays.
 | PET 3032 + speaker | 3765 | 50 |
 | C64 (re-measured 2026-10-03) | 4577 | 46 |
 | VIC-20 8K | 2455 | 49 |
-| Commander X16 | 2918 | 58 |
+| Commander X16 | 3982 | 70 |
 | Web (wasm module bytes) | 1797 | 259 |
 
 The web row is `examples/media-walk` built with `8bs build --target web
@@ -144,6 +144,46 @@ was 2383 and 41 on the same example before, and the 256-byte glyph table it
 then kept is gone. The example's arrays count in the program figure (they are
 zero-filled bytes in the image), not in the variables one. The unexpanded
 machine builds the same program at the same size.
+
+## Commander X16
+
+A `.8bg` sprite on the X16 is a VERA hardware sprite, not a glyph.
+`packages/cx16/media/index.cjs` turns the PNG into a 32-byte palette
+followed by every animation frame as a linear 4 bpp bitmap (VERA's sprite
+renderer reads a bitmap row by row, left pixel in the high nibble, not
+8×8 tiles), and `packages/graphics/src/index.cx16.8bs` puts them in
+video memory. Measured under x16emu r50 (ROM `fbe32a60`), headless, with
+`packages/cx16/test/graphics.test.mjs`:
+
+- **Colours.** Up to 15 plus transparent, quantized to VERA's 12 bits, the
+  most-used first. Each sprite owns a 16-entry block of palette entries
+  128 and up (`8 + slot` is the attribute's palette offset), so it shows
+  the picture's own colours rather than the default palette's, and the
+  KERNAL's text colours (entries 0–127) are never touched. More than 15
+  distinct colours is `8BS2110`; the rarest map to the nearest kept one.
+  8 bpp sprites (255 colours) are not offered.
+- **Size.** The next legal VERA size at or above `size`, padded with
+  transparent pixels: `20x12` is a 32×16 sprite whose padding stays
+  background. Larger than 64×64 is cut (`8BS2111`).
+- **Animation.** Frames follow each other in the sprite's own 4096-byte
+  window of video memory (`$4000 + slot * $1000`); `graphics.update()`
+  steps the sprite's address pointer every `every` frames and writes
+  nothing else. A frame count that does not fit the window is cut
+  (`8BS2111`): 32 frames at 16×16, 8 at 32×16, 2 at 64×64.
+- **Slots.** Eight objects (`MAX`), VERA sprites 1–8. Sprite 0 is the
+  KERNAL's mouse cursor and is left alone.
+- **Where it lands.** `graphics.place(x, y)` is a stage pixel: (0, 0) is the
+  picture's top-left corner, the same pixel as text cell (0, 0), after
+  `screen.blank()` has inset the display. A sprite's first line sits one
+  line above the layers' with a nonzero `DC_VSTART`; the driver reads that
+  once when sprites are switched on and adds the line back.
+- **With a raster list.** `raster` entries and sprites share the screen:
+  the list's line IRQ and the sprite writes both go through VERA's data
+  port, which the handler saves and restores.
+
+Not done: 8 bpp, collision masks, flips, per-sprite Z, and more than eight
+objects. Sprites are switched on at the first `place()`; nothing hides
+them again.
 
 Later: tiles, tilemaps, fonts, vectors, raster blocks, Aseprite. The GIR
 has empty slots (`tiles`, `fonts`) so those land without reshaping the IR.
