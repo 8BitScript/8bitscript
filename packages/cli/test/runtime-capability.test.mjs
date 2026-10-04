@@ -44,9 +44,17 @@ test('the release machines: native where there is an emulator, wasm where the pa
   assert.equal(runtime.pet.native.emulator, 'xpet');
   assert.equal(runtime.c64.native.emulator, 'x64sc');
   assert.equal(runtime.cx16.native.emulator, 'x16emu');
-  for (const id of ['pet', 'vic20', 'cx16', 'web']) assert.equal(runtime[id].wasm.available, true, id);
-  assert.equal(runtime.c64.wasm.available, false);
-  assert.match(runtime.c64.wasm.reason, /pins arrays at fixed addresses/);
+  for (const id of ['pet', 'vic20', 'c64', 'cx16', 'web']) assert.equal(runtime[id].wasm.available, true, id);
+});
+
+test('the C64 runs in the browser as a model, and says in `limits` what the page does not model yet', () => {
+  const { c64, pet } = byId();
+  assert.equal(c64.wasm.available, true);
+  assert.equal(c64.wasm.reason, null);
+  assert.ok(c64.wasm.limits.length > 0, 'a wasm C64 is text mode only today, and the editor shows why');
+  assert.ok(c64.wasm.limits.some((line) => /sprites/.test(line)), 'sprites are not drawn');
+  assert.ok(c64.wasm.limits.some((line) => /sound/.test(line)), 'there is no sound');
+  assert.deepEqual(pet.wasm.limits, [], 'a machine that declares no limits has none to show');
 });
 
 test('the real x16emu as WebAssembly is the X16\'s alone', () => {

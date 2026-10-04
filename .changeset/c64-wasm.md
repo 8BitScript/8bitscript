@@ -1,0 +1,9 @@
+---
+"@8bitscript/compiler": minor
+"@8bitscript/cli": minor
+"@8bitscript/c64": minor
+---
+
+The C64 now builds and runs through the wasm backend: `8bs build --target c64 --web`, `8bs run c64 --web` (an editor tab or an external browser), and `8bs run c64 --web --screenshot out.png` for a headless capture of what the page will draw. It is a model of the machine, not the machine, and `8bs targets --json` says so in `runtime.wasm.limits`: text mode only (no sprites, bitmap, multicolour or sound), no keyboard or joystick yet, NTSC 60 Hz. What it does model is checked pixel for pixel against the character ROM's own bytes: the screen matrix at `$E000` and colour RAM at `$D800`, the border and background from `$D020` and `$D021`, the fine scroll from `$D016`, which of the two character sets is live from `$D018` bit 1, reverse video, and every glyph read out of the program's own character RAM — so a glyph `@8bitscript/c64/charset` redefines or `restore()`s is simply the bytes there. The page reads the character RAM at `$A000`, not the machine's `$D000` (under the I/O area on the machine, the chips' own registers in flat memory).
+
+The wasm backend lowers an `@address` array — a fixed run of linear memory at its pin, bounded to the 64 KiB address space and refused where program data would sit under it — and folds a constant added to an 8-bit array index into the address instead of wrapping at 255, as the 6502 backend always has (`screen.blank()` on the C64 writes `screenRam[i + 250]`; before this a wasm build left every row after the first with screen code 0). `--screenshot` with `--web` now captures the wasm build through the page's own compositor; without `--web` it is still the native emulator's. Native builds are unchanged: three `.web` twins of the C64 package's `index`, `text` and `geometry` files (held to the native files' exports by a test) and a generated character-ROM data file are linked only by the wasm build.
