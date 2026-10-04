@@ -254,11 +254,12 @@ export function main(): void {
 }
 `;
 
-async function runProgramTimeline(machine, frames, source = PROGRAM) {
+async function runProgramTimeline(machine, frames, source = PROGRAM, extra = {}) {
   const dir = await mkdtemp(join(tmpdir(), '8bs-web-audio-'));
   const prev = process.cwd();
   try {
     await writeFile(join(dir, 'main.8bs'), source);
+    for (const [name, text] of Object.entries(extra)) await writeFile(join(dir, name), text);
     process.chdir(dir);
     const result = await silently(() => compile('web', join(dir, 'main.8bs'), { checkout: REPO, hardware: machine ? { machine } : {} }));
     assert.equal(result.ok, true, `builds for ${machine ?? 'the Modern host'}`);
@@ -371,4 +372,177 @@ test("the web voice's setLevel and volume write the volume register; on() sounds
   const src = readFileSync(join(SRC, 'voice.8bs'), 'utf8');
   assert.match(src, /memory\.write\(Video\.AUDIO_BASE \+ 3, level\);\s*memory\.write\(Video\.AUDIO_BASE, 1\);/, 'on() uses the level');
   assert.match(src, /function volume\(amount: utinyint\): void \{\s*memory\.write\(Video\.AUDIO_BASE \+ 3, amount & 15\);/);
+});
+
+// ---- 6. songs: the bank and the sequencer, frame by frame ------------------------------------
+
+const SONGS_8BA = `instrument click { waveform pulse volume 12 decay 3 }
+instrument chime { waveform triangle volume 9 }
+instrument saw { waveform saw volume 15 }
+
+sample zap { source "./zap.wav" fallback { synth saw } }
+
+song tick {
+  speed 1
+  loop false
+  order { main }
+  pattern main length 4 { track lead { row 0 { note C4; instrument click; length 3; } } }
+}
+
+song win {
+  speed 3
+  loop false
+  order { main }
+  pattern main length 8 {
+    track lead {
+      row 0 { note C4; instrument chime; length 2; }
+      row 2 { note E4; }
+      row 4 { note G4; instrument saw; length 2; }
+    }
+  }
+}
+
+song loopy {
+  speed 2
+  order { main }
+  pattern main length 4 {
+    track lead {
+      row 0 { note A4; instrument chime; }
+      row 2 { note A5; }
+    }
+  }
+}
+
+song once {
+  speed 2
+  loop false
+  order { main }
+  pattern main length 2 { track lead { row 0 { note D4; instrument chime; } } }
+}
+`;
+
+const ZAP_WAV = (() => {
+  const bytes = Buffer.alloc(60);
+  bytes.write('RIFF', 0); bytes.writeUInt32LE(52, 4); bytes.write('WAVEfmt ', 8);
+  bytes.writeUInt32LE(16, 16); bytes.writeUInt16LE(1, 20); bytes.writeUInt16LE(1, 22);
+  bytes.writeUInt32LE(8000, 24); bytes.writeUInt32LE(16000, 28); bytes.writeUInt16LE(2, 32); bytes.writeUInt16LE(16, 34);
+  bytes.write('data', 36); bytes.writeUInt32LE(16, 40);
+  return bytes;
+})();
+
+// A program that calls `setup` once and `at(n)` before frame n's update, for n = 1, 2, ....
+const songProgram = (setup, steps = {}, imports = 'tick, win, loopy, once, zap') => `import { ${imports} } from "./songs.8ba";
+import { audio } from "@8bitscript/audio";
+import { text } from "@8bitscript/text";
+
+export function main(): void {
+    text.print(0, "SONGS");
+${setup.split('\n').map((line) => `    ${line}`).join('\n')}
+    let n: usmallint = 0;
+    while (true) {
+        waitFrame();
+        audio.update();
+        n = n + 1;
+${Object.entries(steps).map(([at, code]) => `        if (n == ${at}) {\n            ${code}\n        }`).join('\n')}
+    }
+}
+`;
+
+const run = (setup, steps, frames, imports) => runProgramTimeline(undefined, frames, songProgram(setup, steps, imports), { 'songs.8ba': SONGS_8BA, 'zap.wav': ZAP_WAV });
+
+// Consecutive frames on one note, shape and level are one run: { from, frames, hz, wave, level } (level out of 15).
+function runsOf(timeline) {
+  const out = [];
+  timeline.forEach((state, i) => {
+    if (!state.on) return;
+    const level = Math.round((state.level / 0.5) * 15);
+    const last = out.at(-1);
+    if (last && last.from + last.frames === i && Math.round(last.hz) === Math.round(state.hz) && last.wave === state.wave && last.level === level) last.frames += 1;
+    else out.push({ from: i, frames: 1, hz: state.hz, wave: state.wave, level });
+  });
+  return out;
+}
+const note = (name) => ({ C4: 261.63, D4: 293.66, E4: 329.63, G4: 392, A4: 440, A5: 880 })[name];
+const near = (hz, name) => Math.abs(hz - note(name)) < 0.5;
+
+test('a one-shot song plays its rows once: each note from its row, for its length, rests between, then silence for good', async () => {
+  const { timeline } = await run('audio.play(win);', {}, 60);
+  const runs = runsOf(timeline);
+  // 3 frames a row. C4 on rows 0-1 (frames 0-5, triangle, the chime's volume 9), E4 on row 2 (frames 6-8),
+  // row 3 a rest (9-11), G4 on the saw on rows 4-5 (12-17), rows 6-7 rests, and then it is over.
+  assert.equal(runs.length, 3, JSON.stringify(runs));
+  assert.deepEqual(runs.map((r) => [r.from, r.frames]), [[0, 6], [6, 3], [12, 6]]);
+  assert.ok(near(runs[0].hz, 'C4') && near(runs[1].hz, 'E4') && near(runs[2].hz, 'G4'));
+  assert.deepEqual(runs.map((r) => r.wave), ['triangle', 'triangle', 'sawtooth']);
+  assert.deepEqual(runs.map((r) => r.level), [9, 9, 15], 'each note at its instrument\'s volume');
+  assert.ok(timeline.slice(18).every((state) => !state.on), 'and it stays silent: a one-shot does not come back');
+});
+
+test('a note with a decay fades by itself within its decay frames, and its length cuts it off if shorter', async () => {
+  const { timeline } = await run('audio.play(tick);', {}, 20);
+  // The click: volume 12, decay 3, length 3 rows at 1 frame a row: 12, then 8, then 4, then gone.
+  assert.deepEqual(runsOf(timeline).map((r) => [r.from, r.frames, r.level]), [[0, 1, 12], [1, 1, 8], [2, 1, 4]]);
+  assert.ok(timeline.slice(3).every((state) => !state.on));
+});
+
+test('audio.music repeats a song that loops, with no gap at the wrap, and plays a loop-false song once', async () => {
+  const { timeline } = await run('audio.music(loopy);', { 40: 'audio.music(once);' }, 80);
+  const runs = runsOf(timeline).filter((r) => r.from < 40);
+  // A pattern of 4 rows at 2 frames: A4 for row 0 (2 frames), a rest row, A5 on row 2, a rest row: a lap is 8 frames.
+  assert.deepEqual(runs.slice(0, 4).map((r) => [r.from, r.frames]), [[0, 2], [4, 2], [8, 2], [12, 2]]);
+  assert.ok(near(runs[0].hz, 'A4') && near(runs[1].hz, 'A5') && near(runs[2].hz, 'A4'), 'and it comes round again');
+  const later = runsOf(timeline).filter((r) => r.from >= 40);
+  assert.equal(later.length, 1, 'a song that says loop false is played once even by music()');
+  assert.ok(near(later[0].hz, 'D4'));
+});
+
+test('audio.silence stops a song mid-way and it does not resume; a tone replaces a song; busy() says which', async () => {
+  const stop = await run('audio.play(win);', { 7: 'audio.silence();' }, 40);
+  assert.deepEqual(runsOf(stop.timeline).map((r) => [r.from, r.frames]), [[0, 6], [6, 1]], 'silent from the frame it was called');
+  const replaced = await run('audio.play(win);', { 7: 'audio.tone(57, 4);' }, 40);
+  const runs = runsOf(replaced.timeline);
+  assert.ok(near(runs.at(-1).hz, 'A4') && runs.at(-1).wave === 'square', 'the tone is an A4 square');
+  assert.ok(!runs.some((r) => near(r.hz, 'G4')), 'and the song\'s G4 never comes');
+  // busy() is true while a song plays, rests included, and false when it is over and nothing else sounds.
+  const probe = await run('audio.play(once);', { 2: 'if (audio.busy()) { audio.tone(57, 2); }', 14: 'if (audio.busy()) { audio.tone(69, 2); }' }, 24);
+  const heard = runsOf(probe.timeline);
+  assert.ok(heard.some((r) => near(r.hz, 'A4')), 'busy() was true during the song');
+  assert.ok(!heard.some((r) => near(r.hz, 'A5')), 'and false once the tone it started was over');
+});
+
+test('audio.setLevel scales a song\'s notes: level 6 under a volume-9 note is ceil(6 * 9 / 16) = 4', async () => {
+  const { timeline } = await run('audio.setLevel(6);\naudio.play(win);', {}, 20);
+  assert.deepEqual(runsOf(timeline).map((r) => r.level), [4, 4, 6], 'volume 9 -> 4, the saw\'s 15 -> 6');
+  const muted = await run('audio.setLevel(0);\naudio.play(win);', {}, 20);
+  assert.ok(muted.timeline.every((state) => !state.on), 'level 0 is silence');
+});
+
+test('a sample plays its synth fallback for eight frames, and two .8ba files get two different handles', async () => {
+  const { timeline } = await run('audio.play(zap);', { 20: 'audio.play(win);' }, 40);
+  const runs = runsOf(timeline);
+  assert.deepEqual([runs[0].from, runs[0].frames, runs[0].wave], [0, 8, 'sawtooth'], 'the saw fallback at 60 frames... eight frames');
+  assert.ok(runs.length >= 2 && near(runs[1].hz, 'C4'), 'then the song, from its first note');
+  // Two files, each with a song at its own slot 0: both are heard, neither overwrites the other.
+  const second = `song second { speed 2 loop false pattern p length 2 { track t { row 0 { note E4; } } } }\n`;
+  const program = `import { win } from "./songs.8ba";
+import { second } from "./more.8ba";
+import { audio } from "@8bitscript/audio";
+
+export function main(): void {
+    audio.play(win);
+    let n: utinyint = 0;
+    while (true) {
+        waitFrame();
+        audio.update();
+        n = n + 1;
+        if (n == 30) {
+            audio.play(second);
+        }
+    }
+}
+`;
+  const both = await runProgramTimeline(undefined, 50, program, { 'songs.8ba': SONGS_8BA, 'more.8ba': second, 'zap.wav': ZAP_WAV });
+  const heard = runsOf(both.timeline);
+  assert.ok(near(heard[0].hz, 'C4'), 'the first file\'s song');
+  assert.ok(near(heard.at(-1).hz, 'E4') && heard.at(-1).from === 30, 'the second file\'s song is not the first\'s');
 });

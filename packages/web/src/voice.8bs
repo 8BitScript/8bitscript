@@ -26,6 +26,8 @@ import { Video } from "./geometry.8bs";
 
 // The level `on` sounds at, 0..15; `volume` changes the register alone (for a fade).
 let level: utinyint = 15;
+// The waveform `on` sounds in: 0 square, 1 triangle, 2 sawtooth.
+let shape: utinyint = 0;
 
 export namespace voice {
     // The note index sounds at once, on a square wave at full volume. A tone
@@ -33,13 +35,18 @@ export namespace voice {
     // reads the registers once a paint, not once a logical frame.
     function on(note: utinyint): void {
         memory.write(Video.AUDIO_BASE + 1, note);
-        memory.write(Video.AUDIO_BASE + 2, 0);
+        memory.write(Video.AUDIO_BASE + 2, shape);
         memory.write(Video.AUDIO_BASE + 3, level);
         memory.write(Video.AUDIO_BASE, 1);
     }
 
     function off(): void {
         memory.write(Video.AUDIO_BASE, 0);
+    }
+
+    // The waveform the next `on` sounds in: 0 square, 1 triangle, 2 sawtooth.
+    function setShape(wave: utinyint): void {
+        shape = wave;
     }
 
     // The level the next `on` sounds at (0 silent .. 15 full), and the one

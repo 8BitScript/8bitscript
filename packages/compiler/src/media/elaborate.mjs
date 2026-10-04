@@ -9,6 +9,12 @@ import { dirname, isAbsolute, join } from 'node:path';
 
 import { decodePng, sliceFrames } from '@8bitscript/graphics-tools';
 import { decodeWav, decodeFlac, encodeDpcm } from '@8bitscript/audio-tools';
+import { encodeSong } from './audio/song.mjs';
+
+// The data bank every chip driver keeps for the program's samples and songs (the drivers'
+// `bank` arrays are this size, indexed by a byte). A program that binds more is refused here
+// rather than silently losing the end of a song at run time.
+export const AUDIO_BANK_BYTES = 255;
 import { Codes, diagnostic } from '../diagnostics/index.mjs';
 import { resolveSpecifier } from '../resolver/index.mjs';
 import { lowerGraphicsDefault, lowerAudioDefault } from './lower-default.mjs';
@@ -263,14 +269,34 @@ export function elaborateMedia(module, diagnostics, options = {}) {
     }
     const voices = Number(facts['audio.voices'] ?? 0);
     const pcm = facts['audio.pcm'] === true;
+    // What a machine's media module can ask of the compiler: the portable song encoding.
+    const helpers = { encodeSong: (song) => encodeSong(air, song) };
     const result = lowering?.lowerAudio
-      ? lowering.lowerAudio(air, pcmBySample, facts, file, wrapDiagnostic)
+      ? lowering.lowerAudio(air, pcmBySample, facts, file, wrapDiagnostic, helpers)
       : lowerAudioDefault(air, pcmBySample, file, { machine: machine ?? '(none)', voices, pcm });
     diagnostics.push(...(result.diagnostics ?? []));
-    result.samples.forEach((sample, slot) => {
-      ir.consts.push(constHandle(sample.name, slot, air.samples[slot] ?? { start: 0, length: sample.name.length }));
+    // A handle is the asset's place among every sample and song in the build, not in its own
+    // file: two .8ba files each start counting at zero, and a driver that keeps one asset per
+    // slot would bind the second file's first song over the first's. The linker keeps the tally.
+    const tally = options.mediaSlots;
+    let local = 0;
+    const slotFor = () => (tally ? tally.audio++ : local++);
+    const bank = (asset, bytes) => {
+      const total = tally ? (tally.audioBytes += bytes) : bytes;
+      if (bytes > 0 && total > AUDIO_BANK_BYTES) {
+        diagnostics.push(diagnostic(
+          Codes.AUD_BANK_FULL,
+          `the audio bank holds ${AUDIO_BANK_BYTES} bytes of sample and song data across the whole program; '${asset.name}' brings it to ${total}`,
+          file, asset.start ?? 0, asset.length ?? 0, 'error',
+        ));
+      }
+    };
+    result.samples.forEach((sample, index) => {
+      const slot = slotFor();
+      ir.consts.push(constHandle(sample.name, slot, air.samples[index] ?? { start: 0, length: sample.name.length }));
       const dataName = `__8ba_sfx_${sample.name}`;
       if (sample.data?.length) {
+        bank(sample, sample.data.length);
         ir.globals.push(dataGlobal(dataName, sample.data));
         ir.functions.push(bindFunction(
           `__8bs_media_bind_${sample.name}`,
@@ -281,10 +307,12 @@ export function elaborateMedia(module, diagnostics, options = {}) {
         ));
       }
     });
-    result.songs.forEach((song, slot) => {
-      ir.consts.push(constHandle(song.name, slot, air.songs[slot] ?? { start: 0, length: song.name.length }));
+    result.songs.forEach((song, index) => {
+      const slot = slotFor();
+      ir.consts.push(constHandle(song.name, slot, air.songs[index] ?? { start: 0, length: song.name.length }));
       const dataName = `__8ba_song_${song.name}`;
       if (song.data?.length) {
+        bank(song, song.data.length);
         ir.globals.push(dataGlobal(dataName, song.data));
         ir.functions.push(bindFunction(
           `__8bs_media_bind_${song.name}`,

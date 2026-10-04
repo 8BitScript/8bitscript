@@ -138,7 +138,9 @@ function viceRun(emulator, prg, { cycles, modelArgs = [], soundArgs }) {
     emulator,
     ['-default', '-console', '-silent', ...soundArgs, '+autostart-delay-random', '-autostartprgmode', '1', ...modelArgs,
       '-limitcycles', String(cycles), '+confirmonexit', '-autostart', prg],
-    { stdio: 'ignore', timeout: 120000 },
+    // A real-time recording (the PET's, through the sound device) lasts as long as the emulated time
+    // does, about a second for every 1,000,000 cycles; the dump runs at warp speed and needs far less.
+    { stdio: 'ignore', timeout: Math.max(120000, Math.round(cycles / 1000 * 1.4) + 30000) },
   );
   if (result.error) throw result.error;
 }

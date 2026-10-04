@@ -1,0 +1,206 @@
+// The song bank and the sequencer every audio driver with a song player shares (the C64, VIC-20,
+// PET, X16 and web twins). It knows nothing of any chip: it holds the bytes the compiler lowered
+// from `.8ba` files (packages/compiler/src/media/audio/song.mjs says what they are), and once a
+// frame it says what the driver has to do with its voice.
+//
+//   songs.bind / songs.meta   the media bind functions' two calls: a handle's bytes, then its length
+//   songs.start(handle, loop) begin a song; returns what to do for its first row
+//   songs.step()              one frame of a song that is playing; returns what to do
+//   songs.stop()              end it
+//   songs.note() wave() volume() decay()   the note a STARTED event began (0..95, 0..3, 0..15, frames)
+//
+// What to do is one of NOTHING, STARTED (a note begins: read note/wave/volume/decay, retrigger the
+// voice), ENDED (the note's rows are used up: let the voice go) and FINISHED (the song is over, or
+// would have looped at its end and does not: silence the voice and put the volume back).
+//
+// A handle is a sample's or a song's place among every one in the program (the linker counts them
+// across files); the bank holds up to 255 bytes of them (the compiler refuses a program that binds
+// more, 8BS2216), sixteen handles at most.
+const SLOTS: utinyint = 16;
+const BANK_LAST: utinyint = 255;
+let bank: array<u8, 256>;
+let base: array<u8, 16>;
+let size: array<u8, 16>;
+let kinds: array<u8, 16>;
+let used: utinyint = 0;
+let binding: utinyint = 255;
+
+// The sequencer: which song, where its next event is, and the row and frame it is at.
+let current: utinyint = 255;
+let at: utinyint = 0;
+let left: utinyint = 0;
+let row: utinyint = 0;
+let tick: utinyint = 0;
+let speed: utinyint = 1;
+let rows: utinyint = 0;
+let repeat: bool = false;
+let rowsLeft: utinyint = 0;
+
+// The note a STARTED event began.
+let noteNumber: utinyint = 0;
+let noteWave: utinyint = 0;
+let noteVolume: utinyint = 15;
+let noteDecay: utinyint = 0;
+
+// Run the current row: a note that has used its rows ends, a note that starts on this row begins.
+function enter(): utinyint {
+    let result: utinyint = 0;
+    if (rowsLeft != 0) {
+        rowsLeft = rowsLeft - 1;
+        if (rowsLeft == 0) {
+            result = 2;
+        }
+    }
+    if (left != 0 && bank[at] == row) {
+        let packed: utinyint = bank[at + 2];
+        noteNumber = bank[at + 1];
+        noteWave = packed & 3;
+        noteVolume = (packed >> 2) & 15;
+        rowsLeft = bank[at + 3];
+        if (rowsLeft == 0) {
+            rowsLeft = 1;
+        }
+        noteDecay = bank[at + 4];
+        at = at + 5;
+        left = left - 1;
+        result = 1;
+    }
+    return result;
+}
+
+export namespace songs {
+    const NOTHING: utinyint = 0;
+    const STARTED: utinyint = 1;
+    const ENDED: utinyint = 2;
+    const FINISHED: utinyint = 3;
+
+    // The media bind functions call this once for each byte of a handle's data, in order.
+    function bind(kind: utinyint, slot: utinyint, index: utinyint, value: utinyint): void {
+        if (slot >= SLOTS) {
+            return;
+        }
+        if (binding != slot) {
+            binding = slot;
+            base[slot] = used;
+        }
+        if (index >= BANK_LAST - base[slot]) {
+            return;
+        }
+        bank[base[slot] + index] = value;
+    }
+
+    // ...and then once for the handle: its kind (0 sample, 1 song) and how many bytes it has.
+    function meta(kind: utinyint, slot: utinyint, length: utinyint): void {
+        if (slot >= SLOTS) {
+            return;
+        }
+        if (binding != slot) {
+            base[slot] = used;
+        }
+        binding = 255;
+        let room: utinyint = BANK_LAST - base[slot];
+        let fits: utinyint = length;
+        if (fits > room) {
+            fits = room;
+        }
+        size[slot] = fits;
+        kinds[slot] = kind;
+        used = base[slot] + fits;
+    }
+
+    function isSong(slot: utinyint): bool {
+        return slot < SLOTS && size[slot] >= 4 && kinds[slot] == 1;
+    }
+
+    function isSample(slot: utinyint): bool {
+        return slot < SLOTS && size[slot] >= 2 && kinds[slot] == 0;
+    }
+
+    // A sample's two bytes: its waveform and its note.
+    function sampleWave(slot: utinyint): utinyint {
+        return bank[base[slot]];
+    }
+
+    function sampleNote(slot: utinyint): utinyint {
+        return bank[base[slot] + 1];
+    }
+
+    function active(): bool {
+        return current != 255;
+    }
+
+    function note(): utinyint {
+        return noteNumber;
+    }
+
+    function wave(): utinyint {
+        return noteWave;
+    }
+
+    function volume(): utinyint {
+        return noteVolume;
+    }
+
+    function decay(): utinyint {
+        return noteDecay;
+    }
+
+    // Begin `slot` (a song). `loop` says whether the caller wants it repeated: it repeats only if the
+    // song says so too (`loop false` in the `.8ba` file makes a one-shot even for audio.music).
+    function start(slot: utinyint, loop: bool): utinyint {
+        if (!songs.isSong(slot)) {
+            return 0;
+        }
+        current = slot;
+        let b: utinyint = base[slot];
+        speed = bank[b + 1];
+        if (speed == 0) {
+            speed = 1;
+        }
+        rows = bank[b + 2];
+        left = bank[b + 3];
+        at = b + 4;
+        repeat = loop && (bank[b] & 1) != 0;
+        row = 0;
+        tick = 0;
+        rowsLeft = 0;
+        return enter();
+    }
+
+    function stop(): void {
+        current = 255;
+        rowsLeft = 0;
+    }
+
+    // Once a frame while a song plays.
+    function step(): utinyint {
+        if (current == 255) {
+            return 0;
+        }
+        tick = tick + 1;
+        if (tick < speed) {
+            return 0;
+        }
+        tick = 0;
+        row = row + 1;
+        if (row < rows) {
+            return enter();
+        }
+        if (!repeat) {
+            current = 255;
+            rowsLeft = 0;
+            return 3;
+        }
+        // The song starts over; whatever sounded at its end is cut off.
+        let sounded: bool = rowsLeft != 0;
+        row = 0;
+        rowsLeft = 0;
+        at = base[current] + 4;
+        left = bank[base[current] + 3];
+        let result: utinyint = enter();
+        if (result == 0 && sounded) {
+            result = 2;
+        }
+        return result;
+    }
+}
