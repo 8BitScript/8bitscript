@@ -26,6 +26,18 @@ export namespace audio {
     function silence(): void {
     }
 
+    // The loudest level `setLevel` takes, 0 (silent) to LEVEL_MAX. 0 here: a
+    // machine with no driver has nothing to turn down, and both calls below do
+    // nothing, so a portable program folds its volume handling away.
+    const LEVEL_MAX: utinyint = 0;
+
+    function setLevel(level: utinyint): void {
+    }
+
+    // A plucked tone: it starts at the level and dies away within `frames`.
+    function blip(note: utinyint, frames: utinyint): void {
+    }
+
     function bind(kind: utinyint, slot: utinyint, index: utinyint, value: utinyint): void {
     }
 

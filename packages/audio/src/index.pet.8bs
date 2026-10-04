@@ -36,6 +36,9 @@ function periodOf(note: utinyint): utinyint {
     return T2[n - 48];
 }
 
+// The speaker is one bit: there is no volume to turn down, only on and off.
+let muted: bool = false;
+
 function playNote(note: utinyint): void {
     memory.write(0xE84B, 0x10); // ACR: shift out at T2
     memory.write(0xE84A, 0x0F); // square
@@ -100,6 +103,9 @@ export namespace audio {
     // whatever tone is sounding. With no speaker fitted (audio.voices 0)
     // the CB2 wave still runs but nothing hears it. Nothing blocks.
     function tone(note: utinyint, frames: utinyint): void {
+        if (muted) {
+            return;
+        }
         playNote(note);
         sfxLeft = frames;
         if (frames == 0) {
@@ -110,6 +116,23 @@ export namespace audio {
     function silence(): void {
         quiet();
         sfxLeft = 0;
+    }
+
+    // A one-bit speaker has two levels: 0 (silent) and 1 (the square wave). Any
+    // level above 0 is 1; a program that wants a quieter PET plays fewer sounds.
+    const LEVEL_MAX: utinyint = 1;
+
+    function setLevel(amount: utinyint): void {
+        muted = amount == 0;
+        if (muted) {
+            quiet();
+            sfxLeft = 0;
+        }
+    }
+
+    // A plucked tone is a plain one here: there is no envelope and no volume.
+    function blip(note: utinyint, frames: utinyint): void {
+        audio.tone(note, frames);
     }
 
     function music(slot: utinyint): void {

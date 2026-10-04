@@ -51,9 +51,15 @@ function voiceOf(code: utinyint): utinyint {
     return 2;
 }
 
+// The volume the game asked for (0..15), the volume sounding now, and how much
+// a plucked tone loses a frame (0 for a plain tone).
+let level: utinyint = 15;
+let shown: utinyint = 15;
+let fade: utinyint = 0;
+
 function ensure(): void {
     if (!ready) {
-        sound.volume(15);
+        sound.volume(level);
         ready = true;
     }
 }
@@ -105,6 +111,9 @@ export namespace audio {
     // Replaces whatever tone is sounding. Nothing blocks.
     function tone(note: utinyint, frames: utinyint): void {
         ensure();
+        fade = 0;
+        shown = level;
+        sound.volume(level);
         sound.tone(2, periodOf(note));
         sfxLeft = frames;
         if (frames == 0) {
@@ -115,6 +124,46 @@ export namespace audio {
     function silence(): void {
         sound.quiet();
         sfxLeft = 0;
+        fade = 0;
+    }
+
+    // The VIC-I has one volume, 0 (silent) to 15 for every voice; a level above
+    // the maximum is the maximum.
+    const LEVEL_MAX: utinyint = 15;
+
+    function setLevel(amount: utinyint): void {
+        level = amount;
+        if (level > 15) {
+            level = 15;
+        }
+        shown = level;
+        fade = 0;
+        ensure();
+        sound.volume(level);
+    }
+
+    // A plucked tone: the chip has no envelope, so the volume is walked down a
+    // step a frame (in update) until it reaches 0 on the last frame.
+    function blip(note: utinyint, frames: utinyint): void {
+        ensure();
+        let span: utinyint = frames;
+        if (span == 0) {
+            span = 1;
+        }
+        let rest: utinyint = level;
+        fade = 0;
+        while (rest > 0) {
+            fade = fade + 1;
+            if (rest > span) {
+                rest = rest - span;
+            } else {
+                rest = 0;
+            }
+        }
+        shown = level;
+        sound.volume(level);
+        sound.tone(2, periodOf(note));
+        sfxLeft = span;
     }
 
     function play(slot: utinyint): void {
@@ -137,6 +186,16 @@ export namespace audio {
             sfxLeft = sfxLeft - 1;
             if (sfxLeft == 0) {
                 sound.quiet();
+                fade = 0;
+                shown = level;
+                sound.volume(level);
+            } else if (fade != 0) {
+                if (shown > fade) {
+                    shown = shown - fade;
+                } else {
+                    shown = 0;
+                }
+                sound.volume(shown);
             }
             return;
         }

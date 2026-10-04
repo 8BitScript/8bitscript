@@ -25,6 +25,12 @@ function waveOf(code: utinyint): utinyint {
     return 0;
 }
 
+// The volume the game asked for (0..15), the volume sounding now, and how much
+// a plucked tone loses a frame (0 for a plain tone).
+let level: utinyint = 15;
+let shown: utinyint = 15;
+let fade: utinyint = 0;
+
 function ensure(): void {
     if (!ready) {
         psg.reset();
@@ -79,7 +85,7 @@ export namespace audio {
         if (sfxLen[slot] < 2) {
             return;
         }
-        psg.play(0, sfx[1], waveOf(sfx[0]), 15);
+        psg.play(0, sfx[1], waveOf(sfx[0]), level);
         sfxLeft = 8;
     }
 
@@ -87,7 +93,9 @@ export namespace audio {
     // silence. Replaces whatever tone is sounding. Nothing blocks.
     function tone(note: utinyint, frames: utinyint): void {
         ensure();
-        psg.play(0, note, 0, 15);
+        fade = 0;
+        shown = level;
+        psg.play(0, note, 0, level);
         sfxLeft = frames;
         if (frames == 0) {
             sfxLeft = 1;
@@ -99,6 +107,43 @@ export namespace audio {
             psg.silence(0);
         }
         sfxLeft = 0;
+        fade = 0;
+    }
+
+    // The PSG's volume is 64 steps; the portable level is 16 of them, 0 (silent)
+    // to 15. A level above the maximum is the maximum.
+    const LEVEL_MAX: utinyint = 15;
+
+    function setLevel(amount: utinyint): void {
+        level = amount;
+        if (level > 15) {
+            level = 15;
+        }
+        shown = level;
+        fade = 0;
+    }
+
+    // A plucked tone: the PSG has no envelope, so the voice's volume is walked
+    // down a step a frame (in update) until it reaches 0 on the last frame.
+    function blip(note: utinyint, frames: utinyint): void {
+        ensure();
+        let span: utinyint = frames;
+        if (span == 0) {
+            span = 1;
+        }
+        let rest: utinyint = level;
+        fade = 0;
+        while (rest > 0) {
+            fade = fade + 1;
+            if (rest > span) {
+                rest = rest - span;
+            } else {
+                rest = 0;
+            }
+        }
+        shown = level;
+        psg.play(0, note, 0, level);
+        sfxLeft = span;
     }
 
     function music(slot: utinyint): void {
@@ -112,6 +157,14 @@ export namespace audio {
             sfxLeft = sfxLeft - 1;
             if (sfxLeft == 0) {
                 psg.silence(0);
+                fade = 0;
+            } else if (fade != 0) {
+                if (shown > fade) {
+                    shown = shown - fade;
+                } else {
+                    shown = 0;
+                }
+                psg.setVolume(0, shown);
             }
             return;
         }
@@ -129,7 +182,7 @@ export namespace audio {
         tick = 0;
         let note: utinyint = eventAt(row, 1);
         if (note != 255) {
-            psg.play(0, note, waveOf(eventAt(row, 2)), 15);
+            psg.play(0, note, waveOf(eventAt(row, 2)), level);
         } else {
             psg.silence(0);
         }
