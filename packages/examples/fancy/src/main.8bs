@@ -114,7 +114,7 @@
 import { screen } from "@8bitscript/screen";
 import { text, TextColor } from "@8bitscript/text";
 import { raster, Slot } from "@8bitscript/raster";
-import { Video } from "@8bitscript/system";
+import { Video, System } from "@8bitscript/system";
 import { audio } from "@8bitscript/audio";
 import { graphics } from "@8bitscript/graphics";
 import { chime } from "./chime.8ba";
@@ -127,6 +127,18 @@ import { Mark } from "./Mark.8bx";
 const HAS_RASTER: bool = #fact(video.raster);
 const BANDS: bool = raster.COLORS;   // this demo's colour bands: BORDER/BACKGROUND
 const WOBBLES: bool = raster.FINE_SCROLL;
+
+// The C64's sprite layer builds its frame through the raster list:
+// graphics.update() does raster.clear(), the plan, raster.commit() every
+// call, so a program that built its own list once with raster.at() and
+// then calls it each frame loses the whole list on the first frame — the
+// bands and the wobble vanished from this example for exactly that reason
+// from the four-pillars release until now (packages/c64/AGENTS.md,
+// "graphics.update() and a raster list of your own"). Mark is a still
+// picture, so on the C64 it is published once, before the list is built,
+// and the loop leaves update() alone; every other machine publishes each
+// frame as before (the X16 and the web keep a list across update()).
+// (Spelled inline below: `#system() == System.C64` folds in an `if`, but is not a global initializer.)
 
 // This machine's row width, so cell = y * ROW + x. A bare const name is
 // the only thing besides a literal that a global initializer may be, so
@@ -242,6 +254,9 @@ function drawScreen(): void {
 export function main(): void {
     screen.blank();
     Mark();
+    if (#system() == System.C64) {
+        graphics.update();
+    }
     audio.play(chime);
     drawScreen();
 
@@ -285,7 +300,9 @@ export function main(): void {
         // this is the only thing on screen that moves.
         frames++;
         text.printNumber(frameCell, frames, 5);
-        graphics.update();
+        if (#system() != System.C64) {
+            graphics.update();
+        }
         audio.update();
     }
 }
