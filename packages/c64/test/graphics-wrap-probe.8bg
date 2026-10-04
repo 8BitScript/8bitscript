@@ -1,0 +1,13 @@
+// For graphics-wrap-probe.8bs: a marker that proves sprites draw with the
+// vertical border open, and a full-size sprite placed at a y that would wrap.
+sprite marker {
+  source "./graphics-probe-corner.png"
+  size 8x8
+  transparent auto
+}
+
+sprite huge {
+  source "./graphics-probe-wide.png"
+  size 24x21
+  transparent auto
+}

@@ -1,0 +1,22 @@
+// A 16-bit stage y near 65535 plus the playfield's 50-line offset wraps to a
+// small number. With the border closed that lands in the top border, where a
+// sprite is hidden anyway; with sprites.extend(true) the top border is open
+// and a wrapped sprite would show there. graphics.place hides it instead.
+// The marker, at y = 100, shows the open-border build draws sprites at all.
+import { screen } from "@8bitscript/screen";
+import { graphics } from "@8bitscript/graphics";
+import { sprites } from "@8bitscript/sprites";
+import { marker, huge } from "./graphics-wrap-probe.8bg";
+
+export function main(): void {
+    screen.blank();
+    sprites.extend(true);
+    graphics.place(marker, 100, 100);
+    // 65500 + 50 is 14 in 16 bits: chip y 14, lines 15-35 — inside the open
+    // top border from line 30.
+    graphics.place(huge, 100, 65500);
+    while (true) {
+        waitFrame();
+        graphics.update();
+    }
+}

@@ -1,0 +1,134 @@
+// The sprites graphics-ops-probe.8bs places: two four-frame walkers (one
+// paused by setFrame/animate, one paused then resumed), a marker that is
+// hidden and placed again, one that stays hidden, one that is recoloured,
+// ten staircase dots (more than eight, so the multiplexer reuses hardware
+// sprites; two of them are recoloured), and three full-size sprites at the
+// playfield's right, bottom and past-the-bottom edges. The PNGs are the ones
+// graphics-probe.8bg uses (graphics-probe-assets.mjs makes them).
+sprite stepper {
+  source "./graphics-probe-walker.png"
+  size 16x16
+  transparent auto
+  animation walk {
+    frames 0, 1, 2, 3
+    every 2
+  }
+}
+
+sprite runner {
+  source "./graphics-probe-walker.png"
+  size 16x16
+  transparent auto
+  animation walk {
+    frames 0, 1, 2, 3
+    every 2
+  }
+}
+
+sprite mover {
+  source "./graphics-probe-corner.png"
+  size 8x8
+  transparent auto
+}
+
+sprite gone {
+  source "./graphics-probe-dot-red.png"
+  size 8x8
+  transparent auto
+}
+
+sprite recol {
+  source "./graphics-probe-dot-green.png"
+  size 8x8
+  transparent auto
+}
+
+sprite s0 {
+  source "./graphics-probe-dot-red.png"
+  size 8x8
+  transparent auto
+}
+
+sprite s1 {
+  source "./graphics-probe-dot-green.png"
+  size 8x8
+  transparent auto
+}
+
+sprite s2 {
+  source "./graphics-probe-dot-red.png"
+  size 8x8
+  transparent auto
+}
+
+sprite s3 {
+  source "./graphics-probe-dot-green.png"
+  size 8x8
+  transparent auto
+}
+
+sprite s4 {
+  source "./graphics-probe-dot-red.png"
+  size 8x8
+  transparent auto
+}
+
+sprite s5 {
+  source "./graphics-probe-dot-green.png"
+  size 8x8
+  transparent auto
+}
+
+sprite s6 {
+  source "./graphics-probe-dot-red.png"
+  size 8x8
+  transparent auto
+}
+
+sprite s7 {
+  source "./graphics-probe-dot-green.png"
+  size 8x8
+  transparent auto
+}
+
+sprite s8 {
+  source "./graphics-probe-dot-red.png"
+  size 8x8
+  transparent auto
+}
+
+sprite s9 {
+  source "./graphics-probe-dot-green.png"
+  size 8x8
+  transparent auto
+}
+
+sprite edgeRight {
+  source "./graphics-probe-wide.png"
+  size 24x21
+  transparent auto
+}
+
+sprite edgeBottom {
+  source "./graphics-probe-wide.png"
+  size 24x21
+  transparent auto
+}
+
+sprite edgeBelow {
+  source "./graphics-probe-wide.png"
+  size 24x21
+  transparent auto
+}
+
+sprite edgeFar {
+  source "./graphics-probe-wide.png"
+  size 24x21
+  transparent auto
+}
+
+sprite edgeHuge {
+  source "./graphics-probe-wide.png"
+  size 24x21
+  transparent auto
+}

@@ -1,0 +1,47 @@
+// Twelve graphics sprites (the multiplexer reuses hardware sprites for four
+// of them) and a portable raster list in the same frame: the border is
+// yellow from picture line 100 to 149 and black above and below, with
+// extra entries to make the list busy. graphics.update() clears and commits
+// the list itself, so a program that wants entries of its own in the same
+// list builds the frame the way @8bitscript/sprites documents: clear, the
+// sprite plan, its own entries with raster.insert, one commit.
+import { screen } from "@8bitscript/screen";
+import { graphics } from "@8bitscript/graphics";
+import { sprites } from "@8bitscript/sprites";
+import { raster, Slot } from "@8bitscript/raster";
+import { walker, wide, corner, dot0, dot1, dot2, dot3, dot4, dot5, dot6, dot7, dot8, dot9, dot10, dot11 } from "./graphics-probe.8bg";
+
+const YELLOW: utinyint = 7;
+
+export function main(): void {
+    screen.blank();
+    graphics.place(dot0, 16, 90);
+    graphics.place(dot1, 36, 98);
+    graphics.place(dot2, 56, 106);
+    graphics.place(dot3, 76, 114);
+    graphics.place(dot4, 96, 122);
+    graphics.place(dot5, 116, 130);
+    graphics.place(dot6, 136, 138);
+    graphics.place(dot7, 156, 146);
+    graphics.place(dot8, 176, 154);
+    graphics.place(dot9, 196, 162);
+    graphics.place(dot10, 216, 170);
+    graphics.place(dot11, 236, 178);
+    let armed: bool = false;
+    while (true) {
+        waitFrame();
+        graphics.step();
+        raster.clear();
+        sprites.plan();
+        raster.insert(10, Slot.BORDER, 0);
+        raster.insert(20, Slot.BORDER, 0);
+        raster.insert(100, Slot.BORDER, YELLOW);
+        raster.insert(150, Slot.BORDER, 0);
+        if (armed) {
+            raster.commit();
+        } else {
+            raster.enable();
+            armed = true;
+        }
+    }
+}

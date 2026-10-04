@@ -154,7 +154,11 @@ test('the glyph path keeps as many animation steps as the default lowering emits
 
 test('place() takes playfield pixels: the C64 twin adds the sprite layer\'s origin, the others hand the position on as it is', () => {
   const c64 = readFileSync(join(SRC, 'index.c64.8bs'), 'utf8');
-  assert.match(c64, /sprites\.place\(slot, x \+ sprites\.ORIGIN_X, y \+ sprites\.ORIGIN_Y\);/);
+  // The y goes in as the chip's (origin added) unless the position is past the
+  // playfield, when it is the sprite layer's "not drawn" (graphics-ops.test.mjs
+  // under packages/c64/test measures both).
+  assert.match(c64, /let chipY: usmallint = y \+ sprites\.ORIGIN_Y;/);
+  assert.match(c64, /sprites\.place\(slot, x \+ sprites\.ORIGIN_X, chipY\);/);
   for (const file of ['index.8bs', 'index.pet.8bs', 'index.web.8bs']) {
     const code = readFileSync(join(SRC, file), 'utf8').split('\n').filter((line) => !line.trim().startsWith('//')).join('\n');
     assert.doesNotMatch(code, /ORIGIN_[XY]/, `${file}: the origin is 0 on a cell machine, nothing to add`);

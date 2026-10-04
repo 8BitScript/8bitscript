@@ -14,6 +14,16 @@ import { multiplex } from "@8bitscript/c64/multiplex";
 
 const SLOTS: utinyint = multiplex.MAX;
 const BYTES: utinyint = 63;
+// The stage x of the first pixel past the playfield (40 columns of 8). A
+// sprite that starts there or further right is wholly in the right border;
+// handing the chip its X anyway would let a sum of 512 or more wrap around
+// the 9-bit register and draw it in the middle of the picture.
+const PLAYFIELD_WIDTH: usmallint = 320;
+// The last stage y the sprite chip can be given: its y register is a byte
+// and 255 means hidden, so 254 less the playfield's 50-line offset. Past it
+// a sprite starts below the picture, and the sum would also wrap a 16-bit y
+// near 65535 back to a small number and draw it at the top.
+const LAST_Y: usmallint = 204;
 let frameCount: array<u8, 24>;
 let interval: array<u8, 24>;
 let tick: array<u8, 24>;
@@ -83,8 +93,14 @@ export namespace graphics {
         }
         ensure();
         // Stage pixels in, sprite-chip coordinates out: the layer's origin
-        // is where the playfield's top-left corner sits in them.
-        sprites.place(slot, x + sprites.ORIGIN_X, y + sprites.ORIGIN_Y);
+        // is where the playfield's top-left corner sits in them. A y of 255
+        // or more is the sprite layer's "not drawn" (sprites.place), so a
+        // position past the playfield is sent there instead of to the chip.
+        let chipY: usmallint = y + sprites.ORIGIN_Y;
+        if (x >= PLAYFIELD_WIDTH || y > LAST_Y) {
+            chipY = 255;
+        }
+        sprites.place(slot, x + sprites.ORIGIN_X, chipY);
     }
 
     function hide(slot: utinyint): void {
@@ -129,7 +145,20 @@ export namespace graphics {
         sprites.setColor(slot, c);
     }
 
-    function update(): void {
+    // C64 only, not part of the portable contract: advance every playing
+    // animation one step, and nothing else. update() is this plus the
+    // sprite layer's whole frame (it clears, plans and commits the raster
+    // list); a program that wants raster entries of its own in the same
+    // list calls step() and builds the frame itself —
+    //
+    //     graphics.step();
+    //     raster.clear();
+    //     sprites.plan();
+    //     raster.insert(line, Slot.BORDER, color);  // its own entries
+    //     raster.commit();
+    //
+    // — which is the one-commit order measured clean (docs/project/graphics.md).
+    function step(): void {
         if (!started) {
             return;
         }
@@ -147,6 +176,13 @@ export namespace graphics {
                 sprites.setShape(slot, baseBlock(slot) + frame[slot]);
             }
         }
+    }
+
+    function update(): void {
+        if (!started) {
+            return;
+        }
+        graphics.step();
         sprites.update();
     }
 }
