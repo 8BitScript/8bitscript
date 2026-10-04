@@ -41,6 +41,7 @@ const RANGES = {
   vic20: { file: 'index.vic20.8bs', low: 36, high: 71 },
   c64: { file: 'index.c64.8bs', low: 0, high: 83 },
   cx16: { file: 'index.cx16.8bs', low: 36, high: 95 },
+  web: { file: 'index.web.8bs', low: 24, high: 95 },
   nes: { file: 'index.nes.8bs', low: 0, high: 0 },
   atari8: { file: 'index.atari8.8bs', low: 0, high: 0 },
 };

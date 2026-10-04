@@ -23,6 +23,7 @@
     "@8bitscript/nes": "workspace:*",
     "@8bitscript/pet": "workspace:*",
     "@8bitscript/vic20": "workspace:*",
+    "@8bitscript/web": "workspace:*",
     "@8bitscript/cx16": "workspace:*",
     "@8bitscript/system": "workspace:*"
   },
