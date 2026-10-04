@@ -36,7 +36,29 @@ export namespace entropy {
         return random.byte();
     }
 
+    // Exactly uniform over the oscillator's bytes: the incomplete last
+    // block is rejected and the register read again (./index.8bs explains
+    // why). Reads a few cycles apart are not independent samples of the
+    // noise — this is entropy for a seed or a shuffle, not a source of
+    // statistics — but no outcome is favoured by the arithmetic.
     function range(bound: utinyint): utinyint {
-        return random.byte() % bound;
+        let limit: utinyint = 0 - bound;
+        let value: utinyint = random.byte();
+        let rest: utinyint = value % bound;
+        while (value - rest > limit) {
+            value = random.byte();
+            rest = value % bound;
+        }
+        return rest;
+    }
+
+    // The top `count` bits of one oscillator byte (1 to 8): a value from 0
+    // up to 2^count, no rejection.
+    function bits(count: utinyint): utinyint {
+        let value: utinyint = random.byte();
+        for (let i: utinyint = count; i < 8; i++) {
+            value = value >> 1;
+        }
+        return value;
     }
 }
