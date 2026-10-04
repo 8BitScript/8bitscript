@@ -288,6 +288,12 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
   var HOST_TOUCH = ${HostStatus.TOUCH};
   var HOST_NO_KEYBOARD = ${HostStatus.NO_KEYBOARD};
   var COLOR_PER_CELL = ${layout.colorPerCell !== false};
+  // A machine whose chip registers are bytes of the program's own memory
+  // (web-layout.mjs REAL_MACHINE_LAYOUT.c64): null for every other host. When
+  // set, the border, background, scroll and live character set come from the
+  // registers it names and every glyph from the character RAM, the VIC-II's
+  // own way (web-scanline.mjs renderFrame is the tested copy of this).
+  var VIC = ${JSON.stringify(layout.vic ?? null)};
   var ASPECT = ${JSON.stringify(layout.aspect ?? '16/9')};
   // How much wider than tall one drawn pixel really is on the machine
   // this layout is for — 1 (square) unless web-layout.mjs's own
@@ -440,8 +446,8 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
   function rowState(entries, row, base) {
     var border = base.border;
     var background = base.background;
-    var scrollX = 0;
-    var charset = 0;
+    var scrollX = base.scrollX || 0;
+    var charset = base.charset || 0;
     for (var i = 0; i < entries.length; i += 1) {
       var entry = entries[i];
       if (entry.line > row) break;
@@ -500,7 +506,12 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
     }
     var rgba = imageData.data;
     var palette = paletteRgb();
-    var base = {
+    var base = VIC ? {
+      border: mem[VIC.borderRegister] & 15,
+      background: mem[VIC.backgroundRegister] & 15,
+      scrollX: mem[VIC.scrollRegister] & 7,
+      charset: (mem[VIC.selectRegister] & VIC.selectMask) !== 0 ? 1 : 0,
+    } : {
       border: COLOR_PER_CELL ? mem[0] & 15 : 0,
       background: COLOR_PER_CELL ? mem[1] & 15 : 0,
     };
@@ -535,8 +546,17 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
           var col = (srcX - gx) / CHAR_W;
           var cell = cellRow * GRID_COLS + col;
           var colorByte = mem[COLOR_BASE + cell];
-          var reverse = (colorByte & 128) !== 0;
           var raw = mem[CHAR_BASE + cell];
+          if (VIC) {
+            // The character RAM, set by set: eight bytes a glyph, bit 7 the
+            // leftmost pixel, the colour RAM's low four bits the ink.
+            var vicAt = VIC.charsetBase + (state.charset === 1 ? VIC.setStride : 0) + raw * 8 + glyphY;
+            ink = ((mem[vicAt] >> (7 - gx)) & 1) !== 0 ? palette[colorByte & 15] : backgroundInk;
+            var vi = offset + (border + x) * 4;
+            rgba[vi] = ink[0]; rgba[vi + 1] = ink[1]; rgba[vi + 2] = ink[2]; rgba[vi + 3] = 255;
+            continue;
+          }
+          var reverse = (colorByte & 128) !== 0;
           var glyph = glyphs[raw] || null;
           var bits = glyph === null ? 0 : glyph[glyphY];
           // A redefined glyph (any of its eight rows nonzero) wins over the
@@ -634,6 +654,7 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
     if (next.audioBase != null) AUDIO_BASE = next.audioBase;
     if (next.rasterMaxEntries != null) RASTER_MAX_ENTRIES = next.rasterMaxEntries;
     if (typeof next.colorPerCell === 'boolean') COLOR_PER_CELL = next.colorPerCell;
+    if (next.vic !== undefined) VIC = next.vic;
     if (next.aspect) ASPECT = next.aspect;
     if (typeof next.pixelAspect === 'number' && next.pixelAspect > 0) PIXEL_ASPECT = next.pixelAspect;
     if (next.palette && next.palette.length) COLORS = next.palette;

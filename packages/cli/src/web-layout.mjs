@@ -437,6 +437,41 @@ const REAL_MACHINE_LAYOUT = {
   // being no real address to be faithful to either way. memoryFor is a
   // deliberate no-op: the geometry this function already computed below
   // is exactly where those twins put it.
+  // The C64's chips are bytes of the program's own memory on this rail, and
+  // the page reads the ones it needs from where a real VIC-II would: the screen
+  // matrix at $E000 and colour RAM at $D800 (packages/c64/src/geometry.8bs),
+  // the border and background at $D020/$D021, the horizontal fine scroll at
+  // $D016, which of the character RAM's two sets is live at $D018 bit 1, and
+  // every glyph out of the character RAM — eight bytes a glyph, bit 7 the
+  // leftmost pixel — which the web twin of setupVideo() fills with the
+  // character ROM and a program redefines with @8bitscript/c64/charset. The
+  // RAM is at $C000 here, not the machine's $D000: that is under the I/O area
+  // on the machine and the chips' own registers in flat memory
+  // (packages/c64/src/geometry.c64.web.8bs says why). So
+  // there is no font id here: the glyphs a cell draws are whatever the program
+  // holds, reversed copies (codes 128-255) included. Not modelled yet, and said
+  // so in packages/c64/AGENTS.md: sprites, bitmap and multicolour modes, ECM,
+  // the 38-column/24-row windows, the screen's position within its bank (the
+  // screen is always $E000), and the VIC bank itself.
+  c64: {
+    palette: C64_PALETTE,
+    colorPerCell: true,
+    aspect: '4/3',
+    memoryFor: () => ({ charBase: 0xe000, colorBase: 0xd800 }),
+    // Memory the page reads that no pinned global names: the character RAM,
+    // which the web twin of setupVideo() fills and a program redefines. The
+    // backend refuses a build whose data would reach into it.
+    reservedRanges: [{ start: 0xc000, end: 0xd000, label: "the C64's character RAM" }],
+    vic: {
+      charsetBase: 0xc000,
+      setStride: 0x800,
+      selectRegister: 0xd018,
+      selectMask: 0x02,
+      borderRegister: 0xd020,
+      backgroundRegister: 0xd021,
+      scrollRegister: 0xd016,
+    },
+  },
   cx16: {
     palette: C64_PALETTE, // VERA's default palette is the C64's sixteen colors, same order (screen.8bs's own header)
     colorPerCell: true,
@@ -472,11 +507,9 @@ export function layoutForRealMachine(target, hardware = {}) {
     resizable: false,
     pixelAspect,
   });
-  // No entry yet for this target (c64 — still blocked on its own asm6502
-  // walls, per the design doc's build tracker): geometry only, same
-  // synthetic charBase as before this function existed. Not correct for a
-  // real build either, but no *more* wrong than layoutFromHardware
-  // already was, and there is nothing target-specific to substitute yet.
+  // No entry for this target: geometry only, the synthetic charBase. Not
+  // correct for a real build, but no *more* wrong than layoutFromHardware
+  // already was, and there is nothing target-specific to substitute.
   if (!real) return geometry;
   const cells = geometry.cols * geometry.rows;
   return {
@@ -486,6 +519,8 @@ export function layoutForRealMachine(target, hardware = {}) {
     // (vic20 today) keeps agreementFor()'s own default ASCII font rather
     // than crashing here for want of a glyphsFor.
     ...(real.glyphsFor?.(facts) ?? {}),
+    ...(real.vic ? { vic: real.vic } : {}),
+    ...(real.reservedRanges ? { reservedRanges: real.reservedRanges } : {}),
   };
 }
 
@@ -518,6 +553,7 @@ export function sidecarJson(layout = DEFAULT_LAYOUT) {
     aspect: layout.aspect,
     colorPerCell: layout.colorPerCell,
     pixelAspect: layout.pixelAspect,
+    vic: layout.vic ?? null,
   };
 }
 

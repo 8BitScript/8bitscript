@@ -152,6 +152,13 @@ export interface BuildOptions {
    * refused. Defaults to `false` so a caller that says nothing keeps the
    * synthetic target's own rule. */
   allowPinnedScalars?: boolean;
+  /** Runs of linear memory a real machine's page reads that no pinned global
+   * names — the C64 web build's character RAM, say, which the program's own
+   * stores fill and the page draws glyphs from. The data section is placed
+   * from `reserved` upward and may not reach into one: a build whose data
+   * would is refused by name, the same way data under a pinned array is,
+   * instead of reading a string literal back as a glyph. */
+  reservedRanges?: { start: number; end: number; label: string }[];
 }
 
 /** One named piece of the module `options.report` breaks a build's own size down into — mirrors mos/index.ts's own SizeReportEntry. */
@@ -371,6 +378,11 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
     }
     arrayIndex.set(p.name, { address: p.address, elementWidth: p.elementWidth, mutable: true });
     pinnedEnd = Math.max(pinnedEnd, end);
+  }
+  for (const r of options.reservedRanges ?? []) {
+    if (cursor > dataStart && r.start < cursor && r.end > dataStart) {
+      return { ok: false, error: `the program's own data (${dataStart}..${cursor}) would reach into ${r.label} (${r.start}..${r.end}) — more data than this machine's free memory below it holds` };
+    }
   }
   // MEMORY_PAGES stays the floor; a program whose own data outgrows one
   // page gets exactly as many more as its own layout needs, rounded up —

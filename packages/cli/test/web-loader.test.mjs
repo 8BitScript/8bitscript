@@ -145,11 +145,12 @@ test('layoutForRealMachine: PET keeps its real $8000 screen address and its own 
   // this guarded for real, not just observed to hold today.
   assert.ok(dataBaseFor(layout.reservedEnd) < layout.charBase, 'PET screen RAM sits past this build\'s own data section');
 
-  // c64 has no entry yet (still blocked on its own asm6502 walls) —
-  // geometry only, same as calling layoutFromHardware would have given,
-  // not a crash and not a silently wrong charBase of 0x8000.
-  const noEntryYet = layoutForRealMachine('c64', { facts: { 'video.columns': 40, 'video.rows': 25 } });
-  assert.notEqual(noEntryYet.charBase, 0x8000);
+  // A machine with no entry at all gets geometry only, as
+  // layoutFromHardware would have given — not a crash and not a silently
+  // wrong charBase of 0x8000 (c64 has had its own entry since its wasm port).
+  const noEntry = layoutForRealMachine('atari8', { facts: { 'video.columns': 40, 'video.rows': 25 } });
+  assert.notEqual(noEntry.charBase, 0x8000);
+  assert.equal(noEntry.vic, undefined);
 });
 
 test('layoutForRealMachine: a later (non-swapped) PET model gets its own captured ROM too, not the 2001\'s and not the shared ASCII fallback', () => {
@@ -607,6 +608,52 @@ test('the loader splits a tall resizable grid below line 255, identically to ren
   assert.deepEqual(framePixel(frame, 0, BORDER_PX + 299), rgb[2]);
   assert.deepEqual(framePixel(frame, 0, BORDER_PX + 300), rgb[5]);
   assert.deepEqual(framePixel(frame, BORDER_PX + 100, BORDER_PX + 300), rgb[6]);
+});
+
+// The C64's wasm build is painted out of the program's own memory the way a
+// VIC-II reads it: glyphs from the character RAM (layout.vic), the border and
+// background from $D020/$D021, the scroll from $D016, the live set from $D018
+// bit 1, and a raster list's CHARSET entry over it. The loader's inlined copy
+// has to paint exactly what renderFrame does for all of it.
+test("the loader paints the C64's register-driven picture, identically to renderFrame", () => {
+  const layout = layoutForRealMachine('c64', { facts: { 'video.columns': 40, 'video.rows': 25 } });
+  const vic = layout.vic;
+  const mem = new Uint8Array(65536);
+  // Two sets of recognisable glyphs: set 0 glyph 1 is a left-half block, set 1 glyph 1 a right-half block.
+  for (let row = 0; row < 8; row += 1) {
+    mem[vic.charsetBase + 8 + row] = 0xf0;
+    mem[vic.charsetBase + vic.setStride + 8 + row] = 0x0f;
+  }
+  mem[0xd020] = 14; // border: light blue
+  mem[0xd021] = 6; // background: blue
+  mem[0xd016] = 0xc8 | 3; // 40 columns, fine scroll 3 (only the low three bits count)
+  mem[0xd018] = 0x84; // set 0
+  for (let cell = 0; cell < 1000; cell += 1) {
+    const col = cell % 40;
+    mem[layout.charBase + cell] = col % 3 === 0 ? 1 : 32;
+    mem[layout.colorBase + cell] = (col % 16) | 0xf0; // the high nybble of colour RAM is not part of the colour
+  }
+  let frame = assertPaintParity(layout, mem);
+  const rgb = rgbPalette(layout.palette);
+  assert.deepEqual(framePixel(frame, 2, 2), rgb[14], 'the border is $D020');
+  // Cell 0 is glyph 1 in colour 0 (black): its left half is ink, shifted right by the scroll of 3.
+  assert.deepEqual(framePixel(frame, BORDER_PX + 3, BORDER_PX), rgb[0]);
+  assert.deepEqual(framePixel(frame, BORDER_PX + 3 + 4, BORDER_PX), rgb[6], 'the right half is the background');
+  assert.deepEqual(framePixel(frame, BORDER_PX, BORDER_PX), rgb[6], 'the scroll leaves the first columns background');
+
+  // $D018 bit 1 set: the other set. Cell 1 is a blank, so cell 3 (glyph 1, colour 3) shows the right half.
+  mem[0xd018] = 0x86;
+  frame = assertPaintParity(layout, mem);
+  assert.deepEqual(framePixel(frame, BORDER_PX + 3 + 8 * 3 + 4, BORDER_PX), rgb[3]);
+  assert.deepEqual(framePixel(frame, BORDER_PX + 3 + 8 * 3, BORDER_PX), rgb[6]);
+
+  // A raster CHARSET entry overrides the register from its line: back to set 0 below picture line 8.
+  storeEntry(mem, layout, 0, 8, Slot.CHARSET, 0);
+  mem[layout.rasterCountOffset] = 1;
+  mem[layout.rasterControlOffset] = 1;
+  frame = assertPaintParity(layout, mem);
+  assert.deepEqual(framePixel(frame, BORDER_PX + 3 + 8 * 3, BORDER_PX), rgb[6], 'above the entry: $D018\'s set 1');
+  assert.deepEqual(framePixel(frame, BORDER_PX + 3 + 8 * 3, BORDER_PX + 8), rgb[3], 'from the entry down: set 0');
 });
 
 // A CHARSET band switches the loader to its ALT_GLYPHS table at the same

@@ -38,6 +38,7 @@ import { encodePNG } from './png.mjs';
 import { runProgram } from './wasm-host.mjs';
 import { renderFrame, rgbPalette } from './web-scanline.mjs';
 import { BORDER_PX, DEFAULT_LAYOUT, layoutFromHardware } from './web-runtime.mjs';
+import { layoutForRealMachine } from './web-layout.mjs';
 
 function resolveBinary(command) {
   if (command.includes('/') || command.includes('\\')) return command;
@@ -411,7 +412,7 @@ async function nesScreenshot(outFile, screenshotPath, { frames, hardware = stock
 // 8x8 bitmap font the browser canvas stamps, and writes the result out
 // with png.mjs. Note --screenshot rasterizes ONE memory snapshot, so a
 // raster list a program animates frame to frame is captured mid-phase.
-async function webScreenshot(outFile, screenshotPath, { frames, frameRate = 60, hardware }) {
+async function webScreenshot(outFile, screenshotPath, { frames, frameRate = 60, hardware, machine }) {
   const bytes = await readFile(outFile);
   // The program runs until it returns or has taken --frames waitFrame()s
   // (the catalog's defaultFrames, 3 logical seconds at 60 Hz), whichever
@@ -422,7 +423,13 @@ async function webScreenshot(outFile, screenshotPath, { frames, frameRate = 60, 
   // keyboard.
   const { memory } = await runProgram(bytes, { frames: frames ?? emulatorFor('web').defaultFrames ?? frameRate * 3 });
 
-  const layout = hardware ? layoutFromHardware(hardware) : DEFAULT_LAYOUT;
+  // `machine` is a real machine's own name when this is its wasm build
+  // (`8bs run c64 --web --screenshot`): the same memory map the page uses to
+  // paint it (web-layout.mjs layoutForRealMachine), not the synthetic web
+  // host's.
+  const layout = machine
+    ? layoutForRealMachine(machine, hardware)
+    : (hardware ? layoutFromHardware(hardware) : DEFAULT_LAYOUT);
   const mem = new Uint8Array(memory.buffer);
   // On a resizable host the grid is whatever the host last wrote, and a
   // screenshot has no viewport to write one from — so these stay zero and the
@@ -562,6 +569,13 @@ const SCREENSHOT_KIND = {
 
 export async function captureScreenshot(target, outFile, screenshotPath, options = {}) {
   await rm(screenshotPath, { force: true });
+  // `options.web`: outFile is a real machine's wasm build (`8bs run <t> --web
+  // --screenshot`), captured through the same compositor the browser page
+  // uses rather than the machine's native emulator.
+  if (options.web && target !== 'web') {
+    await webScreenshot(outFile, screenshotPath, { ...options, machine: target });
+    return;
+  }
   let kind;
   try {
     kind = emulatorFor(target).screenshot;

@@ -108,7 +108,7 @@ are about, not as a reason to disable the whole panel.
 ```jsonc
 "runtime": {
   "native":       { "available": true,  "emulator": "x64sc", "installed": true, "reason": null },
-  "wasm":         { "available": false, "reason": "the C64 package pins arrays at fixed addresses (…), which it does not lower yet" },
+  "wasm":         { "available": true,  "reason": null, "limits": ["text mode only: sprites, bitmap, multicolour … are not drawn", "…"] },
   "wasmEmulator": { "available": false, "reason": "no real emulator is vendored as WebAssembly for this machine" },
   "boot":         { "available": true,  "reason": null }
 }
@@ -121,10 +121,14 @@ are about, not as a reason to disable the whole panel.
   in its `package.json`) and **held to the truth by a test** that builds a
   small program for every machine this release builds, through the wasm
   backend (`8bs build --web`): the claim and the build must agree. Today the
-  PET, VIC-20, X16 and web build and the C64 does not, because the wasm
-  backend does not lower an array pinned at a fixed address (`@address` on
-  an array — the C64's `screenRam`) yet. The extension used to keep a hand
+  PET, VIC-20, C64, X16 and web all build. The extension used to keep a hand
   set of "web-ready" machines; this replaces it.
+- `wasm.limits` is a list of plain sentences, the package's own, saying what
+  the page does not model yet (the C64's wasm build draws text mode only: no
+  sprites, bitmap or sound). A wasm build is a model of the machine, not the
+  machine, and a launcher should show the limits beside the button rather
+  than let a program that needs a sprite look broken. It is `[]` when the
+  package declares none, and always `[]` when `available` is false.
 - A machine this release does not build is unavailable in every runtime,
   with the reason `not built in this release`.
 

@@ -660,15 +660,15 @@ export async function run(args) {
   // Said once, before either route — the PET has no region (PET_REGION_NOTE).
   if (target === 'pet' && pal) process.stderr.write(PET_REGION_NOTE);
 
-  // --screenshot already ignores --web entirely for every target (it never
-  // reads `web` below) and always captures through that target's own
-  // native emulator API — cx16's vendored x16emu wasm build has never been
-  // part of that path either. A real machine's wasm build follows the same
-  // rule: --web only changes what compile() produces when this run is
-  // actually going to open a browser tab with it. --x16emu (cx16 only)
-  // keeps compile() building the native .prg instead, for the vendored
-  // emulator branch further down to load.
-  const buildForWeb = web && !(target === 'cx16' && x16emu) && !screenshotPath;
+  // --web builds the wasm either way; what --screenshot adds is which
+  // picture it takes. Without --web, it is the target's own native emulator's.
+  // With --web, it is the wasm build's: run for --frames waitFrame()s in
+  // Node's WebAssembly, then painted by the same per-scanline compositor and
+  // memory map the browser page uses (screenshot.mjs captureScreenshot) — the
+  // way to see, headlessly, what the editor's WASM tab and the external
+  // browser will show. --x16emu (cx16 only) keeps compile() building the
+  // native .prg instead, for the vendored emulator branch further down.
+  const buildForWeb = web && !(target === 'cx16' && x16emu);
   const { ok, outFile, frameRate, hardware } = await compile(target, entry, {
     pal, profile: launch.profile, hardware: launch.overrides, report, checkout: checkout.checkout,
     program: programOpt.program, locale: localeOpt.locale, web: buildForWeb, defines: defineOpt.defines,
@@ -679,7 +679,7 @@ export async function run(args) {
     const { captureScreenshot } = await import('./screenshot.mjs');
     try {
       await captureScreenshot(target, outFile, screenshotPath, {
-        pal, hardware, frames, frameRate,
+        pal, hardware, frames, frameRate, web: buildForWeb,
       });
     } catch (err) {
       process.stderr.write(`${err.message}\n`);

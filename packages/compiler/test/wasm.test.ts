@@ -557,6 +557,69 @@ test('program data that would sit under a pinned array is refused, not silently 
   }
 });
 
+// `array[i + 250]` with an 8-bit `i` is the 6502 backend's constant-offset
+// form (mos/lower/index.ts splitIndexOffset): the 250 belongs to the array's
+// address, so the store lands 250 + i bytes in and does not wrap at 255 back to
+// the array's start. The C64's and VIC-20's screen.blank() are written in that
+// shape, and the same program has to mean the same thing on this rail — a
+// blank that wrote 255 cells and then wrapped left the rest of the C64 screen
+// full of '@'.
+test('array[i + C] with an 8-bit index folds the constant into the address and does not wrap at 255', async () => {
+  const globals: IrGlobal[] = [{ name: 'big', type: 'utinyint', address: null, array: 1000, constant: false, init: null }];
+  const index = add(ref('i', 'utinyint'), num(250, 'utinyint'), 'utinyint');
+  const main: IrFunction = {
+    name: 'main',
+    returnType: 'utinyint',
+    body: [
+      { kind: 'local', name: 'i', type: 'utinyint', init: num(10, 'utinyint') },
+      { kind: 'storeIndex', array: { kind: 'ref', name: 'big' }, index, value: num(77, 'utinyint'), elementType: 'utinyint' },
+      { kind: 'return', value: { kind: 'index', array: { kind: 'ref', name: 'big' }, index, elementType: 'utinyint', type: 'utinyint' } },
+    ],
+  };
+  const { value, memory } = await execute(main, globals, '8bs-web-native-');
+  assert.equal(value, 77);
+  // The data section starts at its floor, 8192, and `big` is its first array.
+  assert.equal(memory[8192 + 260], 77, 'the store landed 250 + 10 bytes into the array');
+  assert.equal(memory[8192 + 4], 0, 'and did not wrap to (10 + 250) mod 256');
+});
+
+test('array[C + i] folds the same way, and a two-byte element doubles the constant', async () => {
+  const globals: IrGlobal[] = [{ name: 'words', type: 'usmallint', address: null, array: 400, constant: false, init: null }];
+  const index = add(num(200, 'utinyint'), ref('i', 'utinyint'), 'utinyint');
+  const main: IrFunction = {
+    name: 'main',
+    returnType: 'usmallint',
+    body: [
+      { kind: 'local', name: 'i', type: 'utinyint', init: num(100, 'utinyint') },
+      { kind: 'storeIndex', array: { kind: 'ref', name: 'words' }, index, value: num(0x1234, 'usmallint'), elementType: 'usmallint' },
+      { kind: 'return', value: { kind: 'index', array: { kind: 'ref', name: 'words' }, index, elementType: 'usmallint', type: 'usmallint' } },
+    ],
+  };
+  const { value, memory } = await execute(main, globals, '8bs-web-native-');
+  assert.equal(value, 0x1234);
+  // Element 300 of two bytes: byte 600 of the array, not element 44 ((100 + 200) mod 256).
+  assert.equal(memory[8192 + 600], 0x34);
+  assert.equal(memory[8192 + 601], 0x12);
+  assert.equal(memory[8192 + 88], 0);
+});
+
+test('a 16-bit index plus a constant is still the index as written, not split', async () => {
+  const globals: IrGlobal[] = [{ name: 'big', type: 'utinyint', address: null, array: 1000, constant: false, init: null }];
+  const index = add(ref('i', 'usmallint'), num(250, 'utinyint'), 'usmallint');
+  const main: IrFunction = {
+    name: 'main',
+    returnType: 'utinyint',
+    body: [
+      { kind: 'local', name: 'i', type: 'usmallint', init: num(300, 'usmallint') },
+      { kind: 'storeIndex', array: { kind: 'ref', name: 'big' }, index, value: num(5, 'utinyint'), elementType: 'utinyint' },
+      { kind: 'return', value: { kind: 'index', array: { kind: 'ref', name: 'big' }, index, elementType: 'utinyint', type: 'utinyint' } },
+    ],
+  };
+  const { value, memory } = await execute(main, globals, '8bs-web-native-');
+  assert.equal(value, 5);
+  assert.equal(memory[8192 + 550], 5);
+});
+
 test('a `let` array global round-trips through storeIndex and index at its own linear-memory home (0.2.2)', async () => {
   const globals: IrGlobal[] = [{ name: 'arr', type: 'utinyint', address: null, array: 4, constant: false, init: null }];
   const main: IrFunction = {

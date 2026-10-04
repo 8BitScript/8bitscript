@@ -1,0 +1,135 @@
+// geometry.8bs's own `.web` twin — build.mjs's internal `web` tag resolves this
+// in place of geometry.8bs whenever this package builds through the wasm
+// backend (`8bs build --target c64 --web`).
+//
+// Identical to geometry.8bs in everything but one number: where the
+// character RAM sits. On the machine it is the RAM *under* the I/O area at
+// $D000-$DFFF — a second 4K the CPU reaches by banking the I/O out — and the
+// VIC-II reads it from there. On this rail memory is one flat run of bytes
+// with no banking, and $D000-$DFFF is the VIC-II's registers, the SID, the
+// CIAs and colour RAM themselves: copying the ROM there overwrote $D018,
+// $D020 and $D021 and every colour. So the character RAM lives at $C000 here
+// (the program-space the native linker would own, which a wasm program's
+// data does not reach: web-layout.mjs reserves it, and the backend refuses a
+// build whose data would), and web-layout.mjs REAL_MACHINE_LAYOUT.c64.vic
+// tells the page to draw from there. Every program reaches it as
+// `Video.CHARSET`, so nothing else in a program changes. Keep the export
+// list identical to geometry.8bs — test/c64-web-twin.test.mjs holds them to
+// the same names.
+//
+// @8bitscript/c64 — where the picture lives: VIC bank 3, above the program.
+//
+// The VIC-II sees one 16K bank at a time, and everything it draws from —
+// the screen matrix, the character set, the sprite shapes, the eight
+// sprite pointers — has to be inside that one bank. A C64 program loads
+// at $0801-$CFFF (`ram` ORIGIN $0801, LENGTH $C7FF, and the stack grows
+// down from $D000; measured pre-0.2.0), and
+// the linker decides where every byte of code and data goes. Nothing the VIC
+// needs can be promised a place inside that region without a build-time
+// overlap check the toolchain does not have, so the picture lives in the
+// only RAM the linker never touches: $D000-$FFFF, the upper half of VIC
+// bank 3 ($C000-$FFFF). The VIC always reads RAM there — its two
+// character-ROM windows are in banks 0 and 2 ($1000 and $9000), not here —
+// and the CPU writes RAM there too: a store to $E000-$FFFF lands under the
+// KERNAL ROM whether the ROM is mapped or not.
+//
+//   $D000-$DFFF  the character ROM's 4K, copied into the RAM under the I/O
+//                area once at start-up (setupVideo() in ./index.8bs): the
+//                upper-case/graphics set at $D000, lower-case at $D800.
+//                The same offset ($1000) in the bank as the ROM window has
+//                in bank 0, so $D018's charset field is the ROM's own.
+//   $E000-$E3E7  the 40x25 screen matrix, one screen code per cell.
+//   $E3F8-$E3FF  the eight sprite pointers (screen + $3F8, a VIC rule).
+//   $E400-$FFBF  111 sprite shape blocks of 64 bytes, blocks 144-254 of
+//                the bank. Block 255 ($FFC0-$FFFF) is RAM too, but its
+//                last six bytes are the CPU's NMI/reset/IRQ vectors — RAM
+//                the CPU reads once the KERNAL is banked out, which
+//                native/6502/raster.s fills — so it is not a shape block.
+//
+// In bitmap mode (@8bitscript/c64/bitmap) the same bank holds, instead:
+//
+//   $E000-$FF3F  the 8000-byte bitmap (the second 8K of the bank: $D018
+//                bit 3 set), over the screen matrix and the shape blocks.
+//   $DC00-$DFE7  the color matrix, one byte per cell — high nybble the
+//                color of set bits, low nybble of clear bits (hi-res), or
+//                the %01 and %10 colors (multicolor) — in the RAM under
+//                the I/O area, where the CPU writes only with the area
+//                banked out (writeUnderIo in ./index.8bs). It is the second
+//                half of the lower-case set, which bitmap mode gives up;
+//                the upper-case set at $D000-$D7FF is untouched, so leaving
+//                bitmap mode is a register change, not a second ROM copy.
+//   $DFF8-$DFFF  the sprite pointers, matrix + $3F8 as always.
+//   $D800-$DBFF  16 shape blocks (96-111) for sprites over a bitmap, under
+//                the I/O area too (the first half of the lower-case set).
+//
+// The color matrix could not go anywhere the CPU reaches freely: every
+// 1K slot of the bank is either the program's ($C000-$CFFF), the bitmap's
+// ($E000-$FFFF), or under the I/O area.
+//
+// Color RAM does not move with the bank: it is the 1K of nybbles at $D800
+// in the I/O area, wherever the screen is. So a cell's color is written
+// through I/O ($01 bit 2 set) while its character is written to RAM — the
+// normal state of the machine, and the state setupVideo() leaves it in.
+//
+// Screenshots of a program using this layout under x64sc (text from the
+// copied set, a sprite from block 144) are how these numbers were checked;
+// packages/c64/AGENTS.md has the table.
+
+// The addresses themselves, as this module's own consts: `@address` takes
+// a literal or a const declared beside it, so the arrays over the screen,
+// the color RAM, the sprite pointers and the shape blocks are declared
+// here, where the numbers are, and `Video` names the same numbers for
+// everything else.
+const SCREEN_ADDRESS: usmallint = 0xE000;
+const COLOR_ADDRESS: usmallint = 0xD800;
+const SPRITE_POINTERS_ADDRESS: usmallint = 0xE3F8;
+const SHAPES_ADDRESS: usmallint = 0xE400;
+const BITMAP_ADDRESS: usmallint = 0xE000;
+
+// The screen matrix: 1000 screen codes, cell 0 top-left.
+@address(SCREEN_ADDRESS)
+export let screenRam: array<u8, 1000>;
+// Color RAM: the low nybble of each byte is that cell's color.
+@address(COLOR_ADDRESS)
+export let colorRam: array<u8, 1000>;
+// Sprite n's shape block: the VIC reads shape data from bank + 64 * pointer.
+@address(SPRITE_POINTERS_ADDRESS)
+export let spritePointers: array<u8, 8>;
+// The shape blocks, one array: block b's 63 bytes start at 64 * (b - 144).
+@address(SHAPES_ADDRESS)
+export let spriteShapes: array<u8, 7104>;
+// The bitmap, in bitmap mode: 8000 bytes, cell by cell (8 bytes a cell,
+// 40 cells a row — see @8bitscript/c64/bitmap's offset()). The same RAM
+// as the screen matrix and the shape blocks above.
+@address(BITMAP_ADDRESS)
+export let bitmapRam: array<u8, 8000>;
+
+export namespace Video {
+    const BANK: usmallint = 0xC000; // VIC bank 3, selected through CIA2 port A bits 0-1 (= %00)
+    const SCREEN: usmallint = SCREEN_ADDRESS; // screen matrix: one screen code per cell
+    const COLOR: usmallint = COLOR_ADDRESS; // color RAM: one nybble per cell, same cell index, never moves
+    const CHARSET: usmallint = 0xC000; // the character RAM: upper-case set here, lower-case at +$0800 — NOT $D000 on this rail, see the header
+    const SPRITE_POINTERS: usmallint = SPRITE_POINTERS_ADDRESS; // eight bytes: shape block per sprite (address / 64 within the bank)
+    const SHAPES: usmallint = SHAPES_ADDRESS; // first sprite shape block
+    const SHAPE_BLOCK_FIRST: utinyint = 144; // (SHAPES - BANK) / 64
+    const SHAPE_COUNT: utinyint = 111; // blocks 144-254
+    const MEMORY_POINTER_UPPERCASE: utinyint = 0x84; // $D018: screen at bank+$2000 (bits 4-7 = 8), charset at bank+$1000 (bits 1-3 = 2)
+    const MEMORY_POINTER_LOWERCASE: utinyint = 0x86; // the same screen, the lower-case set at bank+$1800
+    const COLUMNS: utinyint = 40;
+    const ROWS: utinyint = 25;
+    const CELL_COUNT: usmallint = 1000; // COLUMNS * ROWS
+}
+
+// Bitmap mode's layout, in the same bank; see the header.
+export namespace Bitmap {
+    const ADDRESS: usmallint = BITMAP_ADDRESS; // 8000 bytes, bank + $2000
+    const BYTES: usmallint = 8000;
+    const WIDTH: usmallint = 320; // pixels, hi-res
+    const HEIGHT: utinyint = 200;
+    const MATRIX: usmallint = 0xDC00; // the color matrix, under the I/O area: bank + $1C00
+    const SPRITE_POINTERS: usmallint = 0xDFF8; // MATRIX + $3F8
+    const SHAPES: usmallint = 0xD800; // 16 shape blocks under the I/O area
+    const SHAPE_BLOCK_FIRST: utinyint = 96; // (SHAPES - BANK) / 64
+    const SHAPE_COUNT: utinyint = 16; // blocks 96-111
+    const MEMORY_POINTER: utinyint = 0x78; // $D018: matrix at bank+$1C00 (bits 4-7 = 7), bitmap at bank+$2000 (bit 3)
+}

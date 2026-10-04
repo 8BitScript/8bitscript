@@ -38,7 +38,10 @@ import { WEB_EMULATORS } from './web-emulator.mjs';
  *                 run in a browser page: in an editor tab or an external
  *                 browser, whichever opens the page. `8bs run <t> --web`.
  *                 Declared by the package (`emulator.wasm`) and held to the
- *                 truth by a test that builds every one.
+ *                 truth by a test that builds every one. `limits` is what
+ *                 the page does not do yet, in the package's own words, for
+ *                 the editor to show beside the button — a wasm build is a
+ *                 model of the machine, not the machine.
  *   wasmEmulator  the vendored real emulator as WebAssembly instead (cx16's
  *                 x16emu): `8bs run <t> --web --x16emu`.
  *   boot          the bare emulator with nothing loaded: `8bs boot <t>`; a
@@ -70,7 +73,7 @@ export function describeRuntime(id, catalog, inRelease) {
       installed: binary === null ? null : resolveOnPath(binary) !== null,
       reason: nativeReason,
     },
-    wasm: { available: wasmReason === null, reason: wasmReason },
+    wasm: { available: wasmReason === null, reason: wasmReason, limits: wasmReason === null ? [...(declared.limits ?? [])] : [] },
     wasmEmulator: { available: inRelease && hasWasmEmulator, reason: hasWasmEmulator ? null : 'no real emulator is vendored as WebAssembly for this machine' },
     boot: {
       available: nativeAvailable && id !== 'web',

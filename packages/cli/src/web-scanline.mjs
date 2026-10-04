@@ -79,14 +79,14 @@ export function readRasterEntries(mem, layout) {
  *
  * @param {Array<{ line: number, slot: number, value: number }>} entries
  * @param {number} row
- * @param {{ border: number, background: number }} base palette indices from mem[0]/mem[1], already masked
+ * @param {{ border: number, background: number, scrollX?: number, charset?: number }} base palette indices from mem[0]/mem[1], already masked; a machine whose registers the page reads (layout.vic) also hands in the scroll and character set those registers say
  * @returns {{ border: number, background: number, scrollX: number, charset: number }}
  */
 export function rowState(entries, row, base) {
   let border = base.border;
   let background = base.background;
-  let scrollX = 0;
-  let charset = 0;
+  let scrollX = base.scrollX ?? 0;
+  let charset = base.charset ?? 0;
   for (const entry of entries) {
     if (entry.line > row) break;
     if (entry.slot === Slot.BORDER) border = entry.value & 15;
@@ -124,7 +124,18 @@ export function renderFrame(mem, layout, palette) {
   const height = innerH + border * 2;
   const rgba = new Uint8Array(width * height * 4);
   const colorPerCell = layout.colorPerCell !== false;
-  const base = {
+  // A machine whose chip registers are bytes of the program's own memory
+  // (layout.vic, web-layout.mjs REAL_MACHINE_LAYOUT.c64): the border, the
+  // background, the horizontal scroll and which of the two character sets is
+  // live are read from the registers a program writes, and every glyph is
+  // read from the character RAM the program holds — the VIC-II's own way.
+  const vic = layout.vic ?? null;
+  const base = vic ? {
+    border: mem[vic.borderRegister] & 15,
+    background: mem[vic.backgroundRegister] & 15,
+    scrollX: mem[vic.scrollRegister] & 7,
+    charset: (mem[vic.selectRegister] & vic.selectMask) !== 0 ? 1 : 0,
+  } : {
     border: colorPerCell ? mem[0] & 15 : 0,
     background: colorPerCell ? mem[1] & 15 : 0,
   };
@@ -165,8 +176,18 @@ export function renderFrame(mem, layout, palette) {
       const col = (srcX - gx) / cw;
       const cell = cellRow * cols + col;
       const colorByte = mem[layout.colorBase + cell];
-      const reverse = (colorByte & 128) !== 0;
       const raw = mem[layout.charBase + cell];
+      if (vic) {
+        // The character RAM, set by set: eight bytes a glyph, bit 7 the
+        // leftmost pixel, a reversed glyph a screen code's bit 7 (the ROM
+        // image holds the reversed copies itself), the colour RAM's low four
+        // bits the ink.
+        const at = vic.charsetBase + (state.charset === 1 ? vic.setStride : 0) + raw * 8 + glyphY;
+        const set = ((mem[at] >> (7 - gx)) & 1) !== 0;
+        put(border + x, y, set ? palette[colorByte & 15] : backgroundInk);
+        continue;
+      }
+      const reverse = (colorByte & 128) !== 0;
       // A program's own redefined glyph (web-layout.mjs, GLYPH_FIRST..) wins
       // over the font; an undefined one (all eight rows zero) falls to it.
       const glyph = userGlyph(mem, layout.glyphBase ?? -1, raw) ?? glyphRows(raw, layout.font, state.charset);
