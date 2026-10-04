@@ -1,0 +1,189 @@
+// @8bitscript/graphics on the Commander X16's WebAssembly build: a picture is one
+// cell of real art — an 8×8 bitmap in a redefinable character set — and an
+// animated picture steps through up to eight of them.
+//
+// This file is linked only by `8bs build --target cx16 --web` (the build's
+// internal `web` tag, resolved the way text.cx16.web.8bs is). The native X16
+// draws a picture as a VERA hardware sprite (index.cx16.8bs); our wasm model of
+// the machine has no VERA — writes to its ports land in flat memory and
+// accumulate into nothing a page could draw (packages/cx16/src/
+// text.cx16.web.8bs says why) — so there is no sprite to place. The page
+// instead keeps the redefinable glyph table the synthetic web target has
+// (packages/cli/src/web-layout.mjs, REAL_MACHINE_LAYOUT.cx16.userGlyphs): 80
+// glyphs of eight row bytes for the character codes 176-255, drawn when any of
+// a glyph's rows is nonzero. A picture lowers to those row bytes at build time
+// with the web target's own module (the cx16 package's "wasmMedia"), `bind()`
+// below writes them into the table, and the cell layer draws the character
+// (@8bitscript/sprites, the glyph path): the position is in stage pixels and
+// lands on the cell at x >> 3, y >> 3, so STEP_X and STEP_Y are 8, and a
+// picture does not restore what it covers.
+//
+// ---- what it does not show -------------------------------------------------
+//
+// One cell is 8×8 pixels in the cell's one ink: colour is dropped (the build
+// says so with 8BS2111) and `graphics.color()` tints the cell. A picture
+// bigger than a cell is reduced by area. This is the X16's sprites rendered as
+// the closest thing the wasm rail has, and `8bs targets --json` lists it among
+// the cx16 wasm module's limits; the real VERA sprite stays the native
+// behaviour.
+//
+// ---- the number this file must agree with -------------------------------------
+//
+// GLYPH_BASE is where the page reads the table: layoutForRealMachine('cx16')
+// .glyphBase. It moves if the grid or the raster list does, so a test
+// (packages/cli/test/web-cx16-graphics.test.mjs) pins this constant to the
+// layout and fails, naming both, when they part.
+import { sprites } from "@8bitscript/sprites";
+import { Video } from "@8bitscript/system";
+
+// The glyph table, as the cx16 wasm page reads it.
+const GLYPH_FIRST: utinyint = 176;    // the first redefinable character code
+const GLYPH_COUNT: utinyint = 80;     // how many there are
+const GLYPH_BASE: usmallint = 8710;   // its first byte in linear memory
+
+// One pixel row of one glyph. A code outside the table or a row past 7 is
+// refused, so a stray write cannot reach the raster list below the table or the
+// program's own data above it.
+function glyphRow(code: utinyint, row: utinyint, bits: utinyint): void {
+    if (code < GLYPH_FIRST || row > 7) {
+        return;
+    }
+    let glyph: usmallint = code - GLYPH_FIRST;
+    if (glyph >= GLYPH_COUNT) {
+        return;
+    }
+    memory.write(GLYPH_BASE + (glyph << 3) + row, bits);
+}
+
+const SLOTS: utinyint = 8;
+const STEPS: utinyint = 8;
+const BYTES: utinyint = 64; // a picture's row bytes: STEPS glyphs of eight
+let counts: array<u8, 8>;  // steps in this picture's animation
+let every: array<u8, 8>;   // update() calls between steps
+let tick: array<u8, 8>;    // update() calls since the last step
+let step: array<u8, 8>;    // the step on show
+let held: array<u8, 8>;    // 1: automatic stepping paused
+let animated: utinyint = 0; // pictures with more than one step
+let started: bool = false;
+
+function ensure(): void {
+    if (!started) {
+        sprites.begin(SLOTS);
+        started = true;
+    }
+}
+
+// The character code of a picture's step: glyph (slot << 3) + step of the table.
+function codeOf(slot: utinyint, frame: utinyint): utinyint {
+    return GLYPH_FIRST + (slot << 3) + frame;
+}
+
+export namespace graphics {
+    // The portable contract (index.8bs): what this machine answers.
+    const MAX: utinyint = 8;
+    const FRAMES: utinyint = 8;
+    const WIDTH: utinyint = sprites.WIDTH;       // one cell, an 8×8 bitmap
+    const HEIGHT: utinyint = sprites.HEIGHT;
+    const COLORS: utinyint = 1;                  // the glyph's one ink
+    const RECOLORS: bool = Video.COLOR_PER_CELL; // color() tints the cell
+    const STEP_X: utinyint = sprites.STEP_X;
+    const STEP_Y: utinyint = sprites.STEP_Y;
+    const RESTORES: bool = sprites.RESTORES;     // false: what a picture covers is lost
+    const TRANSPARENT: bool = false;             // a cell is drawn whole
+
+    // Row (index & 7) of step (index >> 3) of picture `slot`, straight into the glyph table.
+    function bind(slot: utinyint, index: utinyint, value: utinyint): void {
+        if (slot >= SLOTS || index >= BYTES) {
+            return;
+        }
+        glyphRow(codeOf(slot, index >> 3), index & 7, value);
+    }
+
+    function meta(slot: utinyint, frameCount: utinyint, interval: utinyint, kind: utinyint, width: utinyint, height: utinyint): void {
+        if (slot >= SLOTS) {
+            return;
+        }
+        counts[slot] = frameCount;
+        every[slot] = interval;
+        tick[slot] = 0;
+        step[slot] = 0;
+        held[slot] = 0;
+        if (frameCount > 1) {
+            animated = animated + 1;
+        }
+    }
+
+    function place(slot: utinyint, x: usmallint, y: usmallint): void {
+        if (slot >= SLOTS) {
+            return;
+        }
+        ensure();
+        sprites.setShape(slot, codeOf(slot, step[slot]));
+        sprites.place(slot, x, y);
+    }
+
+    function hide(slot: utinyint): void {
+        if (slot >= SLOTS) {
+            return;
+        }
+        ensure();
+        sprites.hide(slot);
+    }
+
+    function setFrame(slot: utinyint, frame: utinyint): void {
+        if (slot >= SLOTS) {
+            return;
+        }
+        ensure();
+        if (frame >= counts[slot]) {
+            frame = counts[slot];
+            if (frame > 0) {
+                frame = frame - 1;
+            }
+        }
+        step[slot] = frame;
+        tick[slot] = 0;
+        sprites.setShape(slot, codeOf(slot, frame));
+    }
+
+    function animate(slot: utinyint, on: bool): void {
+        if (slot >= SLOTS) {
+            return;
+        }
+        held[slot] = 1;
+        if (on) {
+            held[slot] = 0;
+        }
+    }
+
+    function color(slot: utinyint, c: utinyint): void {
+        if (slot >= SLOTS) {
+            return;
+        }
+        ensure();
+        sprites.setColor(slot, c);
+    }
+
+    function update(): void {
+        if (!started) {
+            return;
+        }
+        if (animated > 0) {
+            for (let i: utinyint = 0; i < SLOTS; i++) {
+                if (counts[i] > 1 && held[i] == 0) {
+                    tick[i] = tick[i] + 1;
+                    if (tick[i] >= every[i]) {
+                        tick[i] = 0;
+                        let next: utinyint = step[i] + 1;
+                        if (next >= counts[i]) {
+                            next = 0;
+                        }
+                        step[i] = next;
+                        sprites.setShape(i, codeOf(i, next));
+                    }
+                }
+            }
+        }
+        sprites.update();
+    }
+}

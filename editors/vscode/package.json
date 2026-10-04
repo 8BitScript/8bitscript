@@ -260,6 +260,18 @@
         "icon": "$(tools)"
       },
       {
+        "command": "8bitscript.openStudioNative",
+        "title": "Open Studio in the Native Emulator",
+        "category": "8BitScript",
+        "icon": "$(device-desktop)"
+      },
+      {
+        "command": "8bitscript.openStudioX16emu",
+        "title": "Open Studio in x16emu (in a Tab)",
+        "category": "8BitScript",
+        "icon": "$(window)"
+      },
+      {
         "command": "8bitscript.openStudioTab",
         "title": "Open Studio in a Tab",
         "category": "8BitScript",
@@ -637,7 +649,7 @@
         "8bitscript.preferWebPreview": {
           "type": "boolean",
           "default": true,
-          "description": "Deprecated: the launcher remembers the runtime (Editor, Browser or Native) per program. This only decides the first run of a program with no history: on (the default) is Editor, off is Native. A machine with no WebAssembly build always starts Native.",
+          "description": "Deprecated: the launcher remembers the runtime (Editor, Browser or Native) per program. This only decides the first run of a program with no history: on (the default) is Editor, off is Native. A machine with no WebAssembly build always starts Native. Open Studio does not consult it: Studio always opens in an editor tab on the WebAssembly build.",
           "deprecationMessage": "The launcher remembers the runtime per program. This setting now only picks the first run's default.",
           "markdownDeprecationMessage": "The launcher remembers the runtime per program. This setting now only picks the first run's default."
         },
@@ -654,12 +666,12 @@
         "8bitscript.cx16.captureMouse": {
           "type": "boolean",
           "default": true,
-          "description": "When Run or Boot launches the Commander X16 in a native x16emu window, pass --capture-mouse so the emulator grabs the mouse at start (x16emu's -capture). Off passes --no-capture-mouse and leaves the pointer free to leave the window; ⇧⌘M (Ctrl+M on Linux/Windows) still toggles grab. Does not apply to Open Studio in a Tab (`8bs run cx16 --web`)."
+          "description": "When Run or Boot launches the Commander X16 in a native x16emu window, pass --capture-mouse so the emulator grabs the mouse at start (x16emu's -capture). Off passes --no-capture-mouse and leaves the pointer free to leave the window; ⇧⌘M (Ctrl+M on Linux/Windows) still toggles grab. Does not apply to the editor tab (`8bs run cx16 --web`), which is where Open Studio runs by default."
         },
         "8bitscript.cx16.fullscreen": {
           "type": "boolean",
           "default": false,
-          "description": "When Run or Boot launches the Commander X16 in a native x16emu window, pass --fullscreen so x16emu starts maximized. Off leaves a normal window. Open Studio's native launch is always fullscreen regardless. Does not apply to Open Studio in a Tab (`8bs run cx16 --web`)."
+          "description": "When Run or Boot launches the Commander X16 in a native x16emu window, pass --fullscreen so x16emu starts maximized. Off leaves a normal window. Open Studio in the Native Emulator is always fullscreen regardless. Does not apply to the editor tab (`8bs run cx16 --web`), which is where Open Studio runs by default."
         }
       }
     },

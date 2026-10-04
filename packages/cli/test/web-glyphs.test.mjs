@@ -48,17 +48,22 @@ test('agreementFor: a layout with a table puts it right after the raster list an
   assert.equal(agreementFor({ resizable: true, userGlyphs: true }).reservedEnd, 9032);
 });
 
-test('every synthetic host carries the table; no real machine\'s own web build does', () => {
+test('every synthetic host carries the table; so does the X16\'s wasm build, which has no VERA; the machines with their own ROM or RAM glyphs do not', () => {
   assert.ok(DEFAULT_LAYOUT.glyphBase > 0);
   for (const machine of Object.keys(MACHINE_HOST)) {
     const layout = layoutFromHardware({ facts: {}, options: { machine } });
     assert.ok(layout.glyphBase > 0, `${machine} has a table`);
   }
-  for (const target of ['pet', 'vic20', 'c64', 'cx16']) {
+  for (const target of ['pet', 'vic20', 'c64']) {
     const layout = layoutForRealMachine(target, { facts: {}, tags: [] });
     assert.equal(layout.glyphBase, -1, `${target} keeps its own ROM's codes`);
     assert.equal(layout.reservedEnd, layout.rasterBase + RASTER_MAX_ENTRIES * RASTER_ENTRY_SIZE, `${target}'s agreement is unchanged`);
   }
+  // The X16's wasm model has no VERA to hold tile data, so a picture is a glyph
+  // in the same table the synthetic hosts have (index.cx16.web.8bs writes it).
+  const cx16 = layoutForRealMachine('cx16', { facts: { 'video.columns': 76, 'video.rows': 56 }, tags: [] });
+  assert.equal(cx16.glyphBase, cx16.rasterBase + RASTER_MAX_ENTRIES * RASTER_ENTRY_SIZE, 'right after the raster list');
+  assert.equal(cx16.reservedEnd, cx16.glyphBase + GLYPH_COUNT * 8, 'and the program data starts above it');
 });
 
 test('the sidecar and the page carry the table so the loader can find it', () => {

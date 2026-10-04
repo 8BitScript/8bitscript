@@ -1630,22 +1630,52 @@ function registerRunner(context, output) {
   command('8bitscript.selectProject', withNotice('selectProject', 'The project is chosen at the top of the 8BitScript side bar; this command still works.', chooseProject));
   command('8bitscript.selectSystem', withNotice('selectSystem', 'The system is chosen in the 8BitScript side bar; this command still works.', chooseSystem));
   command('8bitscript.selectRegion', chooseRegion);
-  command('8bitscript.launchStudio', () => launch('app', 'Studio', (p) => p.name === '@8bitscript/studio'));
-  // The side bar's big button: Studio on the Commander X16, the machine
-  // it is designed on (packages/studio/8bs.config.ts's baseline), with
-  // no picker and no change to what the panel has selected — a utility
-  // beside the project, not a run of it. The rocket above keeps the
-  // picker for every other arrangement.
-  command('8bitscript.openStudio', async (node) => {
+  // ── Studio ────────────────────────────────────────────────────────────────
+  // The WebAssembly build is the primary way to run anything here: our own
+  // backend compiles the program straight to wasm and our own model of the
+  // machine runs it (`8bs run <t> --web`), with no vendor emulator in the
+  // loop. So Studio opens in an editor tab on the Commander X16's wasm build
+  // — the machine it is designed on (packages/studio's baseline) — and the
+  // other two ways to run it are explicit, separate commands rather than a
+  // hidden fallback: `openStudioNative` (the real x16emu window) and
+  // `openStudioX16emu` (the vendored x16emu compiled to wasm, in the tab).
+  async function studioProject() {
     if (projects.all.length === 0) await projects.refresh();
     const studio = ofKind(projects.all, 'app').find((p) => p.name === '@8bitscript/studio');
     if (!studio) {
       vscode.window.showInformationMessage('Studio is not installed. Install 8BitScript from the side bar, or install @8bitscript/cli in a project.');
-      return;
+      return null;
     }
-    // The button's sliver menu names where to open it: one of Studio's
-    // named systems, or a bare machine; nothing named, or a name Studio
-    // no longer lists, is its baseline.
+    return studio;
+  }
+  /**
+   * Run Studio in the editor tab and follow it there. `x16emu` swaps our wasm
+   * model of the X16 for the vendored x16emu in the same tab. A tab's run
+   * already in flight is stopped first, so two servers never write the same
+   * last-run file, and the tab is then pointed at the new run; a native Studio
+   * window is left alone.
+   */
+  async function openStudioInTab({ x16emu = false } = {}) {
+    const studio = await studioProject();
+    if (!studio) return;
+    projects.running.stop(studio.dir, 'cx16', { web: true });
+    const launchedAt = Date.now();
+    const started = await execute('run', { project: studio, target: 'cx16', web: true, ...(x16emu ? { x16emu: true } : {}) });
+    if (!started) return;
+    await vscode.commands.executeCommand('8bitscript.studioTab.show', { dir: studio.dir, target: 'cx16', launchedAt, x16emu });
+  }
+  command('8bitscript.openStudio', (node) => openStudioInTab({ x16emu: node?.x16emu === true }));
+  // The rocket in the title bar and the palette's "Launch Studio" do the same: no picker.
+  command('8bitscript.launchStudio', () => openStudioInTab());
+  // Kept for people who bound it: it was "Studio in a tab" back when that meant x16emu.
+  command('8bitscript.openStudioTab', () => openStudioInTab());
+  command('8bitscript.openStudioX16emu', () => openStudioInTab({ x16emu: true }));
+  // The real emulator in its own window — a named system or a bare machine can
+  // still be asked for, as the side bar's old sliver menu did; nothing named is
+  // Studio's baseline, the Commander X16.
+  command('8bitscript.openStudioNative', async (node) => {
+    const studio = await studioProject();
+    if (!studio) return;
     const wanted = typeof node?.system === 'string' ? node.system : '';
     if (wanted && MACHINES_FOR_STUDIO.has(wanted)) {
       await execute('run', { project: studio, target: wanted });
@@ -1664,38 +1694,7 @@ function registerRunner(context, output) {
       });
       return;
     }
-    const doctor = await projects.loadDoctor();
-    const cx16Missing = doctor?.notInstalled?.includes('cx16') || doctor?.failed?.includes('cx16');
-    // Native x16emu is optional. Studio still opens on the Commander X16;
-    // without the windowed emulator, the same program runs in the tab
-    // (`8bs run cx16 --web --x16emu` — Studio always wants the real
-    // vendored emulator, never the lightweight preview cx16 --web means
-    // for everyone else now). Never fall through to another machine.
-    if (cx16Missing) {
-      await execute('run', { project: studio, target: 'cx16', web: true, x16emu: true });
-      return;
-    }
     await execute('run', { project: studio, target: 'cx16' });
-  });
-  // The same Studio in an editor tab: `8bs run cx16 --web --x16emu` serves
-  // the CLI's WebAssembly x16emu on loopback and the Studio tab
-  // (studioView.cjs) frames it, with its own Reset/Rebuild/Stop and the
-  // browser one click away. X16 only — the one machine with a WebAssembly
-  // emulator. A tab's run already in flight is stopped first, so two
-  // servers never write the same last-run file, and the tab is then
-  // pointed at the new run; a native Studio window is left alone.
-  command('8bitscript.openStudioTab', async () => {
-    if (projects.all.length === 0) await projects.refresh();
-    const studio = ofKind(projects.all, 'app').find((p) => p.name === '@8bitscript/studio');
-    if (!studio) {
-      vscode.window.showInformationMessage('Studio is not installed. Install 8BitScript from the side bar, or install @8bitscript/cli in a project.');
-      return;
-    }
-    projects.running.stop(studio.dir, 'cx16', { web: true });
-    const launchedAt = Date.now();
-    const started = await execute('run', { project: studio, target: 'cx16', web: true, x16emu: true });
-    if (!started) return;
-    await vscode.commands.executeCommand('8bitscript.studioTab.show', { dir: studio.dir, target: 'cx16', launchedAt });
   });
   // The generic Preview tab: any project, whichever of its own targets has
   // a --web build. targetOf() already does the picking (a project quick

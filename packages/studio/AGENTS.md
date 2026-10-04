@@ -85,11 +85,30 @@ audio — see [`docs/project/graphics.md`](../../docs/project/graphics.md) and
 
 ## Launching
 
-- `8bs run` in this directory (X16), or `pnpm start` / `pnpm run start:<target>`.
-- `8bs run cx16 --web --x16emu` for the browser tab — Studio needs the real
-  vendored emulator (mouse, VERA layers), not the lightweight preview
-  plain `--web` now builds for cx16, same as pet/vic20/c64.
-- VS Code **Launch Studio** runs the same command for a chosen system.
+The WebAssembly build is the primary way to run Studio, as it is for anything
+here: our compiler to wasm, and our own model of each machine, with no vendor
+emulator in the loop — which is also what makes a Studio you can share or
+embed as a web page.
+
+- VS Code **Open Studio** (the Studio row in the side bar, the 🚀 in the title
+  bar, **Launch Studio**, **Open Studio in a Tab**) runs `8bs run cx16 --web` in
+  an editor tab. Not a native window, not x16emu.
+- `8bs run cx16 --web` from this directory is the same without the editor.
+- `8bs run` in this directory (X16), or `pnpm start` / `pnpm run start:<target>`,
+  opens the native `x16emu`; so does **Open Studio in the Native Emulator**.
+- `8bs run cx16 --web --x16emu` (**Open Studio in x16emu (in a Tab)**) is the
+  vendored x16emu compiled to wasm: the real emulator's behaviour in a tab,
+  chosen by name.
+
+What the X16's wasm model shows of today's shell, checked pixel for pixel by
+`packages/cli/test/web-cx16.test.mjs`: the blue border in VERA's own blue
+(`#0000aa`), the black screen, and the 8×8 mark in its cell. What it does not:
+the chime (a `.8ba` sample has no wasm driver, 8BS2211), the VERA sprite (the
+mark is a glyph in one ink there, 8BS2111), and the mouse (the X16-only
+modules read plain memory). Studio's shell reads no input yet, so none of that
+changes what it does; when an editor needs the mouse, the wasm model needs a
+mouse first — until then **x16emu in a tab** is the way, and the limits are in
+`8bs targets --json` (`wasm.limits`).
 
 Regenerate `src/mark.png` and `src/chime.wav` after changing the procedural
 sources: `node generate-assets.mjs` from this package.

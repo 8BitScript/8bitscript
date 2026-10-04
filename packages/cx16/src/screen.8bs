@@ -193,9 +193,10 @@ export namespace screen {
 // Red, Cyan, Purple, Green, Blue, Yellow — so a program can write
 // `screen.setColors(BorderColor.BLUE, BackgroundColor.BLACK)` through
 // @8bitscript/screen and get blue on every target. The values are the first
-// sixteen entries of VERA's default palette, which are the C64's sixteen
-// colors in the C64's numbering (see above), so both namespaces carry all
-// sixteen.
+// sixteen entries of VERA's default palette, which carry the C64's sixteen
+// names in the C64's numbering (see above), so both namespaces carry all
+// sixteen. The colours themselves are VERA's own twelve-bit values (blue is
+// $00A), not the C64's.
 
 export namespace BorderColor {
     const BLACK: utinyint = 0;

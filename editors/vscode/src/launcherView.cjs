@@ -49,6 +49,7 @@ const COMMANDS = {
   configureSystem: '8bitscript.configureSystem',
   saveSystem: '8bitscript.saveSystem',
   studio: '8bitscript.openStudio',
+  studioNative: '8bitscript.openStudioNative',
   tryExample: '8bitscript.launchExample',
   rebuildExtension: '8bitscript.rebuildExtension',
 };

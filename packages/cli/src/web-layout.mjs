@@ -24,6 +24,23 @@ export const C64_PALETTE = [
   '#787878', '#94e089', '#7869c4', '#9f9f9f',
 ];
 
+// VERA's default palette, entries 0-15. The numbering and the names are the
+// C64's (black, white, red, cyan, purple, green, blue, yellow, orange, brown,
+// light red, dark grey, grey, light green, light blue, light grey), but the
+// colours are VERA's own, twelve bits each ($RGB, every nibble n -> n * 17):
+// blue is $00A = #0000aa here, not the C64's #40318d. Read back from an
+// x16emu capture of the border, which is exactly #0000aa (BorderColor.BLUE).
+// VERA has no other source: the Commander X16 Programmer's Reference lists
+// these as the power-on values of palette entries 0-15.
+const VERA_DEFAULT_12BIT = [
+  0x000, 0xfff, 0x800, 0xafe, 0xc4c, 0x0c5, 0x00a, 0xee7,
+  0xd85, 0x640, 0xf77, 0x333, 0x777, 0x8f6, 0x08f, 0xbbb,
+];
+export const VERA_PALETTE = VERA_DEFAULT_12BIT.map((rgb) => {
+  const channel = (shift) => (((rgb >> shift) & 15) * 17).toString(16).padStart(2, '0');
+  return `#${channel(8)}${channel(4)}${channel(0)}`;
+});
+
 // PET 2001 green phosphor on black. Index 0 is the screen; 1 is the ink.
 // The rest copy 1 so a color byte `& 15` still lands on green when a program
 // writes a C64-named color through text.setColor — the host ignores per-cell
@@ -473,9 +490,14 @@ const REAL_MACHINE_LAYOUT = {
     },
   },
   cx16: {
-    palette: C64_PALETTE, // VERA's default palette is the C64's sixteen colors, same order (screen.8bs's own header)
+    palette: VERA_PALETTE, // the C64's names in the C64's order, but VERA's own colours
     colorPerCell: true,
     aspect: '4/3',
+    // The redefinable glyph table (codes 176-255) after the raster list, as the
+    // synthetic web target has it: there is no VERA to hold tile data on this
+    // rail, so a picture (@8bitscript/graphics) is drawn as a glyph in this
+    // table — packages/graphics/src/index.cx16.web.8bs.
+    userGlyphs: true,
     memoryFor: () => ({}),
   },
 };
@@ -506,6 +528,7 @@ export function layoutForRealMachine(target, hardware = {}) {
     colorPerCell: real ? real.colorPerCell : facts['video.colorPerCell'] !== false,
     resizable: false,
     pixelAspect,
+    userGlyphs: real?.userGlyphs === true,
   });
   // No entry for this target: geometry only, the synthetic charBase. Not
   // correct for a real build, but no *more* wrong than layoutFromHardware

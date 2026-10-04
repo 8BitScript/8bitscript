@@ -508,6 +508,19 @@ test('Tools: Studio, Doctor and Project details each post their own message', ()
   assert.deepEqual(page.posted.slice(-3).map((m) => m.type), ['studio', 'doctor', 'details']);
 });
 
+test('Tools: Studio opens in the editor tab, and the native emulator is its own labelled button beside it', () => {
+  const page = mount(vegas());
+  const native = page.byKey('tool:studioNative');
+  assert.ok(native, 'a separate button for the native emulator');
+  assert.match(native.getAttribute('aria-label'), /native emulator/i);
+  assert.match(native.getAttribute('title'), /native emulator/i);
+  assert.match(norm(page.byKey('tool:studio')), /Studio.*editor tab/);
+  page.click(native);
+  assert.equal(page.last().type, 'studioNative');
+  page.click(page.byKey('tool:studio'));
+  assert.equal(page.last().type, 'studio');
+});
+
 test('notices render by kind with their actions, and an action posts its own message', () => {
   const page = mount(vegas({ notices: [
     { id: 'pkg', kind: 'warn', icon: 'package', title: 'Packages need installing.', text: 'Vegas Nights is missing node_modules.', actions: [{ label: 'Install packages', icon: 'package', msg: { type: 'fix', kind: 'packages', dir: '/v' } }] },

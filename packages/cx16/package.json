@@ -18,10 +18,18 @@
       "defaultFrames": 180,
       "installer": "cx16",
       "wasm": {
-        "available": true
+        "available": true,
+        "limits": [
+          "a flat text screen on a synthetic host font, not VERA: the tile layers, the bitmap layers, hardware sprites and the 128-sprite budget are not modelled; a .8bg picture is drawn as one 8x8 glyph in a single ink (8BS2111), not a VERA sprite",
+          "no sound: the PSG, the YM2151 and PCM are plain memory, and a .8ba sample or song has no wasm driver (8BS2211); audio.tone is not wired for the X16's wasm build yet",
+          "the X16-only modules that talk to VERA, the KERNAL or the banked RAM (@8bitscript/cx16/mouse, /pointer, /psg, /banks) read and write plain memory and see nothing",
+          "the raster list (@8bitscript/raster, the X16's VERA line interrupt) is machine code and is not built for the wasm backend: a program that uses it does not build here (8bs build says 'asm' blocks are never lowered)",
+          "the colours are VERA's default palette entries 0-15; a program that rewrites VERA palette entries or layer registers sees no change"
+        ]
       }
     },
     "media": "./media/index.cjs",
+    "wasmMedia": "web",
     "entry": "./src/index.8bs",
     "exports": {
       "./psg": "./src/psg.8bs",

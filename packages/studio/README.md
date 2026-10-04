@@ -4,8 +4,8 @@
 on the machines themselves — characters, sprites, and music, with the full
 editor on the Commander X16 and a smaller one down to the PET, and a viewer
 on the NES. It is an ordinary 8BitScript program: `8bs run <target>` here
-starts it, and the VS Code extension's **Launch Studio** does the same from
-the editor.
+starts it, and the VS Code extension's **Open Studio** opens it in an editor
+tab on our own WebAssembly build of the X16 (the same page you could share).
 
 Today it is the desk and nothing behind it: a menu bar whose menus drop
 down — the mark, FILE, and CHARACTERS, SPRITES and MUSIC (one EDIT menu

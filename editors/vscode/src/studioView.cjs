@@ -80,9 +80,10 @@ const TARGET_LABELS = {
   c64: { title: 'C64', subtitle: 'wasm build', hasMouse: false },
 };
 
-// Studio always runs on the real vendored x16emu (mouse and all) — never
-// the lightweight wasm preview TARGET_LABELS.cx16 now names — so its tab
-// carries its own fixed labels rather than looking cx16 up there.
+// Studio's tab opens on our own wasm build of the X16 by default, and is then
+// labelled like any other wasm run (TARGET_LABELS.cx16). Only when it was
+// opened on the vendored real x16emu (`8bitscript.openStudioX16emu`, a binding
+// with `x16emu: true`) does it carry these fixed labels instead, mouse and all.
 const STUDIO_LABELS = { title: 'Commander X16', subtitle: 'x16emu (WebAssembly)', hasMouse: true };
 
 /**
@@ -155,13 +156,15 @@ class StudioPanel {
     this.projects = projects;
     this.tabTitle = tabTitle;
     this.forceLabels = forceLabels;
-    // Studio's own tab is always the vendored real emulator (--x16emu),
-    // which compile() builds natively (the plain .8bs-last-cx16.json) even
-    // though it opens in a browser tab — see run.mjs's buildForWeb and
-    // last-run.mjs's own header for why. The generic Preview tab is always
-    // a real machine's own wasm-backend build instead, the `-web` file.
+    // Which last-run file to read, when the binding does not say: the vendored
+    // real emulator (--x16emu) is built natively by compile() (the plain
+    // .8bs-last-cx16.json) even though it opens in a browser tab — see
+    // run.mjs's buildForWeb and last-run.mjs's own header for why — while a
+    // real machine's own wasm-backend build writes the `-web` file. Studio's
+    // tab opens on the wasm backend by default and says so in the binding
+    // (`x16emu`), which then decides; this flag is only the fallback.
     this.nativeReport = nativeReport;
-    this.onRebuild = onRebuild ?? (() => vscode.commands.executeCommand('8bitscript.openStudioTab'));
+    this.onRebuild = onRebuild ?? (() => vscode.commands.executeCommand('8bitscript.openStudio'));
     /** The run the tab follows: its directory, its target, and when it was started. */
     this.binding = null;
     /** The URL the page currently frames, or null when it frames nothing. */
@@ -170,8 +173,8 @@ class StudioPanel {
   }
 
   /** Point the tab at a run (a new one, on Rebuild) and redraw. */
-  async bind({ dir, target, launchedAt }) {
-    this.binding = { dir, target, launchedAt };
+  async bind({ dir, target, launchedAt, x16emu }) {
+    this.binding = { dir, target, launchedAt, x16emu };
     this.src = null;
     this.panel.webview.html = this.renderHtml();
     await this.refresh();
@@ -182,7 +185,10 @@ class StudioPanel {
    * place either is looked up, so `bind()` and every `refresh()` redraw
    * agree instead of one silently falling back to Studio's own defaults. */
   renderHtml(src = null) {
-    const labels = this.forceLabels ?? (this.binding && TARGET_LABELS[this.binding.target]);
+    // The fixed labels are for the vendored x16emu; a binding that says it is
+    // not one (`x16emu: false`, Studio on our own wasm build) is a plain wasm run.
+    const forced = this.binding?.x16emu === false ? null : this.forceLabels;
+    const labels = forced ?? (this.binding && TARGET_LABELS[this.binding.target]);
     return html(this.panel.webview, {
       src,
       tabTitle: this.tabTitle,
@@ -203,7 +209,8 @@ class StudioPanel {
   async refresh() {
     if (!this.binding) return;
     const { dir, target, launchedAt } = this.binding;
-    const report = readLastRun(dir, target, !this.nativeReport);
+    const native = this.binding.x16emu ?? this.nativeReport;
+    const report = readLastRun(dir, target, !native);
     const fresh = freshReport(report, launchedAt);
     const running = this.running();
     // "Open in emulator" starts a second, genuinely separate run (this
@@ -344,7 +351,13 @@ function registerTab(context, projects, { commandName, viewType, panelTitle, tab
     // run and then calls this with what to follow.
     vscode.commands.registerCommand(commandName, async (run) => {
       if (!run || typeof run.dir !== 'string' || typeof run.target !== 'string') return;
-      const binding = { dir: run.dir, target: run.target, launchedAt: typeof run.launchedAt === 'number' ? run.launchedAt : Date.now() };
+      const binding = {
+        dir: run.dir,
+        target: run.target,
+        launchedAt: typeof run.launchedAt === 'number' ? run.launchedAt : Date.now(),
+        // Only Studio says which emulator it is on; the Preview tab never does.
+        ...(typeof run.x16emu === 'boolean' ? { x16emu: run.x16emu } : {}),
+      };
       const existing = getOpen();
       if (existing) {
         await existing.bind(binding);
@@ -392,12 +405,14 @@ function registerStudioView(context, projects) {
     tabTitle: 'Studio',
     getOpen: () => open,
     setOpen: (view) => { open = view; },
-    // Studio's own Rebuild always means "build Studio again" — the
-    // command already knows which project and target that is.
+    // Studio's own Rebuild means "build Studio again, the way this tab was
+    // opened" — the command already knows which project and target that is.
+    onRebuild: (binding) => vscode.commands.executeCommand(binding?.x16emu ? '8bitscript.openStudioX16emu' : '8bitscript.openStudio'),
+    // Fixed labels for the vendored x16emu only (see STUDIO_LABELS).
     forceLabels: STUDIO_LABELS,
-    // --x16emu builds natively (buildForWeb: false in run.mjs) even
-    // though it opens in a browser tab, so this tab reads the plain
-    // .8bs-last-cx16.json, not the -web one the generic Preview tab reads.
+    // Without a binding that says which, assume the old behaviour: --x16emu
+    // builds natively (buildForWeb: false in run.mjs) even though it opens in
+    // a browser tab, so it reads the plain .8bs-last-cx16.json.
     nativeReport: true,
   });
   // The generic tab: any project, any target with a --web build (upstream's

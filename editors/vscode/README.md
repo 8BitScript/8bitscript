@@ -224,9 +224,9 @@ side bar.
   `--capture-mouse` by default (`8bitscript.cx16.captureMouse`) so x16emu
   grabs the pointer at start; turn it off in Settings for a free mouse.
   Fullscreen is off by default (`8bitscript.cx16.fullscreen`); turn it on
-  for maximized native runs. Open Studio's native Commander X16 launch is
-  always fullscreen. Studio in a tab (`8bs run cx16 --web`) is unchanged.
-  **Open Studio in a Tab** does not use these flags. The button names the project, and the
+  for maximized native runs. Open Studio in the Native Emulator is
+  always fullscreen. The editor tab (`8bs run cx16 --web`), which is where
+  Open Studio runs by default, does not use these flags. The button names the project, and the
   line under it names the machine, the hardware fitted to it, and the
   region — nothing has to be read off a dropdown to know what pressing it
   means. It greys out when the selected project does not target the selected
@@ -297,33 +297,25 @@ SYSTEM
   block is not shown; **8BitScript: Install Dependencies** on the palette
   updates on request.
 
-- **Open Studio** — the largest button on the panel, above Quick launch:
-  Studio, the asset editor that ships with the toolchain, with nothing
-  changed — it does not become the selected project, and the Run button
-  below still runs yours. It opens Studio on the Commander X16, its
-  baseline; the small ▾ sliver on its right edge opens a menu of every
-  system Studio can open on — its named arrangements (a C64 with a
-  mouse, a VIC-20 with 8K, …) and the bare machines, the same list the
-  System chooser below offers — and a pick launches it there. It shows
-  up under Running machines like any `8bs run`, with its own Stop. The
-  🚀 rocket in the title bar is the same program through a quick pick.
-
-  The first entry in that menu, **In an editor tab**, is Studio inside
-  the editor: `8bs run cx16 --web` builds Studio and serves the CLI's
-  WebAssembly x16emu on loopback (the same emulator and the same flags
-  as the window; the CLI downloads it once), and the **Studio** tab
-  frames it, with **Reset** (boot the same build again), **Rebuild**,
-  **Stop** and **Open in browser** above the screen. Closing the tab
-  ends the run. The mouse in the tab follows the launch, as in the
-  window: the stock X16 launch leaves it free, and Ctrl+M on the screen
-  (on every platform, in the browser) gives it to Studio for exact
-  tracking; a launch with `-capture` gives it on a click. Esc gives it
-  back either way, and the line under the bar says which it is. Whether an editor lets a framed
-  page capture the mouse at all is the editor's to decide: if the tab
-  says it isn't allowed to, **Open in browser** opens the same URL in
-  your browser, where it is. X16 only — the one machine with a
-  WebAssembly emulator. **8BitScript: Open Studio in a Tab** on the
-  palette is the same thing.
+- **Studio** — in the panel's Tools section: Studio, the asset editor that
+  ships with the toolchain, with nothing changed — it does not become the
+  selected project, and the program rows above still run yours. It opens in
+  an **editor tab** on the Commander X16, its baseline, running on our own
+  WebAssembly build (`8bs run cx16 --web`): our compiler to wasm and our own
+  model of the machine, not the vendor emulator and not a full-screen
+  window. The **Studio** tab frames it, with **Reset** (boot the same build
+  again), **Rebuild**, **Stop** and **Open in browser** above the screen.
+  Closing the tab ends the run, and it shows up under Running like any
+  `8bs run`, with its own Stop. The small desktop button beside the Studio
+  row is **Open Studio in the Native Emulator** (the real `x16emu`, fullscreen);
+  **8BitScript: Open Studio in x16emu (in a Tab)** on the palette runs the
+  vendored x16emu in the same tab, for when you want the real emulator's
+  behaviour or its mouse capture (Ctrl+M on the screen gives Studio the
+  mouse for exact tracking; Esc gives it back; the line under the bar says
+  which it is). The 🚀 rocket in the title bar, **8BitScript: Open Studio**
+  and **8BitScript: Open Studio in a Tab** all open the editor tab. What the
+  wasm model leaves out (VERA layers and sprites, sound, the mouse) is
+  listed under `wasm.limits` for the X16 in `8bs targets --json`.
 
 - Every panel — the side bar, System, Project, Controller Setup, the
   Studio tab's bar, the assembly view — draws in your color theme: light, dark or

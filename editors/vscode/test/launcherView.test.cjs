@@ -447,7 +447,7 @@ test('Copy puts exactly the text it was given on the clipboard, and nothing when
 
 test('the messages that run an extension command run exactly that command, and no other id can be named', async () => {
   await withLauncher(async ({ view }) => {
-    const table = { doctor: '8bitscript.doctor', details: '8bitscript.showProject', configureSystem: '8bitscript.configureSystem', saveSystem: '8bitscript.saveSystem', studio: '8bitscript.openStudio', tryExample: '8bitscript.launchExample', rebuildExtension: '8bitscript.rebuildExtension' };
+    const table = { doctor: '8bitscript.doctor', details: '8bitscript.showProject', configureSystem: '8bitscript.configureSystem', saveSystem: '8bitscript.saveSystem', studio: '8bitscript.openStudio', studioNative: '8bitscript.openStudioNative', tryExample: '8bitscript.launchExample', rebuildExtension: '8bitscript.rebuildExtension' };
     for (const [type, id] of Object.entries(table)) {
       view.webview.__fire({ type });
       await tick();
