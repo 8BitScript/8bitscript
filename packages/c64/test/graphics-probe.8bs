@@ -11,25 +11,22 @@ import { walker, wide, corner, dot0, dot1, dot2, dot3, dot4, dot5, dot6, dot7, d
 
 export function main(): void {
     screen.blank();
-    graphics.place(walker, sprites.ORIGIN_X + 40, sprites.ORIGIN_Y + 20);
-    graphics.place(wide, 300, sprites.ORIGIN_Y + 60);
-    graphics.place(corner, sprites.ORIGIN_X, sprites.ORIGIN_Y);
-    graphics.place(dot0, sprites.ORIGIN_X + 16, sprites.ORIGIN_Y + 90);
-    graphics.place(dot1, sprites.ORIGIN_X + 36, sprites.ORIGIN_Y + 98);
-    graphics.place(dot2, sprites.ORIGIN_X + 56, sprites.ORIGIN_Y + 106);
-    graphics.place(dot3, sprites.ORIGIN_X + 76, sprites.ORIGIN_Y + 114);
-    graphics.place(dot4, sprites.ORIGIN_X + 96, sprites.ORIGIN_Y + 122);
-    graphics.place(dot5, sprites.ORIGIN_X + 116, sprites.ORIGIN_Y + 130);
-    graphics.place(dot6, sprites.ORIGIN_X + 136, sprites.ORIGIN_Y + 138);
-    graphics.place(dot7, sprites.ORIGIN_X + 156, sprites.ORIGIN_Y + 146);
-    graphics.place(dot8, sprites.ORIGIN_X + 176, sprites.ORIGIN_Y + 154);
-    graphics.place(dot9, sprites.ORIGIN_X + 196, sprites.ORIGIN_Y + 162);
-    graphics.place(dot10, sprites.ORIGIN_X + 216, sprites.ORIGIN_Y + 170);
-    // Past 255 the sum has to be a usmallint: `sprites.ORIGIN_X + 236` is
-    // two untyped small numbers and wraps at 8 bits to 4, under the border.
-    let far: usmallint = sprites.ORIGIN_X;
-    far = far + 236;
-    graphics.place(dot11, far, sprites.ORIGIN_Y + 178);
+    graphics.place(walker, 40, 20);
+    graphics.place(wide, 276, 60);
+    graphics.place(corner, 0, 0);
+    graphics.place(dot0, 16, 90);
+    graphics.place(dot1, 36, 98);
+    graphics.place(dot2, 56, 106);
+    graphics.place(dot3, 76, 114);
+    graphics.place(dot4, 96, 122);
+    graphics.place(dot5, 116, 130);
+    graphics.place(dot6, 136, 138);
+    graphics.place(dot7, 156, 146);
+    graphics.place(dot8, 176, 154);
+    graphics.place(dot9, 196, 162);
+    graphics.place(dot10, 216, 170);
+    // Stage pixels: 236 is sprite-chip X 260, past 255 (the ninth X bit).
+    graphics.place(dot11, 236, 178);
     for (let n: utinyint = 0; n < 12; n++) {
         waitFrame();
         graphics.update();

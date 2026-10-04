@@ -5,67 +5,182 @@
 //     graphics.place(player, x, y);
 //     graphics.update();
 //
-// This file is the glyph path: the picture became one character, and
-// @8bitscript/sprites draws it. Machine twins (index.c64.8bs, index.nes.8bs,
-// index.pet.8bs) replace this file when the build has hardware that can
-// show the picture as a sprite.
+// This file is the glyph path, and it is also THE CONTRACT: every machine
+// twin (index.c64.8bs, index.cx16.8bs, index.pet.8bs, index.vic20.8bs,
+// index.web.8bs, index.nes.8bs) answers the same constants and exports the
+// same calls, so one program links against any of them. A machine that can
+// do more says so in its constants; a machine that can do less answers
+// honestly and the call degrades — it never fails to link and never writes
+// outside its own tables. docs/project/graphics.md has the per-machine
+// table; packages/compiler/test/graphics-contract.test.mjs builds a probe
+// that reads every constant and calls every operation on every target.
+//
+// ---- the coordinate rule ---------------------------------------------------
+//
+// Positions are STAGE PIXELS, origin at the top-left of the playfield, y
+// down. `place(slot, 0, 0)` lands on the same pixel as text cell (0, 0) on
+// every machine: a twin adds whatever its hardware needs (the C64's sprite
+// coordinates start at (24, 50), the X16's at the display's DC_VSTART) and
+// a program never writes `sprites.ORIGIN_X`. A position that is not a
+// multiple of STEP_X / STEP_Y is rounded DOWN to one. A position outside the
+// playfield clips — it is not drawn, it never wraps onto the next row, and
+// it never writes outside the machine's own tables.
+//
+// ---- the constants a program folds on --------------------------------------
+//
+// Each is a compile-time value on the machine being built for, so
+// `if (graphics.RESTORES) { ... }` costs a machine that answers false
+// nothing. The honest value is the degradation: a machine does not claim a
+// capability to look alike.
+//
+//   MAX          objects at once (slots 0 .. MAX-1; a slot past it is ignored)
+//   FRAMES       animation frames one picture can hold; frames past it are cut
+//   WIDTH,HEIGHT pixels of the largest picture drawn whole
+//   COLORS       colours one object shows at once (1: a single ink)
+//   RECOLORS     color() changes an object's colour
+//   STEP_X,STEP_Y the smallest move that shows, in pixels
+//   RESTORES     what an object covered comes back when it moves or hides
+//   TRANSPARENT  an unlit pixel of a picture leaves what is under it showing
+//
+// ---- the calls --------------------------------------------------------------
+//
+//   place(slot, x, y)   draw the object at a stage pixel; also shows a hidden one
+//   hide(slot)          stop drawing it, until the next place()
+//   setFrame(slot, n)   show frame n of its animation (a frame past the last is the last)
+//   animate(slot, on)   pause (false) or resume (true) its automatic stepping
+//   color(slot, c)      the object's colour, where RECOLORS; otherwise nothing
+//   update()            once a frame: advance every playing animation, then draw
+//
+// bind() and meta() are called by the compiler's generated binders before
+// main() runs; a program never calls them.
+//
+// ---- this file ---------------------------------------------------------------
+//
+// The picture became one character per animation frame (the default
+// lowering, packages/compiler/src/media/lower-default.mjs, up to STEPS of
+// them) and @8bitscript/sprites draws it as a cell. Nothing is sampled or
+// scaled at run time: what reaches here is a byte per frame.
 import { sprites } from "@8bitscript/sprites";
+import { Video } from "@8bitscript/system";
 
-const MAX: utinyint = 8;
-let glyph: array<u8, 8>;
-let frames: array<u8, 8>;
-let every: array<u8, 8>;
-let tick: array<u8, 8>;
-let frame: array<u8, 8>;
-let px: array<u16, 8>;
-let py: array<u16, 8>;
-let used: utinyint = 0;
+const SLOTS: utinyint = 8;
+const STEPS: utinyint = 4;
+let codes: array<u8, 32>;  // STEPS codes per picture: slot << 2 | step
+let counts: array<u8, 8>;  // frames in this picture's animation
+let every: array<u8, 8>;   // update() calls between frames
+let tick: array<u8, 8>;    // update() calls since the last frame
+let step: array<u8, 8>;    // the frame on show
+let held: array<u8, 8>;    // 1: automatic stepping paused
 let started: bool = false;
 
 function ensure(): void {
     if (!started) {
-        sprites.begin(MAX);
+        sprites.begin(SLOTS);
         started = true;
     }
 }
 
 export namespace graphics {
+    const MAX: utinyint = 8;
+    const FRAMES: utinyint = 4;
+    const WIDTH: utinyint = sprites.WIDTH;      // one cell
+    const HEIGHT: utinyint = sprites.HEIGHT;
+    const COLORS: utinyint = 1;
+    const RECOLORS: bool = Video.COLOR_PER_CELL;
+    const STEP_X: utinyint = sprites.STEP_X;
+    const STEP_Y: utinyint = sprites.STEP_Y;
+    const RESTORES: bool = sprites.RESTORES;
+    const TRANSPARENT: bool = false;            // a cell is drawn whole
+
     function bind(slot: utinyint, index: utinyint, value: utinyint): void {
-        if (slot >= MAX) {
+        if (slot >= SLOTS || index >= STEPS) {
             return;
         }
-        if (index == 0) {
-            glyph[slot] = value;
-        }
+        codes[(slot << 2) + index] = value;
     }
 
     function meta(slot: utinyint, frameCount: utinyint, interval: utinyint, kind: utinyint, width: utinyint, height: utinyint): void {
-        if (slot >= MAX) {
+        if (slot >= SLOTS) {
             return;
         }
-        frames[slot] = frameCount;
+        if (frameCount > STEPS) {
+            frameCount = STEPS;
+        }
+        counts[slot] = frameCount;
         every[slot] = interval;
         tick[slot] = 0;
-        frame[slot] = 0;
-        if (slot >= used) {
-            used = slot + 1;
-        }
+        step[slot] = 0;
+        held[slot] = 0;
     }
 
     function place(slot: utinyint, x: usmallint, y: usmallint): void {
-        if (slot >= MAX) {
+        if (slot >= SLOTS) {
             return;
         }
         ensure();
-        px[slot] = x;
-        py[slot] = y;
-        sprites.setShape(slot, glyph[slot]);
+        sprites.setShape(slot, codes[(slot << 2) + step[slot]]);
         sprites.place(slot, x, y);
+    }
+
+    function hide(slot: utinyint): void {
+        if (slot >= SLOTS) {
+            return;
+        }
+        ensure();
+        sprites.hide(slot);
+    }
+
+    function setFrame(slot: utinyint, frame: utinyint): void {
+        if (slot >= SLOTS) {
+            return;
+        }
+        ensure();
+        if (frame >= counts[slot]) {
+            frame = counts[slot];
+            if (frame > 0) {
+                frame = frame - 1;
+            }
+        }
+        step[slot] = frame;
+        tick[slot] = 0;
+        sprites.setShape(slot, codes[(slot << 2) + frame]);
+    }
+
+    function animate(slot: utinyint, on: bool): void {
+        if (slot >= SLOTS) {
+            return;
+        }
+        held[slot] = 1;
+        if (on) {
+            held[slot] = 0;
+        }
+    }
+
+    function color(slot: utinyint, c: utinyint): void {
+        if (slot >= SLOTS) {
+            return;
+        }
+        ensure();
+        sprites.setColor(slot, c);
     }
 
     function update(): void {
         if (!started) {
             return;
+        }
+        for (let i: utinyint = 0; i < SLOTS; i++) {
+            if (counts[i] > 1 && held[i] == 0) {
+                tick[i] = tick[i] + 1;
+                if (tick[i] >= every[i]) {
+                    tick[i] = 0;
+                    let next: utinyint = step[i] + 1;
+                    if (next >= counts[i]) {
+                        next = 0;
+                    }
+                    step[i] = next;
+                    sprites.setShape(i, codes[(i << 2) + next]);
+                }
+            }
         }
         sprites.update();
     }

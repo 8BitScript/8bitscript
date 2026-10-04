@@ -44,7 +44,8 @@ graphics.update();
 ```
 
 `graphics.update()` once a frame advances the animation and draws. Same
-shape as `sprites.update()`.
+shape as `sprites.update()`. The rest of what a program can say, and what
+each machine answers, is [the portable contract](#the-portable-contract).
 
 Host decode lives in `@8bitscript/graphics-tools` (PNG, no Aseprite, GIF,
 or SVG). The compiler never shells out. Lowering belongs to the machine:
@@ -53,6 +54,117 @@ Every other machine uses the glyph path `@8bitscript/sprites` already has,
 with `8BS2111` naming the adaptation. The web exports one too, because its
 font draws only ASCII and the sixteen 2×2 block codes: the default glyph
 codes (reverse space, a ball) are PETSCII and draw nothing there.
+
+## The portable contract
+
+One program should run on every machine, doing as much as the machine
+can and saying honestly what it cannot. So `@8bitscript/graphics` is a
+**contract**: every machine's twin (`packages/graphics/src/index.<machine>.8bs`,
+the generic one in `index.8bs` for the rest) answers the same ten constants
+and exports the same eight calls. A machine that can do more says so in
+its constants; a machine that can do less answers honestly and the call
+degrades. A call never fails to link and never writes outside its own
+tables, and `packages/compiler/test/graphics-contract.test.mjs` builds a
+probe that reads every constant and calls every operation on all
+thirty-two targets to hold that.
+
+```8bs
+import { graphics } from "@8bitscript/graphics";
+
+graphics.place(hero, 40, 80);            // stage pixels, the same on every machine
+if (graphics.RECOLORS) {                 // folds away where false: costs that machine nothing
+    graphics.color(hero, 2);
+}
+if (graphics.FRAMES >= 4) {
+    graphics.setFrame(hero, 3);
+}
+```
+
+### Where a position lands
+
+Positions are **playfield pixels**: the origin is the top-left of the
+playfield, y runs down, and `graphics.place(slot, 0, 0)` lands on the same
+pixel as text cell (0, 0) on every machine. The twin adds whatever its
+hardware needs — the C64's sprite coordinates start at (24, 50), the X16
+adds the display's `DC_VSTART` — so a program never writes
+`sprites.ORIGIN_X`. (That is the one difference from `sprites.place`, the
+layer underneath, which takes stage coordinates and leaves the origin to
+the program. A program that mixes the two adds the origin to the second.)
+
+A position that is not a multiple of `STEP_X`/`STEP_Y` is rounded down to
+one. A position outside the playfield clips: the picture is not drawn, it
+does not wrap onto the next row, and it never writes outside the machine's
+own tables. On the C64 the playfield's right and bottom edges are not the
+limit — sprites show through the border — so a position past 255 is
+fine there.
+
+### The constants
+
+Each is a compile-time value, so a guard on one costs a machine that
+answers false nothing. The honest value is the degradation: a machine
+does not claim a capability so as to look like another.
+
+| Constant | Means |
+| --- | --- |
+| `MAX` | Objects at once. A slot at or past it is ignored. |
+| `FRAMES` | Animation frames a picture of `WIDTH`×`HEIGHT` can hold; frames past it are cut at build time (`8BS2111`). |
+| `WIDTH`, `HEIGHT` | Pixels of the largest picture drawn whole. |
+| `COLORS` | Colours one object shows at once (1: a single ink). |
+| `RECOLORS` | `color()` changes an object's colour. |
+| `STEP_X`, `STEP_Y` | The smallest move that shows, in pixels. |
+| `RESTORES` | What an object covered comes back when it moves or hides. |
+| `TRANSPARENT` | An unlit pixel of a picture leaves what is under it showing. |
+
+One row per machine, so a machine's own work edits its row and nothing else
+(`graphics-contract.test.mjs` holds the same table; change both together):
+
+| Machine | `MAX` | `FRAMES` | `WIDTH`×`HEIGHT` | `COLORS` | `RECOLORS` | `STEP_X`×`STEP_Y` | `RESTORES` | `TRANSPARENT` |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| PET | 8 | 7 (shared by every picture) | 16×16 | 1 | no | 4×4 | yes | yes (a letter underneath is replaced) |
+| VIC-20 | 8 | 8 (one 64-byte pool) | 16×16 | 1 | yes | 8×8 | no | no |
+| C64 | 24 (eight on one line) | 4 | 24×21 | 1 | yes | 1×1 | yes | yes |
+| Commander X16 | 8 | 2 at 64×64 (32 at 16×16, 8 at 32×16) | 64×64 | 15 | no | 1×1 | yes | yes |
+| Web | 8 | 8 | 8×8 | 1 | yes | 8×8 | no | no |
+| NES (parked) | 8 | 4 | 16×16 | 3 | no | 1×1 | yes | yes |
+| every other machine | 8 | 4 | 8×8 | 1 | where it colours cells | 8×8 | no | no |
+
+### The calls
+
+| Call | Does |
+| --- | --- |
+| `place(slot, x, y)` | Draw the object at a playfield pixel; also shows a hidden one. |
+| `hide(slot)` | Stop drawing it, until the next `place()`. |
+| `setFrame(slot, n)` | Show frame `n` of its animation; a frame past the last is the last. |
+| `animate(slot, on)` | Pause (`false`) or resume (`true`) its automatic stepping. |
+| `color(slot, c)` | The object's colour, where `RECOLORS`; otherwise nothing. |
+| `update()` | Once a frame: advance every playing animation, then draw. |
+
+Every call that changes what is shown takes effect by the next `update()`.
+There is no separate `show`: the layers underneath all define `hide` as
+"not drawn until placed again", so a position-free `show` would make every
+twin keep a position per slot — four bytes a slot, on top of what the sprite
+layer already holds — to save a program one `place()` it can already write. A program that hides and shows an object knows where
+it is and says so in `place`.
+
+Where each machine stands on each call. *Verified* means a headless
+emulator screenshot shows it; *links* means the contract test builds it and
+it is the same code path as a verified call, but nothing has looked at the
+screen yet — that is the next piece of work on that machine.
+
+| Machine | `place` / `update` | `hide` | `setFrame` | `animate` | `color` |
+| --- | --- | --- | --- | --- | --- |
+| PET | verified | links | links | links | stub (`RECOLORS` false) |
+| VIC-20 | verified | links | links | links | links |
+| C64 | verified (under the playfield-pixel rule) | links | links | links | links |
+| Commander X16 | verified | links | links | links | stub (`RECOLORS` false) |
+| Web | verified | verified | verified | verified | verified |
+| NES (parked) | links | links | links | links | stub |
+| every other machine | links | links | links | links | links |
+
+The "every other machine" row is the glyph path of `index.8bs`, which is
+the code the web twin copies and which has no emulator behind it here;
+the web's tests (`packages/cli/test/web-graphics-ops.test.mjs`) are the
+nearest evidence for it.
 
 ## How the four stress machines differ
 
@@ -65,7 +177,7 @@ codes (reverse space, a ball) are PETSCII and draw nothing there.
 | VIC-20 | Quadrant-block characters from the ROM, worked out at build time: one cell for a source of 8 pixels or fewer, 2×2 cells for anything larger (scaled down), one screen code a cell a frame, the animation's frames (the first 8) stepping every `every` updates; a picture with almost no ink becomes one glyph (`8BS2111` either way). Moving an object blanks the cells it left; cells off the screen are not drawn. |
 | Commander X16 | A VERA hardware sprite in its own 15-colour palette; 8, 16, 32 or 64 px a side, real animation frames (`8BS2110` over 15 colours, `8BS2111` for padding or cut frames). See [Commander X16](#commander-x16). |
 | Web | One cell as a 2×2 quadrant-block glyph (codes 128–143) per animation step, up to eight steps, stepped every `every` calls to `graphics.update()`; colours dropped (`8BS2111`). A 16×16 picture is four quadrants of 8×8 source pixels. A true sprite layer is a later item for the web runtime (`packages/web/AGENTS.md`). |
-| every other machine | The same glyph path, quantized to that machine's cell size. |
+| every other machine | The same glyph path, quantized to that machine's cell size: one glyph per animation step, up to four (`8BS2111` names what was dropped). |
 
 ### On the PET
 
@@ -127,11 +239,21 @@ with a user-port speaker so the VIA song actually plays.
 
 | Machine | Program | Variables |
 | --- | --- | --- |
-| PET 3032 + speaker | 3765 | 50 |
-| C64 (re-measured 2026-10-03) | 4577 | 46 |
-| VIC-20 8K | 2455 | 49 |
-| Commander X16 | 3982 | 70 |
-| Web (wasm module bytes) | 1797 | 259 |
+| PET 3032 + speaker | 3787 | 50 |
+| C64 | 4637 | 46 |
+| VIC-20 8K | 2493 | 48 |
+| Commander X16 | 4002 | 69 |
+| Web (wasm module bytes) | 1820 | 267 |
+
+These are the figures after the portable contract landed
+(2026-10-04); before it they were 3765, 4577, 2455, 3982 and 1797 bytes of
+program. The difference — 22, 60, 38, 20 and 23 bytes on an example that
+calls only `place()` and `update()` — is the pause flag every animation loop
+now reads, the array that holds it (it counts in the program figure on
+the machines whose arrays are zero-filled bytes in the image), and on the
+C64 the two additions that put the playfield's origin on every `place()`.
+Programs that call `setFrame`, `hide`, `animate` or `color` pay for those
+on top, measured when something uses them.
 
 The web row is `examples/media-walk` built with `8bs build --target web
 --size` on 2026-10-03: the module's byte count, and the declared RAM for

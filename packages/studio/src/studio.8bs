@@ -8,7 +8,6 @@ import { text, TextColor } from "@8bitscript/text";
 import { menubar } from "@8bitscript/ui/menubar";
 import { graphics } from "@8bitscript/graphics";
 import { audio } from "@8bitscript/audio";
-import { sprites } from "@8bitscript/sprites";
 import { mark } from "./mark.8bg";
 import { chime } from "./chime.8ba";
 import { StudioBar } from "./Bar.8bx";
@@ -24,7 +23,7 @@ export namespace studio {
         paint();
         StudioBar();
         text.setColor(TextColor.WHITE);
-        graphics.place(mark, sprites.ORIGIN_X + 4, sprites.ORIGIN_Y + 4);
+        graphics.place(mark, 4, 4);
         audio.play(chime);
         while (true) {
             waitFrame();

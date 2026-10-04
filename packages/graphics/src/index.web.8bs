@@ -37,47 +37,62 @@
 // the compiler's generated binders before main() runs; a program never
 // calls them.
 import { sprites } from "@8bitscript/sprites";
+import { Video } from "@8bitscript/system";
 
-const MAX: utinyint = 8;
+const SLOTS: utinyint = 8;
 const STEPS: utinyint = 8;
 let codes: array<u8, 64>;  // STEPS block codes per picture: slot << 3 | step
 let counts: array<u8, 8>;  // steps in this picture's animation
 let every: array<u8, 8>;   // update() calls between steps
 let tick: array<u8, 8>;    // update() calls since the last step
 let step: array<u8, 8>;    // the step on show
+let held: array<u8, 8>;    // 1: automatic stepping paused
 let animated: utinyint = 0; // pictures with more than one step
 let started: bool = false;
 
 function ensure(): void {
     if (!started) {
-        sprites.begin(MAX);
+        sprites.begin(SLOTS);
         started = true;
     }
 }
 
 export namespace graphics {
+    // The portable contract (index.8bs): what this machine answers.
+    const MAX: utinyint = 8;
+    const FRAMES: utinyint = 8;
+    const WIDTH: utinyint = sprites.WIDTH;       // one cell, as a 2×2 quadrant block
+    const HEIGHT: utinyint = sprites.HEIGHT;
+    const COLORS: utinyint = 1;                  // the glyph's one ink
+    const RECOLORS: bool = Video.COLOR_PER_CELL; // color() tints the cell
+    const STEP_X: utinyint = sprites.STEP_X;
+    const STEP_Y: utinyint = sprites.STEP_Y;
+    const RESTORES: bool = sprites.RESTORES;     // false: what a picture covers is lost
+    const TRANSPARENT: bool = false;             // a cell is drawn whole
+
     function bind(slot: utinyint, index: utinyint, value: utinyint): void {
-        if (slot >= MAX || index >= STEPS) {
+        if (slot >= SLOTS || index >= STEPS) {
             return;
         }
         codes[(slot << 3) + index] = value;
     }
 
     function meta(slot: utinyint, frameCount: utinyint, interval: utinyint, kind: utinyint, width: utinyint, height: utinyint): void {
-        if (slot >= MAX) {
+        if (slot >= SLOTS) {
             return;
         }
         counts[slot] = frameCount;
         every[slot] = interval;
         tick[slot] = 0;
         step[slot] = 0;
+        held[slot] = 0;
         if (frameCount > 1) {
             animated = animated + 1;
         }
     }
 
     function place(slot: utinyint, x: usmallint, y: usmallint): void {
-        if (slot >= MAX) {
+        if (slot >= SLOTS) {
             return;
         }
         ensure();
@@ -85,13 +100,55 @@ export namespace graphics {
         sprites.place(slot, x, y);
     }
 
+    function hide(slot: utinyint): void {
+        if (slot >= SLOTS) {
+            return;
+        }
+        ensure();
+        sprites.hide(slot);
+    }
+
+    function setFrame(slot: utinyint, frame: utinyint): void {
+        if (slot >= SLOTS) {
+            return;
+        }
+        ensure();
+        if (frame >= counts[slot]) {
+            frame = counts[slot];
+            if (frame > 0) {
+                frame = frame - 1;
+            }
+        }
+        step[slot] = frame;
+        tick[slot] = 0;
+        sprites.setShape(slot, codes[(slot << 3) + frame]);
+    }
+
+    function animate(slot: utinyint, on: bool): void {
+        if (slot >= SLOTS) {
+            return;
+        }
+        held[slot] = 1;
+        if (on) {
+            held[slot] = 0;
+        }
+    }
+
+    function color(slot: utinyint, c: utinyint): void {
+        if (slot >= SLOTS) {
+            return;
+        }
+        ensure();
+        sprites.setColor(slot, c);
+    }
+
     function update(): void {
         if (!started) {
             return;
         }
         if (animated > 0) {
-            for (let i: utinyint = 0; i < MAX; i++) {
-                if (counts[i] > 1) {
+            for (let i: utinyint = 0; i < SLOTS; i++) {
+                if (counts[i] > 1 && held[i] == 0) {
                     tick[i] = tick[i] + 1;
                     if (tick[i] >= every[i]) {
                         tick[i] = 0;

@@ -1,7 +1,7 @@
 // @8bitscript/graphics on the NES: CHR tiles the lowering patched into
 // the font, shown as one OAM sprite (or four for 16×16). Must run
 // graphics.update() after waitFrame(), while the PPU is in vertical blank.
-const MAX: utinyint = 8;
+const SLOTS: utinyint = 8;
 const TILES_PER: utinyint = 16; // 4 frames × 4 tiles
 let tiles: array<u8, 128>;
 let tileCount: array<u8, 8>;
@@ -12,6 +12,7 @@ let frame: array<u8, 8>;
 let px: array<u8, 8>;
 let py: array<u8, 8>;
 let shown: array<u8, 8>;
+let paused: array<u8, 8>;    // 1: automatic stepping paused
 let started: bool = false;
 
 function writeOam(addr: utinyint, y: utinyint, tile: utinyint, attr: utinyint, x: utinyint): void {
@@ -32,8 +33,20 @@ function hideRest(start: utinyint): void {
 }
 
 export namespace graphics {
+    // The portable contract (index.8bs): what this machine answers.
+    const MAX: utinyint = 8;
+    const FRAMES: utinyint = 4;               // of a WIDTH x HEIGHT picture: TILES_PER tiles a slot, 4 per frame
+    const WIDTH: utinyint = 16;               // 2 x 2 tiles
+    const HEIGHT: utinyint = 16;
+    const COLORS: utinyint = 3;               // one OAM palette
+    const RECOLORS: bool = false;             // color() is a no-op: not yet
+    const STEP_X: utinyint = 1;
+    const STEP_Y: utinyint = 1;
+    const RESTORES: bool = true;              // OAM draws over the background and leaves it whole
+    const TRANSPARENT: bool = true;           // colour 0 of a sprite is clear
+
     function bind(slot: utinyint, index: utinyint, value: utinyint): void {
-        if (slot >= MAX) {
+        if (slot >= SLOTS) {
             return;
         }
         if (index < TILES_PER) {
@@ -42,11 +55,12 @@ export namespace graphics {
     }
 
     function meta(slot: utinyint, frames: utinyint, every: utinyint, kind: utinyint, width: utinyint, height: utinyint): void {
-        if (slot >= MAX) {
+        if (slot >= SLOTS) {
             return;
         }
         frameCount[slot] = frames;
         interval[slot] = every;
+        paused[slot] = 0;
         if (width >= 16) {
             tileCount[slot] = 4;
         } else {
@@ -59,7 +73,7 @@ export namespace graphics {
     }
 
     function place(slot: utinyint, x: usmallint, y: usmallint): void {
-        if (slot >= MAX) {
+        if (slot >= SLOTS) {
             return;
         }
         px[slot] = x;
@@ -72,16 +86,53 @@ export namespace graphics {
         started = true;
     }
 
+    // update() writes OAM only for shown slots and hides the rest.
+    function hide(slot: utinyint): void {
+        if (slot >= SLOTS) {
+            return;
+        }
+        shown[slot] = 0;
+    }
+
+    function setFrame(slot: utinyint, n: utinyint): void {
+        if (slot >= SLOTS) {
+            return;
+        }
+        if (frameCount[slot] == 0) {
+            return;
+        }
+        if (n >= frameCount[slot]) {
+            n = frameCount[slot] - 1;
+        }
+        frame[slot] = n;
+        tick[slot] = 0;
+    }
+
+    function animate(slot: utinyint, on: bool): void {
+        if (slot >= SLOTS) {
+            return;
+        }
+        paused[slot] = 1;
+        if (on) {
+            paused[slot] = 0;
+        }
+    }
+
+    // Not yet: re-pointing a sprite at another OAM palette is the NES
+    // fork's job. graphics.RECOLORS is false.
+    function color(slot: utinyint, c: utinyint): void {
+    }
+
     function update(): void {
         if (!started) {
             return;
         }
         let addr: utinyint = 0;
-        for (let slot: utinyint = 0; slot < MAX; slot++) {
+        for (let slot: utinyint = 0; slot < SLOTS; slot++) {
             if (shown[slot] == 0) {
                 continue;
             }
-            if (frameCount[slot] >= 2) {
+            if (frameCount[slot] >= 2 && paused[slot] == 0) {
                 tick[slot] = tick[slot] + 1;
                 if (tick[slot] >= interval[slot]) {
                     tick[slot] = 0;

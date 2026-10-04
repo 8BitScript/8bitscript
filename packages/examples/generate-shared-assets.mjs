@@ -63,10 +63,9 @@ const chime8ba = `sample chime {
 
 const mark8bx = `import { mark } from "./mark.8bg";
 import { graphics } from "@8bitscript/graphics";
-import { sprites } from "@8bitscript/sprites";
 
 export component Mark() {
-    graphics.place(mark, sprites.ORIGIN_X + 120, sprites.ORIGIN_Y);
+    graphics.place(mark, 120, 0);
 }
 `;
 
