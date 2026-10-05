@@ -107,8 +107,8 @@ Do not describe more than this as working:
   **On the wasm build** (`8bs run vic20 --web`) the hook's machine code is never
   lowered: `src/rasterline.vic20.web.8bs` writes the page's picture-line list
   instead, the same portable surface with each entry applied at its line
-  exactly. The page reads the border, background and character set from `$900F`
-  and `$9005` as the chip does. `8bs conform vic20 --program bands` holds the
+  exactly. The page reads the border and background from `$900F`
+  (and the live character set from `$9005`) as the chip does. `8bs conform vic20 --program bands` holds the
   band lines to xvic's (every band starts on the same line); what it does not
   model is in `emulator.wasm.limits` in `package.json`, and
   `packages/compiler/test/vic20-web-twin.test.mjs` holds the twin to the native

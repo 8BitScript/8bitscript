@@ -22,7 +22,7 @@
         "limits": [
           "the portable raster list applies each entry at its picture line exactly: the real frame hook's timing is not modelled (it syncs on pairs of lines, plans an entry one line below another two lines down, and costs waitFrame() the rest of the frame), and until its first entry a real border keeps the last frame's final value where the wasm picture shows the program's own (8bs conform vic20 --program bands: every band starts on the same line)",
           "the page's palette is not VICE's default VIC-20 palette: the same colour number draws a different colour in places (a warning in 8bs conform)",
-          "bit 3 of $900F, the chip's screen-wide reverse-video flag, is not modelled: the page always draws normal video (the cell-level reverse video of a screen code of 128 or more is drawn)",
+          "bit 3 of $900F, the chip's screen-wide inverse flag, is not modelled: the page always draws the picture the right way round",
           "no sound: the VIC-I voices are plain memory, so audio.tone and .8ba playback are silent",
           "NTSC 60 Hz only: detectRegion() answers NTSC"
         ]

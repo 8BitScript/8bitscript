@@ -13,7 +13,6 @@
 // and character set from $900F and $9005 the way the chip does.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync } from 'node:fs';
 import { mkdtemp, writeFile, rm, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -25,8 +24,8 @@ import { pixelAt } from '../src/png.mjs';
 import { BORDER_PX, VIC20_PALETTE, layoutForRealMachine } from '../src/web-layout.mjs';
 
 const REPO = resolve(import.meta.dirname, '..', '..', '..');
-const FONT = 'vic20-text-screencode';
-const VICE_ROM = '/opt/homebrew/share/vice/VIC20/chargen-901460-03.bin';
+// The two ROM blocks the $9005 chargen base chooses between: 0 the upper-case/graphics block the machine boots in, 1 the lower/upper-case one.
+const FONT_OF_SET = ['vic20-upper-screencode', 'vic20-text-screencode'];
 
 const CLI_LINE = /^(built |memory: |size breakdown|web bundle: |8bs build: )/;
 function silently(fn) {
@@ -67,7 +66,7 @@ async function shoot({ source = null, entry = null, frames = 2 } = {}) {
 
 /** Whether cell (col, row) shows glyph `code` of character set `set` in `ink` over `paper`, every pixel of the 8x8. */
 function cellIs(png, col, row, code, set, ink, paper) {
-  const rows = glyphRows(code, FONT, set);
+  const rows = glyphRows(code, FONT_OF_SET[set]);
   for (let gy = 0; gy < 8; gy += 1) {
     for (let gx = 0; gx < 8; gx += 1) {
       const want = ((rows[gy] >> gx) & 1) !== 0 ? ink : paper;
@@ -183,11 +182,10 @@ test("the VIC-20 raster twin's list offsets are the ones the page reads for this
   assert.equal(expanded.rasterBase, layout.rasterBase);
 });
 
-test('the layout names the two registers the page reads the VIC-20 picture from', () => {
+test('the layout names the registers the page reads the VIC-20 picture from', () => {
   const layout = layoutForRealMachine('vic20', { facts: { 'video.columns': 22, 'video.rows': 23, 'video.frameRate': 60 }, tags: [] });
-  assert.deepEqual(layout.packedRegisters, {
-    colorRegister: 0x900f, borderMask: 0x07, backgroundShift: 4, charsetRegister: 0x9005, charsetMask: 0x0f, charsetAlternate: 2,
-  });
+  assert.deepEqual(layout.packedRegisters, { colorRegister: 0x900f, borderMask: 0x07, backgroundShift: 4 });
+  assert.deepEqual(layout.charsetSwitch, { register: 0x9005, mask: 0x0e }, 'and which set is live: the memory pointer\'s chargen base');
   assert.equal(layoutForRealMachine('c64', { facts: { 'video.columns': 40, 'video.rows': 25 } }).packedRegisters, undefined, 'only the VIC-20 packs its registers');
 });
 
@@ -197,26 +195,4 @@ test('examples/fancy builds for the VIC-20 through the wasm backend and draws it
   const colours = new Set();
   for (let y = BORDER_PX; y < BORDER_PX + 184; y += 1) colours.add(pixelAt(png, 2, y).join());
   assert.ok(colours.size >= 2, `fancy's border splits into bands, not one colour (saw ${colours.size})`);
-});
-
-// The two tables are the VIC-20's own character ROM, bit-reversed (the font's bit 0 is the left pixel): hold
-// them to VICE's binary when it is installed, so a hand-edited table cannot drift from the chip.
-test('both character sets are the real ROM, set by set', { skip: !existsSync(VICE_ROM) }, async () => {
-  const rom = await readFile(VICE_ROM);
-  const reverse = (b) => { let r = 0; for (let i = 0; i < 8; i += 1) if (b & (1 << i)) r |= 1 << (7 - i); return r; };
-  for (const [set, offset] of [[0, 0x000], [1, 0x800]]) {
-    for (let code = 0; code < 128; code += 1) {
-      const rows = glyphRows(code, FONT, set);
-      for (let y = 0; y < 8; y += 1) {
-        assert.equal(rows[y], reverse(rom[offset + code * 8 + y]), `set ${set}, code ${code}, row ${y}`);
-      }
-    }
-  }
-});
-
-test('the two sets differ where the ROM says they do: code 1 is A in one and a in the other', () => {
-  const upper = [...glyphRows(1, FONT, 0)];
-  const lower = [...glyphRows(1, FONT, 1)];
-  assert.notDeepEqual(upper, lower);
-  assert.deepEqual(upper, [0x18, 0x24, 0x42, 0x7e, 0x42, 0x42, 0x42, 0x00], 'the capital A');
 });

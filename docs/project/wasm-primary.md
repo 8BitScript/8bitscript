@@ -330,19 +330,17 @@ _headers       COOP/COEP for Cloudflare Pages and Netlify
   surface (`Slot`, `raster.at/insert/setValue/count/commit/enable/disable`, 16 entries, 184 lines,
   `SCROLL_X` refused, `BORDER` kept to 3 bits), writing the page's picture-line list.
   `examples/fancy` and the new `packages/vic20/test/web-raster-probe.8bs` build through `--web`.
-- The page reads the VIC-20's base state from the chip's own registers (`layout.packedRegisters`:
-  `$900F` border and background, `$9005` which character ROM block), in both renderers
-  (`web-scanline.mjs`, and the loader's inline copy, held pixel-identical by a test).
-- `font8x8.mjs` has both VIC-20 character sets (upper case and graphics, mixed case), bit-reversed
-  from VICE's `chargen-901460-03.bin` and checked against it. `Slot.CHARSET` works, and a program that
-  never prints boots in the upper-case set, as the machine does. The grid conformance fell from 166 to 112 cells.
+- The page reads the VIC-20's border and background from the chip's own register
+  (`layout.packedRegisters`: `$900F`), in both renderers (`web-scanline.mjs`, and the loader's inline
+  copy, held pixel-identical by a test). Which character set is live is #319's `charsetSwitch`
+  (`$9005`), so `Slot.CHARSET` entries switch sets at their line.
 - `8bs conform vic20 --program bands` (new): five `BORDER` entries at lines 24, 56, 88, 120 and 152.
   xvic and the wasm build start **every band on the same line** (offset 0, all 6 bands). Colours differ
   in places (palette: backlog item 5) and are a warning, not a failure.
 - Tests: `packages/cli/test/web-vic20.test.mjs`, `conform-bands.test.mjs` and a VIC-20 case in
   `web-loader.test.mjs` (CI-run); `packages/compiler/test/vic20-web-twin.test.mjs` (twin parity);
-  `packages/vic20/test/conform.test.mjs` (pin 112) and `conform.bands.test.mjs` (need xvic).
-  Five deliberate breaks of the twin and the two renderers were each caught.
+  `packages/vic20/test/conform.bands.test.mjs` (needs xvic). Five deliberate breaks of the twin and
+  the two renderers were each caught.
 
 **Not done:**
 
@@ -350,7 +348,7 @@ _headers       COOP/COEP for Cloudflare Pages and Netlify
   written); the wasm picture shows the program's own. A `hold` flag on `rowState`, set for the VIC-20
   (start each frame from the state after the last entry), would close it. The C64 handler behaves the
   same way and wants the same treatment.
-- `$900F` bit 3 (reverse video) is ignored; reverse video of cells is backlog item 1.
+- `$900F` bit 3 (the screen-wide inverse flag) is ignored.
 - The hook's timing (pair-of-lines sync, the two-line rule, the cost to `waitFrame()`) is not modelled.
 - Vegas Nights' VIC-20 programs were not rebuilt for wasm here.
 
@@ -358,5 +356,5 @@ _headers       COOP/COEP for Cloudflare Pages and Netlify
 `cd packages/cli && node --test test/web-vic20.test.mjs test/conform-bands.test.mjs test/web-loader.test.mjs`
 and `cd packages/compiler && node --test test/vic20-web-twin.test.mjs`. With xvic installed:
 `cd packages/vic20 && node ../cli/bin/8bs.mjs conform vic20 --program bands`.
-Risk: backlog item 1 (reverse video and the boot set) edits the same font and compositor files. If it
-lands first, keep its glyph code and this branch's `charset` argument to the named fonts.
+Risk: low. Backlog item 1 (#319) edits the same compositor and layout files and has already landed;
+this branch was rebased onto it, keeping its fonts and `charsetSwitch` and adding only the `$900F` read.
