@@ -63,7 +63,11 @@ test('every synthetic host carries the table; so does the X16\'s wasm build, whi
   // in the same table the synthetic hosts have (index.cx16.web.8bs writes it).
   const cx16 = layoutForRealMachine('cx16', { facts: { 'video.columns': 76, 'video.rows': 56 }, tags: [] });
   assert.equal(cx16.glyphBase, cx16.rasterBase + RASTER_MAX_ENTRIES * RASTER_ENTRY_SIZE, 'right after the raster list');
-  assert.equal(cx16.reservedEnd, cx16.glyphBase + GLYPH_COUNT * 8, 'and the program data starts above it');
+  // Then the one byte the page adds one to each frame it releases (raster.frame()
+  // on the X16's wasm build: web-cx16-input-raster.test.mjs), and the program
+  // data starts above that.
+  assert.equal(cx16.frameOffset, cx16.glyphBase + GLYPH_COUNT * 8, 'the frame byte follows the table');
+  assert.equal(cx16.reservedEnd, cx16.frameOffset + 1, 'and the program data starts above it');
 });
 
 test('the sidecar and the page carry the table so the loader can find it', () => {

@@ -1,0 +1,127 @@
+// input.8bs's own `.web` twin — build.mjs's internal `web` tag resolves this
+// in place of input.8bs whenever this package builds through the wasm backend
+// (`8bs build --target cx16 --web`, `8bs run cx16 --web`).
+//
+// The native file works through the KERNAL: `joystick_scan` ($FF53), `kbd_scan`
+// ($FF9F), `joystick_get` ($FF56), `mouse_scan` and `mouse_get`, all machine
+// code behind `jsr`. A wasm build has no KERNAL to call, so none of that can be
+// lowered. The page, on the other hand, already listens for the keyboard and
+// for a gamepad and stores a snapshot of what is held at one byte of the
+// program's memory (web-layout.mjs agreementFor(): `inputOffset`); this twin
+// reads that byte once a frame and works out what began, which is exactly what
+// `poll()` gives a program on every other machine.
+//
+// What the byte carries, and what it stands for on a real X16 (the KERNAL's
+// "keyboard joystick" and the two SNES ports; kernal/drivers/x16/joystick.s):
+//
+//   - left / right / up / down — the arrow keys, or a pad's D-pad or left stick
+//   - confirm                  — Enter (the keyboard joystick's START), or a
+//                                pad's A or START
+//   - cancel                   — Escape, or a pad's B or SELECT. The real
+//                                keyboard's SELECT is the left Shift key and
+//                                its B is a letter key; Escape is the browser's
+//                                familiar "back", so the page maps that.
+//
+// The labels below are the native file's, which is why a message catalog that
+// says "press {control}" reads the same on both builds.
+//
+// What it does not do, and `emulator.wasm.limits` in `8bs targets --json` says
+// so: the pointer. `input.mouse` is true natively (the X16 has a mouse) but the
+// page does not carry a pointer position to the program on this rail, so
+// `pointer()` answers false and a program written for the mouse sees none.
+// `@8bitscript/cx16/mouse`, which wraps the KERNAL's mouse calls, reads plain
+// memory and sees nothing, as does `/pointer`; a program that wants input on
+// this rail uses the portable `@8bitscript/input`, as every portable program
+// does.
+//
+// The offset below is where agreementFor() puts the byte for this machine's
+// 76x56 grid; packages/cli/test/web-cx16.test.mjs holds it to the layout, so
+// changing one without the other fails. Keep the export list identical to
+// input.8bs — the same test holds the two to the same names.
+
+// One bit per thing a program can ask about, so a frame's input is one
+// byte and an edge is one AND. The page's side is web-layout.mjs's InputEdge.
+namespace Edge {
+    const LEFT: utinyint = 1;
+    const RIGHT: utinyint = 2;
+    const UP: utinyint = 4;
+    const DOWN: utinyint = 8;
+    const CONFIRM: utinyint = 16;
+    const CANCEL: utinyint = 32;
+}
+
+const INPUT_BYTE: usmallint = 8514; // agreementFor(76x56).inputOffset
+
+// What is held now, what was held at the last poll, and what began this
+// frame — `now & ~last`, written with the XOR the language has.
+let held: utinyint = 0;
+let before: utinyint = 0;
+let began: utinyint = 0;
+
+export namespace input {
+
+    // Once, at start-up, before the first poll(). One poll before the
+    // program's first, so the edge detector starts from what is actually held
+    // rather than from nothing: without it, a key already down when the
+    // program starts reads as a fresh press on frame one.
+    function begin(): void {
+        input.poll();
+    }
+
+    // Read the page's snapshot and work out what began this frame. Once a
+    // frame, right after waitFrame().
+    function poll(): void {
+        before = held;
+        held = memory.read(INPUT_BYTE);
+        began = held & (before ^ 0xFF);
+    }
+
+    // The four directions, each true only on the frame its press began.
+    function left(): bool {
+        return (began & Edge.LEFT) != 0;
+    }
+
+    function right(): bool {
+        return (began & Edge.RIGHT) != 0;
+    }
+
+    function up(): bool {
+        return (began & Edge.UP) != 0;
+    }
+
+    function down(): bool {
+        return (began & Edge.DOWN) != 0;
+    }
+
+    // Enter (START) or a pad's A or START.
+    function confirm(): bool {
+        return (began & Edge.CONFIRM) != 0;
+    }
+
+    // Escape, or a pad's B or SELECT.
+    function cancel(): bool {
+        return (began & Edge.CANCEL) != 0;
+    }
+
+    // No pointer on this rail: the page does not carry the mouse to the program.
+    function pointer(): bool {
+        return false;
+    }
+
+    function pointerCell(): usmallint {
+        return 0;
+    }
+
+    function pointerButton(): bool {
+        return false;
+    }
+}
+
+// Compile-time names for the confirm control, interpolated into catalogs
+// as {control} / {other}. The same words as the native file: a keyboard's
+// RETURN, and a pad's START.
+export namespace Input {
+    const CONFIRM_LABEL: string = "RETURN";
+    const ALT_CONFIRM_LABEL: string = "START";
+    const CONFIRM_LABELS: string = "RETURN OR START";
+}

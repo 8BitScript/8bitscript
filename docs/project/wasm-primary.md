@@ -93,19 +93,20 @@ Studio and Vegas Nights (the toolchain is this branch; Vegas Nights `trunk`):
 | Builds for wasm | pet | vic20 | c64 | cx16 | web |
 |---|---|---|---|---|---|
 | `hello-world`, `hello-8bx` | ✔ | ✔ | ✔ | ✔ | ✔ |
-| `fancy` (raster, sprites) | ✔ | ✘ `raster_probeRegion` | ✘ `sprites_update` | ✘ `raster_commit` | ✔ |
-| `joystick` (input, sprites) | ✔ | ✔ | ✘ `sprites_update` | ✘ `input_poll` | ✔ |
+| `fancy` (raster, sprites) | ✔ | ✘ `raster_probeRegion` | ✘ `sprites_update` | ✔ (bands and wobble; not yet compared with x16emu) | ✔ |
+| `joystick` (input, sprites) | ✔ | ✔ | ✘ `sprites_update` | ✔ | ✔ |
 | `media-walk`, `swarm` (graphics, audio) | ✔ | ✔ | ✘ `sprites_update` | ✔ | ✔ |
 | Studio | ✔ | ✔ | ✘ `sprites_update` | ✔ | ✔ |
-| Vegas Nights lobby, `hello-reels`, `sound-test` | ✔ | ✔ | ✔ | ✘ `input_poll` | ✔ |
+| Vegas Nights lobby, `hello-reels`, `sound-test` | ✔ | ✔ | ✔ | ✔ | ✔ |
 | Vegas Nights `tile-test` | ✔ | ✔ | ✔ | ✔ | not for web |
 | Vegas Nights `slot3x3` | ✘ `move_down` | ✘ `move_down` | ✔ | ✘ `play` | ✔ |
 | Vegas Nights `slot5x5`, `slot5x5-bonus` | ✔ | ✔ | ✔ | ✘ `play` | ✔ |
 
 Every ✘ is an `asm6502` block, which the wasm backend never lowers: *"'x': 'asm'
 blocks are 6502-specific machine code and are never lowered on the web target"*.
-Of 35 example builds, 27 pass; of the 34 Vegas Nights builds that apply (`tile-test`
-does not target the web), 26 pass. The Vegas Nights `move_down` and `play` ones are the
+Of 35 example builds, 29 pass (the X16's `fancy` and `joystick` since backlog item 2);
+of the 34 Vegas Nights builds that apply (`tile-test` does not target the web), 29 pass
+(the X16's lobby, `hello-reels` and `sound-test` since item 2). The Vegas Nights `move_down` and `play` ones are the
 game's own machine code (the quadrant machines' block-copy hop; the X16 reel
 code) and need wasm twins in that repo.
 
@@ -162,12 +163,12 @@ modes, raster timing. Those are items 4 and 6 below.
 
 | Feature | pet | vic20 | c64 | cx16 | web |
 |---|---|---|---|---|---|
-| Builds the shared examples | ✔ 7/7 | ◐ 6/7 | ✘ 2/7 | ◐ 5/7 | ✔ 7/7 |
+| Builds the shared examples | ✔ 7/7 | ◐ 6/7 | ✘ 2/7 | ✔ 7/7 | ✔ 7/7 |
 | Text grid and character ROM (codes 0–127) | ✔ | ◐ wrong boot set | ✔ | ◐ host font | ✔ |
 | Reverse video (codes 128–255) | ✘ | ✘ | ✔ | ✔ | ✔ |
 | Text colours and palette | ✔ (mono) | not measurable (needs reverse video) | ◐ Pepto vs VICE | ✔ VERA's default (#317) | ✔ |
-| Portable input | ✔ builds | ✔ builds | ✔ arrows/Enter/Esc | ✘ `input_poll` | ✔ |
-| Portable raster (`@8bitscript/raster`) | ◐ 3032/4032 only; untested | ✘ `raster_probeRegion` | ◐ lands one picture line early | ✘ `raster_commit` | ✔ |
+| Portable input | ✔ builds | ✔ builds | ✔ arrows/Enter/Esc | ◐ keys and gamepad; no mouse (`pointer()` is false) | ✔ |
+| Portable raster (`@8bitscript/raster`) | ◐ 3032/4032 only; untested | ✘ `raster_probeRegion` | ◐ lands one picture line early | ◐ all four slots at their lines and a real `raster.frame()`; VERA semantics approximated, not yet compared with x16emu | ✔ |
 | Graphics objects (`@8bitscript/graphics`) | ✘ builds, draws nothing | ✘ builds, draws nothing | ✘ does not build | ◐ one flat glyph, not a sprite (#317) | ✔ |
 | Hardware sprites / bitmap / multicolour | n/a | n/a | ✘ not drawn | ✘ not drawn | n/a |
 | Sound (`audio.tone`, `.8ba`) | ✘ silent | ✘ silent | ✘ silent | ✘ silent | ✔ (Web Audio; not heard in a tab) |
@@ -309,3 +310,49 @@ _headers       COOP/COEP for Cloudflare Pages and Netlify
 - The raster list's "one picture line early" figure on the C64
   (`packages/c64/package.json` limits) is the C64 wasm fork's measurement against
   the machine's handler; no probe yet checks it.
+
+## Handoff: backlog item 2 (the X16's input and raster), 2026-10-04
+
+Branch `wasm/x16-input-raster`. What is done and verified, headless, no emulator:
+
+- `packages/cx16/src/input.cx16.web.8bs` and `rasterline.cx16.web.8bs` replace the two
+  machine-code files on the wasm build. `examples/joystick`, `examples/fancy` and the
+  Vegas Nights lobby, `hello-reels` and `sound-test` now build for cx16 wasm, and `fancy`
+  draws its bands and wobble.
+- The list is staged in the twin and published to the page only on `commit()` or
+  `enable()`, as the native handler does; `setValue` is live only on a committed list.
+- `raster.frame()` is real: `agreementFor({ frameCounter: true })` puts one byte past
+  everything else (X16 only, offset 9350, program data above it); the page adds one each
+  time it releases a frame and the headless host does the same through
+  `runProgram(..., { onFrame })`; `frame()` is the distance since `enable()`.
+- The page reads a gamepad (`padEdges`, standard layout: D-pad or left stick, A/START
+  confirm, B/SELECT cancel) into the same input byte on every wasm target.
+- Tests: `packages/cli/test/web-cx16-input-raster.test.mjs`, additions to
+  `web-loader.test.mjs`, and `web-glyphs.test.mjs` updated for the frame byte. Six
+  deliberate breaks of the twins each fail a test; two survived at first and each got a
+  test of its own.
+
+What is **not** done:
+
+- **The `bands` conformance probe** (the acceptance in item 2 above). Nothing yet compares
+  the X16's raster lines with x16emu's, so "exact" here is the page's idealised model plus
+  the header of `packages/cx16/src/rasterline.8bs` (a target line is the first whole line in
+  the new state for border and palette; two entries under two scanlines apart land late).
+  Design: a second probe in `packages/cli/conform/` that draws the four corner fiducial cells
+  and a `Slot.BORDER` list from line 0 with stripes at 40, 80, 120 and 160; `conform.mjs`
+  gets a `kind: 'bands'` that reads one left-border column per picture row from each
+  capture and compares the rows where the colour changes (tolerance stated; colours reported,
+  not failed).
+- **The mouse.** `input.pointer()` is false; the page carries no pointer to the program.
+  A design: a position and a button byte in the layout (X16 only, like the frame byte),
+  written from pointer events, with `pointerCell()` mapped onto the 76x56 grid. Studio
+  needs it.
+- **Above a list's first entry** the page shows the base colours; the machine shows the
+  last entry's value (the frame wraps). The same is true of the C64.
+- **Cancel on the keyboard** is Escape; the real keyboard-joystick's SELECT is left Shift.
+
+To resume: switch to the branch, `pnpm install`, then
+`node --test packages/cli/test/web-cx16-input-raster.test.mjs` (about 8 s). To look at it:
+`cd packages/examples/fancy && node ../../cli/bin/8bs.mjs run cx16 --web --screenshot out.png --frames 120`.
+Risk: the frame byte moves the X16's program data base by one byte; no other machine's
+layout changes.

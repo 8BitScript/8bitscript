@@ -1,0 +1,198 @@
+// rasterline.8bs's own `.web` twin — build.mjs's internal `web` tag resolves
+// this in place of rasterline.8bs whenever this package builds through the
+// wasm backend (`8bs build --target cx16 --web`, `8bs run cx16 --web`).
+//
+// The native file is a VERA line-interrupt handler in machine code, arming a
+// planned scanline at a time and writing DC_BORDER, a palette entry, L1_HSCROLL
+// and L1_TILEBASE at the right moment (packages/cx16/AGENTS.md, "Raster
+// splits"). The wasm backend never lowers machine code, and there is no beam
+// here to interrupt. The page paints this build from the program's memory and
+// applies a *picture-line* list at paint time instead — the one the synthetic
+// web target and the C64's wasm build use (web-scanline.mjs renderFrame(),
+// read from the raster region agreementFor() lays out) — so this twin writes
+// that list.
+//
+// The portable surface is the X16's own, unchanged: the same Slot numbers, the
+// same 32 entries and 3-byte stride, `line` a picture line held in a byte (0 is
+// the first scanline of text row 0, a text row is 8 lines, as natively),
+// `at` refusing a line above the last entry's, `insert`, `setValue`, `count`,
+// `commit`, `enable`, `disable`, and `frame`. Entries still go live the way
+// they do on the machine: a list built with `clear`/`at`/`insert` shows from
+// the `commit()` (or the `enable()`) that hands it over, and what showed before
+// keeps showing until then; `setValue` on a committed list changes the live
+// entry at once. The program's list lives here, in a table of its own; only
+// `commit()` copies it to the page's region, so the page never paints a list
+// half-built.
+//
+// `raster.frame()` is real. The native handler adds one to a byte each time a
+// pass over the planned lines ends — once per video frame however slowly the
+// game loop runs — and the page does the same: it adds one to a byte of the
+// program's memory (agreementFor({ frameCounter: true }).frameOffset) each time
+// it releases a logical frame. frame() is the distance from where that byte
+// stood at enable(), wrapping at 256, which is what natively "video frames
+// since enable()" means too.
+//
+// What it does NOT model, on purpose; `emulator.wasm.limits` in
+// `8bs targets --json` says the same:
+//   - The handler's timing. An entry takes effect at its picture line exactly,
+//     where the machine lands a border or palette write on the first whole line
+//     of its target line too (the plan is armed two scanlines early), but two
+//     entries closer than two scanlines are both exact here and the second one
+//     a line or two late there.
+//   - VERA. BORDER is a palette index; the page paints indices 0-15 from VERA's
+//     default palette, so a value of 16 or more is read modulo 16 (natively
+//     0-255). BACKGROUND recolours the whole playfield background, which is what
+//     rewriting the background's palette entry does when every cell uses it.
+//   - CHARSET. Entry 1 switches to the page's alternate set, the host font with
+//     its lower case drawn as capitals; it has none of the KERNAL's PETSCII
+//     graphics.
+//   - Above the first entry the page shows the frame's base colours; the machine
+//     shows the last entry's value (the frame wraps).
+//
+// The four offsets below are where web-layout.mjs agreementFor() puts the raster
+// region and the frame counter for this machine's 76x56 grid with the glyph
+// table; packages/cli/test/web-cx16.test.mjs holds them to the layout, so
+// changing one without the other fails.
+//
+// Keep the export list identical to rasterline.8bs — the same test holds the
+// two to the same names.
+
+// What the picture does at a line, named without an address. The numbers
+// are arbitrary and the same in all nine rasterline files.
+export namespace Slot {
+    const BORDER: utinyint = 0;     // DC_BORDER, a palette index
+    const BACKGROUND: utinyint = 1; // the background's palette entry, set to stock color 0-15
+    const SCROLL_X: utinyint = 2;   // the horizontal fine scroll, 0-7
+    const CHARSET: utinyint = 3;    // 0 the boot (ISO) set, else the alternate (capitals) set
+}
+
+const LIST_CONTROL: usmallint = 8516; // agreementFor(76x56).rasterControlOffset
+const LIST_COUNT: usmallint = 8517;   // .rasterCountOffset
+const LIST_BASE: usmallint = 8518;    // .rasterBase
+const FRAME_BYTE: usmallint = 9350;   // .frameOffset: one past the glyph table, the page's per-frame counter
+
+// The program's own list: 32 entries of line, slot, value.
+let entries: array<utinyint, 96>;
+let entryCount: utinyint = 0;
+let listDirty: bool = true;
+let enabled: bool = false;
+// The page's frame byte as it stood at enable().
+let frameBase: utinyint = 0;
+
+export namespace raster {
+    const ENTRIES: utinyint = 32;    // the list's capacity
+    const STRIDE: utinyint = 3;      // bytes per entry: line, slot, value
+    const FINE_SCROLL: bool = true;  // Slot.SCROLL_X entries are accepted: the page shifts the line
+    const COLORS: bool = true;       // Slot.BORDER/BACKGROUND entries are accepted
+    const CHARSET: bool = true;      // Slot.CHARSET entries are accepted: the page switches sets at the line
+    const FRAME_COUNTER: bool = true; // frame() counts video frames since enable(): the page adds one per frame
+    const ALT_TILEBASE: utinyint = 0xD4; // the native alternate set's L1_TILEBASE; unused here, kept so the names match
+
+    // Empty the list. What shows keeps showing until the next commit().
+    function clear(): void {
+        entryCount = 0;
+        listDirty = true;
+    }
+
+    // Append: at picture line `line`, give `slot` the value `value`. False,
+    // and nothing added, if the slot is unknown, the list is full, or the
+    // line is above the last entry's.
+    function at(line: utinyint, slot: utinyint, value: utinyint): bool {
+        if (slot > Slot.CHARSET || entryCount >= raster.ENTRIES) {
+            return false;
+        }
+        let offset: utinyint = entryCount * 3;
+        if (entryCount > 0 && line < entries[offset - 3]) {
+            return false;
+        }
+        entries[offset] = line;
+        entries[offset + 1] = slot;
+        entries[offset + 2] = value;
+        entryCount = entryCount + 1;
+        listDirty = true;
+        return true;
+    }
+
+    // In order: the same as `at`, at any line — the entries below it slid
+    // down a place. False, and nothing added, if the slot is unknown or the
+    // list is full.
+    function insert(line: utinyint, slot: utinyint, value: utinyint): bool {
+        if (slot > Slot.CHARSET || entryCount >= raster.ENTRIES) {
+            return false;
+        }
+        let offset: utinyint = entryCount * 3;
+        while (offset > 0 && entries[offset - 3] > line) {
+            entries[offset] = entries[offset - 3];
+            entries[offset + 1] = entries[offset - 2];
+            entries[offset + 2] = entries[offset - 1];
+            offset = offset - 3;
+        }
+        entries[offset] = line;
+        entries[offset + 1] = slot;
+        entries[offset + 2] = value;
+        entryCount = entryCount + 1;
+        listDirty = true;
+        return true;
+    }
+
+    // How many entries the list holds.
+    function count(): utinyint {
+        return entryCount;
+    }
+
+    // Hand the list over: copy it to the page's region, whole, so the page
+    // paints either the list it had or this one and never a half of each.
+    // Live from the next paint.
+    function commit(): void {
+        let bytes: utinyint = entryCount * 3;
+        for (let i: utinyint = 0; i < bytes; i++) {
+            memory.write(LIST_BASE + i, entries[i]);
+        }
+        memory.write(LIST_COUNT, entryCount);
+        listDirty = false;
+    }
+
+    // Rewrite one entry's value, leaving its line and slot: `entry` is the
+    // entry's byte offset (index * raster.STRIDE). Natively this takes effect
+    // with no commit when the list has not changed since the last one, and so
+    // it does here. False, and nothing written, if the offset is not a multiple
+    // of 3 or names no entry.
+    function setValue(entry: utinyint, value: utinyint): bool {
+        if (entry % 3 != 0 || entry >= entryCount * 3) {
+            return false;
+        }
+        entries[entry + 2] = value;
+        if (!listDirty) {
+            memory.write(LIST_BASE + entry + 2, value);
+        }
+        return true;
+    }
+
+    // Start applying: commits the list, which shows from the next paint, and
+    // marks where frame() counts from.
+    function enable(): void {
+        if (enabled) {
+            return;
+        }
+        enabled = true;
+        frameBase = memory.read(FRAME_BYTE);
+        raster.commit();
+        memory.write(LIST_CONTROL, 1);
+    }
+
+    // Video frames since enable(), wrapping at 256: the page adds one to its
+    // frame byte each time it releases a frame, which is once per video frame
+    // however slowly the game loop runs.
+    function frame(): utinyint {
+        return memory.read(FRAME_BYTE) - frameBase;
+    }
+
+    // The plain, unsplit picture again; the list is kept.
+    function disable(): void {
+        if (!enabled) {
+            return;
+        }
+        enabled = false;
+        memory.write(LIST_CONTROL, 0);
+    }
+}

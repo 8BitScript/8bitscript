@@ -23,9 +23,9 @@
           "a flat text screen on a synthetic host font, not VERA: the tile layers, the bitmap layers, hardware sprites and the 128-sprite budget are not modelled; a .8bg picture is drawn as one 8x8 glyph in a single ink (8BS2111), not a VERA sprite",
           "no sound: the PSG, the YM2151 and PCM are plain memory, and a .8ba sample or song has no wasm driver (8BS2211); audio.tone is not wired for the X16's wasm build yet",
           "the X16-only modules that talk to VERA, the KERNAL or the banked RAM (@8bitscript/cx16/mouse, /pointer, /psg, /banks) read and write plain memory and see nothing",
-          "the raster list (@8bitscript/raster, the X16's VERA line interrupt) is machine code and is not built for the wasm backend: a program that uses it does not build here (8bs build says 'asm' blocks are never lowered)",
+          "the portable raster list applies BORDER, BACKGROUND, SCROLL_X and CHARSET at their picture lines (raster.frame() counts frames), but not as VERA does: a border value is a palette index read modulo 16, CHARSET 1 is the host font's capitals set and not the KERNAL's PETSCII graphics, the lines above a list's first entry show the frame's base colours (the machine shows the last entry's value) and the handler's timing is not modelled (two entries closer than two scanlines are both exact here)",
           "the colours are VERA's default palette entries 0-15; a program that rewrites VERA palette entries or layer registers sees no change",
-          "the portable @8bitscript/input does not build: the X16's input poll is machine code, so any program that polls the keyboard, a pad or the mouse fails to compile for the wasm backend (examples/joystick, the Vegas Nights lobby and slots)",
+          "the portable @8bitscript/input reads the keyboard (arrows, Enter, Escape) and a gamepad (D-pad or left stick, A/START, B/SELECT) but not the mouse: input.pointer() is false although the X16 has a mouse, so a program written for it (Studio) sees none; the real keyboard's SELECT is the left Shift key, which the page does not map",
           "the real emulator, compiled to WebAssembly, runs any program: 8bs run cx16 --web --x16emu (it is not this project's own implementation, and it is the fallback, not the primary runtime)"
         ]
       }

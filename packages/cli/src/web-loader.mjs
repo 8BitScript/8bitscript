@@ -53,7 +53,7 @@ import { glyphTableLiteral } from './font8x8.mjs';
 import {
   BORDER_PX, CHAR_BASE, CHAR_H, CHAR_W, COLOR_BASE, COLORS, DEFAULT_LAYOUT,
   GRID_COLS, GRID_ROWS, HOST_OFFSET, HostStatus,
-  INNER_H, INNER_W, INPUT_OFFSET, InputEdge, KEY_TO_EDGE, SWIPE_THRESHOLD,
+  INNER_H, INNER_W, INPUT_OFFSET, InputEdge, KEY_TO_EDGE, SWIPE_THRESHOLD, PAD_STICK_THRESHOLD,
   ANY_BORDER_SCALE, BORDER_HAIRLINE_PX, BORDER_MIN_PX, FULL_BORDER_SCALE,
   COLUMNS_OFFSET, ROWS_OFFSET, MAX_COLUMNS, MAX_ROWS, MIN_COLUMNS, MIN_ROWS,
   RASTER_MAX_ENTRIES, TARGET_CELLS, GLYPH_FIRST, GLYPH_COUNT,
@@ -281,6 +281,10 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
   var COLOR_BASE = ${layout.colorBase};
   var INPUT_OFFSET = ${layout.inputOffset};
   var HOST_OFFSET = ${layout.hostOffset};
+  // The byte the page adds one to each time it releases a logical frame, or -1
+  // for a host whose programs never ask (raster.frame() on the X16's wasm build
+  // reads it; web-layout.mjs agreementFor({ frameCounter })).
+  var FRAME_OFFSET = ${layout.frameOffset ?? -1};
   var RASTER_CONTROL_OFFSET = ${layout.rasterControlOffset ?? DEFAULT_LAYOUT.rasterControlOffset};
   var RASTER_COUNT_OFFSET = ${layout.rasterCountOffset ?? DEFAULT_LAYOUT.rasterCountOffset};
   var RASTER_BASE = ${layout.rasterBase ?? DEFAULT_LAYOUT.rasterBase};
@@ -335,6 +339,36 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
     if (ax < SWIPE_THRESHOLD && ay < SWIPE_THRESHOLD) return 0;
     if (ax > ay) return dx < 0 ? ${InputEdge.LEFT} : ${InputEdge.RIGHT};
     return dy < 0 ? ${InputEdge.UP} : ${InputEdge.DOWN};
+  }
+
+  var PAD_STICK_THRESHOLD = ${PAD_STICK_THRESHOLD};
+
+  // What one gamepad holds, as InputEdge bits (web-layout.mjs padEdges, held to
+  // this copy in web-loader.test.mjs): D-pad or left stick, A/START confirm,
+  // B/SELECT cancel — the "standard" layout's indices.
+  function padEdges(pad) {
+    if (!pad || pad.connected === false) return 0;
+    var buttons = pad.buttons || [];
+    var axes = pad.axes || [];
+    function down(i) { return !!(buttons[i] && (buttons[i].pressed || buttons[i].value > 0.5)); }
+    var x = axes[0] || 0;
+    var y = axes[1] || 0;
+    var bits = 0;
+    if (down(14) || x < -PAD_STICK_THRESHOLD) bits |= ${InputEdge.LEFT};
+    if (down(15) || x > PAD_STICK_THRESHOLD) bits |= ${InputEdge.RIGHT};
+    if (down(12) || y < -PAD_STICK_THRESHOLD) bits |= ${InputEdge.UP};
+    if (down(13) || y > PAD_STICK_THRESHOLD) bits |= ${InputEdge.DOWN};
+    if (down(0) || down(9)) bits |= ${InputEdge.CONFIRM};
+    if (down(1) || down(8)) bits |= ${InputEdge.CANCEL};
+    return bits;
+  }
+
+  // Every connected pad together: what navigator.getGamepads() holds.
+  function padsHeld(pads) {
+    var bits = 0;
+    if (!pads) return 0;
+    for (var i = 0; i < pads.length; i += 1) bits |= padEdges(pads[i]);
+    return bits;
   }
 
   // Hold the cell count roughly constant and let the window pick the shape,
@@ -645,6 +679,7 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
     if (next.colorBase != null) COLOR_BASE = next.colorBase;
     if (next.inputOffset != null) INPUT_OFFSET = next.inputOffset;
     if (next.hostOffset != null) HOST_OFFSET = next.hostOffset;
+    if (next.frameOffset != null) FRAME_OFFSET = next.frameOffset;
     if (next.rasterControlOffset != null) RASTER_CONTROL_OFFSET = next.rasterControlOffset;
     if (next.rasterCountOffset != null) RASTER_COUNT_OFFSET = next.rasterCountOffset;
     if (next.rasterBase != null) RASTER_BASE = next.rasterBase;
@@ -865,8 +900,23 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
     // --- input ------------------------------------------------------------
     var mem = null;
     var keysHeld = 0;
+    // What the connected gamepads hold, folded into the same byte as the keys.
+    var padHeld = 0;
     function writeInput() {
-      if (mem) mem[INPUT_OFFSET] = keysHeld;
+      if (mem) mem[INPUT_OFFSET] = keysHeld | padHeld;
+    }
+    // Once a display frame, before frames are released: a pad has no events to
+    // wait for, so it is read. getGamepads() answers nothing in an insecure
+    // context or a browser without the API, and may throw; either way no pad.
+    function pollPads() {
+      var nav = global.navigator;
+      if (!nav || typeof nav.getGamepads !== 'function') return;
+      var held = 0;
+      try { held = padsHeld(nav.getGamepads()); } catch (e) { held = 0; }
+      if (held !== padHeld) {
+        padHeld = held;
+        writeInput();
+      }
     }
     // The host byte is levels, not presses: what this host is, for
     // @8bitscript/web/input's touch() and keyboard(). Written when the
@@ -974,6 +1024,7 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
 
     function tick(now) {
       if (destroyed) return;
+      pollPads();
       if (last === null) last = now;
       acc += now - last;
       last = now;
@@ -990,6 +1041,10 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
             pendingMeasure = null;
           }
           Atomics.add(ctrl, ISSUED, 1);
+          // A machine whose programs count video frames (raster.frame()) reads
+          // this byte: one more for every frame released, however slowly the
+          // program takes them.
+          if (mem && FRAME_OFFSET >= 0) mem[FRAME_OFFSET] = Atomics.load(ctrl, ISSUED) & 255;
           Atomics.notify(ctrl, ISSUED);
         }
       }
@@ -1187,6 +1242,10 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
     borderFor: borderFor,
     gridFor: gridFor,
     swipeEdge: swipeEdge,
+    // The gamepad rules, exposed the same way so web-loader.test.mjs holds
+    // them to web-layout.mjs.
+    padEdges: padEdges,
+    padsHeld: padsHeld,
     // What the page will tell the program its host is, before any key has
     // been seen — so a shell can word its own hint the way the program
     // will word its prompt (index.html says "swipe to move" on a phone).
@@ -1212,6 +1271,7 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
       colorBase: COLOR_BASE,
       inputOffset: INPUT_OFFSET,
       hostOffset: HOST_OFFSET,
+      frameOffset: FRAME_OFFSET,
       aspect: ASPECT,
       pixelAspect: PIXEL_ASPECT,
       resizable: RESIZABLE,

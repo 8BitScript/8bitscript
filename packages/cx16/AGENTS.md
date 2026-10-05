@@ -572,12 +572,24 @@ hardware sprites do not exist there. What the page does draw is
   `packages/graphics/src/index.cx16.web.8bs` writes them at `GLYPH_BASE` (the
   address the page reads; `packages/cli/test/web-cx16.test.mjs` pins the two
   together) and draws the character. One cell, one ink, no restore; colour is
-  dropped with 8BS2111. The native build keeps its VERA sprites.
+  dropped with 8BS2111. The native build keeps its VERA sprites;
+- **portable input** (`input.cx16.web.8bs`): the page writes one byte of what is held
+  (arrows, Enter, Escape, and a gamepad's D-pad or left stick, A/START, B/SELECT) at
+  `inputOffset` and the twin reads it once a frame, as the C64's twin does. No mouse;
+- the **portable raster list** (`rasterline.cx16.web.8bs`): the same Slot numbers, 32
+  entries, 3-byte stride and `at`/`insert`/`setValue`/`commit`/`enable` rules as the VERA
+  handler's file, held in the twin and copied to the page's raster region on
+  `commit()`/`enable()`, which the page applies at each picture line. `raster.frame()` is
+  real: the page adds one to a byte past the glyph table (`frameOffset`, this machine's
+  layout only) each frame it releases, and `frame()` is the distance since `enable()`.
+  What the model does not do — VERA's own timing, palette values past 15, the KERNAL's
+  PETSCII set for `CHARSET`, the wrapped value above a list's first entry — is in
+  `wasm.limits`. `packages/cli/test/web-cx16-input-raster.test.mjs` pins the offsets to
+  the layout and the twins' names to the native files'.
 
 Not there: sound (8BS2211, `.8ba` has no wasm driver and `audio.tone` is not
 wired for this build), the mouse and the X16-only modules that talk to VERA, the
-KERNAL or the banks (`@8bitscript/cx16/mouse`, `/pointer`, `/psg`, `/banks`), and
-the raster list (machine code, so a program that uses it does not build here).
+KERNAL or the banks (`@8bitscript/cx16/mouse`, `/pointer`, `/psg`, `/banks`).
 The list is `wasm.limits` in this package's manifest, shown by
 `8bs targets --json` and by the editor. A feature in that list is not a bug in
 the program: it is the model's edge, and moving it is a change here.

@@ -67,7 +67,7 @@ test('every machine whose wasm build has a known gap says so in `limits`, where 
   says('vic20', /reverse video/);
   for (const id of ['pet', 'vic20', 'cx16']) says(id, /graphics object|sprites/);
   says('vic20', /raster does not build/);
-  says('cx16', /input does not build/); // the raster and the sprites are held in the X16's own test below
+  says('cx16', /not the mouse/); // input and the raster list build now; the mouse is the gap, and the X16's own test below holds the rest
   for (const id of ['pet', 'vic20', 'c64', 'cx16']) says(id, /sound/);
 });
 
@@ -78,8 +78,11 @@ test('the X16 runs in the browser on our own backend, and says what its flat mod
   const limits = cx16.wasm.limits.join('\n');
   assert.match(limits, /sprites/, 'VERA sprites are not modelled: a picture is a glyph');
   assert.match(limits, /sound|8BS2211/, 'there is no audio driver');
-  assert.match(limits, /raster/, 'the VERA raster list is machine code and does not build');
-  assert.match(limits, /mouse/, 'the X16-only modules see nothing');
+  assert.match(limits, /raster/, 'the portable raster list is applied by the page, not by VERA, and says how it differs');
+  assert.match(limits, /mouse/, 'the X16-only modules see nothing, and the page carries no pointer');
+  // Portable input and the raster list were machine code and did not build; they do now (backlog item 2), so
+  // the capability row must not say they fail.
+  assert.doesNotMatch(limits, /input does not build|does not build here|raster_commit|input_poll/, 'neither claim is true any more');
 });
 
 test('the real x16emu as WebAssembly is the X16\'s alone', () => {
