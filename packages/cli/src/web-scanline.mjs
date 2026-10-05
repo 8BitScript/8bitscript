@@ -130,6 +130,7 @@ export function renderFrame(mem, layout, palette) {
   // live are read from the registers a program writes, and every glyph is
   // read from the character RAM the program holds — the VIC-II's own way.
   const vic = layout.vic ?? null;
+  const switchRegister = layout.charsetSwitch ?? null;
   const base = vic ? {
     border: mem[vic.borderRegister] & 15,
     background: mem[vic.backgroundRegister] & 15,
@@ -138,6 +139,9 @@ export function renderFrame(mem, layout, palette) {
   } : {
     border: colorPerCell ? mem[0] & 15 : 0,
     background: colorPerCell ? mem[1] & 15 : 0,
+    // A real machine with two ROM sets (the PET, the VIC-20): the register its
+    // own hardware reads says which one is live (web-layout.mjs charsetSwitch).
+    charset: switchRegister ? ((mem[switchRegister.register] & switchRegister.mask) !== 0 ? 1 : 0) : 0,
   };
   const raster = readRasterEntries(mem, layout);
   // Every slot applies on every skin. A skin without per-cell color keeps its
@@ -190,7 +194,11 @@ export function renderFrame(mem, layout, palette) {
       const reverse = (colorByte & 128) !== 0;
       // A program's own redefined glyph (web-layout.mjs, GLYPH_FIRST..) wins
       // over the font; an undefined one (all eight rows zero) falls to it.
-      const glyph = userGlyph(mem, layout.glyphBase ?? -1, raw) ?? glyphRows(raw, layout.font, state.charset);
+      // A machine with a second ROM set of its own (layout.fontAlt) draws that
+      // table whole when the set is live; the web's alternate (capitals) is
+      // glyphRows()'s own charset argument and has no fontAlt.
+      const font = state.charset === 1 && layout.fontAlt ? layout.fontAlt : layout.font;
+      const glyph = userGlyph(mem, layout.glyphBase ?? -1, raw) ?? glyphRows(raw, font, layout.fontAlt ? 0 : state.charset);
       const bits = glyph === null ? 0 : glyph[glyphY];
       const on = ((bits >> gx) & 1) !== 0;
       const fg = colorPerCell ? palette[colorByte & 15] : palette[1];

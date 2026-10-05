@@ -12,6 +12,18 @@ export default {
       title: 'Text grid',
       description: 'Four solid corner cells, the printable ASCII ramp, the same ramp in reverse, and one cell per text colour.',
     },
+    charset: {
+      entry: 'src/charset.8bs',
+      title: 'Character ROM (boot set)',
+      description: 'Every screen code 0-255 in the set the machine boots in, written raw: the PET and VIC-20 glyph tables, reverse video included.',
+      targets: ['pet', 'vic20'],
+    },
+    'charset-text': {
+      entry: 'src/charset-text.8bs',
+      title: 'Character ROM (text set)',
+      description: 'Every screen code 0-255 in the lower-and-upper-case set, chosen with the machine\'s own register ($E84C on the PET, $9005 on the VIC-20).',
+      targets: ['pet', 'vic20'],
+    },
   },
   targets: {
     pet: { hardware: { model: '4032', ram: '32' } },

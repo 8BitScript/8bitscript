@@ -372,20 +372,38 @@ export function layoutFromHardware(hardwareOrFacts = {}) {
  *
  * Reverse video (bit 7, PET's own `toScreen()` ORs it into the *screen
  * code itself*, not a separate color byte the way the synthetic target's
- * `text.setReverse` does) is masked off rather than rendered inverted on
- * either ROM — a real, known gap: PET builds nothing writes a reverse
- * `text.print` yet.
+ * `text.setReverse` does) is drawn the way the machine draws it: the glyph
+ * of `code − 128` with every pixel inverted (font8x8.mjs's
+ * withReverseVideo()). Both ROM sets of each machine carry it.
+ *
+ * Which of a machine's two sets is live is the machine's own register, read
+ * from the program's memory each frame (`charsetSwitch`): the PET's VIA
+ * control register and the VIC-20's memory pointer. A raster list's
+ * Slot.CHARSET entry still overrides it on the lines it names.
  */
+const PET_CHARSET_SWITCH = { register: 0xe84c, mask: 0x02 }; // PCR 12 = graphics, 14 = text
+const VIC20_CHARSET_SWITCH = { register: 0x9005, mask: 0x0e }; // low nybble 0 = $8000 upper, 2 = $8800 lower
+
 const REAL_MACHINE_LAYOUT = {
   pet: {
     palette: PET_PALETTE,
     colorPerCell: false,
     aspect: '4/3',
     // PET has no separate color RAM — one past the screen is unwritten by
-    // every program so far, so it always reads 0 ("not reversed") until
-    // reverse video is wired up for real (see the header comment above).
+    // every program, so the colour byte always reads 0. Reverse video is not
+    // the colour byte's bit 7 here but the screen code's own (the font
+    // tables carry it; see the header comment above).
     memoryFor: (cells) => ({ charBase: 0x8000, colorBase: 0x8000 + cells }),
-    glyphsFor: (facts) => ({ font: facts['video.characterSetSwapped'] ? 'pet-2001-screencode' : 'pet-text-screencode' }),
+    // The set the machine boots in is graphics and upper case; the VIA's
+    // peripheral control register ($E84C, PCR) names the other: 12 is
+    // graphics, 14 text — bit 1 is the one that differs (the POKE 59468,14 of
+    // every PET manual, text.8bs's CharacterSet.TEXT). So `font` is the
+    // graphics set, `fontAlt` the text set, and the page reads PCR bit 1 each
+    // frame the way the video circuit does. The 2001 has its own ROM (the
+    // swapped one text.8bs's asciiToScreenCode() knows about).
+    glyphsFor: (facts) => (facts['video.characterSetSwapped']
+      ? { font: 'pet-2001-graphics-screencode', fontAlt: 'pet-2001-screencode', charsetSwitch: PET_CHARSET_SWITCH }
+      : { font: 'pet-graphics-screencode', fontAlt: 'pet-text-screencode', charsetSwitch: PET_CHARSET_SWITCH }),
   },
   vic20: {
     palette: VIC20_PALETTE,
@@ -414,7 +432,15 @@ const REAL_MACHINE_LAYOUT = {
     // letter looked up the wrong glyph — only upper case and a few
     // symbols happened to land on the same code in both schemes (exactly
     // what showed up as "Hello World!" losing every lower-case letter).
-    glyphsFor: () => ({ font: 'vic20-text-screencode' }),
+    // The 6560 boots in the upper case and graphics set ($8000, low nybble 0
+    // of $9005) — text.8bs stores MEMORY_POINTER_UPPERCASE there itself —
+    // and the lower/upper case set sits at $8800 (nybble 2). The page reads
+    // $9005 each frame; nybbles 1 and 3 name the ROM's reversed copies, which
+    // the table already holds as codes 128-255 (the "…-upper" set above and
+    // the text set both invert), so they draw as their neighbour and an
+    // unmapped nybble (4 and up reads the chip's own registers) is not
+    // modelled.
+    glyphsFor: () => ({ font: 'vic20-upper-screencode', fontAlt: 'vic20-text-screencode', charsetSwitch: VIC20_CHARSET_SWITCH }),
     // NTSC only (6560; facts['video.frameRate'] === 60) — PAL's 6561 runs
     // a different cycles-per-line count (71, not 65) this project has not
     // measured, so it keeps square pixels rather than guessing.
@@ -573,6 +599,8 @@ export function sidecarJson(layout = DEFAULT_LAYOUT) {
     rasterMaxEntries: layout.rasterMaxEntries,
     palette: layout.palette,
     font: layout.font,
+    fontAlt: layout.fontAlt,
+    charsetSwitch: layout.charsetSwitch,
     aspect: layout.aspect,
     colorPerCell: layout.colorPerCell,
     pixelAspect: layout.pixelAspect,

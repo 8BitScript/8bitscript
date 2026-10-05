@@ -1,0 +1,6 @@
+// Every screen code 0..255 in the set the machine boots in. See charsetdump.8bs.
+import { run } from "./charsetdump.8bs";
+
+export function main(): void {
+    run(false);
+}

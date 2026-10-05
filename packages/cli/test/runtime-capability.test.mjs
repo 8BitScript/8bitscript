@@ -63,12 +63,25 @@ test('the C64 runs in the browser as a model, and says in `limits` what the page
 test('every machine whose wasm build has a known gap says so in `limits`, where the editor shows it', () => {
   const runtime = byId();
   const says = (id, pattern) => assert.ok(runtime[id].wasm.limits.some((line) => pattern.test(line)), `${id}: ${pattern}`);
-  says('pet', /reverse video/);
-  says('vic20', /reverse video/);
-  for (const id of ['pet', 'vic20', 'cx16']) says(id, /graphics object|sprites/);
+  says('cx16', /graphics object|sprites/);
   says('vic20', /raster does not build/);
   says('cx16', /input does not build/); // the raster and the sprites are held in the X16's own test below
   for (const id of ['pet', 'vic20', 'c64', 'cx16']) says(id, /sound/);
+});
+
+// Backlog item 1 closed these: the PET and VIC-20 pages draw reverse video and
+// the character set the machine is in, `8bs conform pet|vic20` shows 0 differing
+// cells over the grid, charset and charset-text probes, and `examples/media-walk`
+// draws its quadrant objects. A limit that is not true any more is a lie in the
+// row the editor shows, so they must stay off it.
+test('the PET and VIC-20 do not claim reverse video, a wrong character set or invisible graphics objects any more', () => {
+  const runtime = byId();
+  for (const id of ['pet', 'vic20']) {
+    const limits = runtime[id].wasm.limits.join('\n');
+    assert.doesNotMatch(limits, /reverse video/, `${id}: reverse video is drawn`);
+    assert.doesNotMatch(limits, /character set/, `${id}: the live character set is drawn`);
+    assert.doesNotMatch(limits, /graphics objects build and draw nothing/, `${id}: the quadrant objects draw`);
+  }
 });
 
 test('the X16 runs in the browser on our own backend, and says what its flat model of VERA leaves out', () => {

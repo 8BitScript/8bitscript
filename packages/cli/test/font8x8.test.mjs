@@ -52,7 +52,9 @@ test('glyphRows(code, \'vic20-text-screencode\') reads the VIC-20\'s own chargen
   assert.deepEqual([...glyphRows(65, 'vic20-text-screencode')], [24, 36, 66, 126, 66, 66, 66, 0], 'code 65 draws upper-case A');
   assert.deepEqual([...glyphRows(1, 'vic20-text-screencode')], [0, 0, 28, 32, 60, 34, 92, 0], 'code 1 draws lower-case a, not upper-case A — the swap the ASCII fallback got wrong');
   assert.deepEqual([...glyphRows(32, 'vic20-text-screencode')], [0, 0, 0, 0, 0, 0, 0, 0], 'space is blank');
-  assert.equal(glyphRows(200, 'vic20-text-screencode'), null, 'past 127: no NAMED_FONTS entry, and not ASCII-indexed either');
+  // Past 127 is reverse video: 200 is H (72) with every pixel inverted.
+  assert.deepEqual([...glyphRows(200, 'vic20-text-screencode')], [189, 189, 189, 129, 189, 189, 189, 255], 'code 200 draws H reversed');
+  assert.equal(glyphRows(256, 'vic20-text-screencode'), null, 'past 255: no NAMED_FONTS entry, and not ASCII-indexed either');
 });
 
 test('glyphRows 128-143 are the sixteen 2×2 quadrant patterns, 4×4 pixels each', () => {

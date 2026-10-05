@@ -137,7 +137,11 @@ test('layoutForRealMachine: PET keeps its real $8000 screen address and its own 
   // own screen code already — text.8bs's asciiToScreenCode() did the only
   // translation this ever needed before a byte reached here — so a 2001
   // build names that table and nothing else.
-  assert.equal(layout.font, 'pet-2001-screencode');
+  // The machine boots in graphics and upper case; $E84C bit 1 names the text
+  // set (the 2001's own ROM, the swapped one), so the layout names both.
+  assert.equal(layout.font, 'pet-2001-graphics-screencode');
+  assert.equal(layout.fontAlt, 'pet-2001-screencode');
+  assert.deepEqual(layout.charsetSwitch, { register: 0xe84c, mask: 0x02 });
   // The data section still has to land past whatever this build's own
   // agreement reserves — true here only because 0x8000 happens to sit
   // far past any synthetic reservedEnd, not because this function checked:
@@ -158,7 +162,9 @@ test('layoutForRealMachine: a later (non-swapped) PET model gets its own capture
   // font8x8.mjs's PET_TEXT_SCREENCODE table (ROM 901447-10, shared by
   // every non-2001 model) is indexed by the PET's own screen code the
   // same way the 2001's is — no glyphIndexFn here either.
-  assert.equal(layout.font, 'pet-text-screencode');
+  assert.equal(layout.font, 'pet-graphics-screencode');
+  assert.equal(layout.fontAlt, 'pet-text-screencode');
+  assert.deepEqual(layout.charsetSwitch, { register: 0xe84c, mask: 0x02 });
 });
 
 test('layoutForRealMachine: VIC-20\'s screen moves with its own RAM, not with a formula — unexpanded keeps $1E00/$9600, `expanded` moves to $1000/$9400, and it keeps its own palette and real per-cell color RAM', () => {
@@ -176,7 +182,11 @@ test('layoutForRealMachine: VIC-20\'s screen moves with its own RAM, not with a 
   // font8x8.mjs's VIC20_TEXT_SCREENCODE table, read directly out of
   // VICE's own chargen-901460-03.bin — indexed by the VIC-20's own screen
   // code, so this needs no glyphIndexFn either.
-  assert.equal(unexpanded.font, 'vic20-text-screencode');
+  // It boots in the upper case and graphics set; the low nybble of $9005
+  // names the lower/upper set (nybble 2, $8800).
+  assert.equal(unexpanded.font, 'vic20-upper-screencode');
+  assert.equal(unexpanded.fontAlt, 'vic20-text-screencode');
+  assert.deepEqual(unexpanded.charsetSwitch, { register: 0x9005, mask: 0x0e });
   // No video.frameRate fact given: the honest default, same as PAL until
   // that chip's own timing is measured — see the NTSC test below for the
   // one machine/region this project has actually measured.

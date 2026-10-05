@@ -23,6 +23,10 @@ const GLYPHS_32_122_HEX = '0000000000000000183c3c1818001800363600000000000036367
 
 const GLYPHS = Buffer.from(GLYPHS_32_122_HEX, 'hex');
 
+// The graphics half of the PET's and the VIC-20's character ROMs, generated
+// from VICE's images by packages/cli/scripts/font-roms.mjs (a pinned SHA-256).
+import { PET_2001_GRAPHICS_B64, PET_GRAPHICS_B64, VIC20_UPPER_B64 } from './font-roms.mjs';
+
 // The 2001's own character ROM, screen codes 0-127 — not a
 // reimplementation like the table above, but a pixel-for-pixel capture of
 // real VICE's xpet actually rendering them. The probe: a program that
@@ -45,8 +49,9 @@ const GLYPHS = Buffer.from(GLYPHS_32_122_HEX, 'hex');
 // code translation before a byte ever reaches this table, so a lookup
 // here needs no glyphIndexFn of its own (see layoutForRealMachine in
 // web-layout.mjs, which now just names this table by its font id instead).
-// 128-255 (reverse video) is not captured — nothing writes it yet: reverse
-// video is not wired into the web loader's paint() at all. This is the
+// 128-255 (reverse video) are not in this table: NAMED_FONTS widens it with
+// withReverseVideo(), the glyph of `code - 128` inverted, which is what the
+// PET's video circuit does. This is the
 // 2001's ROM specifically (`video.characterSetSwapped`) — every later
 // model's own ROM (901447-10, PET_TEXT_SCREENCODE below) draws different
 // shapes at some of these same codes.
@@ -104,8 +109,10 @@ const PET_TEXT_SCREENCODE = Buffer.from(PET_TEXT_SCREENCODE_0_127_HEX, 'hex');
 // upper case at its own ASCII value, matching text.8bs's own
 // asciiToScreenCode() comment and packages/vic20/text.8bs's non-swapped
 // scheme (the VIC-20 has no swapped model the way the PET 2001 does).
-// 128-255 (reverse video) is not captured, same open gap as the PET's own
-// tables — nothing writes it yet.
+// 128-255 (reverse video) are the glyph inverted (withReverseVideo(); the
+// ROM's own reversed copies are exactly that — font-roms.mjs's generator
+// checks). This is the lower/upper-case set at $8800; the one the machine
+// boots in, upper case and graphics at $8000, is VIC20_UPPER in font-roms.mjs.
 const VIC20_TEXT_SCREENCODE_0_127_HEX = '3844526a3204780000001c203c225c0002023a4642463a0000003c4202423c0040405c6242625c0000003c427e023c003048083e0808080000005c62625c403c02023a46424242001000181010103800200030202020221c020222120a162200181010101010380000006e929292920000003a464242420000003c4242423c0000003a46463a020200005c62625c404000003a460202020000007c023c403e0008083e08084830000000424242625c0000004242422418000000829292926c00000042241824420000004242625c403c00007e2018047e003c04040404043c003008083c080e76003c20202020203c00001038541010101000000804fe04080000000000000000001010101000001000242424000000000024247e247e24240010781438503c100000462610086462000c12120c52225c002010080000000000201008080810200004081010100804001054387c385410000010107c1010000000000000001010080000007e00000000000000000018180000402010080402003c42625a46423c001018141010107c003c4240300c027e003c42403840423c00203028247e2020007e021e2040221c003804023e42423c007e422010080808003c42423c42423c003c42427c40201c000000100000100000000010000010100870180c060c18700000007e007e0000000e18306030180e003c4240300800080000000000ff0000001824427e424242003e44443c44443e0038440202024438001e24444444241e007e02021e02027e007e02021e0202020038440272424438004242427e4242420038101010101038007020202020221c004222120e122242000202020202027e0042665a5a4242420042464a526242420018244242422418003e42423e0202020018244242522458003e42423e122242003c42023c40423c007c101010101010004242424242423c0042424224241818004242425a5a664200424224182442420044444438101010007e40201804027e0010101010ff101010050a050a050a050a10101010101010103333cccc3333cccc3366cc993366cc9900000000000000000f0f0f0f0f0f0f0f00000000ffffffffff0000000000000000000000000000ff010101010101010155aa55aa55aa55aa80808080808080800000000055aa55aa99cc663399cc6633c0c0c0c0c0c0c0c010101010f010101000000000f0f0f0f010101010f0000000000000001f101010000000000000ffff00000000f010101010101010ff00000000000000ff101010101010101f10101003030303030303030707070707070707e0e0e0e0e0e0e0e0ffff000000000000ffffff00000000000000000000ffffff804022120a060200000000000f0f0f0ff0f0f0f000000000101010101f0000000f0f0f0f000000000f0f0f0ff0f0f0f0';
 const VIC20_TEXT_SCREENCODE = Buffer.from(VIC20_TEXT_SCREENCODE_0_127_HEX, 'hex');
 
@@ -117,10 +124,38 @@ const VIC20_TEXT_SCREENCODE = Buffer.from(VIC20_TEXT_SCREENCODE_0_127_HEX, 'hex'
  * web-layout.mjs's REAL_MACHINE_LAYOUT. Nothing about this mechanism is
  * PET-specific past the tables above.
  */
+/**
+ * A 128-glyph screen-code table widened to all 256 codes: a code with bit 7
+ * set is the glyph of `code − 128` with every pixel inverted. That is what
+ * the PET's video circuit does to its character ROM (the ROM holds 128
+ * glyphs a set and nothing reversed), and what the VIC-20's ROM holds as the
+ * "reversed copies" after each set (font-roms.mjs's generator checks they are
+ * exactly the inversion), so one rule serves both. The C64 and X16 pages do
+ * not use this: the C64 draws from the program's own character RAM, the ROM's
+ * reversed copies included, and the X16 reverses by colour.
+ * @param {Buffer} table 128 glyphs × 8 bytes
+ * @returns {(code: number) => Buffer | null}
+ */
+function withReverseVideo(table) {
+  const wide = Buffer.alloc(256 * 8);
+  for (let i = 0; i < 128 * 8; i += 1) {
+    wide[i] = table[i];
+    wide[128 * 8 + i] = table[i] ^ 0xff;
+  }
+  return (code) => (code >= 0 && code <= 255 ? wide.subarray(code * 8, code * 8 + 8) : null);
+}
+
+// "…-screencode" is the set a machine draws when its register names the TEXT
+// set (lower and upper case); "…-graphics" / "…-upper" is the one it boots in
+// (upper case and graphics). web-layout.mjs pairs them with the register that
+// chooses between them (REAL_MACHINE_LAYOUT.*.charsetSwitch).
 const NAMED_FONTS = {
-  'pet-2001-screencode': (code) => (code >= 0 && code <= 127 ? PET_2001_SCREENCODE.subarray(code * 8, code * 8 + 8) : null),
-  'pet-text-screencode': (code) => (code >= 0 && code <= 127 ? PET_TEXT_SCREENCODE.subarray(code * 8, code * 8 + 8) : null),
-  'vic20-text-screencode': (code) => (code >= 0 && code <= 127 ? VIC20_TEXT_SCREENCODE.subarray(code * 8, code * 8 + 8) : null),
+  'pet-2001-screencode': withReverseVideo(PET_2001_SCREENCODE),
+  'pet-text-screencode': withReverseVideo(PET_TEXT_SCREENCODE),
+  'vic20-text-screencode': withReverseVideo(VIC20_TEXT_SCREENCODE),
+  'pet-2001-graphics-screencode': withReverseVideo(Buffer.from(PET_2001_GRAPHICS_B64, 'base64')),
+  'pet-graphics-screencode': withReverseVideo(Buffer.from(PET_GRAPHICS_B64, 'base64')),
+  'vic20-upper-screencode': withReverseVideo(Buffer.from(VIC20_UPPER_B64, 'base64')),
 };
 
 export const BLOCK_CODE_BASE = 128;
