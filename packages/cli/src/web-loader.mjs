@@ -50,6 +50,7 @@
 // unrelated third-party images, scripts and frames. That is their call, not
 // ours.
 import { glyphTableLiteral } from './font8x8.mjs';
+import { vicSource } from './web-vic.mjs';
 import {
   BORDER_PX, CHAR_BASE, CHAR_H, CHAR_W, COLOR_BASE, COLORS, DEFAULT_LAYOUT,
   GRID_COLS, GRID_ROWS, HOST_OFFSET, HostStatus,
@@ -464,6 +465,11 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
     return { border: border, background: background, scrollX: scrollX, charset: charset };
   }
 
+  // The VIC-II's list writes and sprites: the very source packages/cli/src/web-vic.mjs
+  // runs for the screenshot (vicSource() embeds it), not a mirrored copy.
+  ${vicSource()}
+  var spriteLayer = null;
+
   // COLORS as [r, g, b] triples, re-parsed only when applyLayout swaps the
   // palette itself.
   var paletteCache = null;
@@ -531,6 +537,23 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
     // BACKGROUND still resolve through the skin's palette — on the PET that
     // is black or green, which is exactly what a split means there.
     var entries = raster.enabled ? raster.entries : [];
+    var vicWrites = VIC ? vicReadWrites(mem, VIC) : [];
+    var spritesDrawn = false;
+    if (VIC && VIC.spriteRegs !== undefined) {
+      if (!spriteLayer || spriteLayer.color.length !== INNER_W * INNER_H) {
+        spriteLayer = { color: new Int8Array(INNER_W * INNER_H), behind: new Uint8Array(INNER_W * INNER_H) };
+      }
+      spritesDrawn = vicSprites(mem, VIC, vicWrites, INNER_W, INNER_H, spriteLayer);
+    }
+    // A sprite pixel over the picture's own: the front-most sprite wins, and
+    // one behind the background hides under a foreground (glyph) pixel.
+    function spriteInk(x, row, foreground, picture) {
+      if (!spritesDrawn) return picture;
+      var at = row * INNER_W + x;
+      var sprite = spriteLayer.color[at];
+      if (sprite === -1 || (spriteLayer.behind[at] === 1 && foreground)) return picture;
+      return palette[sprite];
+    }
     for (var y = 0; y < height; y += 1) {
       var row = y - border;
       var offset = y * width * 4;
@@ -538,7 +561,7 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
         fillSpan(rgba, offset, width, palette[base.border]);
         continue;
       }
-      var state = rowState(entries, row, base);
+      var state = rowState(entries, row, VIC ? vicRowBase(base, vicWrites, row, VIC) : base);
       var borderInk = palette[state.border];
       var backgroundInk = palette[state.background];
       fillSpan(rgba, offset, border, borderInk);
@@ -550,7 +573,7 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
         var ink;
         var srcX = x - state.scrollX;
         if (srcX < 0) {
-          ink = backgroundInk;
+          ink = spriteInk(x, row, false, backgroundInk);
         } else {
           var gx = srcX % CHAR_W;
           var col = (srcX - gx) / CHAR_W;
@@ -561,7 +584,8 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
             // The character RAM, set by set: eight bytes a glyph, bit 7 the
             // leftmost pixel, the colour RAM's low four bits the ink.
             var vicAt = VIC.charsetBase + (state.charset === 1 ? VIC.setStride : 0) + raw * 8 + glyphY;
-            ink = ((mem[vicAt] >> (7 - gx)) & 1) !== 0 ? palette[colorByte & 15] : backgroundInk;
+            var vicSet = ((mem[vicAt] >> (7 - gx)) & 1) !== 0;
+            ink = spriteInk(x, row, vicSet, vicSet ? palette[colorByte & 15] : backgroundInk);
             var vi = offset + (border + x) * 4;
             rgba[vi] = ink[0]; rgba[vi + 1] = ink[1]; rgba[vi + 2] = ink[2]; rgba[vi + 3] = 255;
             continue;

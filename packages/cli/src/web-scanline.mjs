@@ -17,6 +17,7 @@
 // semantics, never fit.
 import { glyphRows } from './font8x8.mjs';
 import { userGlyph } from './web-layout.mjs';
+import { vicReadWrites, vicRowBase, vicSprites } from './web-vic.mjs';
 
 // The same four slot numbers every rasterline file names.
 export const Slot = {
@@ -158,12 +159,28 @@ export function renderFrame(mem, layout, palette) {
   // still resolve through the skin's palette — on the PET that is black or
   // green, which is exactly what a split means there.
   const entries = raster.enabled ? raster.entries : [];
+  // The C64's own list (raster.8bs, kept byte for byte by its wasm twin) and
+  // its eight sprites: web-vic.mjs, the one source both renderers run.
+  const vicWrites = vic ? vicReadWrites(mem, vic) : [];
+  const spriteLayer = vic && vic.spriteRegs !== undefined
+    ? { color: new Int8Array(innerW * innerH), behind: new Uint8Array(innerW * innerH) }
+    : null;
+  const spritesDrawn = spriteLayer ? vicSprites(mem, vic, vicWrites, innerW, innerH, spriteLayer) : false;
   const put = (x, y, ink) => {
     const i = (y * width + x) * 4;
     rgba[i] = ink[0];
     rgba[i + 1] = ink[1];
     rgba[i + 2] = ink[2];
     rgba[i + 3] = 255;
+  };
+  // A sprite pixel over the picture's own: the front-most sprite wins, and one
+  // behind the background hides under a foreground (glyph) pixel.
+  const spriteInk = (x, row, foreground, picture) => {
+    if (!spritesDrawn) return picture;
+    const at = row * innerW + x;
+    const sprite = spriteLayer.color[at];
+    if (sprite === -1 || (spriteLayer.behind[at] === 1 && foreground)) return picture;
+    return palette[sprite];
   };
   for (let y = 0; y < height; y += 1) {
     const row = y - border;
@@ -172,7 +189,7 @@ export function renderFrame(mem, layout, palette) {
       for (let x = 0; x < width; x += 1) put(x, y, ink);
       continue;
     }
-    const state = rowState(entries, row, base);
+    const state = rowState(entries, row, vic ? vicRowBase(base, vicWrites, row, vic) : base);
     const borderInk = palette[state.border];
     const backgroundInk = palette[state.background];
     for (let x = 0; x < border; x += 1) put(x, y, borderInk);
@@ -182,7 +199,7 @@ export function renderFrame(mem, layout, palette) {
     for (let x = 0; x < innerW; x += 1) {
       const srcX = x - state.scrollX;
       if (srcX < 0) {
-        put(border + x, y, backgroundInk);
+        put(border + x, y, spriteInk(x, row, false, backgroundInk));
         continue;
       }
       const gx = srcX % cw;
@@ -197,7 +214,7 @@ export function renderFrame(mem, layout, palette) {
         // bits the ink.
         const at = vic.charsetBase + (state.charset === 1 ? vic.setStride : 0) + raw * 8 + glyphY;
         const set = ((mem[at] >> (7 - gx)) & 1) !== 0;
-        put(border + x, y, set ? palette[colorByte & 15] : backgroundInk);
+        put(border + x, y, spriteInk(x, row, set, set ? palette[colorByte & 15] : backgroundInk));
         continue;
       }
       const reverse = (colorByte & 128) !== 0;

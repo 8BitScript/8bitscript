@@ -1,5 +1,5 @@
-// The C64's wasm build links five `.web` twins of its package files
-// (index, text, geometry, rasterline and input `.c64.web.8bs`) because the
+// The C64's wasm build links seven `.web` twins of its package files
+// (index, text, geometry, rasterline, input, raster and multiplex `.c64.web.8bs`) because the
 // native files speak to the chips with machine code the wasm backend never
 // lowers. A twin is a copy with a few bodies replaced, and a copy drifts: a
 // register added to index.8bs and not to its twin builds natively and fails
@@ -49,6 +49,8 @@ const PAIRS = [
   ['geometry.8bs', 'geometry.c64.web.8bs'],
   ['rasterline.8bs', 'rasterline.c64.web.8bs'],
   ['input.8bs', 'input.c64.web.8bs'],
+  ['raster.8bs', 'raster.c64.web.8bs'],
+  ['multiplex.8bs', 'multiplex.c64.web.8bs'],
 ];
 
 for (const [native, twin] of PAIRS) {

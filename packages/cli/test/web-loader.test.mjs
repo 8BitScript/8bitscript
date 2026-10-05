@@ -709,6 +709,69 @@ test("the loader paints the VIC-20's packed-register picture, identically to ren
   assert.deepEqual(framePixel(frame, 2, 2), rgb[5], 'no packed registers: the agreement byte is the border');
 });
 
+// The C64's eight sprites and raster.8bs's list are painted by web-vic.mjs: the
+// screenshot renderer imports it, the loader embeds its source (vicSource()).
+// Both must paint the same pixels for hires and multicolour sprites, X above
+// 255, expansion, the priority bit over foreground glyph pixels, and a list
+// entry that reuses a sprite further down the frame.
+test("the loader paints the C64's sprites and the list's writes to them, identically to renderFrame", () => {
+  const layout = layoutForRealMachine('c64', { facts: { 'video.columns': 40, 'video.rows': 25 } });
+  const vic = layout.vic;
+  const mem = new Uint8Array(65536);
+  for (let row = 0; row < 8; row += 1) mem[vic.charsetBase + 8 + row] = 0xff; // glyph 1: a solid block
+  mem[0xd020] = 14;
+  mem[0xd021] = 6;
+  mem[0xd018] = 0x84;
+  for (let cell = 0; cell < 1000; cell += 1) {
+    const col = cell % 40;
+    const row = (cell - col) / 40;
+    mem[layout.charBase + cell] = col >= 10 && col < 16 && row >= 5 && row < 9 ? 1 : 32; // a solid patch
+    mem[layout.colorBase + cell] = 1;
+  }
+  const block = (n, byteAt) => {
+    for (let row = 0; row < 21; row += 1) for (let b = 0; b < 3; b += 1) mem[vic.spriteBank + n * 64 + row * 3 + b] = byteAt(row, b);
+  };
+  block(144, () => 0xff); // solid
+  block(145, (row, b) => ((row + b) % 2 === 0 ? 0b01101100 : 0b11100100)); // multicolour pairs
+  const sprite = (n, x, y, ptr, color) => {
+    mem[0xd000 + n * 2] = x & 0xff;
+    mem[0xd001 + n * 2] = y;
+    mem[0xd010] = (mem[0xd010] & ~(1 << n)) | (x > 255 ? 1 << n : 0);
+    mem[0xd015] |= 1 << n;
+    mem[0xd027 + n] = color;
+    mem[vic.spritePointers + n] = ptr;
+  };
+  sprite(0, 100, 100, 144, 2); // in front, over the patch's left edge
+  sprite(1, 130, 100, 144, 3); // behind the foreground (priority bit)
+  sprite(2, 300, 140, 145, 4); // X above 255, multicolour, expanded in X
+  sprite(3, 200, 60, 144, 5); // reused below by the list
+  mem[0xd01b] = 2;
+  mem[0xd01c] = 4;
+  mem[0xd01d] = 4;
+  mem[0xd025] = 9;
+  mem[0xd026] = 12;
+  // The list: sprite 3 is reused at Y 150, X 224, colour 7, from line 82 (an entry at 81).
+  const list = [[81, 0xd007, 150], [81, 0xd006, 224], [81, 0xd02a, 7]];
+  list.forEach(([line, address, value], i) => {
+    mem[0x0200 + i * 4] = line;
+    mem[0x0200 + i * 4 + 1] = address & 0xff;
+    mem[0x0200 + i * 4 + 2] = address >> 8;
+    mem[0x0200 + i * 4 + 3] = value;
+  });
+  mem[vic.listLivePage] = 2;
+  mem[vic.listEnd] = list.length * 4;
+  const frame = assertPaintParity(layout, mem);
+  const rgb = rgbPalette(layout.palette);
+  // Sprite 0, X 100 / Y 100: column 76, row 50 of the picture.
+  assert.deepEqual(framePixel(frame, BORDER_PX + 76, BORDER_PX + 50), rgb[2], 'sprite 0 draws');
+  // Sprite 3 first at Y 60 (X 200 = column 176), then again at Y 150 (X 224 = column 200, colour 7).
+  assert.deepEqual(framePixel(frame, BORDER_PX + 176, BORDER_PX + 10), rgb[5], 'sprite 3, first use');
+  assert.deepEqual(framePixel(frame, BORDER_PX + 200, BORDER_PX + 100), rgb[7], 'sprite 3 reused by the list');
+  // Sprite 1 is behind the foreground: the solid patch (columns 80-127, rows 40-71) hides it, the background does not.
+  assert.deepEqual(framePixel(frame, BORDER_PX + 106, BORDER_PX + 50), rgb[1], 'behind the solid patch the glyph shows');
+  assert.deepEqual(framePixel(frame, BORDER_PX + 128, BORDER_PX + 50), rgb[3], 'past the patch it shows over the background');
+});
+
 // A CHARSET band switches the loader to its ALT_GLYPHS table at the same
 // line renderFrame switches glyphRows() to the alternate set.
 test('the loader applies a CHARSET band, identically to renderFrame, on the default and PET skins', () => {

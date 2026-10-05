@@ -93,10 +93,10 @@ Studio and Vegas Nights (the toolchain is this branch; Vegas Nights `trunk`):
 | Builds for wasm | pet | vic20 | c64 | cx16 | web |
 |---|---|---|---|---|---|
 | `hello-world`, `hello-8bx` | ✔ | ✔ | ✔ | ✔ | ✔ |
-| `fancy` (raster, sprites) | ✔ | ✔ every band starts on the same line as xvic (`8bs conform vic20 --program bands`) | ✘ `sprites_update` | ✘ `raster_commit` | ✔ |
-| `joystick` (input, sprites) | ✔ | ✔ | ✘ `sprites_update` | ✘ `input_poll` | ✔ |
-| `media-walk`, `swarm` (graphics, audio) | ✔ | ✔ | ✘ `sprites_update` | ✔ | ✔ |
-| Studio | ✔ | ✔ | ✘ `sprites_update` | ✔ | ✔ |
+| `fancy` (raster, sprites) | ✔ | ✔ every band starts on the same line as xvic (`8bs conform vic20 --program bands`) | ✔ (sprites) | ✘ `raster_commit` | ✔ |
+| `joystick` (input, sprites) | ✔ | ✔ | ✔ | ✘ `input_poll` | ✔ |
+| `media-walk`, `swarm` (graphics, audio) | ✔ | ✔ | ✔ | ✔ | ✔ |
+| Studio | ✔ | ✔ | ✔ | ✔ | ✔ |
 | Vegas Nights lobby, `hello-reels`, `sound-test` | ✔ | ✔ | ✔ | ✘ `input_poll` | ✔ |
 | Vegas Nights `tile-test` | ✔ | ✔ | ✔ | ✔ | not for web |
 | Vegas Nights `slot3x3` | ✘ `move_down` | ✘ `move_down` | ✔ | ✘ `play` | ✔ |
@@ -104,7 +104,7 @@ Studio and Vegas Nights (the toolchain is this branch; Vegas Nights `trunk`):
 
 Every ✘ is an `asm6502` block, which the wasm backend never lowers: *"'x': 'asm'
 blocks are 6502-specific machine code and are never lowered on the web target"*.
-Of 35 example builds, 27 pass; of the 34 Vegas Nights builds that apply (`tile-test`
+Of 35 example builds, 32 pass now that the C64's sprites are built (27 before); of the 34 Vegas Nights builds that apply (`tile-test`
 does not target the web), 26 pass. The Vegas Nights `move_down` and `play` ones are the
 game's own machine code (the quadrant machines' block-copy hop; the X16 reel
 code) and need wasm twins in that repo.
@@ -162,14 +162,16 @@ modes, raster timing. Those are items 4 and 6 below.
 
 | Feature | pet | vic20 | c64 | cx16 | web |
 |---|---|---|---|---|---|
-| Builds the shared examples | ✔ 7/7 | ◐ 6/7 | ✘ 2/7 | ◐ 5/7 | ✔ 7/7 |
+| Builds the shared examples | ✔ 7/7 | ◐ 6/7 | ✔ 7/7 | ◐ 5/7 | ✔ 7/7 |
 | Text grid and character ROM (codes 0–127) | ✔ both sets, switched by `$E84C` | ✔ both sets, switched by `$9005` | ✔ | ◐ host font | ✔ |
 | Reverse video (codes 128–255) | ✔ | ✔ | ✔ | ✔ | ✔ |
 | Text colours and palette | ✔ (mono) | ◐ 6 colour-row cells: page palette vs xvic; border and background are read from `$900F` | ◐ Pepto vs VICE | ✔ VERA's default (#317) | ✔ |
 | Portable input | ✔ builds | ✔ builds | ✔ arrows/Enter/Esc | ✘ `input_poll` | ✔ |
 | Portable raster (`@8bitscript/raster`) | ◐ 3032/4032 only; untested | ✘ `raster_probeRegion` | ◐ lands one picture line early | ✘ `raster_commit` | ✔ |
-| Graphics objects (`@8bitscript/graphics`) | ◐ draws (`media-walk`); other ops untested on wasm | ◐ draws (`media-walk`); other ops untested on wasm | ✘ does not build | ◐ one flat glyph, not a sprite (#317) | ✔ |
-| Hardware sprites / bitmap / multicolour | n/a | n/a | ✘ not drawn | ✘ not drawn | n/a |
+| C64 address-form raster list (`@8bitscript/c64/raster`) | n/a | n/a | ◐ applied line by line by the page; not the handler's timing | n/a | n/a |
+| Graphics objects (`@8bitscript/graphics`) | ◐ draws (`media-walk`); other ops untested on wasm | ◐ draws (`media-walk`); other ops untested on wasm | ✔ as hardware sprites (24 from eight) | ◐ one flat glyph, not a sprite (#317) | ✔ |
+| Hardware sprites | n/a | n/a | ✔ hires + multicolour, expand, priority, X MSB; no collision registers | ✘ not drawn | n/a |
+| Bitmap / multicolour text | n/a | n/a | ✘ not drawn | ✘ not drawn | n/a |
 | Sound (`audio.tone`, `.8ba`) | ✘ silent | ✘ silent | ✘ silent | ✘ silent | ✔ (Web Audio; not heard in a tab) |
 | PAL / 50 Hz | ✘ NTSC | ✘ NTSC | ✘ NTSC | n/a | n/a |
 | Save / storage | ✘ | ✘ | ✘ | ✘ | ✘ (`localStorage` bridge unbuilt) |
@@ -238,7 +240,7 @@ has no interrupt: the native driver busy-waits down the frame; the wasm page alr
 composes per scanline). *Acceptance:* `examples/fancy` builds and shows its two
 colour bands on vic20 wasm at the same picture lines as xvic (`bands` probe).
 
-**4. C64 sprites — L.** `sprites_update` and the 24-sprite multiplexer are machine
+**4. C64 sprites — L. DONE on branch `wasm/c64-sprites` (see the handoff below).** `sprites_update` and the 24-sprite multiplexer are machine
 code; `fancy`, `joystick`, `media-walk`, `swarm` and Studio all stop there. Add a
 wasm twin of the sprite layer (the portable interface, not the multiplexer's
 cycles) and a VIC-II sprite renderer in `web-scanline.mjs` (8 sprites, shapes read
@@ -358,3 +360,51 @@ and `cd packages/compiler && node --test test/vic20-web-twin.test.mjs`. With xvi
 `cd packages/vic20 && node ../cli/bin/8bs.mjs conform vic20 --program bands`.
 Risk: low. Backlog item 1 (#319) edits the same compositor and layout files and has already landed;
 this branch was rebased onto it, keeping its fonts and `charsetSwitch` and adding only the `$900F` read.
+
+## Handoff: the C64's sprites (backlog 4)
+
+What is done and verified, headless, no emulator (`pnpm run test:ci` plus the files named):
+
+- **The renderer**, `packages/cli/src/web-vic.mjs`, one source for both renderers: the
+  screenshot (`web-scanline.mjs` imports it) and the browser loader (embeds
+  `vicSource()`), so there is no mirrored copy. It reads the live address-form list
+  (page `$0200`/`$0300` named by `$02FF`, end `$02FC`) and the eight sprites' registers
+  and applies entries line by line (an entry at line L takes effect from line L + 1).
+  Sprites: DMA start on a Y compare, 21 rows (42 expanded) from the next line, restart
+  on the line the last row ends, X with its ninth bit, hires and multicolour, expand,
+  lowest number in front, priority bit behind glyph pixels. Held by
+  `packages/cli/test/web-vic.test.mjs` (16 tests with the pixels written out) and the
+  loader-versus-renderer pixel identity test in `web-loader.test.mjs`.
+- **Two twins**: `raster.c64.web.8bs` (native layout byte for byte, `commit()` hands
+  over at once and writes the frame table into the sprite registers) and
+  `multiplex.c64.web.8bs` (the native routine's three steps in plain loops). Held to
+  the native signatures by `packages/compiler/test/c64-web-twin.test.mjs`.
+- **End to end**, `packages/cli/test/web-c64-sprites.test.mjs`: hardware sprites at
+  exact pixels; the native multiplexer probe (`packages/c64/test/multiplex-probe.8bs`,
+  20 virtual sprites from 8, the same expectations `layers.test.mjs` reads under
+  x64sc) passes on wasm; `swarm` shows 16 rings; `fancy`, `joystick`, `media-walk`, Studio
+  build and draw. 32 of 35 example builds pass now (27 before).
+
+What is NOT done:
+
+- **No `8bs conform` sprite probe against x64sc.** The comparison so far is the native
+  multiplexer probe's own expectations (met) and one by-eye match of `media-walk`
+  (same square, same place; colours differ by the Pepto palette, backlog 5). Writing
+  a conform program with sprites (positions, X above 255, 12 sprites with reuse) and a
+  tolerance, from `packages/c64/test/graphics-ops-probe.8bs`, is the next step.
+- Sprite collision registers (`$D01E`/`$D01F`) are not computed; a register an entry
+  changed is the program's value again next frame (natively it stays); an opened
+  border (`@8bitscript/c64/border`) is not modelled (the border covers sprites); bitmap
+  mode pointers (under the I/O area) are not read. All listed in the C64's
+  `wasm.limits` (`packages/c64/package.json`).
+- The Vegas Nights programs were not re-run against this branch (the C64 sprites do not
+  touch them: they use redefined characters, not sprites), though nothing they use changed.
+
+To resume: branch `wasm/c64-sprites`; `pnpm install`; then from a program's directory
+`node packages/cli/bin/8bs.mjs run c64 --web --screenshot out.png`; tests:
+`node --test packages/cli/test/web-vic.test.mjs packages/cli/test/web-c64-sprites.test.mjs
+packages/cli/test/web-loader.test.mjs packages/compiler/test/c64-web-twin.test.mjs`.
+The slow one is the `swarm` build (about a minute). Risk: the page applies the whole list
+at paint time from the program's memory; a program that rewrites the list mid-frame
+(not between `waitFrame()`s) could show a half-built one, as the double-buffered native
+list never does.
