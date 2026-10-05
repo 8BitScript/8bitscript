@@ -1,0 +1,200 @@
+// rasterline.8bs's own `.web` twin — build.mjs's internal `web` tag resolves
+// this in place of rasterline.8bs whenever this package builds through the
+// wasm backend (`8bs build --target vic20 --web`, `8bs run vic20 --web`).
+//
+// The native file is a frame hook in machine code: the VIC-20 raises no
+// interrupt, so `waitFrame()` calls `vic20RasterFrame()`, which busy-waits down
+// the frame polling $9004 and writes $900F (and $9005) at each planned line.
+// The wasm backend never lowers an asm6502 block, and there is no beam to wait
+// for here. The page paints this build from the program's memory and applies a
+// *picture-line* list at paint time instead — the one the synthetic web target
+// uses (packages/web/src/rasterline.8bs, read by web-scanline.mjs and the
+// loader's copy) — so this twin writes that list. The portable surface is the
+// VIC-20's own, unchanged: the same Slot numbers, `line` a picture line 0-183
+// held in a byte, 16 entries, `at` refusing a line below the last entry's and
+// refusing SCROLL_X, `insert`, `setValue`, `count`, `commit`, `enable`,
+// `disable`, and BORDER values kept to the VIC's three bits.
+//
+// What it does NOT model, on purpose:
+//   - The hook's timing. An entry takes effect at its picture line exactly
+//     (the web renderer is idealized, per web-scanline.mjs). On the machine an
+//     entry lands in the right border of the line before, the hook syncs on
+//     lines in pairs, and an entry one line below another is planned two lines
+//     down (AGENTS.md, "Raster splits"): none of that is reproduced here.
+//   - What waitFrame() costs. Natively it returns only after the last entry's
+//     line has been written, which takes the frame's remainder away from the
+//     program; here the page reads the list between frames, for free.
+//   - The cost of the hook's busy-wait when the program is late for a frame.
+//
+// The three list offsets below are where web-layout.mjs agreementFor() puts
+// the raster region for this machine's fixed 22x23 grid; the test in
+// packages/cli/test/web-vic20.test.mjs holds them to the layout, so changing
+// one without the other fails.
+//
+// Keep the export list identical to rasterline.8bs — test/vic20-web-twin.test.mjs
+// in the compiler package holds the two to the same names and signatures.
+
+// What the picture does at a line, named without an address. The numbers
+// are arbitrary and the same in all nine rasterline files.
+export namespace Slot {
+    const BORDER: utinyint = 0;     // the border's color, 0-7 here
+    const BACKGROUND: utinyint = 1; // the playfield's background color, 0-15
+    const SCROLL_X: utinyint = 2;   // the horizontal fine scroll: refused here
+    const CHARSET: utinyint = 3;    // 0 upper-case/graphics ($8000), 1 mixed-case text ($8800)
+}
+
+const LIST_CONTROL: usmallint = 1016; // agreementFor(22x23).rasterControlOffset
+const LIST_COUNT: usmallint = 1017;   // .rasterCountOffset
+const LIST_BASE: usmallint = 1018;    // .rasterBase
+
+// The last line appended, to keep insertion ascending: nothing reads this
+// list live the way the native hook does, so the ordering rule is enforced
+// here, where the bytes are written.
+let lastLine: utinyint = 0;
+
+// The native frame hook, which the wasm build has no use for: kept so both
+// files export the same names. Nothing calls it.
+export function vic20RasterFrame(): void {
+}
+
+export namespace raster {
+    const ENTRIES: utinyint = 16; // the list's capacity
+    const STRIDE: utinyint = 3;   // bytes per entry: line, slot, value
+    const FINE_SCROLL: bool = false; // Slot.SCROLL_X is refused: $9000 moves the picture in 4-pixel steps
+    const COLORS: bool = true;      // Slot.BORDER/BACKGROUND entries are accepted
+    const CHARSET: bool = true;    // Slot.CHARSET entries are accepted: the page switches sets at the line
+    const FRAME_COUNTER: bool = false; // no video-frame counter: the VIC-20 has no raster or vertical-blank interrupt here
+    const LINES: utinyint = 184;  // visible picture lines: Video.ROWS (23) * 8
+
+    // Empty the list. What shows keeps showing until the next commit().
+    function clear(): void {
+        memory.write(LIST_COUNT, 0);
+        lastLine = 0;
+    }
+
+    // Append: at picture line `line` (0 is the first line of the text
+    // area), give `slot` the value `value`. False, and nothing added, if
+    // the line is past the picture, the slot is SCROLL_X or unknown, the
+    // list is full, or the line is above the last entry's.
+    function at(line: utinyint, slot: utinyint, value: utinyint): bool {
+        if (line >= raster.LINES || slot == Slot.SCROLL_X || slot > Slot.CHARSET) {
+            return false;
+        }
+        let held: utinyint = memory.read(LIST_COUNT);
+        if (held >= raster.ENTRIES || line < lastLine) {
+            return false;
+        }
+        let entry: usmallint = held;
+        entry = LIST_BASE + entry * 3;
+        memory.write(entry, line);
+        memory.write(entry + 1, slot);
+        memory.write(entry + 2, raster.bits(slot, value));
+        memory.write(LIST_COUNT, held + 1);
+        lastLine = line;
+        return true;
+    }
+
+    // In order: the same as `at`, at a line above the last entry's — the
+    // entries below it slid up a place. False, and nothing added, if the
+    // line is past the picture, the slot is refused, or the list is full.
+    function insert(line: utinyint, slot: utinyint, value: utinyint): bool {
+        if (line >= raster.LINES || slot == Slot.SCROLL_X || slot > Slot.CHARSET) {
+            return false;
+        }
+        if (line >= lastLine) {
+            return raster.at(line, slot, value);
+        }
+        let held: utinyint = memory.read(LIST_COUNT);
+        if (held >= raster.ENTRIES) {
+            return false;
+        }
+        let pos: usmallint = held;
+        pos = LIST_BASE + pos * 3;
+        while (pos > LIST_BASE) {
+            if (memory.read(pos - 3) <= line) {
+                break;
+            }
+            memory.write(pos, memory.read(pos - 3));
+            memory.write(pos + 1, memory.read(pos - 2));
+            memory.write(pos + 2, memory.read(pos - 1));
+            pos = pos - 3;
+        }
+        memory.write(pos, line);
+        memory.write(pos + 1, slot);
+        memory.write(pos + 2, raster.bits(slot, value));
+        memory.write(LIST_COUNT, held + 1);
+        return true;
+    }
+
+    // How many entries the list holds.
+    function count(): utinyint {
+        return memory.read(LIST_COUNT);
+    }
+
+    // Nothing to hand over: the page reads the list at paint time, between
+    // two frames of the program, so a rebuilt list is whole by construction.
+    function commit(): void {
+    }
+
+    // Natively this walks the planned lines after setValue() and rewrites
+    // their register bytes. The page reads the list itself, so there is
+    // nothing to redo; the name stays so the namespaces match.
+    function recolor(items: utinyint): void {
+    }
+
+    // The value the page keeps for a slot, as the VIC's own registers would:
+    // BORDER is three bits, BACKGROUND four, CHARSET one. (Natively this
+    // returns the $900F or $9005 byte itself; here the page does the shifting,
+    // so the list holds the plain value.)
+    function bits(slot: utinyint, value: utinyint): utinyint {
+        if (slot == Slot.BORDER) {
+            return value & 7;
+        }
+        if (slot == Slot.CHARSET) {
+            return value & 1;
+        }
+        return value & 15;
+    }
+
+    // The native hook picks its delays by whether the raster reaches $9004
+    // >= 140, a line only PAL has. There is no beam here, and no PAL.
+    function probeRegion(): void {
+    }
+
+    // Rewrite one entry's value, leaving its line and slot: `entry` is the
+    // entry's byte offset (index * STRIDE). False, and nothing written, if
+    // the offset is not a multiple of 3 or names no entry.
+    function setValue(entry: utinyint, value: utinyint): bool {
+        if ((entry / 3) * 3 != entry) {
+            return false;
+        }
+        let held: usmallint = memory.read(LIST_COUNT);
+        held = held * 3;
+        let wide: usmallint = entry;
+        if (wide >= held) {
+            return false;
+        }
+        let slot: utinyint = memory.read(LIST_BASE + wide + 1);
+        memory.write(LIST_BASE + wide + 2, raster.bits(slot, value));
+        return true;
+    }
+
+    // No video-frame counter: the VIC-20 has no raster or vertical-blank
+    // interrupt, and the wasm build's host runs one logical frame per
+    // waitFrame() return and never skips one, so a loop that calls waitFrame()
+    // once a pass already counts every frame itself. frame() answers 0 and
+    // FRAME_COUNTER says so; count your own waitFrame() calls.
+    function frame(): utinyint {
+        return 0;
+    }
+
+    // Start applying: the page reads the list from the next paint on.
+    function enable(): void {
+        memory.write(LIST_CONTROL, 1);
+    }
+
+    // The plain, unsplit picture again; the list is kept.
+    function disable(): void {
+        memory.write(LIST_CONTROL, 0);
+    }
+}

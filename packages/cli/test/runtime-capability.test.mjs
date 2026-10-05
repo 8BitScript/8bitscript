@@ -64,7 +64,8 @@ test('every machine whose wasm build has a known gap says so in `limits`, where 
   const runtime = byId();
   const says = (id, pattern) => assert.ok(runtime[id].wasm.limits.some((line) => pattern.test(line)), `${id}: ${pattern}`);
   says('cx16', /graphics object|sprites/);
-  says('vic20', /raster does not build/);
+  says('vic20', /raster list applies each entry at its picture line exactly/); // it builds now; what it does not model is the hook's timing
+  assert.ok(!runtime.vic20.wasm.limits.some((line) => /does not build/.test(line)), 'the VIC-20 raster builds on wasm: the old claim is gone');
   says('cx16', /input does not build/); // the raster and the sprites are held in the X16's own test below
   for (const id of ['pet', 'vic20', 'c64', 'cx16']) says(id, /sound/);
 });

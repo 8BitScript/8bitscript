@@ -104,6 +104,15 @@ Do not describe more than this as working:
   `Slot.SCROLL_X` is refused and `raster.FINE_SCROLL` is false. The VIC raises no interrupt, so
   `waitFrame()` applies the list — the section "Raster splits" below is
   the mechanism, the measurements and what they cost.
+  **On the wasm build** (`8bs run vic20 --web`) the hook's machine code is never
+  lowered: `src/rasterline.vic20.web.8bs` writes the page's picture-line list
+  instead, the same portable surface with each entry applied at its line
+  exactly. The page reads the border and background from `$900F`
+  (and the live character set from `$9005`) as the chip does. `8bs conform vic20 --program bands` holds the
+  band lines to xvic's (every band starts on the same line); what it does not
+  model is in `emulator.wasm.limits` in `package.json`, and
+  `packages/compiler/test/vic20-web-twin.test.mjs` holds the twin to the native
+  file's names.
 - `8bs run vic20` launches `xvic -model vic20ntsc` (or `-model vic20pal`
   with `--pal`) `-memory <ram> -controlport1device <n> -autostartprgmode 1`; `--screenshot`
   goes through `-limitcycles`/`-exitscreenshot` at the region's real clock

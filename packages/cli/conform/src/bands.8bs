@@ -1,0 +1,23 @@
+// The bands probe for `8bs conform bands`: the whole picture one solid colour
+// (white), a black border, and five BORDER entries of the portable raster
+// layer at picture lines 24, 56, 88, 120 and 152. The capture is then a clean
+// white rectangle with colour bands down its sides, and the line each band
+// starts on is what src/conform-bands.mjs compares between the native
+// emulator and the wasm build. No text is drawn: it would break the
+// rectangle the picture is measured from.
+import { raster, Slot } from "@8bitscript/raster";
+import { screen, BorderColor, BackgroundColor } from "@8bitscript/screen";
+
+export function main(): void {
+    screen.blank(BorderColor.BLACK, BackgroundColor.WHITE);
+    raster.clear();
+    raster.at(24, Slot.BORDER, BorderColor.RED);
+    raster.at(56, Slot.BORDER, BorderColor.GREEN);
+    raster.at(88, Slot.BORDER, BorderColor.BLUE);
+    raster.at(120, Slot.BORDER, BorderColor.YELLOW);
+    raster.at(152, Slot.BORDER, BorderColor.PURPLE);
+    raster.enable();
+    while (true) {
+        waitFrame();
+    }
+}

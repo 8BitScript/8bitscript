@@ -1,0 +1,38 @@
+// The portable raster surface on the VIC-20's wasm build, band by band, so a
+// capture can say whether the page applies each slot at its picture line:
+//
+//   lines 0-39     the base: green border, black background (screen.blank, $900F)
+//   lines 40-159   red border, blue background   (BORDER + BACKGROUND at 40, back at 160)
+//   lines 120-139  character set 0 (upper case/graphics), over cell rows 15 and 16 ("abc")
+//
+// Rows 14, 15 and 16 print the same "abc". text.print selects the mixed-case
+// set through $9005, which draws screen codes 1-3 as lower case: row 14 stays
+// so; the band switches rows 15 and 16 to the upper-case/graphics set, where
+// the same codes are capitals. packages/cli/test/web-vic20.test.mjs reads the
+// pixels. SCROLL_X is refused on this machine (raster.FINE_SCROLL is false),
+// so there is no scroll band.
+import { screen, BorderColor, BackgroundColor } from "@8bitscript/screen";
+import { text, TextColor } from "@8bitscript/text";
+import { raster, Slot } from "@8bitscript/raster";
+
+export function main(): void {
+    screen.blank(BorderColor.GREEN, BackgroundColor.BLACK);
+    text.setColor(TextColor.WHITE);
+    // A cell is y * 22 + x: the width is a usmallint, because 22 * 14 of two
+    // byte-wide literals is a byte-wide product that wraps at 256.
+    let width: usmallint = text.COLUMNS;
+    text.print(width * 14, "abc");
+    text.print(width * 15, "abc");
+    text.print(width * 16, "abc");
+    raster.clear();
+    raster.at(40, Slot.BORDER, BorderColor.RED);
+    raster.at(40, Slot.BACKGROUND, BackgroundColor.BLUE);
+    raster.at(120, Slot.CHARSET, 0);
+    raster.at(140, Slot.CHARSET, 1);
+    raster.at(160, Slot.BORDER, BorderColor.GREEN);
+    raster.at(160, Slot.BACKGROUND, BackgroundColor.BLACK);
+    raster.enable();
+    while (true) {
+        waitFrame();
+    }
+}

@@ -466,6 +466,14 @@ const REAL_MACHINE_LAYOUT = {
     // choice: it is why this preview's text reads squarer/more "normal"
     // than a real VIC-20's own visibly wide, stretched characters.
     pixelAspectFor: (facts) => (facts['video.frameRate'] === 60 ? 5 / 3 : 1),
+    // The border and the background are one packed register on the 6560/6561
+    // ($900F: border in bits 0-2, background in bits 4-7, bit 3 normal
+    // video), so the page reads them from the program's own memory, as it
+    // does the C64's two. Bit 3 (reverse) is not modelled: the page draws
+    // normal video whatever it holds. Until a program writes the register it
+    // reads 0: a black border and a black background.
+    // (Which of the two character sets is live is `charsetSwitch` above: $9005.)
+    packedRegisters: { colorRegister: 0x900f, borderMask: 0x07, backgroundShift: 4 },
   },
   // The X16's VERA VRAM is not part of the CPU's address space at all —
   // even real hardware reaches it only through a stateful address port
@@ -569,6 +577,7 @@ export function layoutForRealMachine(target, hardware = {}) {
     // than crashing here for want of a glyphsFor.
     ...(real.glyphsFor?.(facts) ?? {}),
     ...(real.vic ? { vic: real.vic } : {}),
+    ...(real.packedRegisters ? { packedRegisters: real.packedRegisters } : {}),
     ...(real.reservedRanges ? { reservedRanges: real.reservedRanges } : {}),
   };
 }
@@ -605,6 +614,7 @@ export function sidecarJson(layout = DEFAULT_LAYOUT) {
     colorPerCell: layout.colorPerCell,
     pixelAspect: layout.pixelAspect,
     vic: layout.vic ?? null,
+    packedRegisters: layout.packedRegisters ?? null,
   };
 }
 

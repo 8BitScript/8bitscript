@@ -93,7 +93,7 @@ Studio and Vegas Nights (the toolchain is this branch; Vegas Nights `trunk`):
 | Builds for wasm | pet | vic20 | c64 | cx16 | web |
 |---|---|---|---|---|---|
 | `hello-world`, `hello-8bx` | ✔ | ✔ | ✔ | ✔ | ✔ |
-| `fancy` (raster, sprites) | ✔ | ✘ `raster_probeRegion` | ✘ `sprites_update` | ✘ `raster_commit` | ✔ |
+| `fancy` (raster, sprites) | ✔ | ✔ every band starts on the same line as xvic (`8bs conform vic20 --program bands`) | ✘ `sprites_update` | ✘ `raster_commit` | ✔ |
 | `joystick` (input, sprites) | ✔ | ✔ | ✘ `sprites_update` | ✘ `input_poll` | ✔ |
 | `media-walk`, `swarm` (graphics, audio) | ✔ | ✔ | ✘ `sprites_update` | ✔ | ✔ |
 | Studio | ✔ | ✔ | ✘ `sprites_update` | ✔ | ✔ |
@@ -165,7 +165,7 @@ modes, raster timing. Those are items 4 and 6 below.
 | Builds the shared examples | ✔ 7/7 | ◐ 6/7 | ✘ 2/7 | ◐ 5/7 | ✔ 7/7 |
 | Text grid and character ROM (codes 0–127) | ✔ both sets, switched by `$E84C` | ✔ both sets, switched by `$9005` | ✔ | ◐ host font | ✔ |
 | Reverse video (codes 128–255) | ✔ | ✔ | ✔ | ✔ | ✔ |
-| Text colours and palette | ✔ (mono) | ◐ 6 colour-row cells: page palette vs xvic | ◐ Pepto vs VICE | ✔ VERA's default (#317) | ✔ |
+| Text colours and palette | ✔ (mono) | ◐ 6 colour-row cells: page palette vs xvic; border and background are read from `$900F` | ◐ Pepto vs VICE | ✔ VERA's default (#317) | ✔ |
 | Portable input | ✔ builds | ✔ builds | ✔ arrows/Enter/Esc | ✘ `input_poll` | ✔ |
 | Portable raster (`@8bitscript/raster`) | ◐ 3032/4032 only; untested | ✘ `raster_probeRegion` | ◐ lands one picture line early | ✘ `raster_commit` | ✔ |
 | Graphics objects (`@8bitscript/graphics`) | ◐ draws (`media-walk`); other ops untested on wasm | ◐ draws (`media-walk`); other ops untested on wasm | ✘ does not build | ◐ one flat glyph, not a sprite (#317) | ✔ |
@@ -185,7 +185,7 @@ Ordered by value over cost. Effort: **S** about a day, **M** a few days,
 |---|---|---|---|
 | 1 | ~~Reverse video, and the boot character set, on PET and VIC-20~~ **done**: PET 114 → 0, VIC-20 166 → 0 differing cells | S | — |
 | 2 | X16: portable input and raster in the wasm backend | M | — |
-| 3 | VIC-20: portable raster in the wasm backend | M | 1 |
+| 3 | ~~VIC-20: portable raster in the wasm backend~~ — done; see the handoff at the end for what remains | M | 1 |
 | 4 | C64 sprites (`sprites_update`) and a VIC-II sprite renderer | L | — |
 | 5 | Palettes and ROM fonts that match the real machines | S–M | — |
 | 6 | Graphics objects on PET, VIC-20 and X16 | M | 1 (PET, VIC-20); a VERA sprite renderer (X16) |
@@ -320,3 +320,41 @@ _headers       COOP/COEP for Cloudflare Pages and Netlify
 - The raster list's "one picture line early" figure on the C64
   (`packages/c64/package.json` limits) is the C64 wasm fork's measurement against
   the machine's handler; no probe yet checks it.
+
+
+## Handoff: VIC-20 portable raster (backlog item 3)
+
+**Done and verified** (branch `wasm/vic20-raster`):
+
+- `packages/vic20/src/rasterline.vic20.web.8bs`: the wasm twin of the raster layer, with the same
+  surface (`Slot`, `raster.at/insert/setValue/count/commit/enable/disable`, 16 entries, 184 lines,
+  `SCROLL_X` refused, `BORDER` kept to 3 bits), writing the page's picture-line list.
+  `examples/fancy` and the new `packages/vic20/test/web-raster-probe.8bs` build through `--web`.
+- The page reads the VIC-20's border and background from the chip's own register
+  (`layout.packedRegisters`: `$900F`), in both renderers (`web-scanline.mjs`, and the loader's inline
+  copy, held pixel-identical by a test). Which character set is live is #319's `charsetSwitch`
+  (`$9005`), so `Slot.CHARSET` entries switch sets at their line.
+- `8bs conform vic20 --program bands` (new): five `BORDER` entries at lines 24, 56, 88, 120 and 152.
+  xvic and the wasm build start **every band on the same line** (offset 0, all 6 bands). Colours differ
+  in places (palette: backlog item 5) and are a warning, not a failure.
+- Tests: `packages/cli/test/web-vic20.test.mjs`, `conform-bands.test.mjs` and a VIC-20 case in
+  `web-loader.test.mjs` (CI-run); `packages/compiler/test/vic20-web-twin.test.mjs` (twin parity);
+  `packages/vic20/test/conform.bands.test.mjs` (needs xvic). Five deliberate breaks of the twin and
+  the two renderers were each caught.
+
+**Not done:**
+
+- A real border keeps the *last frame's final value* until its first entry (`$900F` holds what was last
+  written); the wasm picture shows the program's own. A `hold` flag on `rowState`, set for the VIC-20
+  (start each frame from the state after the last entry), would close it. The C64 handler behaves the
+  same way and wants the same treatment.
+- `$900F` bit 3 (the screen-wide inverse flag) is ignored.
+- The hook's timing (pair-of-lines sync, the two-line rule, the cost to `waitFrame()`) is not modelled.
+- Vegas Nights' VIC-20 programs were not rebuilt for wasm here.
+
+**To resume:** check out `wasm/vic20-raster` and run `pnpm install`. CI-run tests:
+`cd packages/cli && node --test test/web-vic20.test.mjs test/conform-bands.test.mjs test/web-loader.test.mjs`
+and `cd packages/compiler && node --test test/vic20-web-twin.test.mjs`. With xvic installed:
+`cd packages/vic20 && node ../cli/bin/8bs.mjs conform vic20 --program bands`.
+Risk: low. Backlog item 1 (#319) edits the same compositor and layout files and has already landed;
+this branch was rebased onto it, keeping its fonts and `charsetSwitch` and adding only the `$900F` read.

@@ -281,11 +281,11 @@ test('the arguments: machines, options, and the mistakes people make', () => {
   assert.equal(defaults.frames, 300);
   assert.equal(defaults.strictColour, false);
   assert.equal(defaults.project, CONFORM_PROJECT);
-  const picked = parseConformArgs(['c64', 'pet', '--program', 'bands', '--frames', '120', '--out', 'x', '--strict-colour',
+  const picked = parseConformArgs(['c64', 'pet', '--program', 'custom', '--frames', '120', '--out', 'x', '--strict-colour',
     '--colour-tolerance', '10', '--structure-tolerance', '3']);
   assert.deepEqual(picked.machines, ['c64', 'pet']);
   assert.deepEqual([picked.program, picked.frames, picked.out, picked.strictColour, picked.colourTolerance, picked.structuralTolerance],
-    ['bands', 120, 'x', true, 10, 3]);
+    ['custom', 120, 'x', true, 10, 3]);
   assert.equal(parseConformArgs(['-h']).help, true);
   assert.match(parseConformArgs(['web']).error, /not a machine with both a native emulator and a wasm build/);
   assert.match(parseConformArgs(['--nope']).error, /unknown option --nope/);
