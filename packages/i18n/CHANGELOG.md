@@ -1,5 +1,11 @@
 # @8bitscript/i18n
 
+## 0.25.0
+
+### Patch Changes
+
+- @8bitscript/text@0.25.0
+
 ## 0.24.0
 
 ### Patch Changes

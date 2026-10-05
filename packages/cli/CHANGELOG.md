@@ -1,5 +1,136 @@
 # @8bitscript/cli
 
+## 0.25.0
+
+### Minor Changes
+
+- a45bd03: `audio.tone(note, frames)`, `audio.silence()`, and the constants `audio.NOTE_LOW` / `audio.NOTE_HIGH`: one portable tone for a game's bleeps, on the C64 (SID), VIC-20, PET (the VIA's CB2 wave), Commander X16 (VERA PSG) and the web (one Web Audio oscillator). A note is the `.8ba` index (C0 = 0, A4 = 57), a note outside a machine's range moves by whole octaves, and `frames` counts calls of `audio.update()`.
+  
+  Fixes: the X16's PSG played nothing (the volume byte carried no channel-enable bits, and the pitch fell as the note rose); the PET and VIC-20 pitch tables were about two octaves off the notes they were indexed by. All four are now measured headlessly: SID A4 440.0 Hz from the register dump, VIC-20 443.5 Hz, PET 441.0 Hz and X16 439.9 Hz from recorded WAVs.
+  
+  The web host gains four tone registers after the glyph table (`AUDIO_BASE`: 9032 on the Modern host) that the page plays through one oscillator; `audio.voices` is 1 on the web. A real browser tab was not available, so the sound itself is not heard: the register writes, the mapping and the page's oscillator driving are tested.
+- ecb49c6: The C64's wasm build draws sprites. `8bs build --target c64 --web` now builds `fancy`, `joystick`, `media-walk`, `swarm` and Studio (they stopped at the sprite multiplexer's machine code): the page paints the eight VIC-II hardware sprites (hires and multicolour, X/Y expansion, priority, the ninth X bit, shape blocks read from the VIC bank) and applies the address-form raster list (`@8bitscript/c64/raster`) line by line, so a sprite is reused down the frame by the multiplexer's own list entries. `raster.c64.web.8bs` keeps the native list layout byte for byte and `multiplex.c64.web.8bs` is the multiplexer's routine in plain 8BitScript; `web-vic.mjs` is the one source both the screenshot renderer and the generated browser loader run. Not modelled, and listed in the C64's `wasm.limits`: sprite collision registers, the handler's cycle timing, a register an entry changed staying changed into the next frame, and an opened border.
+- 4f425e1: The C64 now builds and runs through the wasm backend: `8bs build --target c64 --web`, `8bs run c64 --web` (an editor tab or an external browser), and `8bs run c64 --web --screenshot out.png` for a headless capture of what the page will draw. It is a model of the machine, not the machine, and `8bs targets --json` says so in `runtime.wasm.limits`: text mode only (no sprites, bitmap, multicolour or sound), no keyboard or joystick yet, NTSC 60 Hz. What it does model is checked pixel for pixel against the character ROM's own bytes: the screen matrix at `$E000` and colour RAM at `$D800`, the border and background from `$D020` and `$D021`, the fine scroll from `$D016`, which of the two character sets is live from `$D018` bit 1, reverse video, and every glyph read out of the program's own character RAM — so a glyph `@8bitscript/c64/charset` redefines or `restore()`s is simply the bytes there. The page reads the character RAM at `$A000`, not the machine's `$D000` (under the I/O area on the machine, the chips' own registers in flat memory).
+  
+  The wasm backend lowers an `@address` array — a fixed run of linear memory at its pin, bounded to the 64 KiB address space and refused where program data would sit under it — and folds a constant added to an 8-bit array index into the address instead of wrapping at 255, as the 6502 backend always has (`screen.blank()` on the C64 writes `screenRam[i + 250]`; before this a wasm build left every row after the first with screen code 0). `--screenshot` with `--web` now captures the wasm build through the page's own compositor; without `--web` it is still the native emulator's. Native builds are unchanged: three `.web` twins of the C64 package's `index`, `text` and `geometry` files (held to the native files' exports by a test) and a generated character-ROM data file are linked only by the wasm build.
+- 8d65b3a: Studio opens in the editor's WebAssembly tab, on our own backend, and it renders there.
+  
+  - **VS Code:** **Open Studio** (the Studio row, the 🚀, **Launch Studio**, **Open Studio in a Tab**) runs `8bs run cx16 --web` in an editor tab: our compiler to wasm and our own model of the X16, not a full-screen native window and not the vendored x16emu. The native emulator is its own labelled button beside the row (**Open Studio in the Native Emulator**, `8bitscript.openStudioNative`), and the vendored x16emu in a tab is **Open Studio in x16emu (in a Tab)** (`8bitscript.openStudioX16emu`). Every old command id still works. The WebAssembly build is the primary way to run a program, which is what `8bitscript.preferWebPreview` already defaulted to; the tab's Editor runtime is the default for a program with no history.
+  - **cx16 wasm model:** the colours are VERA's own default palette (blue is `#0000aa`, as x16emu draws it; the C64's `#40318d` was wrong), and a `.8bg` picture is drawn at all — as one 8x8 glyph in the new redefinable glyph table, because the wasm model has no VERA sprites. Studio's mark now shows. `wasm.limits` for the X16 in `8bs targets --json` says what the model still leaves out (VERA layers and sprites, sound, the mouse, the raster list).
+  - **Compiler:** a `--web` build of a machine whose package names `"wasmMedia"` lowers pictures with that module (the X16 names the web's).
+- 52e8dee: A program is now a unit an editor can run on its own, with its own settings. Three pieces make the contract:
+  
+  **`#define("NAME", default)`** is a value the build is handed — a seed, a flag, a starting amount — with the default written where it is read, so a plain build, `8bs check` and the editor never lack one. `8bs run c64 --program slot5x5 --define SEED=42 --define FORCE_BONUS=true` (repeatable) replaces it for one build, and a `define: { SEED: 42 }` under a program in `8bitscript.config.8bs` does so on every build of it; the command line wins over the config, the config over the default. It folds to a literal, so a different value is a different build and a program that reads none is byte-identical (15 example builds on pet, c64, vic20, cx16 and web measured the same). The name is in capitals; the default is a whole number, `true`/`false`, or a string (`8BS1047`); a value of the wrong kind is `8BS1048`; one name with two defaults in one program is `8BS1049`. A `--define` for a name the program never reads is an error naming the nearest name it does read, and a config `define` nothing reads is a warning. `8bs check` takes `--define` too, and a build records what its defines came to in `dist/.8bs-last-<target>.json`. Hover, completion, a `#define` snippet and the docs are updated.
+  
+  **`8bs project [--json]`** describes the project with the CLI's own loader instead of a regular expression over the config: its programs — with the new display keys `title`, `description` and `group`, the machines each builds for, and the `#define` names each reads with the defaults found in its source by the compiler — its targets, locales and named systems, and anything wrong with them as `problems` rather than a failure. Exit 0 when described, 1 when a config exists and will not load. The shape is in `docs/project/units.md`.
+  
+  **`8bs targets --json` says how each machine can be run**: a `runtime` object with `native` (the emulator and whether it is installed), `wasm` (the machine's own package through the wasm backend, in a page), `wasmEmulator` (cx16's real x16emu as WebAssembly) and `boot` (the bare machine), each with `available` and, when not, a `reason`. The wasm claim is declared by each machine package (`emulator.wasm`) and held to the truth by a test that builds every one: the PET, VIC-20, X16 and web build through the wasm backend; the C64 does not yet (the wasm backend does not lower an array pinned at a fixed address, `screenRam`). An editor no longer needs a hand-kept list of which machines can preview in a page.
+  
+  `8bs run`'s usage now documents `--web`, `--x16emu`, `--locale` and `--define`.
+- b591243: The VIC-20's portable raster list now builds and runs on its wasm build. `examples/fancy`
+  and any program that imports `@8bitscript/raster` build with `8bs build --target vic20
+  --web` (they failed on the frame hook's machine code), and the page applies each
+  `BORDER`, `BACKGROUND` and `CHARSET` entry at its picture line. The page also reads the
+  VIC-20's border and background from `$900F`, as the chip does. New: `8bs conform vic20
+  --program bands` compares where each band starts against xvic (every band starts on the
+  same line).
+- 55bd004: WASM is the primary runtime, and now there is a way to measure whether it is telling the truth.
+  
+  **`8bs conform` compares a machine's wasm build with the real machine.** For `pet`, `vic20`, `c64` and `cx16` it builds a probe program through the native emulator and through the wasm backend, captures one frame of each and compares them cell by cell: a wrong glyph is a *structure* difference and fails (exit 1), a different ink colour is a *colour* difference and warns (`--strict-colour` fails it). The probe's four solid corner cells locate the picture in each capture, so there is no table of where each emulator keeps its border. It writes the two captures and a diff image (native, wasm, and the differing cells in red and amber) and a JSON report. The first run found: the C64 matches x64sc in all 1000 cells (its palette differs); the PET is missing reverse video (114 cells); the VIC-20 the same plus the wrong boot character set (166 cells); the X16 draws the ASCII ramp in the host font, not its ISO character ROM (186 cells). Each machine package's `test/conform.test.mjs` pins its number, which can only go down. `docs/project/wasm-primary.md` has the policy, the audit of every example, Studio and the Vegas Nights slots on the five release machines, the parity matrix and the backlog.
+  
+  **A web bundle for tagged hardware could not load itself.** `8bs build --target vic20 --web` (the VIC-20 with 8K, the release hardware, tag `expanded`) wrote `program-expanded.wasm` and `program-expanded.json`, and `index.html` and `embed.html` still asked for `program.wasm`: on a clean directory the only file the page needs was a 404. The pages now name the file the bundle wrote.
+  
+  **The wasm capability rows no longer claim nothing is missing.** `8bs targets --json` reported `limits: []` for the PET, VIC-20 and X16, while the audit found reverse video undrawn on the PET and VIC-20, the portable `@8bitscript/raster` and `@8bitscript/input` failing to build for the wasm backend on the VIC-20 and X16 (`raster_probeRegion`, `raster_commit`, `input_poll` are machine code), `@8bitscript/graphics` objects compiling and drawing nothing on the PET, VIC-20 and X16, and no sound on any of them. They are limits now (the X16 already listed most of its own after the Studio change; this adds the input gap and the x16emu fallback), and the editor shows them.
+  
+  The VS Code launcher says what the three buttons are: **Editor** is the primary way to run a program, **Browser** is the page you can share, **Native** is the real emulator, the second opinion on what the WASM build shows.
+- b2cb568: The PET and VIC-20 wasm builds draw reverse video and the character set the machine is really in, and `8bs conform` now agrees with the real emulators on every glyph.
+  
+  **Reverse video.** A screen code with bit 7 set is the same glyph with every pixel inverted on a real PET (the video circuit does it) and on a real VIC-20 (the ROM's reversed copies are exactly that). The wasm page's PET and VIC-20 fonts only had codes 0–127, so codes 128 and up drew as blanks, the corner cells, the reverse ramp and the colour row of `8bs conform` were wrong, and the quadrant-block objects `@8bitscript/graphics` places never appeared. All the named fonts are now 256 codes wide. `examples/media-walk` draws its two objects on the PET and VIC-20 wasm builds, as it does on the real machines.
+  
+  **Both character sets, and the register that chooses.** The page drew the lower-case set on the VIC-20 where the machine boots in upper case and graphics. It now has each machine's graphics half (generated from VICE's ROM images by `packages/cli/scripts/font-roms.mjs`, pinned by SHA-256) and follows the machine's own register each frame: the PET's VIA control register (`$E84C` bit 1: 12 graphics, 14 text), the VIC-20's memory pointer (`$9005` low nybble: 0 upper case and graphics, 2 lower and upper case). A program that selects a set is drawn in that set, as the video chip would; a raster list's `Slot.CHARSET` still overrides it on the lines it names.
+  
+  **Measured with `8bs conform`.** The `grid` probe: PET 114 → 0 differing cells, VIC-20 166 → 0 (its colour row still differs in 6 cells in colour only: the page's palette is not xvic's). Two new probes, `charset` and `charset-text`, write every screen code 0–255 raw in each set and match `xpet` and `xvic` in all 1000 and 506 cells, structure and colour. The PET and VIC-20 `limits` lines about reverse video, the character set and graphics objects are gone from `8bs targets --json`.
+- 6e1ca7a: The web target now answers `raster.CHARSET`: `@8bitscript/raster`'s `Slot.CHARSET` switches the character set from a chosen picture line down, the same per-line slot the PET 3032 and 4032 model tags answer. Value 0 is the boot set and 1 the web's alternate set. The web has no character ROM, so the alternate set is defined by its runtime: the same glyphs with every lower-case letter drawn as its capital. That matches the mixed-case/upper-case pair every Commodore machine has. Screen memory never changes; the split decides which set draws it. Both renderers apply it identically: the browser page carries a second glyph table and picks one per row, and `--screenshot` passes the row's set to `glyphRows()`. It works on every synthetic skin (the Modern host, `pet-2001`, `c64`, `vic20`), and a real machine's captured ROM table is never remapped. Verified by a compiled `.8bs` program's headless screenshot, with capitals on exactly the band's rows on the Modern host and the `pet-2001` skin, plus the loader/compositor pixel-parity test.
+- af466c0: The web target has a redefinable character set, and `.8bg` pictures on the web are now real art. Before, a picture was reduced to one of the sixteen 2×2 quadrant blocks (a 16×16 source became four lit-or-dark quadrants). Now the runtime reserves a table of 80 glyphs of eight row bytes in the agreement page, right after the raster list, for the character codes 176–255 — the gap the font leaves, so no table glyph shadows a font glyph. Both the browser page and the headless `--screenshot` rasterizer draw a cell with a code in that range from the table once any of its eight rows is nonzero (bit 0 the leftmost pixel, the order every font here uses), and from the font as before when all are zero, so a program that never writes the table pays nothing and changes nothing. A real machine's own `--web` build (pet, vic20, c64) has no table and its agreement is unchanged; on the Modern host the agreement now ends at 9032 (was 8392) and the program's data starts at 9216 (was 8448). `@8bitscript/web/charset` writes it (`charset.define(code, r0…r7)`, `charset.setRow(code, row, bits)`), refusing a code outside the table or a row past 7. `@8bitscript/web`'s media module lowers each animation step to an 8×8 bitmap at build time (an 8×8 source pixel for pixel, a larger one by area), and `@8bitscript/graphics`' web twin writes those bytes straight into the table and draws the cell, still up to eight pictures of eight steps, with `graphics.color()` tinting the cell's one ink. The portable contract's numbers for the web are unchanged (`MAX` 8, `FRAMES` 8, 8×8, one ink, `STEP` 8, no restore); only the fidelity is. `#fact(video.glyphs)` is 80 on the web (the PET 2001 skin keeps the PET's 0). `examples/media-walk` built for web goes from 1820 to 1956 wasm bytes and from 267 to 203 bytes of RAM (the binder now carries eight bytes a step instead of one; the twin's 64-byte code table is gone). Verified by compiled programs' headless screenshots on the Modern host and the `pet-2001` skin — asymmetric 8×8 art pixel for pixel, a 16×16 picture reduced exactly, an eight-frame animation stepping in order, a paused one holding and resuming, a recoloured one, a hidden one gone and placed again, a moved one leaving no copy, the grid's last cell, a picture below or past the grid drawing nothing — and by the browser loader's compositor painting the same pixels as the rasterizer. Not checked: a real browser tab.
+
+### Patch Changes
+
+- 3d7b0e6: Fixes two bugs vegas-nights found.
+  
+  **An array of more than 128 two-byte elements read and wrote the wrong element.** The 6502 backend doubled the index in A (`ASL`) and handed it to Y, which drops the carry, so element 185 of an `array<usmallint, 200>` landed on element 57 (the 80-column PET 8032's marquee ring wrote its places 128 and up over places 0 and up, silently). An array of more than 128 elements now builds the byte offset in 16 bits and goes through a zero-page pointer, a constant index past element 127 folds its doubled offset into the address, and a `usmallint` index into such an array is written instead of refused. An array of 128 elements or fewer, and every byte array (up to 256 elements), keep exactly the code they had: all 30 builds of the six examples on c64, pet, vic20, cx16 and web are byte for byte the same size. The long form costs about 42 bytes of code for one read plus one write (measured on the C64), and 4 bytes of zero-page temporaries. Pinned by tests of the emitted code, and under xpet and x64sc by `packages/pet/test/array-wide.test.mjs` and `packages/c64/test/array-wide.test.mjs`.
+  
+  **`8bs run --help` launched the emulator.** A `--help` or `-h` after a command was passed to the command as an unknown argument, so `8bs run pet --help` built the project and opened xpet. Every command now prints its own usage (just its own block, `build` both of its) and exits 0 before anything is built or launched; an unknown command with `--help` is still an unknown command.
+- 40d5e91: `@8bitscript/graphics` is now one contract across machines. Every twin — the PET, VIC-20, C64, X16, web and NES ones, and the generic glyph path every other machine uses — answers the same ten constants (`graphics.MAX`, `FRAMES`, `WIDTH`, `HEIGHT`, `COLORS`, `RECOLORS`, `STEP_X`, `STEP_Y`, `RESTORES`, `TRANSPARENT`) with the value that machine honestly has, so a program can fold on what it can do, and exports the same calls: `place`, `update`, and new `hide`, `setFrame`, `animate` and `color`. A call a machine cannot honour is a documented no-op (`color` on the PET, the X16 and the NES, where `RECOLORS` is false); `docs/project/graphics.md` has the per-machine table, and `packages/compiler/test/graphics-contract.test.mjs` builds a probe that reads every constant and calls every operation on all thirty-two targets.
+  
+  The one behaviour change: `graphics.place` takes **playfield pixels** on every machine, so `place(slot, 0, 0)` lands on text cell (0, 0). The C64 twin now adds the sprite layer's origin (24, 50) itself, so a program no longer writes `sprites.ORIGIN_X +` in front of its positions (the bundled examples, Studio and the C64 probe did; they don't now). A program that already adds the origin by hand on the C64 draws 24 pixels right and 50 down of where it did.
+  
+  The generic glyph path now plays animations: the default lowering keeps up to four animation steps as one glyph each (it collapsed an animation to its first frame, with `8BS2111`), and `graphics.update()` steps through them at the animation's `every`, as the web twin already did.
+- Updated dependencies [3d7b0e6]
+- Updated dependencies [179c3f6]
+- Updated dependencies [a45bd03]
+- Updated dependencies [0e0e928]
+- Updated dependencies [29fff5f]
+- Updated dependencies [4f425e1]
+- Updated dependencies [ecb49c6]
+- Updated dependencies [4f425e1]
+- Updated dependencies [4a646ff]
+- Updated dependencies [b4e50f9]
+- Updated dependencies [584b12c]
+- Updated dependencies [b4bd7cd]
+- Updated dependencies [8927961]
+- Updated dependencies [40d5e91]
+- Updated dependencies [3d76573]
+- Updated dependencies [7a866bc]
+- Updated dependencies [88b2396]
+- Updated dependencies [5065779]
+- Updated dependencies [8d65b3a]
+- Updated dependencies [52e8dee]
+- Updated dependencies [17e8aac]
+- Updated dependencies [2c79182]
+- Updated dependencies [9dfc8ce]
+- Updated dependencies [b591243]
+- Updated dependencies [55bd004]
+- Updated dependencies [b2cb568]
+- Updated dependencies [6e1ca7a]
+- Updated dependencies [af466c0]
+- Updated dependencies [cad9700]
+  - @8bitscript/compiler@0.25.0
+  - @8bitscript/cx16@0.25.0
+  - @8bitscript/web@0.25.0
+  - @8bitscript/c64@0.25.0
+  - @8bitscript/examples@0.25.0
+  - @8bitscript/studio@0.25.0
+  - @8bitscript/pet@0.25.0
+  - @8bitscript/apple2@0.25.0
+  - @8bitscript/atari2600@0.25.0
+  - @8bitscript/atari5200@0.25.0
+  - @8bitscript/atari7800@0.25.0
+  - @8bitscript/atari8@0.25.0
+  - @8bitscript/bbc@0.25.0
+  - @8bitscript/c128@0.25.0
+  - @8bitscript/channelf@0.25.0
+  - @8bitscript/coco@0.25.0
+  - @8bitscript/coleco@0.25.0
+  - @8bitscript/cpc@0.25.0
+  - @8bitscript/gamegear@0.25.0
+  - @8bitscript/gb@0.25.0
+  - @8bitscript/gbc@0.25.0
+  - @8bitscript/lynx@0.25.0
+  - @8bitscript/mega65@0.25.0
+  - @8bitscript/msx@0.25.0
+  - @8bitscript/nes@0.25.0
+  - @8bitscript/odyssey2@0.25.0
+  - @8bitscript/oric@0.25.0
+  - @8bitscript/pce@0.25.0
+  - @8bitscript/plus4@0.25.0
+  - @8bitscript/sg1000@0.25.0
+  - @8bitscript/sms@0.25.0
+  - @8bitscript/spectrum@0.25.0
+  - @8bitscript/supervision@0.25.0
+  - @8bitscript/vectrex@0.25.0
+  - @8bitscript/vic20@0.25.0
+  - @8bitscript/language-server@0.25.0
+
 ## 0.24.0
 
 ### Minor Changes

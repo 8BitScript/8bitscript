@@ -1,5 +1,54 @@
 # @8bitscript/examples
 
+## 0.25.0
+
+### Patch Changes
+
+- b4bd7cd: The Commander X16 answers `@8bitscript/raster`: border, background, fine-scroll and character-set splits on VERA's line interrupt, each landing on its own picture line under x16emu, and `#fact(video.raster)` is now true on the X16. `examples/fancy` shows its colour bands and wobble there. `input.poll()` and `mouse.poll()` now restore the interrupt flag after their KERNAL calls instead of leaving interrupts off.
+- 8927961: `examples/fancy` has its colour bands and wobble back on the C64. Its per-frame `graphics.update()` rebuilds the C64 raster list (`raster.clear()`, the plan, `raster.commit()`), which erased the list the example builds once with `raster.at()`; it has done so since the four-pillars release added the Mark sprite. On the C64 the still sprite is now published once, before the list; every other machine is unchanged (byte-identical builds). A VICE pixel test and a CI-run source-shape test pin it, and the C64 notes now say what works with a raster list and sprites together and what does not exist yet.
+- 40d5e91: `@8bitscript/graphics` is now one contract across machines. Every twin — the PET, VIC-20, C64, X16, web and NES ones, and the generic glyph path every other machine uses — answers the same ten constants (`graphics.MAX`, `FRAMES`, `WIDTH`, `HEIGHT`, `COLORS`, `RECOLORS`, `STEP_X`, `STEP_Y`, `RESTORES`, `TRANSPARENT`) with the value that machine honestly has, so a program can fold on what it can do, and exports the same calls: `place`, `update`, and new `hide`, `setFrame`, `animate` and `color`. A call a machine cannot honour is a documented no-op (`color` on the PET, the X16 and the NES, where `RECOLORS` is false); `docs/project/graphics.md` has the per-machine table, and `packages/compiler/test/graphics-contract.test.mjs` builds a probe that reads every constant and calls every operation on all thirty-two targets.
+  
+  The one behaviour change: `graphics.place` takes **playfield pixels** on every machine, so `place(slot, 0, 0)` lands on text cell (0, 0). The C64 twin now adds the sprite layer's origin (24, 50) itself, so a program no longer writes `sprites.ORIGIN_X +` in front of its positions (the bundled examples, Studio and the C64 probe did; they don't now). A program that already adds the origin by hand on the C64 draws 24 pixels right and 50 down of where it did.
+  
+  The generic glyph path now plays animations: the default lowering keeps up to four animation steps as one glyph each (it collapsed an animation to its first frame, with `8BS2111`), and `graphics.update()` steps through them at the animation's `every`, as the web twin already did.
+- Updated dependencies [179c3f6]
+- Updated dependencies [a45bd03]
+- Updated dependencies [0e0e928]
+- Updated dependencies [718c857]
+- Updated dependencies [29fff5f]
+- Updated dependencies [4f425e1]
+- Updated dependencies [ecb49c6]
+- Updated dependencies [4f425e1]
+- Updated dependencies [4a646ff]
+- Updated dependencies [c287f25]
+- Updated dependencies [584b12c]
+- Updated dependencies [8927961]
+- Updated dependencies [40d5e91]
+- Updated dependencies [7a866bc]
+- Updated dependencies [88b2396]
+- Updated dependencies [5065779]
+- Updated dependencies [8d65b3a]
+- Updated dependencies [52e8dee]
+- Updated dependencies [2c79182]
+- Updated dependencies [9dfc8ce]
+- Updated dependencies [55bd004]
+- Updated dependencies [b2cb568]
+- Updated dependencies [6e1ca7a]
+- Updated dependencies [af466c0]
+- Updated dependencies [cad9700]
+  - @8bitscript/audio@0.25.0
+  - @8bitscript/web@0.25.0
+  - @8bitscript/c64@0.25.0
+  - @8bitscript/graphics@0.25.0
+  - @8bitscript/pet@0.25.0
+  - @8bitscript/raster@0.25.0
+  - @8bitscript/input@0.25.0
+  - @8bitscript/screen@0.25.0
+  - @8bitscript/text@0.25.0
+  - @8bitscript/sprites@0.25.0
+  - @8bitscript/timeline@0.25.0
+  - @8bitscript/system@0.25.0
+
 ## 0.24.0
 
 ### Patch Changes
