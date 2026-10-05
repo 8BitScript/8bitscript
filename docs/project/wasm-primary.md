@@ -114,16 +114,16 @@ real machine (`media-walk`, 200 frames):
 
 | | native | wasm |
 |---|---|---|
-| PET | two objects (a cross and a bar) | text only |
-| VIC-20 | objects | text only |
+| PET | two objects (a cross and a bar) | the same two (since item 1: they were text only) |
+| VIC-20 | objects | the same two, in square pixels (since item 1: they were text only) |
 | X16 | a yellow VERA sprite | one white 8×8 glyph, in about the right place (since #317; it was text only) |
 
-**`@8bitscript/graphics` draws nothing on the PET and VIC-20 wasm builds, and one
-flat glyph on the X16's.** The PET and VIC-20 objects are quadrant blocks written as
-screen codes of 128 and up (the reverse-video gap below); the X16's are VERA
-sprites, which the page has no renderer for, so a picture is drawn as a glyph in a
-single ink. The C64's do not build (`sprites_update`). Only the `web` target draws
-them as designed.
+**`@8bitscript/graphics` draws its objects on the PET and VIC-20 wasm builds (item
+1), and one flat glyph on the X16's.** The PET and VIC-20 objects are quadrant
+blocks written as screen codes of 128 and up; until the page drew reverse video
+(codes ≥ 128 were blank) they never appeared. The X16's are VERA sprites, which the
+page has no renderer for, so a picture is drawn as a glyph in a single ink. The
+C64's do not build (`sprites_update`). Only the `web` target draws them as designed.
 
 ## Conformance: the first measurements
 
@@ -133,8 +133,8 @@ ASCII ramp in normal and reverse video, one cell per text colour):
 | | cells | differ in structure | differ in colour only | what |
 |---|---|---|---|---|
 | **C64** | 1000 | **0** | 7 | The text, the character ROM and reverse video match x64sc cell for cell. The ink colours do not: the page paints the Pepto palette (`136,57,50` for red); x64sc's default is another (`169,71,100`). |
-| **PET** (4032) | 1000 | **114** | 0 | Reverse video is not drawn: screen codes ≥ 128 are masked or blank (`font8x8.mjs`: the PET and VIC-20 fonts were captured for codes 0–127 only). The corner cells, the whole reverse ramp and the colour row differ. |
-| **VIC-20** (8K) | 506 | **166** | 0 | The same reverse-video gap, **and** the page draws the lower-case ROM set (`vic20-text-screencode`) where the machine boots in upper case with graphics, so lower-case and symbol cells differ. |
+| **PET** (4032) | 1000 | **0** (was 114) | 0 | Reverse video is the screen code's bit 7 inverting the glyph, as the video circuit does; the page also reads the VIA control register (`$E84C` bit 1) each frame for the live ROM set. Fixed by backlog item 1: the PET and VIC-20 fonts had only codes 0–127, so the corner cells, the reverse ramp and the colour row differed. |
+| **VIC-20** (8K) | 506 | **0** (was 166) | 6 | The same, and the page now boots in the upper case and graphics ROM set (`vic20-upper-screencode`) and follows the low nybble of `$9005` to the lower/upper set. The six colour-only cells are the colour row: the page paints a C64-flavoured palette where xvic has its own (backlog item 5). |
 | **X16** | 4256 | **186** | 0 | Reverse video works; the page draws the ASCII ramp in the host font, not the ISO character ROM x16emu uses. (The first run, before #317, also found the colours were the C64's palette, not VERA's default — 8 cells; that is fixed.) |
 | web | — | — | — | no native emulator to compare against |
 
@@ -163,12 +163,12 @@ modes, raster timing. Those are items 4 and 6 below.
 | Feature | pet | vic20 | c64 | cx16 | web |
 |---|---|---|---|---|---|
 | Builds the shared examples | ✔ 7/7 | ◐ 6/7 | ✘ 2/7 | ◐ 5/7 | ✔ 7/7 |
-| Text grid and character ROM (codes 0–127) | ✔ | ◐ wrong boot set | ✔ | ◐ host font | ✔ |
-| Reverse video (codes 128–255) | ✘ | ✘ | ✔ | ✔ | ✔ |
-| Text colours and palette | ✔ (mono) | not measurable (needs reverse video) | ◐ Pepto vs VICE | ✔ VERA's default (#317) | ✔ |
+| Text grid and character ROM (codes 0–127) | ✔ both sets, switched by `$E84C` | ✔ both sets, switched by `$9005` | ✔ | ◐ host font | ✔ |
+| Reverse video (codes 128–255) | ✔ | ✔ | ✔ | ✔ | ✔ |
+| Text colours and palette | ✔ (mono) | ◐ 6 colour-row cells: page palette vs xvic | ◐ Pepto vs VICE | ✔ VERA's default (#317) | ✔ |
 | Portable input | ✔ builds | ✔ builds | ✔ arrows/Enter/Esc | ✘ `input_poll` | ✔ |
 | Portable raster (`@8bitscript/raster`) | ◐ 3032/4032 only; untested | ✘ `raster_probeRegion` | ◐ lands one picture line early | ✘ `raster_commit` | ✔ |
-| Graphics objects (`@8bitscript/graphics`) | ✘ builds, draws nothing | ✘ builds, draws nothing | ✘ does not build | ◐ one flat glyph, not a sprite (#317) | ✔ |
+| Graphics objects (`@8bitscript/graphics`) | ◐ draws (`media-walk`); other ops untested on wasm | ◐ draws (`media-walk`); other ops untested on wasm | ✘ does not build | ◐ one flat glyph, not a sprite (#317) | ✔ |
 | Hardware sprites / bitmap / multicolour | n/a | n/a | ✘ not drawn | ✘ not drawn | n/a |
 | Sound (`audio.tone`, `.8ba`) | ✘ silent | ✘ silent | ✘ silent | ✘ silent | ✔ (Web Audio; not heard in a tab) |
 | PAL / 50 Hz | ✘ NTSC | ✘ NTSC | ✘ NTSC | n/a | n/a |
@@ -183,7 +183,7 @@ Ordered by value over cost. Effort: **S** about a day, **M** a few days,
 
 | # | Item | Effort | Depends on |
 |---|---|---|---|
-| 1 | Reverse video, and the boot character set, on PET and VIC-20 | S | — |
+| 1 | ~~Reverse video, and the boot character set, on PET and VIC-20~~ **done**: PET 114 → 0, VIC-20 166 → 0 differing cells | S | — |
 | 2 | X16: portable input and raster in the wasm backend | M | — |
 | 3 | VIC-20: portable raster in the wasm backend | M | 1 |
 | 4 | C64 sprites (`sprites_update`) and a VIC-II sprite renderer | L | — |
@@ -209,6 +209,17 @@ VIC-20's upper-case/graphics set from the ROM (pinned by SHA-256 as the C64's is
 VIC-20 palette: report it); `media-walk` draws its two objects on the PET and
 VIC-20 wasm (item 6 follows); the PET and VIC-20 `limits` lines about reverse
 video and the character set come out.
+
+*Done.* `font8x8.mjs` widens every PET and VIC-20 font to 256 codes (bit 7 = the
+glyph inverted: the PET's video circuit does it, and the VIC-20 ROM's reversed
+copies are exactly that, which the generator checks), and
+`packages/cli/scripts/font-roms.mjs` adds the graphics half of each ROM from VICE's
+images, pinned by SHA-256 (`font-roms.mjs`). The layout names the pair of sets and
+the register that picks between them (`charsetSwitch`: the PET's `$E84C` bit 1, the
+VIC-20's `$9005` low nybble); the page and the rasterizer read it each frame, so a
+program that selects a set is drawn in that set. Two new probes, `charset` and
+`charset-text` (`packages/cli/conform/src/`), write every screen code 0–255 raw in
+each set and match xpet and xvic with **0** differing cells, structure and colour.
 
 **2. X16 input and raster in the wasm backend — M.** `input_poll` (keyboard, pad,
 mouse via the KERNAL) and `raster_commit` (the VERA line-IRQ driver) are

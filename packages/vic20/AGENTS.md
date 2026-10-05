@@ -746,6 +746,28 @@ only see one in `$1000`–`$1FFF`, a reservation no package makes yet.
   mutation that proved it bites: NTSC's second `jsr sled+6` changed to
   `sled+12` (12 cycles early) fails at picture line 59.
 
+## The wasm build: text, both ROM sets, reverse video
+
+The wasm build is the primary way to run a VIC-20 program (`8bs run vic20 --web`, the
+editor's Editor tab; `docs/project/wasm-primary.md`), and `8bs conform vic20`
+measures it against xvic: 0 cells differ in structure on all three probes (`grid`,
+`charset`, `charset-text`; `test/conform.test.mjs`); the `grid` probe's colour row
+differs in 6 cells in colour only (the page's palette is not xvic's: backlog item 5).
+
+- **The page boots in the upper-case and graphics set** (`$8000`, low nybble of
+  `$9005` = 0) — `text.8bs` stores `MEMORY_POINTER_UPPERCASE` there itself — and
+  follows the low nybble to the lower/upper-case set (`$8800`, nybble 2). The page
+  reads `$9005` each frame (`REAL_MACHINE_LAYOUT.vic20.charsetSwitch`). Nybbles 1 and 3
+  name the ROM's reversed copies, which the tables hold as codes 128–255, so they draw
+  as their neighbour; 4 and up read the chip's own registers and are not modelled.
+- **Reverse video is a screen code's bit 7**, the glyph inverted — the ROM's reversed
+  copies are exactly the inversion (`packages/cli/scripts/font-roms.mjs` checks it).
+  The ink is the cell's colour RAM nybble, as before.
+- The tables come from VICE's `chargen-901460-03.bin` (SHA-256 pinned in the
+  generator): the text set was read from it earlier, the upper-case set is generated.
+- The quadrant-block objects `@8bitscript/graphics` places draw on the wasm page now
+  (`examples/media-walk`), because the codes they use are drawn.
+
 ## Seeing the screen without a human at xvic
 
 `8bs run vic20 --screenshot <file.png>` builds and captures through VICE's

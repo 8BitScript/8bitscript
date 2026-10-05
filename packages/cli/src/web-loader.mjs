@@ -259,7 +259,11 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
   var GLYPHS = ${glyphTableLiteral(layout.font)};
   // The alternate character set a Slot.CHARSET entry of 1 selects from its
   // line down (font8x8.mjs glyphRows(): lower case drawn as capitals).
-  var ALT_GLYPHS = ${glyphTableLiteral(layout.font, 1)};
+  var ALT_GLYPHS = ${layout.fontAlt ? glyphTableLiteral(layout.fontAlt) : glyphTableLiteral(layout.font, 1)};
+  // A real machine with two ROM sets (the PET, the VIC-20): the register its
+  // own hardware reads says which is live — {register, mask}, or null. The
+  // table above is the boot set, ALT_GLYPHS the other (web-layout.mjs).
+  var CHARSET_SWITCH = ${JSON.stringify(layout.charsetSwitch ?? null)};
   // The redefinable glyph table (web-layout.mjs): GLYPH_COUNT glyphs of eight
   // row bytes at GLYPH_BASE in the program's memory, codes GLYPH_FIRST up.
   // GLYPH_BASE is negative on a host with none (a real machine's own build).
@@ -514,6 +518,7 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
     } : {
       border: COLOR_PER_CELL ? mem[0] & 15 : 0,
       background: COLOR_PER_CELL ? mem[1] & 15 : 0,
+      charset: CHARSET_SWITCH && (mem[CHARSET_SWITCH.register] & CHARSET_SWITCH.mask) !== 0 ? 1 : 0,
     };
     var raster = readRasterEntries(mem);
     // Every slot applies on every skin. A skin without per-cell color keeps

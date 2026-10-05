@@ -1,0 +1,93 @@
+// The character-ROM conformance probe, shared by charset.8bs and
+// charset-text.8bs: every screen code, 0..255, written straight into screen
+// RAM — no ASCII-to-screen-code mapping in the way — so every glyph of the live
+// character set is compared with the real machine's, graphics included, and
+// codes 128..255 (reverse video) with them.
+//
+// Only the PET and the VIC-20 have their glyphs in a host font table the page
+// has to get right (packages/cli/src/font8x8.mjs, font-roms.mjs); the C64 draws
+// from its own character RAM and the X16 from a host font, so on those the
+// probe draws just the four corner cells that locate the picture.
+//
+// Four solid corner cells first (the same fiducials grid.8bs draws), through
+// the text package — which on the PET also puts the machine in its text set —
+// then the machine's own register picks the set under test:
+//
+//   PET      VIA control register $E84C: 12 graphics and upper case, 14 text
+//   VIC-20   memory pointer $9005, low nybble: 0 upper case and graphics
+//            ($8000), 2 lower and upper case ($8800); the high nybble is
+//            the 8K machine's screen at $1000 (packages/vic20/src/geometry.vic20.expanded.8bs)
+import { screen } from "@8bitscript/screen";
+import { text } from "@8bitscript/text";
+import { System } from "@8bitscript/system";
+
+const COLS: utinyint = text.COLUMNS;
+const ROWS: utinyint = text.ROWS;
+const WHITE: utinyint = 1;
+const PER_ROW: utinyint = 20;     // codes a row: fits the VIC-20's 22 columns with a cell either side
+const FIRST_ROW: utinyint = 2;
+
+// cell = row * COLS + col, summed rather than multiplied: a product of two
+// bytes would wrap at 8 bits on a wide grid.
+function cellOf(col: utinyint, row: utinyint): usmallint {
+    let cell: usmallint = col;
+    for (let r: utinyint = 0; r < row; r++) {
+        cell = cell + COLS;
+    }
+    return cell;
+}
+
+function solid(cell: usmallint): void {
+    text.setReverse(true);
+    text.fill(cell, 1, 32);
+    text.setReverse(false);
+}
+
+function dumpCodes(screenBase: usmallint, colorBase: usmallint, withColor: bool): void {
+    let col: utinyint = 1;
+    let row: utinyint = FIRST_ROW;
+    for (let code: usmallint = 0; code < 256; code++) {
+        let cell: usmallint = cellOf(col, row);
+        memory.write(screenBase + cell, code);
+        if (withColor) {
+            memory.write(colorBase + cell, WHITE);
+        }
+        col++;
+        if (col > PER_ROW) {
+            col = 1;
+            row++;
+        }
+    }
+}
+
+/** Draw the corners, select a character set, and fill the screen with all 256 screen codes. `alternate` picks the text (lower and upper case) set instead of the boot set. */
+export function run(alternate: bool): void {
+    screen.blank();
+    text.setColor(WHITE);
+    solid(cellOf(0, 0));
+    solid(cellOf(COLS - 1, 0));
+    solid(cellOf(0, ROWS - 1));
+    solid(cellOf(COLS - 1, ROWS - 1));
+    text.releaseCursor();
+
+    if (#system() == System.PET) {
+        if (alternate) {
+            memory.write(0xE84C, 14);
+        } else {
+            memory.write(0xE84C, 12);
+        }
+        dumpCodes(0x8000, 0, false);
+    }
+    if (#system() == System.VIC20) {
+        if (alternate) {
+            memory.write(0x9005, 0xC2);
+        } else {
+            memory.write(0x9005, 0xC0);
+        }
+        dumpCodes(0x1000, 0x9400, true);
+    }
+
+    while (true) {
+        waitFrame();
+    }
+}

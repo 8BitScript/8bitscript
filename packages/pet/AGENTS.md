@@ -931,6 +931,29 @@ showpiece (`raster.COLORS`), and the PET has no colour register for it to
 show — a program that wants to see the PET's split has to write one, the
 way `test/raster-probe.8bs` and `test/raster-probe.pet.4032.8bs` do.
 
+## The wasm build: text, both ROM sets, reverse video
+
+The wasm build is the primary way to run a PET program (`8bs run pet --web`, the
+editor's Editor tab; the rule is in `docs/project/wasm-primary.md`), and `8bs conform
+pet` measures it against xpet: 0 cells differ on all three probes (`grid`,
+`charset`, `charset-text`; `test/conform.test.mjs`). What the page models:
+
+- **The character ROM, both halves.** `font8x8.mjs` holds the 2001's ROM
+  (901447-08) and the later models' (901447-10), each as a graphics-and-upper-case
+  set and a lower-and-upper-case set (the text halves captured earlier, the graphics
+  halves generated from VICE's images by `packages/cli/scripts/font-roms.mjs`,
+  SHA-256 pinned). The layout (`REAL_MACHINE_LAYOUT.pet`) names the pair.
+- **Which set is live is the VIA control register.** The page reads `$E84C` bit 1 each
+  frame, the way the video circuit does: 12 is graphics (what the machine boots in),
+  14 is text. A program that stores one is drawn in that set — `text.8bs`'s
+  `CharacterSet.TEXT` and a raw `POKE 59468,12` alike. A raster list's `Slot.CHARSET`
+  entry still overrides it on the lines it names.
+- **Reverse video is a screen code's bit 7**, the glyph inverted (`toScreen()` ORs it
+  in). There is no colour RAM to carry it, and the ROM holds no reversed copy.
+- The quadrant-block objects `@8bitscript/graphics` places (`examples/media-walk`)
+  are PETSCII graphics at screen codes ≥ 128 and 98 etc.; they draw on the wasm page
+  now that those codes do.
+
 ## Seeing the screen without a human at xpet
 
 `8bs run pet --screenshot <file.png>` builds and captures through VICE's
