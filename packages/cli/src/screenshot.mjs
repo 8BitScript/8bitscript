@@ -421,8 +421,6 @@ async function webScreenshot(outFile, screenshotPath, { frames, frameRate = 60, 
   // machine. HOST_OFFSET is left at 0: a screenshot has no viewport, so
   // TOUCH stays clear and NO_KEYBOARD too — the desktop layout, with a
   // keyboard.
-  const { memory } = await runProgram(bytes, { frames: frames ?? emulatorFor('web').defaultFrames ?? frameRate * 3 });
-
   // `machine` is a real machine's own name when this is its wasm build
   // (`8bs run c64 --web --screenshot`): the same memory map the page uses to
   // paint it (web-layout.mjs layoutForRealMachine), not the synthetic web
@@ -430,6 +428,13 @@ async function webScreenshot(outFile, screenshotPath, { frames, frameRate = 60, 
   const layout = machine
     ? layoutForRealMachine(machine, hardware)
     : (hardware ? layoutFromHardware(hardware) : DEFAULT_LAYOUT);
+  // A machine whose programs count video frames (raster.frame() on the X16's
+  // wasm build) has a byte the page adds one to as it releases each frame;
+  // this host releases a frame at every waitFrame() and does the same.
+  const onFrame = layout.frameOffset >= 0
+    ? (memory, frame) => { memory[layout.frameOffset] = frame & 255; }
+    : undefined;
+  const { memory } = await runProgram(bytes, { frames: frames ?? emulatorFor('web').defaultFrames ?? frameRate * 3, onFrame });
   const mem = new Uint8Array(memory.buffer);
   // On a resizable host the grid is whatever the host last wrote, and a
   // screenshot has no viewport to write one from — so these stay zero and the

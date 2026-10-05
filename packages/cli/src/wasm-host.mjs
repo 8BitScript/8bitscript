@@ -60,12 +60,26 @@ export async function instantiateProgram(bytes, { waitFrame = () => {} } = {}) {
  * either returns on its own or is unwound by the frame bound. Anything else
  * the program throws is a real error and propagates.
  *
+ * `onFrame(memory, frame)`, when given, runs as each frame is released — before
+ * the program's waitFrame() returns, `frame` counting from 1 — which is how a
+ * host does what the browser page does between frames (a machine's frame
+ * counter byte, a key held).
+ *
  * @param {Buffer|Uint8Array} bytes
- * @param {{ frames: number }} options
+ * @param {{ frames: number, onFrame?: (memory: Uint8Array, frame: number) => void }} options
  * @returns the instantiated program, after running
  */
-export async function runProgram(bytes, { frames }) {
-  const program = await instantiateProgram(bytes, { waitFrame: boundedWaitFrame(frames) });
+export async function runProgram(bytes, { frames, onFrame }) {
+  const bounded = boundedWaitFrame(frames);
+  let released = 0;
+  let program = null;
+  program = await instantiateProgram(bytes, {
+    waitFrame: () => {
+      released += 1;
+      if (onFrame) onFrame(new Uint8Array(program.memory.buffer), released);
+      bounded();
+    },
+  });
   try {
     program.entry();
   } catch (error) {
