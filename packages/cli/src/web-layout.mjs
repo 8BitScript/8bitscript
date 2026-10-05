@@ -521,6 +521,15 @@ const REAL_MACHINE_LAYOUT = {
       borderRegister: 0xd020,
       backgroundRegister: 0xd021,
       scrollRegister: 0xd016,
+      // The eight sprites (web-vic.mjs): their registers $D000-$D02E, the
+      // pointers at screen + $3F8, the shape blocks in VIC bank 3 ($C000 + 64 *
+      // pointer), and raster.8bs's list — the live page ($0200 or $0300) named
+      // by the byte at $02FF, its end by the byte at $02FC.
+      spriteRegs: 0xd000,
+      spritePointers: 0xe3f8,
+      spriteBank: 0xc000,
+      listLivePage: 0x02ff,
+      listEnd: 0x02fc,
     },
   },
   cx16: {

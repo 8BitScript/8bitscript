@@ -102,6 +102,9 @@ test('the layout the page paints the C64 from names the real VIC-II registers an
   assert.deepEqual(layout.vic, {
     charsetBase: 0xa000, setStride: 0x800, selectRegister: 0xd018, selectMask: 0x02,
     borderRegister: 0xd020, backgroundRegister: 0xd021, scrollRegister: 0xd016,
+    // The sprites and raster.8bs's live list (web-vic.mjs): registers $D000-$D02E,
+    // pointers at screen + $3F8, shape blocks in VIC bank 3, the list's page byte and end.
+    spriteRegs: 0xd000, spritePointers: 0xe3f8, spriteBank: 0xc000, listLivePage: 0x02ff, listEnd: 0x02fc,
   });
   assert.equal(layout.colorPerCell, true);
   assert.deepEqual(layout.reservedRanges, [{ start: 0xa000, end: 0xb000, label: "the C64's character RAM" }]);

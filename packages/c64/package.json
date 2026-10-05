@@ -20,10 +20,10 @@
       "wasm": {
         "available": true,
         "limits": [
-          "text mode only: sprites, bitmap, multicolour and extended-colour modes are not drawn (their registers are plain memory)",
+          "text mode only: bitmap, multicolour text and extended-colour modes are not drawn (their registers are plain memory); the eight hardware sprites ARE drawn (hires and multicolour, expand, priority, the ninth X bit), but not sprite collisions: $D01E/$D01F stay as the program left them",
           "no sound: the SID is plain memory",
           "no keyboard matrix, joystick or mouse: the portable @8bitscript/input works (arrow keys, Enter, Escape through the page), but @8bitscript/c64/keyboard and /joystick read the CIA and see nothing",
-          "the C64-only raster list (@8bitscript/c64/raster, border, idle, the sprite multiplexer) is machine code and is not built; the portable @8bitscript/raster works, one picture line earlier than the machine's handler lands it",
+          "the C64-only raster list (@8bitscript/c64/raster) and the sprite multiplexer work and are applied by the page line by line, but not the handler's timing (an entry lands exactly at its line + 1), not a register staying changed from one frame to the next, and not an opened border (@8bitscript/c64/border, idle: the border covers sprites); the portable @8bitscript/raster works, one picture line earlier than the machine's handler lands it",
           "NTSC 60 Hz only: detectRegion() answers NTSC"
         ]
       }
