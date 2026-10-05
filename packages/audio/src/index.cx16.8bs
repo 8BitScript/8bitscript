@@ -60,23 +60,20 @@ function stepOf(volume: utinyint, frames: utinyint): utinyint {
     return step;
 }
 
-// Start the note the sequencer says begins; a note with a decay is walked down by update().
-function startNote(): void {
-    ensure();
-    let vol: utinyint = scaled(songs.volume());
-    shown = vol;
-    psg.play(0, songs.note(), waveOf(songs.wave()), vol);
-    fade = 0;
-    decayLeft = songs.decay();
-    if (decayLeft != 0) {
-        fade = stepOf(vol, decayLeft);
-    }
-}
-
-// Do what the sequencer says.
+// Do what the sequencer says. A note that begins is started here, not in a function of its own: the
+// X16's zero page is spent by the depth of the deepest call chain, and this one ends in VERA's address
+// setter, so each hop saved is four bytes a game keeps. A note with a decay is walked down by update().
 function apply(event: utinyint): void {
     if (event == 1) {
-        startNote();
+        ensure();
+        let vol: utinyint = scaled(songs.volume());
+        shown = vol;
+        psg.play(0, songs.note(), waveOf(songs.wave()), vol);
+        fade = 0;
+        decayLeft = songs.decay();
+        if (decayLeft != 0) {
+            fade = stepOf(vol, decayLeft);
+        }
     } else if (event == 2 || event == 3) {
         psg.silence(0);
         decayLeft = 0;

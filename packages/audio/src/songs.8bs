@@ -22,8 +22,14 @@ let bank: array<u8, 256>;
 let base: array<u8, 16>;
 let size: array<u8, 16>;
 let kinds: array<u8, 16>;
-let used: utinyint = 0;
-let binding: utinyint = 255;
+// The cold scalars live in one RAM array, not as globals: every scalar global takes a byte of zero
+// page, and on the X16 that page is what the deepest call chain of the game has to fit in.
+let cold: array<u8, 6>;
+const USED: utinyint = 0;
+const BINDING: utinyint = 1;
+const SPEED: utinyint = 2;
+const ROWS: utinyint = 3;
+const REPEAT: utinyint = 4;
 
 // The sequencer: which song, where its next event is, and the row and frame it is at.
 let current: utinyint = 255;
@@ -31,9 +37,6 @@ let at: utinyint = 0;
 let left: utinyint = 0;
 let row: utinyint = 0;
 let tick: utinyint = 0;
-let speed: utinyint = 1;
-let rows: utinyint = 0;
-let repeat: bool = false;
 let rowsLeft: utinyint = 0;
 
 // The note a STARTED event began.
@@ -79,9 +82,9 @@ export namespace songs {
         if (slot >= SLOTS) {
             return;
         }
-        if (binding != slot) {
-            binding = slot;
-            base[slot] = used;
+        if (cold[BINDING] != slot) {
+            cold[BINDING] = slot;
+            base[slot] = cold[USED];
         }
         if (index >= BANK_LAST - base[slot]) {
             return;
@@ -94,10 +97,10 @@ export namespace songs {
         if (slot >= SLOTS) {
             return;
         }
-        if (binding != slot) {
-            base[slot] = used;
+        if (cold[BINDING] != slot) {
+            base[slot] = cold[USED];
         }
-        binding = 255;
+        cold[BINDING] = 255;
         let room: utinyint = BANK_LAST - base[slot];
         let fits: utinyint = length;
         if (fits > room) {
@@ -105,7 +108,7 @@ export namespace songs {
         }
         size[slot] = fits;
         kinds[slot] = kind;
-        used = base[slot] + fits;
+        cold[USED] = base[slot] + fits;
     }
 
     function isSong(slot: utinyint): bool {
@@ -153,14 +156,17 @@ export namespace songs {
         }
         current = slot;
         let b: utinyint = base[slot];
-        speed = bank[b + 1];
-        if (speed == 0) {
-            speed = 1;
+        cold[SPEED] = bank[b + 1];
+        if (cold[SPEED] == 0) {
+            cold[SPEED] = 1;
         }
-        rows = bank[b + 2];
+        cold[ROWS] = bank[b + 2];
         left = bank[b + 3];
         at = b + 4;
-        repeat = loop && (bank[b] & 1) != 0;
+        cold[REPEAT] = 0;
+        if (loop && (bank[b] & 1) != 0) {
+            cold[REPEAT] = 1;
+        }
         row = 0;
         tick = 0;
         rowsLeft = 0;
@@ -178,15 +184,15 @@ export namespace songs {
             return 0;
         }
         tick = tick + 1;
-        if (tick < speed) {
+        if (tick < cold[SPEED]) {
             return 0;
         }
         tick = 0;
         row = row + 1;
-        if (row < rows) {
+        if (row < cold[ROWS]) {
             return enter();
         }
-        if (!repeat) {
+        if (cold[REPEAT] == 0) {
             current = 255;
             rowsLeft = 0;
             return 3;
