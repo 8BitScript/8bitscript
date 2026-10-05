@@ -131,11 +131,20 @@ export function renderFrame(mem, layout, palette) {
   // read from the character RAM the program holds — the VIC-II's own way.
   const vic = layout.vic ?? null;
   const switchRegister = layout.charsetSwitch ?? null;
+  const packed = vic ? null : layout.packedRegisters ?? null;
   const base = vic ? {
     border: mem[vic.borderRegister] & 15,
     background: mem[vic.backgroundRegister] & 15,
     scrollX: mem[vic.scrollRegister] & 7,
     charset: (mem[vic.selectRegister] & vic.selectMask) !== 0 ? 1 : 0,
+  } : packed ? {
+    // One register holds both colours (the VIC-20's $900F): the border in its
+    // low bits, the background in the high ones. Which character set is live
+    // is the layout's charsetSwitch ($9005's chargen base), as for any machine
+    // with two ROM sets.
+    border: mem[packed.colorRegister] & packed.borderMask,
+    background: (mem[packed.colorRegister] >> packed.backgroundShift) & 15,
+    charset: switchRegister ? ((mem[switchRegister.register] & switchRegister.mask) !== 0 ? 1 : 0) : 0,
   } : {
     border: colorPerCell ? mem[0] & 15 : 0,
     background: colorPerCell ? mem[1] & 15 : 0,

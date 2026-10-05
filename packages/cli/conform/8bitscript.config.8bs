@@ -24,6 +24,12 @@ export default {
       description: 'Every screen code 0-255 in the lower-and-upper-case set, chosen with the machine\'s own register ($E84C on the PET, $9005 on the VIC-20).',
       targets: ['pet', 'vic20'],
     },
+    bands: {
+      entry: 'src/bands.8bs',
+      targets: ['vic20', 'c64'],
+      title: 'Raster bands',
+      description: 'A white picture and a black border with five BORDER entries at picture lines 24, 56, 88, 120 and 152: where does each band start?',
+    },
   },
   targets: {
     pet: { hardware: { model: '4032', ram: '32' } },

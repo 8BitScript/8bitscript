@@ -32,6 +32,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { decodePNG } from './png-decode.mjs';
 import { encodePNG } from './png.mjs';
+import { BAND_MACHINES, BAND_STARTS, compareBandCaptures } from './conform-bands.mjs';
 
 export const CELL = 8;
 
@@ -240,6 +241,7 @@ const BIN = resolve(here, '..', 'bin', '8bs.mjs');
 export const USAGE = `Usage: 8bs conform [<machine>...] [--program <name>] [--frames <n>]
                   [--out <dir>] [--project <dir>] [--strict-colour]
                   [--colour-tolerance <n>] [--structure-tolerance <n>]
+                  [--band-tolerance <n>]
 
 Build a probe program for each machine twice — through its native emulator and
 through the wasm backend (the Editor tab's, and the browser's, build) — capture
@@ -255,6 +257,7 @@ video, and one cell per text colour, then holds still.
   --strict-colour           a colour difference fails too (default: it warns)
   --colour-tolerance <n>    largest per-channel RGB difference still the same colour (default: 48)
   --structure-tolerance <n> pixels of an 8x8 cell allowed to differ (default: 0)
+  --band-tolerance <n>      picture lines a raster band may start away from the other side (default: 2)
 
 Exit status: 0 when every machine's cells match, 1 when any differ (or a capture
 fails), 2 for bad arguments. Writes <out>/<program>-<machine>.{native,wasm,diff}.png
@@ -265,7 +268,7 @@ and <out>/<program>.json.
 export function parseConformArgs(argv) {
   const options = {
     machines: [], program: 'grid', frames: 300, out: 'dist/conform', project: CONFORM_PROJECT,
-    strictColour: false, colourTolerance: 48, structuralTolerance: 0, help: false,
+    strictColour: false, colourTolerance: 48, structuralTolerance: 0, bandTolerance: 2, help: false,
   };
   const number = (name, value) => {
     const n = Number(value);
@@ -287,6 +290,7 @@ export function parseConformArgs(argv) {
       else if (arg === '--project') options.project = resolve(value());
       else if (arg === '--colour-tolerance') options.colourTolerance = number('--colour-tolerance', value());
       else if (arg === '--structure-tolerance') options.structuralTolerance = number('--structure-tolerance', value());
+      else if (arg === '--band-tolerance') options.bandTolerance = number('--band-tolerance', value());
       else if (arg === '--strict-colour') options.strictColour = true;
       else if (arg.startsWith('-')) throw new Error(`unknown option ${arg}`);
       else if (CONFORM_MACHINES.includes(arg)) options.machines.push(arg);
@@ -294,6 +298,12 @@ export function parseConformArgs(argv) {
     }
   } catch (err) {
     return { error: err.message };
+  }
+  // The bands probe needs BORDER entries on both sides of the comparison: only some machines have them.
+  if (options.program === 'bands') {
+    const refused = options.machines.filter((m) => !BAND_MACHINES.includes(m));
+    if (refused.length > 0) return { error: `the bands probe compares raster bands, which only ${BAND_MACHINES.join(' and ')} build on both sides today (not ${refused.join(', ')})` };
+    if (options.machines.length === 0) options.machines = [...BAND_MACHINES];
   }
   if (options.machines.length === 0) options.machines = [...CONFORM_MACHINES];
   return options;
@@ -339,6 +349,10 @@ export async function conformCommand(argv, { capture = captureOnce, write = (s) 
       report.machines[machine] = { ok: false, error: what };
       continue;
     }
+    if (options.program === 'bands') {
+      if (!conformBands(machine, stem, nativeFile, wasmFile, options, report, write)) failed = true;
+      continue;
+    }
     let result;
     try {
       result = compareCaptures(readFileSync(nativeFile), readFileSync(wasmFile), GRIDS[machine], options);
@@ -374,4 +388,37 @@ export async function conformCommand(argv, { capture = captureOnce, write = (s) 
   writeFileSync(join(out, `${options.program}.json`), `${JSON.stringify(report, null, 2)}\n`);
   write(`\nCaptures and diff images: ${out}\n`);
   return failed ? 1 : 0;
+}
+
+const COLOUR_ROW = (rgb) => (rgb ? `rgb(${rgb.join(',')})` : 'none');
+
+/**
+ * The bands probe's comparison for one machine: where each raster band starts
+ * in the native capture and in the wasm one, against the lines the program
+ * named. Returns whether it is within tolerance; writes the report entry.
+ */
+function conformBands(machine, stem, nativeFile, wasmFile, options, report, write) {
+  let result;
+  try {
+    result = compareBandCaptures(readFileSync(nativeFile), readFileSync(wasmFile), GRIDS[machine], { tolerance: options.bandTolerance });
+  } catch (err) {
+    write(`  ${machine.padEnd(6)} FAIL  ${err.message}\n`);
+    report.machines[machine] = { ok: false, error: err.message };
+    return false;
+  }
+  const strictBad = options.strictColour && result.colourDiffs > 0;
+  const bandsOk = result.ok && !strictBad;
+  write(`  ${machine.padEnd(6)} ${bandsOk ? (result.colourDiffs ? 'colours' : 'match ') : 'DIFFER'} ${result.rows.length} bands: wasm and native start within ${result.maxOffset} line(s) of each other (tolerance ${options.bandTolerance})\n`);
+  write(`           band  named  native  wasm   (native - named)\n`);
+  for (const r of result.rows) {
+    write(`           ${String(r.band).padStart(4)}  ${String(r.expected ?? '-').padStart(5)}  ${String(r.native ?? '-').padStart(6)}  ${String(r.wasm ?? '-').padStart(4)}   ${r.nativeOffset === null ? '-' : (r.nativeOffset > 0 ? '+' : '') + r.nativeOffset}\n`);
+  }
+  if (!result.count) write(`           the number of bands differs: native ${result.native.bands.length}, wasm ${result.wasm.bands.length}, named ${BAND_STARTS.length}\n`);
+  const colourDiffs = result.rows.filter((r) => r.sameColour === false);
+  for (const r of colourDiffs) write(`           band ${r.band}: native ${COLOUR_ROW(r.colourNative)}, wasm ${COLOUR_ROW(r.colourWasm)}\n`);
+  report.machines[machine] = {
+    ok: bandsOk, maxOffset: result.maxOffset, tolerance: options.bandTolerance, colourDiffs: result.colourDiffs, rows: result.rows,
+    native: { picture: result.native.rect }, wasm: { picture: result.wasm.rect },
+  };
+  return bandsOk;
 }

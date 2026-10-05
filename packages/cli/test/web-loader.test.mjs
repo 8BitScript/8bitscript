@@ -667,6 +667,48 @@ test("the loader paints the C64's register-driven picture, identically to render
   assert.deepEqual(framePixel(frame, BORDER_PX + 3 + 8 * 3, BORDER_PX + 8), rgb[3], 'from the entry down: set 0');
 });
 
+// The VIC-20 keeps its border and background in one register ($900F) and its
+// character set in the low nibble of another ($9005): the loader's copy reads
+// the same bytes the compositor does, and a raster entry still overrides them.
+test("the loader paints the VIC-20's packed-register picture, identically to renderFrame", () => {
+  const layout = layoutForRealMachine('vic20', { facts: { 'video.columns': 22, 'video.rows': 23, 'video.frameRate': 60 }, tags: [] });
+  assert.deepEqual(layout.packedRegisters.colorRegister, 0x900f);
+  const mem = new Uint8Array(65536);
+  const rgb = rgbPalette(layout.palette);
+  // Screen code 1 is 'A' in the upper-case/graphics set and 'a' in the mixed-case one.
+  for (let cell = 0; cell < 22 * 23; cell += 1) {
+    mem[layout.charBase + cell] = cell % 22 === 0 ? 1 : 32;
+    mem[layout.colorBase + cell] = 1; // white
+  }
+  // $900F: background light blue (14) in the high nibble, bit 3 normal video, border red (2).
+  mem[0x900f] = (14 << 4) | 8 | 2;
+  mem[0x9005] = 0xf0; // the boot set: upper case and graphics
+  let frame = assertPaintParity(layout, mem);
+  assert.deepEqual(framePixel(frame, 2, 2), rgb[2], 'the border is $900F bits 0-2');
+  assert.deepEqual(framePixel(frame, BORDER_PX + 100, BORDER_PX + 100), rgb[14], 'the background is $900F bits 4-7');
+  const upperInk = [0, 1, 2, 3, 4, 5, 6, 7].map((x) => framePixel(frame, BORDER_PX + x, BORDER_PX + 3)).filter((p) => p.join() === rgb[1].join()).length;
+  // The border keeps only three bits: a value with bit 3 set is not a ninth colour.
+  mem[0x900f] = (14 << 4) | 8 | 7 | 8;
+  frame = assertPaintParity(layout, mem);
+  assert.deepEqual(framePixel(frame, 2, 2), rgb[7], 'bit 3 is the normal-video bit, never part of the border');
+  // $9005's low nibble 2 is the mixed-case block: 'A' becomes 'a' (a different row-3 pattern).
+  mem[0x9005] = 0xf2;
+  const lower = assertPaintParity(layout, mem);
+  const sameAsUpper = [0, 1, 2, 3, 4, 5, 6, 7].map((x) => framePixel(lower, BORDER_PX + x, BORDER_PX + 3)).filter((p) => p.join() === rgb[1].join()).length;
+  assert.notEqual(sameAsUpper, upperInk, "the mixed-case set draws code 1 differently from the upper-case one");
+  // A CHARSET entry overrides the register from its line down: back to set 0 below picture line 16.
+  storeEntry(mem, layout, 0, 16, Slot.CHARSET, 0);
+  mem[layout.rasterCountOffset] = 1;
+  mem[layout.rasterControlOffset] = 1;
+  assertPaintParity(layout, mem);
+  // Without the register block (a layout that names none) the old agreement bytes still rule.
+  const plain = { ...layout, packedRegisters: null };
+  mem[0] = 5;
+  mem[1] = 6;
+  frame = assertPaintParity(plain, mem);
+  assert.deepEqual(framePixel(frame, 2, 2), rgb[5], 'no packed registers: the agreement byte is the border');
+});
+
 // A CHARSET band switches the loader to its ALT_GLYPHS table at the same
 // line renderFrame switches glyphRows() to the alternate set.
 test('the loader applies a CHARSET band, identically to renderFrame, on the default and PET skins', () => {

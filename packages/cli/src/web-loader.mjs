@@ -298,6 +298,7 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
   // registers it names and every glyph from the character RAM, the VIC-II's
   // own way (web-scanline.mjs renderFrame is the tested copy of this).
   var VIC = ${JSON.stringify(layout.vic ?? null)};
+  var PACKED = ${JSON.stringify(layout.vic ? null : layout.packedRegisters ?? null)};
   var ASPECT = ${JSON.stringify(layout.aspect ?? '16/9')};
   // How much wider than tall one drawn pixel really is on the machine
   // this layout is for — 1 (square) unless web-layout.mjs's own
@@ -515,6 +516,10 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
       background: mem[VIC.backgroundRegister] & 15,
       scrollX: mem[VIC.scrollRegister] & 7,
       charset: (mem[VIC.selectRegister] & VIC.selectMask) !== 0 ? 1 : 0,
+    } : PACKED ? {
+      border: mem[PACKED.colorRegister] & PACKED.borderMask,
+      background: (mem[PACKED.colorRegister] >> PACKED.backgroundShift) & 15,
+      charset: CHARSET_SWITCH && (mem[CHARSET_SWITCH.register] & CHARSET_SWITCH.mask) !== 0 ? 1 : 0,
     } : {
       border: COLOR_PER_CELL ? mem[0] & 15 : 0,
       background: COLOR_PER_CELL ? mem[1] & 15 : 0,
@@ -660,6 +665,7 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
     if (next.rasterMaxEntries != null) RASTER_MAX_ENTRIES = next.rasterMaxEntries;
     if (typeof next.colorPerCell === 'boolean') COLOR_PER_CELL = next.colorPerCell;
     if (next.vic !== undefined) VIC = next.vic;
+    if (next.packedRegisters !== undefined) PACKED = next.vic ? null : next.packedRegisters;
     if (next.aspect) ASPECT = next.aspect;
     if (typeof next.pixelAspect === 'number' && next.pixelAspect > 0) PIXEL_ASPECT = next.pixelAspect;
     if (next.palette && next.palette.length) COLORS = next.palette;
