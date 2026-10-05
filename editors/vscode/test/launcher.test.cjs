@@ -77,7 +77,7 @@ test('every row has three labelled run buttons, in the order Editor, Browser, Na
   assert.deepEqual(buttons.map((b) => b.getAttribute('data-runtime')), ['editor', 'browser', 'native']);
   assert.equal(row.querySelector('[role="group"]').getAttribute('aria-label'), 'Run 3×3 Slot in');
   assert.match(buttons[0].getAttribute('aria-label'), /^Run 3×3 Slot on Commodore VIC-20 in editor tab/);
-  assert.match(buttons[2].getAttribute('aria-label'), /native emulator$/);
+  assert.match(buttons[2].getAttribute('aria-label'), /native emulator \(verification\)$/);
 });
 
 test('only the selected row fills its primary runtime, and it is the last one used', () => {
@@ -432,10 +432,10 @@ test('the hint under the big buttons follows hover and focus', () => {
   assert.match(norm(page.one('#hint')), /Runs the real x64sc emulator with 2048 loaded\./);
   const editor = page.byKey('big:main:editor');
   page.focus(editor);
-  assert.equal(norm(page.one('#hint')), 'Runs the WASM build in a tab inside the editor.');
+  assert.equal(norm(page.one('#hint')), 'Runs the WASM build in a tab inside the editor. The primary way to run a program.');
   const over = new page.window.Event('pointerover', { bubbles: true });
   page.byKey('big:main:browser').dispatchEvent(over);
-  assert.equal(norm(page.one('#hint')), 'Runs the WASM build in your web browser.');
+  assert.equal(norm(page.one('#hint')), 'Runs the WASM build in your web browser: the page you can share.');
 });
 
 test('a project with one program has no picker or list: the header, the system and big run buttons', () => {

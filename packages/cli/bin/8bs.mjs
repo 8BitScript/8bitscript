@@ -28,7 +28,7 @@ async function finish(code) {
   process.exit(code);
 }
 
-const IMPLEMENTED = new Set(['check', 'lsp', 'doctor', 'build', 'run', 'boot', 'setup', 'targets', 'project', 'controller']);
+const IMPLEMENTED = new Set(['check', 'lsp', 'doctor', 'build', 'run', 'boot', 'setup', 'targets', 'project', 'conform', 'controller']);
 const PLANNED = ['dev'];
 
 const usage = () => `Usage: 8bs <command> [options]
@@ -135,6 +135,15 @@ Implemented:
                                read its defines. Exit 0 even when the
                                project has problems (they are in the output),
                                1 when the config exists but cannot be loaded.
+  conform [<machine>...]       Does the wasm build of a machine look like
+    [--program <name>]         the machine? Builds a probe program through
+    [--frames <n>]             the native emulator and the wasm backend,
+    [--out <dir>]              captures one frame of each and compares them
+    [--strict-colour]          cell by cell (pet, vic20, c64, cx16). A
+                               structure difference fails (exit 1); a colour
+                               difference warns unless --strict-colour. It
+                               needs the machine's emulator installed —
+                               docs/project/wasm-primary.md
   controller [--no-open]       Map a game controller: serves a page on
     [--list] [--print]         loopback and opens it in your browser, which
     [--dir <path>]             is the only thing here that can see a pad —
@@ -249,6 +258,11 @@ if (command === 'run') {
 if (command === 'boot') {
   const { boot } = await import('../src/run.mjs');
   await finish(await boot(rest));
+}
+
+if (command === 'conform') {
+  const { conformCommand } = await import('../src/conform.mjs');
+  await finish(await conformCommand(rest));
 }
 
 if (command === 'controller') {

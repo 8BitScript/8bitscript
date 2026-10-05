@@ -1,0 +1,22 @@
+// The projects `8bs conform` builds twice — once for the machine's native
+// emulator, once through the wasm backend — and compares. Each program is a
+// probe: it draws something every machine can draw, then holds still, so the
+// two captures show the same logical state whenever they are taken.
+//
+// The hardware is the release set's (packages/examples/shared-release-targets.ts):
+// the PET 4032 with 32K, the VIC-20 with 8K, the C64 and the X16 stock.
+export default {
+  programs: {
+    grid: {
+      entry: 'src/grid.8bs',
+      title: 'Text grid',
+      description: 'Four solid corner cells, the printable ASCII ramp, the same ramp in reverse, and one cell per text colour.',
+    },
+  },
+  targets: {
+    pet: { hardware: { model: '4032', ram: '32' } },
+    c64: {},
+    vic20: { hardware: { ram: '8k' } },
+    cx16: {},
+  },
+};

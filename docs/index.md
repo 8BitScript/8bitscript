@@ -106,6 +106,13 @@ flash carts).
 `8bs build --release` says every other build is short of, and why those
 builds are called builds and not ports or tiers.
 
+[WASM is the primary runtime](project/wasm-primary.md) — the policy that a
+program is developed, debugged and shared on its wasm build, with the native
+emulator as the second opinion: an audit of every example, Studio and the Vegas
+Nights slot lab on the five release machines, the parity matrix, `8bs conform`
+(the wasm build compared with the real machine, cell by cell), the backlog and the
+distribution story for `8bs build --target <machine> --web`.
+
 [Portable graphics](project/graphics.md) — `.8bg`: one PNG-backed sprite
 with an animation, compiled into target-native data.
 

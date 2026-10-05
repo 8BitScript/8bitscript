@@ -18,7 +18,12 @@
       "defaultFrames": 8000000,
       "installer": "vice",
       "wasm": {
-        "available": true
+        "available": true,
+        "limits": [
+          "reverse video is not drawn: a screen code of 128 or more, which a real PET shows as the glyph inverted, comes out as noise (8bs conform pet)",
+          "graphics objects build and draw nothing: the quadrant-block objects @8bitscript/graphics places (examples/media-walk shows two on a real PET) are not on the wasm page, which is the same gap",
+          "no sound: the VIA speaker is plain memory, so audio.tone and .8ba playback are silent"
+        ]
       }
     },
     "media": "./media/index.cjs",

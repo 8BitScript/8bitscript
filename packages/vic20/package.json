@@ -18,7 +18,15 @@
       "defaultFrames": 8000000,
       "installer": "vice",
       "wasm": {
-        "available": true
+        "available": true,
+        "limits": [
+          "reverse video is not drawn: a screen code of 128 or more, which a real VIC-20 shows as the glyph inverted, comes out as noise (8bs conform vic20)",
+          "the page draws the lower-case character set where the machine boots in upper case with graphics, so text that is not upper-case letters differs",
+          "graphics objects build and draw nothing: the quadrant-block objects @8bitscript/graphics places (examples/media-walk) are not on the wasm page",
+          "the portable @8bitscript/raster does not build: the VIC-20's raster driver is machine code (a program that uses it, such as examples/fancy, fails to compile for the wasm backend)",
+          "no sound: the VIC-I voices are plain memory, so audio.tone and .8ba playback are silent",
+          "NTSC 60 Hz only: detectRegion() answers NTSC"
+        ]
       }
     },
     "media": "./media/index.cjs",
