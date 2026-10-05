@@ -222,6 +222,12 @@ export function agreementFor({
   userGlyphs = false,
   // And the tone registers after those: the synthetic hosts again.
   audio = false,
+  // One byte after everything else that the page adds one to each time it
+  // releases a logical frame, so `raster.frame()` can count video frames
+  // however slowly the program's loop runs (the X16's wasm build: the real
+  // machine's handler does the same in golden RAM). A machine that does not ask
+  // keeps the byte out of its memory, so its program data starts where it did.
+  frameCounter = false,
 } = {}) {
   const cells = cols * rows;
   const charBase = resizable ? RESIZABLE_CHAR_BASE : CHAR_BASE;
@@ -240,7 +246,9 @@ export function agreementFor({
   const glyphBase = userGlyphs ? rasterEnd : -1;
   const glyphEnd = userGlyphs ? rasterEnd + GLYPH_BYTES : rasterEnd;
   const audioBase = audio ? glyphEnd : -1;
-  const reservedEnd = audio ? glyphEnd + AUDIO_BYTES : glyphEnd;
+  const beforeFrame = audio ? glyphEnd + AUDIO_BYTES : glyphEnd;
+  const frameOffset = frameCounter ? beforeFrame : -1;
+  const reservedEnd = frameCounter ? beforeFrame + 1 : beforeFrame;
   return {
     cols,
     rows,
@@ -260,6 +268,7 @@ export function agreementFor({
     glyphFirst: GLYPH_FIRST,
     glyphCount: GLYPH_COUNT,
     audioBase,
+    frameOffset,
     reservedEnd,
     rasterMaxEntries: RASTER_MAX_ENTRIES,
     columnsOffset: COLUMNS_OFFSET,
@@ -498,6 +507,9 @@ const REAL_MACHINE_LAYOUT = {
     // rail, so a picture (@8bitscript/graphics) is drawn as a glyph in this
     // table — packages/graphics/src/index.cx16.web.8bs.
     userGlyphs: true,
+    // The page adds one to a byte each frame it releases, so raster.frame() is
+    // the real thing (packages/cx16/src/rasterline.cx16.web.8bs).
+    frameCounter: true,
     memoryFor: () => ({}),
   },
 };
@@ -529,6 +541,7 @@ export function layoutForRealMachine(target, hardware = {}) {
     resizable: false,
     pixelAspect,
     userGlyphs: real?.userGlyphs === true,
+    frameCounter: real?.frameCounter === true,
   });
   // No entry for this target: geometry only, the synthetic charBase. Not
   // correct for a real build, but no *more* wrong than layoutFromHardware
@@ -622,6 +635,47 @@ export function swipeEdge(dx, dy) {
   if (ax < SWIPE_THRESHOLD && ay < SWIPE_THRESHOLD) return 0;
   if (ax > ay) return dx < 0 ? InputEdge.LEFT : InputEdge.RIGHT;
   return dy < 0 ? InputEdge.UP : InputEdge.DOWN;
+}
+
+// How far (of 1) a pad's left stick has to lean before it counts as a direction.
+export const PAD_STICK_THRESHOLD = 0.5;
+
+/**
+ * What one gamepad holds right now, as the InputEdge bits the page writes at
+ * INPUT_OFFSET: the D-pad or the left stick for the four directions, A or START
+ * for confirm, B or SELECT for cancel. These are the "standard" layout's
+ * indices (https://w3c.github.io/gamepad/#remapping): buttons 12-15 are up, down,
+ * left, right; 0 is A, 1 is B, 8 is back/select, 9 is start; axes 0 and 1 the
+ * left stick. They are the real X16's keyboard-joystick and SNES pad controls
+ * by name (START confirms, SELECT cancels, B cancels, A confirms — the
+ * KERNAL's joystick_get bits in packages/cx16/src/input.8bs), so a program
+ * that reads the portable `input` behaves the same on a pad here and there.
+ * A pad missing a part (no stick, fewer buttons) simply does not hold it.
+ *
+ * @param {{ connected?: boolean, buttons?: Array<{ pressed?: boolean, value?: number }>, axes?: number[] } | null | undefined} pad
+ */
+export function padEdges(pad) {
+  if (!pad || pad.connected === false) return 0;
+  const buttons = pad.buttons ?? [];
+  const axes = pad.axes ?? [];
+  const down = (i) => Boolean(buttons[i] && (buttons[i].pressed || buttons[i].value > 0.5));
+  const x = axes[0] ?? 0;
+  const y = axes[1] ?? 0;
+  let bits = 0;
+  if (down(14) || x < -PAD_STICK_THRESHOLD) bits |= InputEdge.LEFT;
+  if (down(15) || x > PAD_STICK_THRESHOLD) bits |= InputEdge.RIGHT;
+  if (down(12) || y < -PAD_STICK_THRESHOLD) bits |= InputEdge.UP;
+  if (down(13) || y > PAD_STICK_THRESHOLD) bits |= InputEdge.DOWN;
+  if (down(0) || down(9)) bits |= InputEdge.CONFIRM;
+  if (down(1) || down(8)) bits |= InputEdge.CANCEL;
+  return bits;
+}
+
+/** Every connected pad together: what `navigator.getGamepads()` holds. */
+export function padsHeld(pads) {
+  let bits = 0;
+  for (const pad of pads ?? []) bits |= padEdges(pad);
+  return bits;
 }
 
 /**

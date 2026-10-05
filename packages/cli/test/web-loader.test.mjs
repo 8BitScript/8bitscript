@@ -12,7 +12,7 @@ import {
   ANY_BORDER_SCALE, BORDER_HAIRLINE_PX, BORDER_MIN_PX, BORDER_PX, FULL_BORDER_SCALE, HOST_OFFSET, HostStatus,
   INNER_H, INNER_W, INPUT_OFFSET, MIN_COLUMNS, MAX_COLUMNS, MIN_ROWS, MAX_ROWS,
   C64_PALETTE, DEFAULT_LAYOUT, PET_PALETTE, VERA_PALETTE, VIC20_PALETTE, RASTER_ENTRY_SIZE, RASTER_MAX_ENTRIES, GLYPH_BYTES, GLYPH_FIRST,
-  MACHINE_HOST, agreementFor, borderFor, gridFor, layoutForRealMachine, layoutFromHardware, sidecarJson, swipeEdge,
+  InputEdge, MACHINE_HOST, agreementFor, borderFor, gridFor, layoutForRealMachine, layoutFromHardware, padEdges, padsHeld, sidecarJson, swipeEdge,
 } from '../src/web-layout.mjs';
 import { dataBaseFor } from '@8bitscript/compiler/wasm';
 import { Slot, renderFrame, rgbPalette } from '../src/web-scanline.mjs';
@@ -235,6 +235,58 @@ test('the loader\'s swipeEdge agrees with web-layout.mjs', () => {
   for (const [dx, dy] of [[0, 0], [40, 0], [-40, 0], [0, 40], [0, -40], [27, 27], [50, 49], [-9, -60]]) {
     assert.equal(inLoader(dx, dy), swipeEdge(dx, dy), `swipeEdge(${dx}, ${dy})`);
   }
+});
+
+/** A gamepad as the browser hands it over: `buttons` (by index) held, `axes` leaned. */
+function pad({ held = [], axes = [0, 0], connected = true } = {}) {
+  const buttons = Array.from({ length: 17 }, (_, i) => ({ pressed: held.includes(i), value: held.includes(i) ? 1 : 0 }));
+  return { connected, buttons, axes };
+}
+
+test("the loader's gamepad rules agree with web-layout.mjs, and mean what a person expects", () => {
+  const { padEdges: inLoader, padsHeld: heldInLoader } = loadLoader({ frameRate: 60 });
+  const cases = [
+    pad(), pad({ held: [14] }), pad({ held: [15] }), pad({ held: [12] }), pad({ held: [13] }),
+    pad({ held: [0] }), pad({ held: [9] }), pad({ held: [1] }), pad({ held: [8] }),
+    pad({ axes: [-0.9, 0] }), pad({ axes: [0.9, 0] }), pad({ axes: [0, -0.9] }), pad({ axes: [0, 0.9] }),
+    pad({ axes: [0.4, -0.4] }), pad({ held: [14, 12, 0] }), pad({ held: [15, 13, 1], axes: [-1, 1] }),
+    pad({ held: [3, 4, 5] }), pad({ connected: false, held: [0] }), { connected: true }, null, undefined,
+  ];
+  for (const [i, c] of cases.entries()) assert.equal(inLoader(c), padEdges(c), `case ${i}`);
+  // What each control stands for: the direction pad and the stick move, A and START confirm, B and SELECT cancel.
+  assert.equal(padEdges(pad({ held: [14] })), InputEdge.LEFT);
+  assert.equal(padEdges(pad({ held: [15] })), InputEdge.RIGHT);
+  assert.equal(padEdges(pad({ held: [12] })), InputEdge.UP);
+  assert.equal(padEdges(pad({ held: [13] })), InputEdge.DOWN);
+  assert.equal(padEdges(pad({ axes: [0.9, -0.9] })), InputEdge.RIGHT | InputEdge.UP, 'a leaned stick is a direction');
+  assert.equal(padEdges(pad({ axes: [0.4, 0.4] })), 0, 'a stick that has not leaned far enough is not');
+  assert.equal(padEdges(pad({ held: [0] })), InputEdge.CONFIRM, 'A confirms');
+  assert.equal(padEdges(pad({ held: [9] })), InputEdge.CONFIRM, 'START confirms');
+  assert.equal(padEdges(pad({ held: [1] })), InputEdge.CANCEL, 'B cancels');
+  assert.equal(padEdges(pad({ held: [8] })), InputEdge.CANCEL, 'SELECT cancels');
+  assert.equal(padEdges(pad({ connected: false, held: [0, 9] })), 0, 'a pad that has gone holds nothing');
+  // Every connected pad counts, and an empty slot is fine.
+  const two = [null, pad({ held: [14] }), undefined, pad({ held: [9], axes: [0, 1] })];
+  assert.equal(padsHeld(two), InputEdge.LEFT | InputEdge.CONFIRM | InputEdge.DOWN);
+  assert.equal(heldInLoader(two), padsHeld(two));
+  assert.equal(padsHeld(undefined), 0);
+  assert.equal(heldInLoader(undefined), 0);
+});
+
+test('a layout that asks for the frame counter has one byte past everything else, and no other machine pays for it', () => {
+  const plain = agreementFor({ cols: 76, rows: 56, userGlyphs: true });
+  const counted = agreementFor({ cols: 76, rows: 56, userGlyphs: true, frameCounter: true });
+  assert.equal(plain.frameOffset, -1);
+  assert.equal(counted.frameOffset, plain.reservedEnd, 'right after the last byte the others use');
+  assert.equal(counted.reservedEnd, plain.reservedEnd + 1);
+  // With the tone registers too, it follows them.
+  const withAudio = agreementFor({ audio: true, frameCounter: true });
+  assert.equal(withAudio.frameOffset, agreementFor({ audio: true }).reservedEnd);
+  assert.equal(DEFAULT_LAYOUT.frameOffset, -1, 'the synthetic web target has none');
+  assert.equal(loadLoader({ frameRate: 60 }).layout.frameOffset, -1, 'and its loader says so');
+  const x16 = layoutForRealMachine('cx16', { facts: { 'video.columns': 76, 'video.rows': 56 } });
+  assert.equal(loadLoader({ frameRate: 60, layout: x16 }).layout.frameOffset, x16.frameOffset, "the X16's loader names the byte it adds one to");
+  assert.ok(x16.frameOffset > 0);
 });
 
 // The stated ask this rule exists for: a phone gets the picture, not a frame,
