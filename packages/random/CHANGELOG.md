@@ -1,5 +1,27 @@
 # @8bitscript/random
 
+## 0.25.0
+
+### Minor Changes
+
+- 8254d19: `random.range(bound)` is exactly uniform. It was `next() % bound`, which favours the first `256 % bound` outcomes — 7 chances in 256 against 6 on a 37-pocket wheel, a likeliest-to-least-likely ratio of 1.17 (2.0 at a bound of 150) — and its comment understated that by a factor of a hundred. `range()` now throws away the incomplete last block of bytes and draws again, for the cost of the one modulo it already took; `@8bitscript/random/table` and both hardware `/entropy` twins do the same. A seeded program that uses `range()` gets a different sequence whenever a draw lands in the rejected block; `next()` and `seed()` are unchanged. New: `bits(count)`, the top `count` bits of the next byte (1 to 8), exactly uniform with no redraw, for a power-of-two choice such as a reel stop. Measured on a program with `seed()`, two `range()` calls and `next()`: +55 bytes of program on the C64 and X16, +58 on the PET and VIC-20, +63 bytes of wasm on the web, and 3 more bytes of RAM, once, shared by every call site. The package's tests now count outcomes over one whole generator period through the compiled code, and its dead skipped tests are gone.
+
+### Patch Changes
+
+- Updated dependencies [0e0e928]
+- Updated dependencies [29fff5f]
+- Updated dependencies [4f425e1]
+- Updated dependencies [ecb49c6]
+- Updated dependencies [4f425e1]
+- Updated dependencies [4a646ff]
+- Updated dependencies [8927961]
+- Updated dependencies [40d5e91]
+- Updated dependencies [5065779]
+- Updated dependencies [52e8dee]
+- Updated dependencies [55bd004]
+  - @8bitscript/c64@0.25.0
+  - @8bitscript/atari8@0.25.0
+
 ## 0.24.0
 
 ### Patch Changes

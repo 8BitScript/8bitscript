@@ -1,5 +1,68 @@
 # @8bitscript/input
 
+## 0.25.0
+
+### Patch Changes
+
+- Updated dependencies [179c3f6]
+- Updated dependencies [a45bd03]
+- Updated dependencies [0e0e928]
+- Updated dependencies [29fff5f]
+- Updated dependencies [4f425e1]
+- Updated dependencies [ecb49c6]
+- Updated dependencies [4f425e1]
+- Updated dependencies [4a646ff]
+- Updated dependencies [584b12c]
+- Updated dependencies [b4bd7cd]
+- Updated dependencies [8927961]
+- Updated dependencies [40d5e91]
+- Updated dependencies [7a866bc]
+- Updated dependencies [88b2396]
+- Updated dependencies [5065779]
+- Updated dependencies [8d65b3a]
+- Updated dependencies [52e8dee]
+- Updated dependencies [17e8aac]
+- Updated dependencies [2c79182]
+- Updated dependencies [9dfc8ce]
+- Updated dependencies [b591243]
+- Updated dependencies [55bd004]
+- Updated dependencies [b2cb568]
+- Updated dependencies [6e1ca7a]
+- Updated dependencies [af466c0]
+- Updated dependencies [cad9700]
+  - @8bitscript/cx16@0.25.0
+  - @8bitscript/web@0.25.0
+  - @8bitscript/c64@0.25.0
+  - @8bitscript/pet@0.25.0
+  - @8bitscript/apple2@0.25.0
+  - @8bitscript/atari2600@0.25.0
+  - @8bitscript/atari5200@0.25.0
+  - @8bitscript/atari7800@0.25.0
+  - @8bitscript/atari8@0.25.0
+  - @8bitscript/bbc@0.25.0
+  - @8bitscript/c128@0.25.0
+  - @8bitscript/channelf@0.25.0
+  - @8bitscript/coco@0.25.0
+  - @8bitscript/coleco@0.25.0
+  - @8bitscript/cpc@0.25.0
+  - @8bitscript/gamegear@0.25.0
+  - @8bitscript/gb@0.25.0
+  - @8bitscript/gbc@0.25.0
+  - @8bitscript/lynx@0.25.0
+  - @8bitscript/mega65@0.25.0
+  - @8bitscript/msx@0.25.0
+  - @8bitscript/nes@0.25.0
+  - @8bitscript/odyssey2@0.25.0
+  - @8bitscript/oric@0.25.0
+  - @8bitscript/pce@0.25.0
+  - @8bitscript/plus4@0.25.0
+  - @8bitscript/sg1000@0.25.0
+  - @8bitscript/sms@0.25.0
+  - @8bitscript/spectrum@0.25.0
+  - @8bitscript/supervision@0.25.0
+  - @8bitscript/vectrex@0.25.0
+  - @8bitscript/vic20@0.25.0
+
 ## 0.24.0
 
 ### Patch Changes

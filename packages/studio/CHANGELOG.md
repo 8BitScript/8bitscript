@@ -1,5 +1,39 @@
 # @8bitscript/studio
 
+## 0.25.0
+
+### Patch Changes
+
+- 40d5e91: `@8bitscript/graphics` is now one contract across machines. Every twin — the PET, VIC-20, C64, X16, web and NES ones, and the generic glyph path every other machine uses — answers the same ten constants (`graphics.MAX`, `FRAMES`, `WIDTH`, `HEIGHT`, `COLORS`, `RECOLORS`, `STEP_X`, `STEP_Y`, `RESTORES`, `TRANSPARENT`) with the value that machine honestly has, so a program can fold on what it can do, and exports the same calls: `place`, `update`, and new `hide`, `setFrame`, `animate` and `color`. A call a machine cannot honour is a documented no-op (`color` on the PET, the X16 and the NES, where `RECOLORS` is false); `docs/project/graphics.md` has the per-machine table, and `packages/compiler/test/graphics-contract.test.mjs` builds a probe that reads every constant and calls every operation on all thirty-two targets.
+  
+  The one behaviour change: `graphics.place` takes **playfield pixels** on every machine, so `place(slot, 0, 0)` lands on text cell (0, 0). The C64 twin now adds the sprite layer's origin (24, 50) itself, so a program no longer writes `sprites.ORIGIN_X +` in front of its positions (the bundled examples, Studio and the C64 probe did; they don't now). A program that already adds the origin by hand on the C64 draws 24 pixels right and 50 down of where it did.
+  
+  The generic glyph path now plays animations: the default lowering keeps up to four animation steps as one glyph each (it collapsed an animation to its first frame, with `8BS2111`), and `graphics.update()` steps through them at the animation's `every`, as the web twin already did.
+- 8d65b3a: Studio opens in the editor's WebAssembly tab, on our own backend, and it renders there.
+  
+  - **VS Code:** **Open Studio** (the Studio row, the 🚀, **Launch Studio**, **Open Studio in a Tab**) runs `8bs run cx16 --web` in an editor tab: our compiler to wasm and our own model of the X16, not a full-screen native window and not the vendored x16emu. The native emulator is its own labelled button beside the row (**Open Studio in the Native Emulator**, `8bitscript.openStudioNative`), and the vendored x16emu in a tab is **Open Studio in x16emu (in a Tab)** (`8bitscript.openStudioX16emu`). Every old command id still works. The WebAssembly build is the primary way to run a program, which is what `8bitscript.preferWebPreview` already defaulted to; the tab's Editor runtime is the default for a program with no history.
+  - **cx16 wasm model:** the colours are VERA's own default palette (blue is `#0000aa`, as x16emu draws it; the C64's `#40318d` was wrong), and a `.8bg` picture is drawn at all — as one 8x8 glyph in the new redefinable glyph table, because the wasm model has no VERA sprites. Studio's mark now shows. `wasm.limits` for the X16 in `8bs targets --json` says what the model still leaves out (VERA layers and sprites, sound, the mouse, the raster list).
+  - **Compiler:** a `--web` build of a machine whose package names `"wasmMedia"` lowers pictures with that module (the X16 names the web's).
+- Updated dependencies [179c3f6]
+- Updated dependencies [a45bd03]
+- Updated dependencies [718c857]
+- Updated dependencies [29fff5f]
+- Updated dependencies [c287f25]
+- Updated dependencies [584b12c]
+- Updated dependencies [40d5e91]
+- Updated dependencies [88b2396]
+- Updated dependencies [8d65b3a]
+- Updated dependencies [2c79182]
+- Updated dependencies [9dfc8ce]
+- Updated dependencies [af466c0]
+- Updated dependencies [cad9700]
+  - @8bitscript/audio@0.25.0
+  - @8bitscript/graphics@0.25.0
+  - @8bitscript/screen@0.25.0
+  - @8bitscript/text@0.25.0
+  - @8bitscript/sprites@0.25.0
+  - @8bitscript/ui@0.25.0
+
 ## 0.24.0
 
 ### Patch Changes
