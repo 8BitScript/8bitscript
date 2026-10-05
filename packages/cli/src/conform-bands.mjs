@@ -94,15 +94,16 @@ export function compareBands(a, b, expected = BAND_STARTS, tolerance = 2) {
   let maxOffset = 0;
   const n = Math.max(a.length, b.length, expected.length);
   for (let i = 0; i < n; i += 1) {
-    const native = a[i] ?? null; const wasm = b[i] ?? null; const want = expected[i] ?? null;
-    const offset = native && wasm ? wasm.start - native.start : null;
-    if (offset !== null) maxOffset = Math.max(maxOffset, Math.abs(offset));
+    const native = a[i]; const wasm = b[i]; const want = expected[i];
+    const bothDrawn = Boolean(native && wasm);
+    const offset = bothDrawn ? wasm.start - native.start : null;
+    if (bothDrawn) maxOffset = Math.max(maxOffset, Math.abs(offset));
     rows.push({
-      band: i, expected: want, native: native?.start ?? null, wasm: wasm?.start ?? null, offset,
-      wasmExact: wasm !== null && want !== null && wasm.start === want,
-      nativeOffset: native && want !== null ? native.start - want : null,
+      band: i, expected: want ?? null, native: native?.start ?? null, wasm: wasm?.start ?? null, offset,
+      wasmExact: Boolean(wasm) && wasm.start === want,
+      nativeOffset: native && Number.isInteger(want) ? native.start - want : null,
       colourNative: native?.rgb ?? null, colourWasm: wasm?.rgb ?? null,
-      sameColour: native && wasm ? distance(native.rgb, wasm.rgb) <= 48 : null,
+      sameColour: bothDrawn ? distance(native.rgb, wasm.rgb) <= 48 : null,
     });
   }
   // Lines are the finding. A colour that differs is a palette decision (which VICE palette, which green),
