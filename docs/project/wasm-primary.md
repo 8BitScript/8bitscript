@@ -58,7 +58,7 @@ Three things share the word and are easy to confuse:
 packages/cli/src/web-layout.mjs  layoutForRealMachine()  ┘ (grid, charBase, colorBase, palette, offsets)
          │ written beside the wasm as program.json (the manifest)
          ▼
-8bitscript.js (web-loader.mjs)   worker.js runs the wasm, SharedArrayBuffer + Atomics.wait = waitFrame()
+8bitscript.js (web-loader.mjs)   worker.js runs the wasm, SharedArrayBuffer + Atomics.wait = waitFrame(); on a page that cannot be isolated, the page's own thread, JSPI suspend = waitFrame()
          │ every frame: read screen RAM, colour RAM, the raster list, the glyph table
          ▼
 web-scanline.mjs  renderFrame()  one scanline at a time, so a raster entry lands on the line it names
@@ -194,7 +194,7 @@ Ordered by value over cost. Effort: **S** about a day, **M** a few days,
 | 7 | Sound models and a Web Audio host for the four machines | L | — |
 | 8 | Conformance for moving things: raster timing, sprites, scroll; frame-locked captures | M | 4, `raster.frame()` |
 | 9 | A build refuses, or warns, where it cannot draw (graphics objects on a wasm machine that cannot draw them) | S | 6 |
-| 10 | Distribution: a single-file export and a mode that runs without `SharedArrayBuffer` | M | — |
+| 10 | Distribution: a single-file export (a mode without `SharedArrayBuffer` exists where the browser has JSPI — see Hosting below) | M | — |
 | 11 | PAL and 50 Hz; cycles per frame | M | — |
 
 **1. Reverse video and the boot character set (PET, VIC-20) — S.** `font8x8.mjs`
@@ -293,11 +293,20 @@ _headers       COOP/COEP for Cloudflare Pages and Netlify
   `Cross-Origin-Embedder-Policy: require-corp` (the `_headers` file, or
   `docs/web-embedding.md` for Apache, nginx and Vercel), or load `coi.js`, a
   service worker that adds them (GitHub Pages).
+- **A page that cannot be isolated** — a frame inside a document that is
+  not isolated, which is what an editor's webview is — runs the program on
+  its own thread with JavaScript Promise Integration where the browser has
+  it (measured in Chromium 148 and Cursor's Electron 42; the loader checks
+  at run time): `waitFrame()` suspends the
+  program instead of blocking a worker, so nothing is shared. The Studio
+  tab in VS Code runs this way. It is the fallback, not the default: the
+  program and the page share one thread (`docs/web-embedding.md`,
+  "Without isolation: JSPI"; pinned by
+  `packages/cli/test/web-suspend.test.mjs`).
 - **Opening the folder from disk does not work** (expected, **not tested in a
   browser here**): the loader `fetch()`es `program.wasm` and `program.json`, a
   browser refuses `fetch` of a `file:` URL, and the isolation service worker
-  needs https or localhost. A single-file export and a mode that does not need
-  `SharedArrayBuffer` are backlog item 10.
+  needs https or localhost. A single-file export is backlog item 10.
 - **Several machines, one page.** 2048 builds four skins of the *web target*
   (`--hardware machine=c64`, `pet-2001`, `vic20`, default) into one `dist/web/`
   (`program-c64.wasm`, `program-pet-2001.wasm`, …) and copies its own
