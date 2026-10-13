@@ -29,7 +29,7 @@ body {
 button, input, select { font: inherit; color: inherit; }
 button { cursor: pointer; }
 [hidden] { display: none !important; }
-.codicon { font: normal normal 16px/1 codicon; display: inline-block; text-transform: none; text-rendering: auto;
+.codicon { font: normal normal 16px/1 codicon, sans-serif; display: inline-block; text-transform: none; text-rendering: auto;
   -webkit-font-smoothing: antialiased; user-select: none; flex: none; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .mono { font-family: var(--mono), monospace; font-size: 12px; }
