@@ -21,7 +21,7 @@ const path = require('path');
 function editorName(appName) {
   const name = String(appName || '').trim();
   if (!name) return null;
-  if (/^Visual Studio Code\b/.test(name)) return name.replace(/^Visual Studio Code/, 'VS Code').replace(/\s*-\s*/, ' ');
+  if (/^Visual Studio Code\b/.test(name)) return name.replace(/^Visual Studio Code/, 'VS Code').replace(' - ', ' ');
   return name;
 }
 
