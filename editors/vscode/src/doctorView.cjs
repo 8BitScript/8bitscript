@@ -161,9 +161,9 @@ function registerDoctorView(context, projects) {
         // view.apply() is async and a message handler has no caller to hand
         // a rejection to: log it, and show it, rather than leave it unhandled.
         panel.webview.onDidReceiveMessage((message) => quietly('8BitScript Doctor panel', () => view.apply(message), reportToUser)),
-        projects.onDidChange(() => view.post()),
+        projects.onDidChange(() => void view.post()),
         vscode.workspace.onDidChangeConfiguration((event) => {
-          if (event.affectsConfiguration('8bitscript.doctorEmulators')) view.post();
+          if (event.affectsConfiguration('8bitscript.doctorEmulators')) void view.post();
         }),
       ];
       panel.webview.html = html(panel.webview);
