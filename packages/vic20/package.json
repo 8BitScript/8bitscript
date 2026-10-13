@@ -24,6 +24,7 @@
           "the page's palette is not VICE's default VIC-20 palette: the same colour number draws a different colour in places (a warning in 8bs conform)",
           "bit 3 of $900F, the chip's screen-wide inverse flag, is not modelled: the page always draws the picture the right way round",
           "no sound: the VIC-I voices are plain memory, so audio.tone and .8ba playback are silent",
+          "no keyboard matrix or joystick: the portable @8bitscript/input works (arrow keys, Enter, Escape through the page; confirm is RETURN, the native build's FIRE has nothing to plug in), but @8bitscript/vic20/keyboard reads the VIAs and sees nothing",
           "NTSC 60 Hz only: detectRegion() answers NTSC"
         ]
       }

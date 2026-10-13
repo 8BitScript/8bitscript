@@ -1,0 +1,121 @@
+// input.8bs's own `.web` twin — build.mjs's internal `web` tag resolves this
+// in place of input.8bs whenever this package builds through the wasm backend
+// (`8bs build --target vic20 --web`, `8bs run vic20 --web`, the editor's tab).
+//
+// The native file reads the keyboard matrix and the joystick through the two
+// VIAs: a column written to VIA2 port B, the rows read back from VIA2 port A,
+// the stick's switches on VIA1 port A and VIA2 port B. A wasm build has no
+// VIA to answer: those reads are plain bytes of linear memory that nothing
+// ever writes, so no key and no switch ever changed, and the edge detector
+// never saw a press begin — the same frozen board the PET's wasm build had
+// (packages/pet/src/input.pet.web.8bs). The page, on the other hand, already
+// listens for keys and stores a snapshot of them at one byte of the
+// program's memory (web-layout.mjs agreementFor(): `inputOffset`), the way
+// it does for every wasm build; this twin reads that byte once a frame and
+// works out what began, which is exactly what `poll()` gives a program on
+// any other machine.
+//
+//   - left / right / up / down — ArrowLeft / ArrowRight / ArrowUp / ArrowDown
+//   - confirm                  — Enter (RETURN)
+//   - cancel                   — Escape (RUN/STOP)
+//
+// No joystick on this rail (there is nothing to plug in), no pointer, and
+// the machine-level `@8bitscript/vic20/keyboard` still reads the VIAs and
+// sees nothing — a program that wants input on the wasm build uses the
+// portable `@8bitscript/input`, as every portable program does.
+//
+// Where the byte is: agreementFor() puts it two bytes past the second of two
+// cell-sized regions — 1014 for this machine's 22×23 grid, expanded or not
+// (the expansion moves the screen, not its size). packages/cli/test/
+// web-vic20.test.mjs holds the formula to the layout. Keep the export list
+// identical to input.8bs — packages/compiler/test/vic20-web-twin.test.mjs holds
+// the two to the same names.
+import { Video } from "./geometry.8bs";
+
+// One bit per thing a program can ask about, so a frame's input is one
+// byte and an edge is one AND. The page's side is web-layout.mjs's InputEdge.
+namespace Edge {
+    const LEFT: utinyint = 1;
+    const RIGHT: utinyint = 2;
+    const UP: utinyint = 4;
+    const DOWN: utinyint = 8;
+    const CONFIRM: utinyint = 16;
+    const CANCEL: utinyint = 32;
+}
+
+// What is held now, what was held at the last poll, and what began this
+// frame — `now & ~last`, written with the XOR the language has.
+let held: utinyint = 0;
+let before: utinyint = 0;
+let began: utinyint = 0;
+
+export namespace input {
+
+    // Once, at start-up, before the first poll(). One poll before the
+    // program's first, so the edge detector starts from what is actually held
+    // rather than from nothing: without it, a key already down when the
+    // program starts reads as a fresh press on frame one.
+    function begin(): void {
+        input.poll();
+    }
+
+    // Read the page's snapshot and work out what began this frame. Once a
+    // frame, right after waitFrame().
+    function poll(): void {
+        before = held;
+        // agreementFor(COLUMNS x ROWS).inputOffset. Not a const of its own: a
+        // const initializer must be a literal or another const (8BS3001),
+        // so the arithmetic is written here, where the fold pass turns it
+        // into the one literal this width needs.
+        held = memory.read(Video.CELL_COUNT * 2 + 2);
+        began = held & (before ^ 0xFF);
+    }
+
+    // The four directions, each true only on the frame its press began.
+    function left(): bool {
+        return (began & Edge.LEFT) != 0;
+    }
+
+    function right(): bool {
+        return (began & Edge.RIGHT) != 0;
+    }
+
+    function up(): bool {
+        return (began & Edge.UP) != 0;
+    }
+
+    function down(): bool {
+        return (began & Edge.DOWN) != 0;
+    }
+
+    // RETURN.
+    function confirm(): bool {
+        return (began & Edge.CONFIRM) != 0;
+    }
+
+    // RUN/STOP.
+    function cancel(): bool {
+        return (began & Edge.CANCEL) != 0;
+    }
+
+    // No pointer on this rail: there is nothing to read one from.
+    function pointer(): bool {
+        return false;
+    }
+
+    function pointerCell(): usmallint {
+        return 0;
+    }
+
+    function pointerButton(): bool {
+        return false;
+    }
+}
+
+// Compile-time names for the confirm control, interpolated into catalogs
+// as {control} / {other}. The wasm build has the keyboard's RETURN only.
+export namespace Input {
+    const CONFIRM_LABEL: string = "RETURN";
+    const ALT_CONFIRM_LABEL: string = "RETURN";
+    const CONFIRM_LABELS: string = "RETURN";
+}

@@ -1,0 +1,125 @@
+// input.8bs's own `.web` twin — build.mjs's internal `web` tag resolves this
+// in place of input.8bs whenever this package builds through the wasm backend
+// (`8bs build --target pet --web`, `8bs run pet --web`, the editor's tab).
+//
+// The native file scans the keyboard matrix through PIA 1: it writes a row
+// number to port A ($E810) and reads the row's eight keys back from port B
+// ($E812), a 0 bit where a key is down. A wasm build has no PIA to answer:
+// those reads are plain bytes of linear memory that nothing ever writes, so
+// every row read as zero — which keyboard.8bs inverts to "every key down" —
+// and the edge detector saw eighty keys held from frame one and never a
+// press begin. That was the 2048 game's frozen board in the editor's tab
+// (measured 2026-10-12: LEFT then DOWN poked into the page's input byte
+// changed 0 screen cells). The page, on the other hand, already listens for
+// keys and stores a snapshot of them at one byte of the program's memory
+// (web-layout.mjs agreementFor(): `inputOffset`), the way it does for every
+// wasm build; this twin reads that byte once a frame and works out what
+// began, which is exactly what `poll()` gives a program on any other machine.
+//
+//   - left / right / up / down — ArrowLeft / ArrowRight / ArrowUp / ArrowDown
+//                                (the real PET's SHIFT + cursor keys)
+//   - confirm                  — Enter (RETURN)
+//   - cancel                   — Escape (RUN/STOP)
+//
+// The machine-level layer `@8bitscript/pet/keyboard` still reads the PIA and
+// sees nothing on this rail — a program that wants input on the wasm build
+// uses the portable `@8bitscript/input`, as every portable program does.
+//
+// Where the byte is: agreementFor() puts it two bytes past the second of two
+// cell-sized regions, so on a 40-column PET (1000 cells) it is 2002 and on an
+// 80-column 8032 (2000 cells) 4002. Video.CELL_COUNT is the width the build
+// was fitted with — the 8032's own geometry twin says 2000 — so one twin
+// serves every model; packages/cli/test/web-pet.test.mjs holds the formula
+// to the layout for both widths. Keep the export list identical to
+// input.8bs — packages/compiler/test/pet-web-twin.test.mjs holds the two to
+// the same names.
+import { Video } from "./geometry.8bs";
+
+// One bit per thing a program can ask about, so a frame's input is one
+// byte and an edge is one AND. The page's side is web-layout.mjs's InputEdge.
+namespace Edge {
+    const LEFT: utinyint = 1;
+    const RIGHT: utinyint = 2;
+    const UP: utinyint = 4;
+    const DOWN: utinyint = 8;
+    const CONFIRM: utinyint = 16;
+    const CANCEL: utinyint = 32;
+}
+
+// What is held now, what was held at the last poll, and what began this
+// frame — `now & ~last`, written with the XOR the language has.
+let held: utinyint = 0;
+let before: utinyint = 0;
+let began: utinyint = 0;
+
+export namespace input {
+
+    // Once, at start-up, before the first poll(). One poll before the
+    // program's first, so the edge detector starts from what is actually held
+    // rather than from nothing: without it, a key already down when the
+    // program starts reads as a fresh press on frame one.
+    function begin(): void {
+        input.poll();
+    }
+
+    // Read the page's snapshot and work out what began this frame. Once a
+    // frame, right after waitFrame().
+    function poll(): void {
+        before = held;
+        // agreementFor(COLUMNS x ROWS).inputOffset. Not a const of its own: a
+        // const initializer must be a literal or another const (8BS3001),
+        // so the arithmetic is written here, where the fold pass turns it
+        // into the one literal this width needs.
+        held = memory.read(Video.CELL_COUNT * 2 + 2);
+        began = held & (before ^ 0xFF);
+    }
+
+    // The four directions, each true only on the frame its press began.
+    function left(): bool {
+        return (began & Edge.LEFT) != 0;
+    }
+
+    function right(): bool {
+        return (began & Edge.RIGHT) != 0;
+    }
+
+    function up(): bool {
+        return (began & Edge.UP) != 0;
+    }
+
+    function down(): bool {
+        return (began & Edge.DOWN) != 0;
+    }
+
+    // RETURN.
+    function confirm(): bool {
+        return (began & Edge.CONFIRM) != 0;
+    }
+
+    // RUN/STOP.
+    function cancel(): bool {
+        return (began & Edge.CANCEL) != 0;
+    }
+
+    // No control ports on this machine, so no pointer — a constant, not a
+    // measurement.
+    function pointer(): bool {
+        return false;
+    }
+
+    function pointerCell(): usmallint {
+        return 0;
+    }
+
+    function pointerButton(): bool {
+        return false;
+    }
+}
+
+// Compile-time names for the confirm control, interpolated into catalogs
+// as {control} / {other}. OR / ODER lives in the catalog, not here.
+export namespace Input {
+    const CONFIRM_LABEL: string = "RETURN";
+    const ALT_CONFIRM_LABEL: string = "RETURN";
+    const CONFIRM_LABELS: string = "RETURN";
+}

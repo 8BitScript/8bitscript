@@ -1,13 +1,14 @@
-// The VIC-20's wasm build links two `.web` twins of its package files (cursor
-// and rasterline `.vic20.web.8bs`) because the native files speak to the chip
-// with machine code the wasm backend never lowers. A twin is a copy with a few
-// bodies replaced, and a copy drifts: a name added to rasterline.8bs and not to
-// its twin builds natively and fails only for the person running the browser
-// build. This holds each twin to the names and signatures of the file it stands
-// in for — every top-level export, and every member of every exported
-// namespace — so the two cannot part company without this failing, and says
-// which name is missing where. (The C64's five twins are held the same way by
-// c64-web-twin.test.mjs.)
+// The VIC-20's wasm build links three `.web` twins of its package files (cursor,
+// rasterline and input `.vic20.web.8bs`) because the native files speak to the
+// chips with machine code the wasm backend never lowers, or read VIA ports a
+// wasm build has nothing behind. A twin is a copy with a few bodies replaced,
+// and a copy drifts: a name added to rasterline.8bs and not to its twin builds
+// natively and fails only for the person running the browser build. This holds
+// each twin to the names and signatures of the file it stands in for — every
+// top-level export, and every member of every exported namespace — so the two
+// cannot part company without this failing, and says which name is missing
+// where. (The C64's and the PET's twins are held the same way by
+// c64-web-twin.test.mjs and pet-web-twin.test.mjs.)
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -46,6 +47,7 @@ function exportsOf(text) {
 const PAIRS = [
   ['cursor.8bs', 'cursor.vic20.web.8bs'],
   ['rasterline.8bs', 'rasterline.vic20.web.8bs'],
+  ['input.8bs', 'input.vic20.web.8bs'],
 ];
 
 for (const [native, twin] of PAIRS) {

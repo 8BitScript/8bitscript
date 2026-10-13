@@ -166,7 +166,7 @@ modes, raster timing. Those are items 4 and 6 below.
 | Text grid and character ROM (codes 0–127) | ✔ both sets, switched by `$E84C` | ✔ both sets, switched by `$9005` | ✔ | ◐ host font | ✔ |
 | Reverse video (codes 128–255) | ✔ | ✔ | ✔ | ✔ | ✔ |
 | Text colours and palette | ✔ (mono) | ◐ 6 colour-row cells: page palette vs xvic; border and background are read from `$900F` | ◐ Pepto vs VICE | ✔ VERA's default (#317) | ✔ |
-| Portable input | ✔ builds | ✔ builds | ✔ arrows/Enter/Esc | ✘ `input_poll` | ✔ |
+| Portable input | ✔ arrows/Enter/Esc (`input.pet.web.8bs`) | ✔ arrows/Enter/Esc (`input.vic20.web.8bs`) | ✔ arrows/Enter/Esc | ✘ `input_poll` | ✔ |
 | Portable raster (`@8bitscript/raster`) | ◐ 3032/4032 only; untested | ✘ `raster_probeRegion` | ◐ lands one picture line early | ✘ `raster_commit` | ✔ |
 | C64 address-form raster list (`@8bitscript/c64/raster`) | n/a | n/a | ◐ applied line by line by the page; not the handler's timing | n/a | n/a |
 | Graphics objects (`@8bitscript/graphics`) | ◐ draws (`media-walk`); other ops untested on wasm | ◐ draws (`media-walk`); other ops untested on wasm | ✔ as hardware sprites (24 from eight) | ◐ one flat glyph, not a sprite (#317) | ✔ |

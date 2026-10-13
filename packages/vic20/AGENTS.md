@@ -776,6 +776,18 @@ differs in 6 cells in colour only (the page's palette is not xvic's: backlog ite
   generator): the text set was read from it earlier, the upper-case set is generated.
 - The quadrant-block objects `@8bitscript/graphics` places draw on the wasm page now
   (`examples/media-walk`), because the codes they use are drawn.
+- **The keyboard is the page's, not the VIAs'.** `@8bitscript/input` on this rail
+  is `src/input.vic20.web.8bs`, the `.web` twin build.mjs's internal `web` tag
+  resolves in place of `input.8bs`: the page writes the keys it hears to one byte
+  of the program's memory (`inputOffset`, `Video.CELL_COUNT * 2 + 2` = 1014 for the
+  22×23 grid, expanded or not), and the twin reads that byte once a frame —
+  ArrowLeft/Right/Up/Down, Enter for RETURN, Escape for RUN/STOP. Without it the
+  native layer read VIA ports that are plain memory here and no press ever began
+  (found with the PET's, 2026-10-12). No joystick on this rail;
+  `@8bitscript/vic20/keyboard` still reads the VIAs and sees nothing on the wasm
+  build. `packages/cli/test/web-vic20.test.mjs` presses keys the way the page does
+  on the unexpanded and the 8K fits; `packages/compiler/test/vic20-web-twin.test.mjs`
+  holds the twin to `input.8bs`'s export list.
 
 ## Seeing the screen without a human at xvic
 

@@ -20,7 +20,8 @@
       "wasm": {
         "available": true,
         "limits": [
-          "no sound: the VIA speaker is plain memory, so audio.tone and .8ba playback are silent"
+          "no sound: the VIA speaker is plain memory, so audio.tone and .8ba playback are silent",
+          "no keyboard matrix: the portable @8bitscript/input works (arrow keys for the cursor keys and SHIFT, Enter for RETURN, Escape for RUN/STOP, through the page), but @8bitscript/pet/keyboard reads PIA 1 and sees nothing"
         ]
       }
     },
