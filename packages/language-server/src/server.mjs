@@ -281,7 +281,7 @@ export function start({ checkout } = {}) {
       source: '8bs',
       message: d.message,
     }));
-    connection.sendDiagnostics({ uri: document.uri, diagnostics });
+    void connection.sendDiagnostics({ uri: document.uri, diagnostics });
   };
 
   // validate() is async (it awaits the filesystem for a project's frame
