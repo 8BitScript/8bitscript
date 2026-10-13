@@ -37,7 +37,7 @@ const STATES = {
   '02-program-5x5-inputs': [vegas({ program: 'slot5x5', values: { slot5x5: { SEED: 10, FORCE_BONUS: true, START_CREDITS: 5000 } } }), { open: { 'inputs:slot5x5': true, 'command:slot5x5': true } }, [300, 420]],
   '03-runtime-disabled': [vegas({ system: 'vic20', program: 'tile-test' }), {}, [300]],
   '03b-runtime-disabled-web': [vegas({ system: 'web', program: 'slot3x3' }), {}, [300]],
-  '04-running': [vegas({ program: 'slot5x5', running: RUNNING, history: HISTORY, live: { slot5x5: ['editor', 'native'] } }), { open: { 'rm:r1': true } }, [300, 260]],
+  '04-running': [vegas({ program: 'slot5x5', running: RUNNING, history: HISTORY, live: { slot5x5: ['editor', 'native'] } }), { open: { 'rm:r1': true }, tab: 'running' }, [300, 260]],
   '05-single-program': [single(), {}, [300]],
   '06-empty': [{ phase: 'empty' }, {}, [300]],
   '07-missing-emulator': [vegas({ missing: ['x64sc'], notices: [{ id: 'pkg', kind: 'warn', icon: 'package', title: 'Packages need installing.', text: 'Vegas Nights is missing node_modules.', actions: [{ label: 'Install packages', icon: 'package', msg: { type: 'fix', kind: 'packages' } }] }] }), {}, [300]],
@@ -51,7 +51,8 @@ function pageFor({ state, ui, width }) {
 <script>document.write('<link rel="stylesheet" href="${pathToFileURL(join(root, 'docs', 'design', 'themes')).href}/' + (new URLSearchParams(location.search).get('theme') === 'light' ? 'light' : 'dark') + '-modern.css">');</script>
 <style>${css}
 .vsc-title{height:35px;padding:0 8px 0 20px;display:flex;align-items:center;font-size:11px;text-transform:uppercase;color:var(--vscode-sideBarTitle-foreground)}
-#sb{width:${width}px;background:var(--vscode-sideBar-background)}</style></head>
+#sb{width:${width}px;height:720px;display:flex;flex-direction:column;background:var(--vscode-sideBar-background)}
+#sb #app{flex:1;min-height:0}</style></head>
 <body><div id="sb"><div class="vsc-title">8BitScript</div><main id="app" data-logo="${logo}" aria-label="8BitScript launcher"></main></div>
 <script>window.acquireVsCodeApi = () => ({ postMessage() {}, getState: () => (${JSON.stringify(ui)}), setState() {} });</script>
 <script>${js}</script>

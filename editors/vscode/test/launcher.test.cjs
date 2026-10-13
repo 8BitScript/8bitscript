@@ -56,13 +56,14 @@ test('no project draws the empty state, and its three buttons post their message
   assert.deepEqual(page.posted.slice(1).map((m) => m.type), ['openFolder', 'tryExample', 'learn']);
 });
 
-test('a project with several programs draws the strip, the legend and the grouped list', () => {
+test('a project with several programs draws the strip, the panes and the grouped list', () => {
   const page = mount(vegas());
   assert.equal(page.all('.strip .picker').length, 2, 'Project and System pickers');
   assert.match(norm(page.one('.strip')), /Vegas Nights/);
   assert.match(norm(page.one('.strip')), /C64\s*NTSC/);
   assert.match(norm(page.one('.summary')), /Commodore 64 · 64 KB · NTSC · English/);
-  assert.deepEqual(page.all('.legend .lbl').map((el) => el.textContent), ['Preview', 'Browser', 'Emulate'], 'three runtimes, always in this order');
+  assert.deepEqual(page.all('.seg .tab').map((el) => el.querySelector('span:not(.badge):not(.dot)').textContent), ['Programs', 'Running'], 'two panes');
+  assert.equal(page.byKey('tab:programs').getAttribute('aria-selected'), 'true', 'programs first');
   assert.deepEqual(page.all('.group-head').map((el) => el.getAttribute('data-group')), ['Slots', 'Labs', 'Test rigs']);
   assert.deepEqual(page.all('.prow .name').map((el) => el.textContent), ['3×3 Slot', '5×5 Ways Slot', 'Lobby', 'Hello Reels', 'Sound Test', 'Tile Test'], 'Test rigs start folded');
   assert.equal(page.one('[data-group="Test rigs"]').getAttribute('aria-expanded'), 'false');
@@ -454,7 +455,7 @@ test('a project with one program has no picker or list: the header, the system a
 });
 
 test('Running: one card per run with its own Stop, Show tab and Open in browser', () => {
-  const page = mount(vegas({ program: 'slot5x5', running: RUNNING, history: HISTORY, live: { slot5x5: ['editor', 'native'] } }));
+  const page = mount(vegas({ program: 'slot5x5', running: RUNNING, history: HISTORY, live: { slot5x5: ['editor', 'native'] } }), { tab: 'running' });
   assert.equal(page.all('.run-item').length, 2);
   assert.match(norm(page.one('.sec + .items, .items')), /5×5 Ways Slot/);
   assert.match(norm(page.all('.run-item')[0]), /C64Emulate50 fps/);
@@ -467,11 +468,12 @@ test('Running: one card per run with its own Stop, Show tab and Open in browser'
   assert.deepEqual(page.posted.slice(-4), [
     { type: 'focus', runId: 'r2' }, { type: 'openInBrowser', runId: 'r2' }, { type: 'stop', runId: 'r1' }, { type: 'stop', runId: 'r2' },
   ]);
+  page.click(page.byKey('tab:programs'));
   assert.ok(page.all('.prow .st.live').length === 1, 'and the program row shows a live dot');
 });
 
 test('a run\'s Command and Details open independently and show what was kept', () => {
-  const page = mount(vegas({ program: 'slot5x5', running: RUNNING, live: { slot5x5: ['native'] } }));
+  const page = mount(vegas({ program: 'slot5x5', running: RUNNING, live: { slot5x5: ['native'] } }), { tab: 'running' });
   page.click(page.byKey('rcb:r1'));
   assert.equal(norm(page.one('.rc .cmd')), '8bs run c64 --program slot5x5 --size');
   page.click(page.byKey('dis:rm:r1'));
@@ -484,7 +486,7 @@ test('a run\'s Command and Details open independently and show what was kept', (
 
 test('a run can carry a QR code for the network address, drawn from the host\'s SVG', () => {
   const run = { ...RUNNING[1], qrSvg: '<svg viewBox="0 0 1 1"><rect width="1" height="1"/></svg>' };
-  const page = mount(vegas({ running: [run] }), { open: { 'rm:r2': true } });
+  const page = mount(vegas({ running: [run] }), { open: { 'rm:r2': true }, tab: 'running' });
   const qr = page.one('.qr');
   assert.equal(qr.getAttribute('role'), 'img');
   assert.match(qr.getAttribute('aria-label'), /QR code/);
@@ -492,7 +494,7 @@ test('a run can carry a QR code for the network address, drawn from the host\'s 
 });
 
 test('Recent lists past runs with a failure in words and a way to run it again', () => {
-  const page = mount(vegas({ running: RUNNING, history: HISTORY }));
+  const page = mount(vegas({ running: RUNNING, history: HISTORY }), { tab: 'running' });
   const rows = page.all('.hist-row');
   assert.equal(rows.length, 2);
   assert.match(norm(rows[1]), /Tile TestVIC-20 · EmulateBuild failed · 2 errors · 13:48/);
@@ -514,7 +516,8 @@ test('Tools: Studio opens in the editor tab, and the native emulator is its own 
   assert.ok(native, 'a separate button for the native emulator');
   assert.match(native.getAttribute('aria-label'), /native emulator/i);
   assert.match(native.getAttribute('title'), /native emulator/i);
-  assert.match(norm(page.byKey('tool:studio')), /Studio.*editor tab/);
+  assert.match(norm(page.byKey('tool:studio')), /Studio/);
+  assert.match(page.byKey('tool:studio').getAttribute('title'), /editor tab/);
   page.click(native);
   assert.equal(page.last().type, 'studioNative');
   page.click(page.byKey('tool:studio'));
@@ -617,4 +620,72 @@ test('a name nobody could find is no second line, not a guess', () => {
   assert.equal(page.byKey('big:main:editor').querySelector('.where').textContent, 'VS Code');
   assert.equal(page.byKey('big:main:browser').querySelector('.where'), null);
   assert.equal(page.byKey('big:main:native').querySelector('.where'), null, 'the web has no emulator');
+});
+
+// ── the fixed layout ────────────────────────────────────────────────────────
+// The panel is three bands and only the middle one scrolls: the pickers, the
+// selected program's run tiles and the tools never move, however long the
+// list is.
+
+test('the head holds the pickers and the selected program\'s tiles; the list is the only thing that scrolls; the tools are the foot', () => {
+  const page = mount(vegas({ program: 'slot5x5' }));
+  const bands = Array.from(page.app.children).map((el) => el.className);
+  assert.deepEqual(bands, ['hdr', 'body', 'foot']);
+  const hdr = page.one('.hdr');
+  assert.equal(hdr.querySelectorAll('.strip .picker').length, 2);
+  assert.match(norm(hdr.querySelector('.focus-name')), /Program\s*5×5 Ways Slot/, 'the tiles say which program they run');
+  assert.deepEqual(Array.from(hdr.querySelectorAll('.runs .run .name')).map((el) => el.textContent), ['Preview', 'Browser', 'Emulate']);
+  assert.equal(page.one('.body .scroll [role="list"]').getAttribute('aria-label'), 'Programs', 'the list lives in the scrolling pane');
+  assert.ok(page.one('.body > .filter'), 'the filter sits above the scrolling pane, not inside it');
+  assert.equal(page.one('.scroll .filter'), null);
+  assert.deepEqual(Array.from(page.one('.foot').querySelectorAll('[data-key]')).map((el) => el.getAttribute('data-key')), ['tool:studio', 'tool:studioNative', 'tool:doctor', 'tool:details']);
+  assert.equal(page.one('.drawer .runs'), null, 'the drawer no longer repeats the tiles');
+});
+
+test('the head\'s tiles run the selected program, and selecting another row moves them', () => {
+  const page = mount(vegas({ system: 'vic20' }));
+  assert.match(norm(page.one('.focus-name')), /3×3 Slot/);
+  page.click(page.byKey('big:slot3x3:browser'));
+  assert.deepEqual(page.last(), { type: 'run', runtime: 'browser', program: 'slot3x3', system: 'vic20', inputs: {} });
+  page.click(page.byKey('row:slot5x5'));
+  assert.match(norm(page.one('.focus-name')), /5×5 Ways Slot/);
+  assert.ok(page.byKey('big:slot5x5:editor'));
+  assert.equal(page.byKey('big:slot3x3:editor'), null, 'one set of tiles, for the selected program');
+});
+
+test('Programs and Running are two panes of the same middle; the choice is kept across reloads', () => {
+  const page = mount(vegas({ running: RUNNING, history: HISTORY }));
+  assert.equal(page.all('.run-item').length, 0, 'the running list is not drawn under the programs');
+  assert.match(norm(page.byKey('tab:running')), /Running\s*2/);
+  assert.ok(page.byKey('tab:running').querySelector('.dot'), 'something is running: the tab says so from the other pane');
+  page.click(page.byKey('tab:running'));
+  assert.equal(page.byKey('tab:running').getAttribute('aria-selected'), 'true');
+  assert.equal(page.all('.run-item').length, 2);
+  assert.equal(page.all('.hist-row').length, 2, 'Recent is under Running');
+  assert.equal(page.one('.scroll [role="list"][aria-label="Programs"]'), null);
+  assert.equal(page.state().tab, 'running');
+  assert.equal(page.posted.filter((m) => m.type === 'tab').length, 0, 'a pane is the page\'s own business, nothing is posted');
+  page.click(page.byKey('tab:programs'));
+  assert.equal(page.all('.prow').length, 6);
+});
+
+test('a row\'s own run buttons are quiet until the row is pointed at, selected or focused; a live one stays lit', () => {
+  const css = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'media', 'launcher.css'), 'utf8');
+  assert.match(css, /\.prow \.acts \.ibtn \{ opacity: 0/);
+  assert.match(css, /\.prow:hover \.acts \.ibtn, \.prow\.sel \.acts \.ibtn, \.prow:focus-within \.acts \.ibtn, \.prow \.acts \.ibtn\.live \{ opacity: 1/);
+  assert.match(css, /forced-colors: active\)[\s\S]*\.prow \.acts \.ibtn \{ opacity: 1/, 'high contrast shows them always');
+  // Quiet, not gone: every row still has its three, reachable by keyboard.
+  const page = mount(vegas());
+  assert.equal(page.all('.prow')[1].querySelectorAll('[data-action="run"]').length, 3);
+});
+
+test('the page never scrolls as a whole: the head and the foot are fixed and the pane between them scrolls', () => {
+  const css = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'media', 'launcher.css'), 'utf8');
+  assert.match(css, /html, body \{[^}]*height: 100%;[^}]*overflow: hidden/);
+  assert.match(css, /#app \{[^}]*display: flex; flex-direction: column/);
+  assert.match(css, /\.hdr \{ flex: none/);
+  assert.match(css, /\.scroll \{ flex: 1; min-height: 0; overflow-y: auto/);
+  assert.match(css, /\.foot \{ flex: none/);
+  assert.match(css, /#app\.plain \{ display: block; overflow-y: auto/, 'loading and empty states are a plain column');
+  assert.equal(mount({ phase: 'empty' }).app.className, 'plain');
 });

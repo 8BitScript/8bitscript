@@ -648,7 +648,7 @@ test('a state with no project is the empty state, with whatever notices there ar
 });
 
 test('the dev-reload banner is a notice with the right action for each phase', async () => {
-  for (const [phase, label, type] of [['dirty', 'Rebuild the local extension', 'rebuildExtension'], ['ready', 'Reload this window', 'reloadWindow'], ['error', 'Rebuild the local extension', 'rebuildExtension']]) {
+  for (const [phase, label, type, reload] of [['dirty', 'Rebuild the local extension', 'rebuildExtension'], ['ready', 'Restart the extension', 'reloadWindow', false], ['ready', 'Reload this window', 'reloadWindow', true], ['error', 'Rebuild the local extension', 'rebuildExtension']]) {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), '8bs-launcher-dev-'));
     try {
       vscode.__mock.reset();
@@ -656,7 +656,7 @@ test('the dev-reload banner is a notice with the right action for each phase', a
       const context = { subscriptions: [], globalStorageUri: { fsPath: dir } };
       const projects = registerRunner(context, { appendLine() {} });
       await tick();
-      const devReload = { phase, error: 'boom', onDidChange: () => ({ dispose() {} }) };
+      const devReload = { phase, error: 'boom', reload: reload === true, onDidChange: () => ({ dispose() {} }) };
       const provider = registerLauncherView(context, projects, devReload);
       const view = fakeView();
       provider.resolveWebviewView(view);
@@ -664,6 +664,13 @@ test('the dev-reload banner is a notice with the right action for each phase', a
       const notice = state.notices.find((n) => n.id === 'dev-reload');
       assert.equal(notice.actions[0].label, label, phase);
       assert.equal(notice.actions[0].msg.type, type);
+      if (phase === 'ready') {
+        // The one message, two editor commands: the restart when the extension
+        // alone reads what changed, the window reload when the editor does.
+        view.webview.__fire({ type: 'reloadWindow' });
+        await tick();
+        assert.equal(ran(reload ? 'workbench.action.reloadWindow' : 'workbench.action.restartExtensionHost').length, 1, `reload=${reload}`);
+      }
       assert.equal(notice.kind, phase === 'error' ? 'error' : 'info');
       if (phase === 'error') assert.equal(notice.text, 'boom');
       for (const subscription of context.subscriptions) subscription.dispose?.();

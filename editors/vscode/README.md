@@ -183,44 +183,54 @@ file explorer, search, and source control live. Clicking it opens a side
 bar with one thing in it: a launcher.
 
 ```
-8BITSCRIPT                              📖  🚀  ♥  ⟳  …
-
-  8BITSCRIPT
-    8BitScript     this workspace · pnpm    Update
-    2048           0.7.1 · pnpm             Update
-
-  QUICK LAUNCH
-    PROGRAM  [ 2048  —  ../2048                 ▾ ] 📄
-    ENTRY    [ main                             ▾ ]   (only with several `programs`)
-    SYSTEM   [ PET 2001 (8K)                    ▾ ]
-    fitted as Commodore PET · ram=8 · NTSC
-
-  ┌──────────────────────────────────────────────┐
-  │  ▶   Run 2048                                │
-  │      PET 2001 (8K) · ram=8                   │
-  └──────────────────────────────────────────────┘
-
-  RUNNING MACHINES
-    ▾ 2048           run · pet · 12s        ⏹
-        Emulator   xpet
-        Image      dist/2048-pet.prg
-        Memory     8 bytes RAM · 331 bytes program
-
-  8bs run --system 'PET 2001 (8K)' --checkout /src/8bitscript --size
+  PROJECT              SYSTEM
+  [ Vegas Nights  ▾ ]  [ C64  NTSC     ▾ ]        fixed
+  Commodore 64 · 64 KB · NTSC · English       ⚙
+  PROGRAM  3×3 Slot
+  ┌──────────┬──────────┬──────────┐
+  │ Preview  │ Browser  │ Emulate  │
+  │ Cursor   │ Safari   │ x64sc    │
+  └──────────┴──────────┴──────────┘
+  Runs the real x64sc emulator with 3×3 Slot loaded…
+  ─────────────────────────────────────────────
+  Programs 10   ● Running 2                       fixed
+  🔍 Filter programs
+  ▾ SLOTS                                    3  ┐
+    3×3 Slot                        ▢  ⊕  ▭    │ scrolls
+      Three paylines across the middle…       │
+      ⎘ src/labs/slot3x3/main.8bs              │
+      › Inputs 3                     defaults  │
+      Build   Command                      …   │
+    5×5 Ways Slot                              │
+    Lobby                                      ┘
+  ─────────────────────────────────────────────
+  🚀 Studio  ▭        ♥ Doctor     ⓘ Details     fixed
 ```
 
-The side bar is **the 8BitScript tree, each workspace program, and
-named-system quick launch**. **Update** on **8BitScript** refreshes the
+The panel is three bands, and only the middle one scrolls. The **head** is
+what is chosen and what a click will run: the **Project** and **System**
+pickers, a one-line summary of the fitted machine (the gear opens
+**Configure System**), and the three run tiles for the selected program —
+**Preview**, **Browser**, **Emulate** — each saying under its name where it
+will open. The tiles never leave the screen, however long the list below
+is. The middle is one of two panes, **Programs** or **Running**, with a
+filter box above the list once a project has more than seven programs.
+Selecting a program row moves the tiles to it and opens a drawer under the
+row with its description, source file, **Inputs**, **Build** and
+**Command**; a row's own three small run buttons appear when the row is
+pointed at, selected or focused, and stay lit while that run is live.
+**Running** lists each live run with Stop and its details, and **Recent**
+below it. The **foot** is the tools: **Studio**, its native-emulator
+button, **Doctor** and **Project details**.
+
+**Update** on the **8BitScript** entry in the Project menu refreshes the
 toolchain: `pnpm install` at this workspace if it is the 8BitScript repo,
 `git pull` plus install for a clone the editor keeps under its global
 storage, or **Install** clones `https://github.com/8BitScript/8bitscript.git`
-(`trunk`) into that storage when nothing is there yet. A second row
-appears for each **program** in the workspace — 2048, not hello-world,
-not Studio — with its own Update. Examples and apps are in the Program
-dropdown, not as install buttons. Hardware fitting and project details
-live in editor tabs — **Configure System** and **Show Project** — the
-same pattern as Controller Setup. The hardware matrix is not in the
-side bar.
+(`trunk`) into that storage when nothing is there yet. Hardware fitting and
+project details live in editor tabs — **Configure System** and **Show
+Project** — the same pattern as Controller Setup. The hardware matrix is
+not in the side bar.
 
 - **Entry** — a project whose config lists several `programs` (a lobby and
   a set of small labs, say) gets an **Entry** dropdown under Program. Run and
@@ -613,10 +623,16 @@ reload cannot pick up yesterday's bundle by accident. While the window is
 open it watches `src/`, `media/`, `syntaxes/`, and `snippets/`. A change does
 not rebuild in the background — the launcher shows **Rebuild the local
 extension**. While that runs it shows status, and only after the rebuild
-finishes does **Reload this window** appear. Grammar and media changes follow
-the same two-step flow so a half-written bundle is never the thing a reload
-loads. If the editor does not pick up the symlink, copy the directory instead
-of linking it — some builds scan for real directories.
+finishes does the next step appear: **Restart the extension** when only
+`src/` or `media/` changed (the extension host restarts in a second and
+loads the new bundle; the window stays), or **Reload this window** when
+something the editor itself reads changed — `package.json`, a grammar, a
+snippet file, `bootstrap.cjs`. Grammar and media changes follow the same
+two-step flow so a half-written bundle is never the thing a reload loads.
+The restart is also what avoids Cursor's second prompt: a window reload of
+a linked checkout is followed by *Extensions have been modified on disk*,
+a restart is not. If the editor does not pick up the symlink, copy the
+directory instead of linking it — some builds scan for real directories.
 
 Cursor's built-in npm task detector opens every `package.json` it finds and
 toasts **Npm task detection: failed to parse the file** when that open

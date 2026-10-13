@@ -10,6 +10,7 @@ const path = require('node:path');
 const {
   ESBUILD_FLAGS,
   classifyChange,
+  reloadCommandFor,
   createDevReloadState,
   findEsbuild,
   isBundleStale,
@@ -73,7 +74,7 @@ test('the bundle is stale when src/ is newer than dist/, or dist is missing', ()
 test('src/ changes need a rebuild; media and the grammar only need a reload', () => {
   const root = '/ext';
   assert.equal(classifyChange(root, path.join(root, 'src', 'launcherView.cjs')), 'bundle');
-  assert.equal(classifyChange(root, path.join(root, 'media', 'launcher.js')), 'reload');
+  assert.equal(classifyChange(root, path.join(root, 'media', 'launcher.js')), 'media', 'read by the extension: a restart shows it');
   assert.equal(classifyChange(root, path.join(root, 'syntaxes', '8bs.tmLanguage.json')), 'reload');
   assert.equal(classifyChange(root, path.join(root, 'snippets', '8bs.json')), 'reload');
   assert.equal(classifyChange(root, path.join(root, 'package.json')), 'reload');
@@ -130,12 +131,44 @@ test('media-only changes still wait for an explicit rebuild', async () => {
   const ctl = createDevReloadState({
     rebuild: async () => { rebuilt = true; },
   });
-  ctl.note('reload');
+  ctl.note('media');
   assert.equal(ctl.phase, 'dirty');
   assert.equal(rebuilt, false);
   await ctl.startRebuild();
   assert.equal(rebuilt, true);
   assert.equal(ctl.phase, 'ready');
+});
+
+// A finished rebuild of src/ or media/ is shown by restarting the extension
+// host — quick, and it never trips Cursor's "extensions have been modified on
+// disk" prompt that follows a window reload of a linked checkout. Only a
+// change the editor itself reads (manifest, grammar, snippets, bootstrap)
+// asks for the window reload, and once asked it stays asked: nothing short
+// of that reload clears it.
+test('a rebuild wants the extension host restarted unless something needs the window reloaded', async () => {
+  const ctl = createDevReloadState({ rebuild: async () => {} });
+  assert.equal(ctl.reload, false);
+  ctl.note('bundle');
+  ctl.note('media');
+  await ctl.startRebuild();
+  assert.deepEqual(ctl.snapshot(), { phase: 'ready', error: null, reload: false });
+  assert.equal(reloadCommandFor(ctl.snapshot()), 'workbench.action.restartExtensionHost');
+  ctl.note('reload');
+  await ctl.startRebuild();
+  assert.deepEqual(ctl.snapshot(), { phase: 'ready', error: null, reload: true });
+  assert.equal(reloadCommandFor(ctl.snapshot()), 'workbench.action.reloadWindow');
+  ctl.note('bundle');
+  await ctl.startRebuild();
+  assert.equal(ctl.reload, true, 'a later src/ change does not forget the manifest change');
+});
+
+test('reloadCommandFor: anything but a finished rebuild is the window reload, the road that always works', () => {
+  assert.equal(reloadCommandFor({ phase: 'idle', reload: false }), 'workbench.action.reloadWindow');
+  assert.equal(reloadCommandFor({ phase: 'dirty', reload: false }), 'workbench.action.reloadWindow');
+  assert.equal(reloadCommandFor({ phase: 'ready', reload: false }), 'workbench.action.restartExtensionHost');
+  assert.equal(reloadCommandFor({ phase: 'ready', reload: true }), 'workbench.action.reloadWindow');
+  assert.equal(reloadCommandFor(), 'workbench.action.reloadWindow');
+  assert.equal(reloadCommandFor(undefined), 'workbench.action.reloadWindow');
 });
 
 test('a failed rebuild does not offer reload', async () => {

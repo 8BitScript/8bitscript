@@ -154,9 +154,19 @@ function rebuild(root, { outfile, spawnFn = spawn } = {}) {
 
 /**
  * What a changed path under a source checkout means.
- * `bundle` — `src/` changed, so dist is stale until esbuild runs.
- * `reload` — media / grammar / manifest, already on disk, just need a reload.
+ * `bundle` — `src/` changed, so dist is stale until esbuild runs; a restart
+ *            of the extension host then loads the new bundle.
+ * `media`  — a webview's CSS/JS, read by the extension at load: a restart
+ *            of the extension host is enough, no bundle, no window reload.
+ * `reload` — grammar, snippets, manifest, bootstrap: the editor itself
+ *            reads these at window start, so only a window reload shows
+ *            them.
  * `null` — ignore (dist, tests, node_modules, anything else).
+ *
+ * The distinction matters because a window reload is the slow road and,
+ * in Cursor, is followed by a second "extensions have been modified on
+ * disk" prompt for a linked source checkout; restarting the extension
+ * host alone is quick and never prompts.
  */
 function classifyChange(root, filePath) {
   const relative = path.relative(root, filePath);
@@ -171,9 +181,9 @@ function classifyChange(root, filePath) {
     return null;
   }
   if (norm.startsWith('src/')) return 'bundle';
+  if (norm.startsWith('media/')) return 'media';
   if (
-    norm.startsWith('media/')
-    || norm.startsWith('syntaxes/')
+    norm.startsWith('syntaxes/')
     || norm.startsWith('snippets/')
     || norm === 'package.json'
     || norm === 'language-configuration.json'
@@ -196,15 +206,21 @@ function classifyChange(root, filePath) {
  * File events never start a rebuild. A change during `building` goes
  * back to `dirty` when the in-flight rebuild finishes, so Reload is
  * never offered for a bundle that is already stale again.
+ *
+ * `reload` in the snapshot says whether anything changed that only a
+ * window reload can show (classifyChange's `reload` kind). It is set by
+ * such a change and never cleared, because only the reload clears it —
+ * this state does not survive one.
  */
 function createDevReloadState({ rebuild: rebuildFn, onChange } = {}) {
   let phase = 'idle';
   let error = null;
   let running = false;
   let dirtyDuringBuild = false;
+  let reload = false;
 
   function snapshot() {
-    return { phase, error };
+    return { phase, error, reload };
   }
 
   function setPhase(next, nextError = null) {
@@ -214,7 +230,8 @@ function createDevReloadState({ rebuild: rebuildFn, onChange } = {}) {
   }
 
   function note(kind) {
-    if (kind !== 'bundle' && kind !== 'reload') return;
+    if (kind !== 'bundle' && kind !== 'media' && kind !== 'reload') return;
+    if (kind === 'reload') reload = true;
     if (running || phase === 'building') {
       dirtyDuringBuild = true;
       return;
@@ -249,7 +266,19 @@ function createDevReloadState({ rebuild: rebuildFn, onChange } = {}) {
     snapshot,
     get phase() { return phase; },
     get error() { return error; },
+    get reload() { return reload; },
   };
+}
+
+/**
+ * The editor command that shows a finished rebuild: a restart of the
+ * extension host when everything that changed is read by the extension
+ * (src/, media/), the window reload only when the editor itself reads
+ * something that changed (the manifest, a grammar). Anything but a
+ * finished rebuild keeps the window reload, the road that always works.
+ */
+function reloadCommandFor({ phase, reload } = {}) {
+  return phase === 'ready' && !reload ? 'workbench.action.restartExtensionHost' : 'workbench.action.reloadWindow';
 }
 
 function syncDevReloadContext(vscode, snapshot) {
@@ -301,7 +330,7 @@ function registerDevReload(context, output) {
   context.subscriptions.push(emitter);
   context.subscriptions.push(
     vscode.commands.registerCommand('8bitscript.reloadWindow', () => (
-      vscode.commands.executeCommand('workbench.action.reloadWindow')
+      vscode.commands.executeCommand(reloadCommandFor(controller.snapshot()))
     )),
   );
   context.subscriptions.push(
@@ -315,6 +344,7 @@ function registerDevReload(context, output) {
       isLocal: false,
       get phase() { return 'idle'; },
       get error() { return null; },
+      get reload() { return false; },
       rebuild: async () => {},
       onDidChange: emitter.event,
     };
@@ -348,6 +378,7 @@ function registerDevReload(context, output) {
     isLocal: true,
     get phase() { return controller.phase; },
     get error() { return controller.error; },
+    get reload() { return controller.reload; },
     rebuild: () => controller.startRebuild(),
     onDidChange: emitter.event,
   };
@@ -369,4 +400,5 @@ module.exports = {
   rebuild,
   rebuildSync,
   registerDevReload,
+  reloadCommandFor,
 };

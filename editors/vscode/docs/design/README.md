@@ -5,6 +5,17 @@ colour variables and rendered to PNG in **Dark Modern** and **Light Modern**. No
 changes the extension: this is the thing to look at and choose from **before** anything is
 built. The wiring forks implement the contract in [§5](#5-what-each-control-does-the-contract).
 
+> **What shipped (October 2026).** Direction B, with one change made after
+> living with it in a 300px side bar: the panel no longer scrolls as a whole.
+> The pickers, the summary and the selected program's three run tiles are a
+> fixed head; Studio, Doctor and Project details are a fixed foot; the program
+> list (or the Running pane — two tabs) is the one thing that scrolls, with the
+> filter above it. A row's three small run buttons show on hover, selection or
+> focus rather than on every row. The runtimes are named **Preview**, **Browser**
+> and **Emulate**, each with a second line saying where it opens. The rendered
+> result is in [`wired/`](wired); everything below is the design as it was
+> chosen, kept for the reasons.
+
 Look first, read second:
 
 | Direction | What it is | Screenshots |
