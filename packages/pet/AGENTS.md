@@ -953,6 +953,19 @@ pet` measures it against xpet: 0 cells differ on all three probes (`grid`,
 - The quadrant-block objects `@8bitscript/graphics` places (`examples/media-walk`)
   are PETSCII graphics at screen codes ≥ 128 and 98 etc.; they draw on the wasm page
   now that those codes do.
+- **The keyboard is the page's, not the PIA's.** `@8bitscript/input` on this rail
+  is `src/input.pet.web.8bs`, the `.web` twin build.mjs's internal `web` tag
+  resolves in place of `input.8bs`: the page writes the keys it hears to one byte
+  of the program's memory (`inputOffset`, `Video.CELL_COUNT * 2 + 2` — 2002 on the
+  40-column models, 4002 on the 8032), and the twin reads that byte once a frame
+  — ArrowLeft/Right/Up/Down, Enter for RETURN, Escape for RUN/STOP. Without it
+  the native layer scanned PIA 1 rows that are plain memory here, read every key
+  as held from frame one, and no press ever began (2048's frozen board in the
+  editor's tab, 2026-10-12). `@8bitscript/pet/keyboard` and `/keys` still read the
+  PIA and see nothing on the wasm build; a portable program never touches them.
+  `packages/cli/test/web-pet.test.mjs` presses keys the way the page does on both
+  widths; `packages/compiler/test/pet-web-twin.test.mjs` holds the twin to
+  `input.8bs`'s export list.
 
 ## Seeing the screen without a human at xpet
 
@@ -972,6 +985,8 @@ packages/pet/src/geometry.8bs        Video.COLUMNS/ROWS/CELL_COUNT for the 40-co
 packages/pet/src/geometry.pet.8032.8bs   the 8032 tag's version (80, 25, 2000), chosen by the model value
 packages/pet/src/screen.8bs          @8bitscript/pet/screen: inert colors, blank() over Video.CELL_COUNT cells at $8000
 packages/pet/src/text.8bs            @8bitscript/pet/text: ASCII → screen code, direct writes, COLUMNS/CELL_COUNT from Video
+packages/pet/src/input.8bs           @8bitscript/pet/input (behind @8bitscript/input): edges on the physical cursor keys, SHIFT sampled after
+packages/pet/src/input.pet.web.8bs   the wasm build's twin: the page's key snapshot byte instead of the PIA (see "The wasm build")
 packages/pet/src/keyboard.8bs        @8bitscript/pet/keyboard: scan() snapshot of the ten rows, pressed(key), row(n)
 packages/pet/src/keys.8bs            @8bitscript/pet/keys: Key.X = row * 8 + column, graphics keyboard
 packages/pet/src/keys.pet.business.8bs  the business tag's version: the business keyboard (8032, 4032B, 3032B)

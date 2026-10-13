@@ -20,8 +20,10 @@ import { join, resolve } from 'node:path';
 import { compile } from '../src/build.mjs';
 import { glyphRows } from '../src/font8x8.mjs';
 import { captureScreenshot } from '../src/screenshot.mjs';
+import { FrameLimitReached, instantiateProgram } from '../src/wasm-host.mjs';
+import { stockFacts } from '../src/hardware.mjs';
 import { pixelAt } from '../src/png.mjs';
-import { BORDER_PX, VIC20_PALETTE, layoutForRealMachine } from '../src/web-layout.mjs';
+import { BORDER_PX, InputEdge, VIC20_PALETTE, layoutForRealMachine } from '../src/web-layout.mjs';
 
 const REPO = resolve(import.meta.dirname, '..', '..', '..');
 // The two ROM blocks the $9005 chargen base chooses between: 0 the upper-case/graphics block the machine boots in, 1 the lower/upper-case one.
@@ -196,3 +198,115 @@ test('examples/fancy builds for the VIC-20 through the wasm backend and draws it
   for (let y = BORDER_PX; y < BORDER_PX + 184; y += 1) colours.add(pixelAt(png, 2, y).join());
   assert.ok(colours.size >= 2, `fancy's border splits into bands, not one colour (saw ${colours.size})`);
 });
+
+// ---- the portable input --------------------------------------------------
+//
+// Natively @8bitscript/vic20/input reads the keyboard matrix and the joystick
+// through the two VIAs, which on this rail are bytes nothing writes: no press
+// ever began, and a program's arrows did nothing in the editor's tab (found
+// 2026-10-12, with the PET's). packages/vic20/src/input.vic20.web.8bs reads the
+// page's snapshot byte instead. This presses keys the way the page does — a
+// byte poked between frames — and reads the tallies the program prints, on
+// the unexpanded machine (screen at $1E00) and an 8K one (screen at $1000):
+// the expansion moves the screen, not the byte.
+const INPUT_PROGRAM = [
+  'import { input } from "@8bitscript/input";',
+  'import { screen } from "@8bitscript/screen";',
+  'import { text } from "@8bitscript/text";',
+  '',
+  'export function main(): void {',
+  '    screen.blank();',
+  '    input.begin();',
+  '    let confirms: usmallint = 0;',
+  '    let cancels: usmallint = 0;',
+  '    let lefts: usmallint = 0;',
+  '    let rights: usmallint = 0;',
+  '    let ups: usmallint = 0;',
+  '    let downs: usmallint = 0;',
+  '    while (true) {',
+  '        waitFrame();',
+  '        input.poll();',
+  '        if (input.confirm()) { confirms++; }',
+  '        if (input.cancel()) { cancels++; }',
+  '        if (input.left()) { lefts++; }',
+  '        if (input.right()) { rights++; }',
+  '        if (input.up()) { ups++; }',
+  '        if (input.down()) { downs++; }',
+  '        text.printNumber(0, confirms, 2);',
+  '        text.printNumber(22, cancels, 2);',
+  '        text.printNumber(44, lefts, 2);',
+  '        text.printNumber(66, rights, 2);',
+  '        text.printNumber(88, ups, 2);',
+  '        text.printNumber(110, downs, 2);',
+  '    }',
+  '}',
+  '',
+].join('\n');
+
+/** Runs `source` on the VIC-20's wasm build for `frames` frames: `setup(mem)` once before the program starts, then `onFrame(frame, mem)` as each waitFrame() is reached. */
+async function runWithKeys(source, frames, onFrame, setup = () => {}, hardware = {}) {
+  const dir = await mkdtemp(join(tmpdir(), '8bs-web-vic20-keys-'));
+  const prev = process.cwd();
+  try {
+    await writeFile(join(dir, 'main.8bs'), source);
+    process.chdir(dir);
+    const result = await silently(() => compile('vic20', join(dir, 'main.8bs'), { checkout: REPO, web: true, hardware }));
+    assert.equal(result.ok, true, 'builds for the VIC-20 through the wasm backend');
+    const bytes = await readFile(result.outFile);
+    let frame = 0;
+    let mem = null;
+    const program = await instantiateProgram(bytes, {
+      waitFrame() {
+        onFrame(frame, mem);
+        frame += 1;
+        if (frame > frames) throw new FrameLimitReached(frames);
+      },
+    });
+    mem = new Uint8Array(program.memory.buffer);
+    setup(mem);
+    try {
+      program.entry();
+    } catch (error) {
+      if (!(error instanceof FrameLimitReached)) throw error;
+    }
+    return mem;
+  } finally {
+    process.chdir(prev);
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
+// RETURN is already down when the program starts and let go at frame 2: no
+// press. A real press of confirm held across frames 5-7 counts once; a second
+// one at frame 12. Up and down together on frame 9; cancel, left and right on
+// their own frames.
+const heldAt = (frame) => {
+  if (frame < 2) return InputEdge.CONFIRM;
+  if (frame >= 5 && frame < 8) return InputEdge.CONFIRM;
+  if (frame === 12) return InputEdge.CONFIRM;
+  if (frame === 9) return InputEdge.UP | InputEdge.DOWN;
+  if (frame === 14) return InputEdge.CANCEL;
+  if (frame === 16) return InputEdge.LEFT;
+  if (frame === 18) return InputEdge.RIGHT;
+  return 0;
+};
+
+for (const [fit, hardware, screen] of [['unexpanded', {}, 0x1e00], ['8K', { ram: '8k' }, 0x1000]]) {
+  test(`the ${fit} VIC-20 wasm build's portable input reports a press once, on the frame it begins, and not a key already down at start-up`, async () => {
+    const layout = layoutForRealMachine('vic20', { facts: stockFacts('vic20') });
+    assert.equal(layout.inputOffset, 506 * 2 + 2, 'the byte the twin reads for a 22x23 grid: Video.CELL_COUNT * 2 + 2');
+    const mem = await runWithKeys(INPUT_PROGRAM, 22, (frame, memory) => {
+      memory[layout.inputOffset] = heldAt(frame);
+    }, (memory) => {
+      memory[layout.inputOffset] = InputEdge.CONFIRM;
+    }, hardware);
+    // '0' is screen code 48.
+    const printed = (cell) => (mem[screen + cell] - 48) * 10 + (mem[screen + cell + 1] - 48);
+    assert.equal(printed(0), 2, 'confirm: two presses, not the key down at start-up and not the frames it was held');
+    assert.equal(printed(22), 1, 'cancel');
+    assert.equal(printed(44), 1, 'left');
+    assert.equal(printed(66), 1, 'right');
+    assert.equal(printed(88), 1, 'up');
+    assert.equal(printed(110), 1, 'down');
+  });
+}
