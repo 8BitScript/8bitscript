@@ -42,12 +42,17 @@ the project overview is in the [root README](../../README.md).
 Each program in the launcher has three run buttons, and none needs another
 first:
 
-- **Run** runs the program's **WASM build** in a tab inside the editor. This
+- **Preview** runs the program's **WASM build** in a tab inside the editor. This
   is the primary way to run a program: it is 8BitScript's own implementation of
   the machine, compiled straight from your source, and it is the same build you
   can host, share or embed.
 - **Browser** runs the same WASM build in your web browser.
-- **Emulator** runs the real emulator (VICE, `x16emu`, …) with the program
+
+Under each name the button says where it will open: the editor you are in
+(Cursor, VS Code, …), your default browser (read from the system's https
+handler on macOS, Windows and Linux; no line when it cannot be told), and
+the emulator's own executable (`x64sc`, `xvic`, `x16emu`, …).
+- **Emulate** runs the real emulator (VICE, `x16emu`, …) with the program
   loaded. It is the second opinion — what the real machine shows — and the way
   to check that the WASM build is telling the truth (`8bs conform` does that
   comparison for you). Where a machine's WASM build cannot yet do something

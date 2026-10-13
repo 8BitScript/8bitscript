@@ -649,7 +649,7 @@
         "8bitscript.preferWebPreview": {
           "type": "boolean",
           "default": true,
-          "description": "Deprecated: the launcher remembers the runtime (Run, Browser or Emulator) per program. This only decides the first run of a program with no history: on (the default) is Run, off is Emulator. A machine with no WebAssembly build always starts Emulator. Open Studio does not consult it: Studio always opens in an editor tab on the WebAssembly build.",
+          "description": "Deprecated: the launcher remembers the runtime (Preview, Browser or Emulate) per program. This only decides the first run of a program with no history: on (the default) is Preview, off is Emulate. A machine with no WebAssembly build always starts Emulate. Open Studio does not consult it: Studio always opens in an editor tab on the WebAssembly build.",
           "deprecationMessage": "The launcher remembers the runtime per program. This setting now only picks the first run's default.",
           "markdownDeprecationMessage": "The launcher remembers the runtime per program. This setting now only picks the first run's default."
         },

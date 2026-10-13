@@ -259,7 +259,7 @@ test('the web target is already a browser page: Browser runs it, Editor serves i
     await vscode.__mock.trigger('8bitscript.runNative', { program: 'main', system: 'web' });
     await tick();
     assert.equal(started().length, before, 'there is no native web emulator');
-    assert.match(vscode.__mock.calls.showWarningMessage.at(-1)[0], /Emulator is not available.*no native emulator/);
+    assert.match(vscode.__mock.calls.showWarningMessage.at(-1)[0], /Emulate is not available.*no native emulator/);
   });
 });
 
@@ -273,7 +273,7 @@ test('a runtime the CLI says does not work is not run, and the reason is shown',
     assert.equal(started().length, 0);
     const messages = vscode.__mock.calls.showWarningMessage.map((call) => call[0]);
     assert.equal(messages.length, 2);
-    assert.match(messages[0], /Run is not available for main on c64: the C64 package pins arrays at fixed addresses/);
+    assert.match(messages[0], /Preview is not available for main on c64: the C64 package pins arrays at fixed addresses/);
     assert.match(messages[1], /Browser is not available/);
   });
 });
@@ -315,7 +315,7 @@ test('an emulator that is not installed offers to install it, and the answer ope
     await tick();
     assert.equal(started().length, 0);
     const [message, ...choices] = vscode.__mock.calls.showWarningMessage.at(-1);
-    assert.match(message, /Emulator is not available for main on c64: x64sc is not installed/);
+    assert.match(message, /Emulate is not available for main on c64: x64sc is not installed/);
     assert.deepEqual(choices, ['Install emulator…', 'Run Doctor']);
     assert.ok(vscode.__mock.executedCommands.some((c) => c.id === '8bitscript.doctorSetup'));
   });

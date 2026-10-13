@@ -116,7 +116,7 @@ const readyStates = (view) => view.posted.filter((m) => m.type === 'state' && m.
 /** The run commands do real work in the runner; here they only record what the view asked for. */
 const STUBBED = ['8bitscript.runUnit', '8bitscript.build', '8bitscript.openBareEmulator', '8bitscript.previewTab.show'];
 
-async function withLauncher(fn, { settings = {}, configure, cli: cliOptions } = {}) {
+async function withLauncher(fn, { settings = {}, configure, cli: cliOptions, detectBrowser = async () => null } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), '8bs-launcher-'));
   const store = new Map();
   const context = {
@@ -136,7 +136,7 @@ async function withLauncher(fn, { settings = {}, configure, cli: cliOptions } = 
     for (const id of STUBBED) vscode.__mock.commandHandlers.set(id, () => undefined);
     projects.projects[0].toolchain = cli;
     if (configure) configure(projects.projects[0], dir);
-    const provider = registerLauncherView(context, projects, null);
+    const provider = registerLauncherView(context, projects, null, { detectBrowser });
     const view = fakeView();
     provider.resolveWebviewView(view);
     const first = await stateAfter(view);
@@ -207,6 +207,22 @@ test('the page restricts what it can load to the extension\'s media directory wh
 
 // ── the state ───────────────────────────────────────────────────────────────
 
+test('the state names the editor and, once it answers, the default browser — asked once per window', async () => {
+  let asked = 0;
+  await withLauncher(async ({ view, provider, first }) => {
+    assert.equal(first.host.editor, 'VS Code', 'vscode.env.appName, shortened');
+    let latest = first;
+    for (let i = 0; i < 300 && latest.host.browser === null; i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      latest = view.posted.filter((m) => m.type === 'state' && m.state.phase === 'ready').at(-1).state;
+    }
+    assert.equal(latest.host.browser, 'Arc', 'posted again once the browser answered');
+    provider.resolveWebviewView(fakeView());
+    await tick();
+    assert.equal(asked, 1, 'not asked again when the view is resolved again');
+  }, { detectBrowser: async () => { asked += 1; return 'Arc'; } });
+});
+
 test('the first thing posted is the loading state, then the real one', async () => {
   await withLauncher(({ view }) => {
     const states = view.posted.filter((m) => m.type === 'state').map((m) => m.state.phase);
@@ -246,7 +262,7 @@ test('the C64 has no WASM build in the CLI\'s own report, so Editor and Browser 
   });
 });
 
-test('the PET has a WASM build, so Run is the default and Browser is available', async () => {
+test('the PET has a WASM build, so Preview is the default and Browser is available', async () => {
   await withLauncher(({ first }) => {
     const main = first.programs[0];
     assert.equal(main.runtimes.editor.ok && main.runtimes.browser.ok && main.runtimes.native.ok, true);
@@ -378,7 +394,7 @@ test('a remembered runtime that stopped working moves the primary and says why',
   await withLauncher(async ({ view }) => {
     const state = await send(view, { type: 'selectRuntime', program: 'main', runtime: 'native' });
     assert.equal(state.programs[0].primary, 'editor');
-    assert.equal(state.programs[0].primaryMoved, 'Emulator is unavailable here, so Run is the default.');
+    assert.equal(state.programs[0].primaryMoved, 'Emulate is unavailable here, so Preview is the default.');
   }, { settings: { system: 'web' } });
 });
 

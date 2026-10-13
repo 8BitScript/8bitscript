@@ -29,6 +29,7 @@ const { machineTree, readLastRun, rowKey } = require('./runningMachines.cjs');
 const { installRoots } = require('./projectInfo.cjs');
 const { quietly } = require('./quietly.cjs');
 const units = require('./units.cjs');
+const { defaultBrowser, editorName } = require('./hostNames.cjs');
 const {
   RUNTIMES, availabilityFromMatrix, inputRow, movedNote, normalizeState,
 } = require('./launcherState.cjs');
@@ -69,13 +70,18 @@ class LauncherViewProvider {
    * @param {import('./runner.cjs').Projects} projects
    * @param {ReturnType<import('./devReload.cjs').registerDevReload> | null} [devReload]
    * @param {import('vscode').ExtensionContext | null} [context]
+   * @param {{ detectBrowser?: () => Promise<string|null> }} [options]
    */
-  constructor(projects, devReload, context) {
+  constructor(projects, devReload, context, { detectBrowser = defaultBrowser } = {}) {
     this.projects = projects;
     this.devReload = devReload ?? null;
     this.context = context ?? null;
     this.view = undefined;
     this.loaded = false;
+    // The second line under Browser: asked once per window, shown when it
+    // answers, and never waited for — the panel draws without it first.
+    this.browserName = null;
+    this.detectBrowser = detectBrowser;
   }
 
   resolveWebviewView(view) {
@@ -106,6 +112,16 @@ class LauncherViewProvider {
     });
 
     void quietly('8BitScript launcher view', () => this.post());
+    if (this.detectBrowser && this.browserName === null) {
+      const detect = this.detectBrowser;
+      this.detectBrowser = null;
+      void quietly('8BitScript launcher view', async () => {
+        const name = await detect();
+        if (!name) return;
+        this.browserName = name;
+        if (this.view) await this.post();
+      });
+    }
   }
 
   /**
@@ -456,6 +472,7 @@ class LauncherViewProvider {
       collapsedGroups: [...new Set(programs.map((p) => p.group))].filter((g) => /^test\b/i.test(g)),
       command,
       running: this.runningRows(all, unit),
+      host: { editor: editorName(vscode.env.appName), browser: this.browserName },
     });
   }
 
@@ -613,9 +630,10 @@ function html(webview, media) {
  * @param {vscode.ExtensionContext} context
  * @param {import('./runner.cjs').Projects} projects
  * @param {ReturnType<import('./devReload.cjs').registerDevReload> | null} [devReload]
+ * @param {{ detectBrowser?: () => Promise<string|null> }} [options]
  */
-function registerLauncherView(context, projects, devReload) {
-  const provider = new LauncherViewProvider(projects, devReload, context);
+function registerLauncherView(context, projects, devReload, options) {
+  const provider = new LauncherViewProvider(projects, devReload, context, options);
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(VIEW_ID, provider, {
       webviewOptions: { retainContextWhenHidden: true },

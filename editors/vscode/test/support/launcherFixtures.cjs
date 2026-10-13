@@ -86,6 +86,7 @@ function vegas({ system = 'c64', program = 'slot3x3', remembered = {}, values = 
     command,
     running,
     history,
+    host: { editor: 'VS Code', browser: 'Chrome' },
   });
 }
 

@@ -20,7 +20,7 @@
 // ---- the API (stable: the launcher view is written against it) -------------
 //
 //   RUNTIMES                 ['editor', 'browser', 'native']
-//   RUNTIME_LABELS           { editor: 'Run', browser: 'Browser', native: 'Emulator' }
+//   RUNTIME_LABELS           { editor: 'Preview', browser: 'Browser', native: 'Emulate' }
 //
 //   normalizeProject(raw)    the JSON `8bs project --json` prints  -> UnitProject
 //   legacyProject(project)   what the regex config reader found    -> UnitProject
@@ -82,7 +82,7 @@ const fs = require('fs');
 const path = require('path');
 
 const RUNTIMES = ['editor', 'browser', 'native'];
-const RUNTIME_LABELS = { editor: 'Run', browser: 'Browser', native: 'Emulator' };
+const RUNTIME_LABELS = { editor: 'Preview', browser: 'Browser', native: 'Emulate' };
 
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
 const stringOrNull = (value) => (typeof value === 'string' && value !== '' ? value : null);

@@ -69,9 +69,9 @@
 
 /** The three places a program can run, in the order they are always shown. */
 const RUNTIMES = Object.freeze([
-  { id: 'editor', label: 'Run', icon: 'open-preview', long: 'Editor tab', what: 'Runs the WASM build in a tab inside the editor. The primary way to run a program.' },
+  { id: 'editor', label: 'Preview', icon: 'window', long: 'Editor tab', what: 'Runs the WASM build in a tab inside the editor. The primary way to run a program.' },
   { id: 'browser', label: 'Browser', icon: 'globe', long: 'Web browser', what: 'Runs the WASM build in your web browser: the page you can share.' },
-  { id: 'native', label: 'Emulator', icon: 'device-desktop', long: 'Native emulator (verification)', what: 'Runs the real emulator for this machine: the second opinion on what the WASM build shows.' },
+  { id: 'native', label: 'Emulate', icon: 'device-desktop', long: 'Native emulator (verification)', what: 'Runs the real emulator for this machine: the second opinion on what the WASM build shows.' },
 ].map(Object.freeze));
 
 const RUNTIME_IDS = RUNTIMES.map((r) => r.id);
@@ -180,6 +180,7 @@ function normalizeState(raw = {}) {
     command: str(raw.command),
     running: arr(raw.running),
     history: arr(raw.history),
+    host: { editor: str(raw.host?.editor) || null, browser: str(raw.host?.browser) || null },
   };
 }
 

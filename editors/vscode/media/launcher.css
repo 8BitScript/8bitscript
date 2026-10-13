@@ -122,7 +122,15 @@ button { cursor: pointer; }
 
 /* ── runtime buttons ──────────────────────────────────────────────────────── */
 .runs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
-.run { height: 32px; padding: 0 8px; gap: 6px; }
+/* A tile: the icon, the runtime's name, and under it where it will open (the
+   editor, the default browser, the emulator binary) — centred so three sit
+   evenly side by side at any width the side bar allows. */
+.run { height: auto; min-height: 60px; padding: 8px 4px 7px; flex-direction: column; gap: 4px; justify-content: center; min-width: 0; }
+.run .codicon { font-size: 18px; flex: none; }
+.run .txt { display: flex; flex-direction: column; align-items: center; max-width: 100%; min-width: 0; line-height: 15px; }
+.run .name { font-weight: 600; }
+.run .where { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; line-height: 13px; opacity: .72; }
+.run.primary .where { opacity: .85; }
 .hint { margin: 8px 0 0; min-height: 16px; font-size: 11px; line-height: 16px; color: var(--muted); }
 .reason { display: flex; gap: 8px; margin-top: 8px; padding: 8px 10px; border-radius: var(--r); font-size: 12px; line-height: 16px;
   background: var(--vscode-textCodeBlock-background); border: 1px solid var(--line); }
@@ -255,8 +263,7 @@ button { cursor: pointer; }
 /* Narrow: below 256px the pickers stack and the run buttons put the icon over the word.
    Last on purpose, so it wins over the base rules above. */
 @container (max-width: 256px) {
-  .runs .run { height: 52px; flex-direction: column; gap: 2px; justify-content: center; padding: 0 2px; font-size: 12px; }
-  .runs .run .codicon { font-size: 18px; }
+  .runs .run { padding: 7px 2px 6px; font-size: 12px; }
   .project .sub { display: none; }
   .strip { grid-template-columns: minmax(0, 1fr); }
   .legend .lbl { display: none; }

@@ -21,7 +21,7 @@
     'go-to-file': 60052, info: 60020, 'settings-gear': 60241, 'debug-restart': 60114, 'chevron-down': 60084,
     'chevron-right': 60086, 'chevron-up': 60087, ellipsis: 60028, refresh: 60215, pulse: 60209, rocket: 60228,
     check: 60082, close: 60022, warning: 60012, error: 60039, copy: 60364, 'folder-opened': 60151,
-    'link-external': 60180, search: 60013, package: 60201, terminal: 60037, add: 60000,
+    'link-external': 60180, search: 60013, package: 60201, terminal: 60037, add: 60000, window: 60287,
   };
 
   let state = null;
@@ -44,13 +44,14 @@
       ...raw,
       phase: raw.phase || 'ready',
       runtimes: list(raw.runtimes).length ? raw.runtimes : [
-        { id: 'editor', label: 'Run', icon: 'open-preview', long: 'Editor tab', what: 'Runs the WASM build in a tab inside the editor. The primary way to run a program.' },
+        { id: 'editor', label: 'Preview', icon: 'window', long: 'Editor tab', what: 'Runs the WASM build in a tab inside the editor. The primary way to run a program.' },
         { id: 'browser', label: 'Browser', icon: 'globe', long: 'Web browser', what: 'Runs the WASM build in your web browser: the page you can share.' },
-        { id: 'native', label: 'Emulator', icon: 'device-desktop', long: 'Native emulator (verification)', what: 'Runs the real emulator for this machine: the second opinion on what the WASM build shows.' },
+        { id: 'native', label: 'Emulate', icon: 'device-desktop', long: 'Native emulator (verification)', what: 'Runs the real emulator for this machine: the second opinion on what the WASM build shows.' },
       ],
       notices: list(raw.notices), projects: list(raw.projects), systems: list(raw.systems), programs: list(raw.programs),
       collapsedGroups: list(raw.collapsedGroups), running: list(raw.running), history: list(raw.history),
       command: raw.command || '',
+      host: raw.host || {},
     };
   }
 
@@ -251,9 +252,19 @@
         fix));
   }
 
+  // The second line under each runtime's name: where it will actually open.
+  // Only what is known — no line rather than a guess.
+  function runtimeWhere(id, sys) {
+    if (id === 'editor') return state.host.editor || null;
+    if (id === 'browser') return state.host.browser || null;
+    if (id === 'native') return sys.emulator || null;
+    return null;
+  }
+
   function runButtons(p) {
     const sys = systemOf(state.system) || { name: state.system };
     const buttons = state.runtimes.map((r) => {
+      const where = runtimeWhere(r.id, sys);
       const a = p.runtimes[r.id];
       const ok = p.onSystem && a.ok;
       const isPrimary = ok && r.id === p.primary;
@@ -262,7 +273,7 @@
         class: `btn run${isPrimary ? ' primary' : ''}`, 'data-action': 'run', 'data-runtime': r.id, 'data-program': p.id, 'data-hint': r.what,
         'aria-disabled': ok ? null : 'true', 'aria-describedby': ok ? null : `reason-${p.id}`, title: ok ? label : `${r.long} unavailable: ${a.reason || ''}`, 'aria-label': ok ? label : `${r.long} unavailable`,
         'data-key': `big:${p.id}:${r.id}`,
-      }, icon(r.icon), h('span', null, r.label));
+      }, icon(r.icon), h('span', { class: 'txt' }, h('span', { class: 'name' }, r.label), where && h('span', { class: 'where' }, where)));
     });
     const lead = state.runtimes.find((r) => r.id === p.primary);
     const hint = lead ? (lead.id === 'native' && sys.emulator ? `Runs the real ${sys.emulator} emulator with ${p.title} loaded. The second opinion on what the WASM build shows.` : lead.what) : 'Nothing can run this combination.';
