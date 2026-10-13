@@ -29,6 +29,8 @@ const { machineTree, readLastRun, rowKey } = require('./runningMachines.cjs');
 const { installRoots } = require('./projectInfo.cjs');
 const { quietly } = require('./quietly.cjs');
 const units = require('./units.cjs');
+const { defaultBrowser, editorName } = require('./hostNames.cjs');
+const { reloadCommandFor } = require('./devReload.cjs');
 const {
   RUNTIMES, availabilityFromMatrix, inputRow, movedNote, normalizeState,
 } = require('./launcherState.cjs');
@@ -69,13 +71,18 @@ class LauncherViewProvider {
    * @param {import('./runner.cjs').Projects} projects
    * @param {ReturnType<import('./devReload.cjs').registerDevReload> | null} [devReload]
    * @param {import('vscode').ExtensionContext | null} [context]
+   * @param {{ detectBrowser?: () => Promise<string|null> }} [options]
    */
-  constructor(projects, devReload, context) {
+  constructor(projects, devReload, context, { detectBrowser = defaultBrowser } = {}) {
     this.projects = projects;
     this.devReload = devReload ?? null;
     this.context = context ?? null;
     this.view = undefined;
     this.loaded = false;
+    // The second line under Browser: asked once per window, shown when it
+    // answers, and never waited for — the panel draws without it first.
+    this.browserName = null;
+    this.detectBrowser = detectBrowser;
   }
 
   resolveWebviewView(view) {
@@ -106,6 +113,16 @@ class LauncherViewProvider {
     });
 
     void quietly('8BitScript launcher view', () => this.post());
+    if (this.detectBrowser && this.browserName === null) {
+      const detect = this.detectBrowser;
+      this.detectBrowser = null;
+      void quietly('8BitScript launcher view', async () => {
+        const name = await detect();
+        if (!name) return;
+        this.browserName = name;
+        if (this.view) await this.post();
+      });
+    }
   }
 
   /**
@@ -188,7 +205,7 @@ class LauncherViewProvider {
         await vscode.env.openExternal(vscode.Uri.parse(DOCS_URL));
         return;
       case 'reloadWindow':
-        await vscode.commands.executeCommand('workbench.action.reloadWindow');
+        await vscode.commands.executeCommand(reloadCommandFor({ phase: this.devReload?.phase, reload: this.devReload?.reload }));
         return;
       default:
         // Only the ids the page can name, so a message cannot run anything else.
@@ -456,6 +473,7 @@ class LauncherViewProvider {
       collapsedGroups: [...new Set(programs.map((p) => p.group))].filter((g) => /^test\b/i.test(g)),
       command,
       running: this.runningRows(all, unit),
+      host: { editor: editorName(vscode.env.appName), browser: this.browserName },
     });
   }
 
@@ -529,7 +547,9 @@ class LauncherViewProvider {
       }[phase] ?? '';
       const actions = [];
       if (phase === 'dirty' || phase === 'error') actions.push({ label: 'Rebuild the local extension', icon: 'tools', msg: { type: 'rebuildExtension' } });
-      if (phase === 'ready') actions.push({ label: 'Reload this window', icon: 'refresh', msg: { type: 'reloadWindow' } });
+      // A restart of the extension host shows src/ and media/ changes; only
+      // the manifest, a grammar or the like needs the whole window reloaded.
+      if (phase === 'ready') actions.push({ label: this.devReload?.reload ? 'Reload this window' : 'Restart the extension', icon: 'refresh', msg: { type: 'reloadWindow' } });
       notices.push({ id: 'dev-reload', kind: phase === 'error' ? 'error' : 'info', icon: 'tools', text, actions });
     }
     const missing = packageRows({ folders, setting, managed: this.projects.managedDir, projects: this.projects.projects });
@@ -613,9 +633,10 @@ function html(webview, media) {
  * @param {vscode.ExtensionContext} context
  * @param {import('./runner.cjs').Projects} projects
  * @param {ReturnType<import('./devReload.cjs').registerDevReload> | null} [devReload]
+ * @param {{ detectBrowser?: () => Promise<string|null> }} [options]
  */
-function registerLauncherView(context, projects, devReload) {
-  const provider = new LauncherViewProvider(projects, devReload, context);
+function registerLauncherView(context, projects, devReload, options) {
+  const provider = new LauncherViewProvider(projects, devReload, context, options);
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(VIEW_ID, provider, {
       webviewOptions: { retainContextWhenHidden: true },

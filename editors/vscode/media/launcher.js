@@ -21,7 +21,7 @@
     'go-to-file': 60052, info: 60020, 'settings-gear': 60241, 'debug-restart': 60114, 'chevron-down': 60084,
     'chevron-right': 60086, 'chevron-up': 60087, ellipsis: 60028, refresh: 60215, pulse: 60209, rocket: 60228,
     check: 60082, close: 60022, warning: 60012, error: 60039, copy: 60364, 'folder-opened': 60151,
-    'link-external': 60180, search: 60013, package: 60201, terminal: 60037, add: 60000,
+    'link-external': 60180, search: 60013, package: 60201, terminal: 60037, add: 60000, window: 60287,
   };
 
   let state = null;
@@ -32,9 +32,10 @@
     collapsed: {},       // group name -> true/false (overrides the state's default)
     menu: null,          // 'project' | 'system' | 'more' | null
     navKey: null,        // the one list control in the tab order
+    tab: 'programs',     // 'programs' | 'running': which pane fills the middle
     ...saved,
   };
-  const persist = () => vscode.setState({ filter: ui.filter, open: ui.open, collapsed: ui.collapsed, navKey: ui.navKey });
+  const persist = () => vscode.setState({ filter: ui.filter, open: ui.open, collapsed: ui.collapsed, navKey: ui.navKey, tab: ui.tab });
   const post = (message) => vscode.postMessage(message);
 
   /** A posted state with every list a list, so a short or older message cannot break the page. */
@@ -44,13 +45,14 @@
       ...raw,
       phase: raw.phase || 'ready',
       runtimes: list(raw.runtimes).length ? raw.runtimes : [
-        { id: 'editor', label: 'Editor', icon: 'open-preview', long: 'Editor tab', what: 'Runs the WASM build in a tab inside the editor. The primary way to run a program.' },
+        { id: 'editor', label: 'Preview', icon: 'window', long: 'Editor tab', what: 'Runs the WASM build in a tab inside the editor. The primary way to run a program.' },
         { id: 'browser', label: 'Browser', icon: 'globe', long: 'Web browser', what: 'Runs the WASM build in your web browser: the page you can share.' },
-        { id: 'native', label: 'Native', icon: 'device-desktop', long: 'Native emulator (verification)', what: 'Runs the real emulator for this machine: the second opinion on what the WASM build shows.' },
+        { id: 'native', label: 'Emulate', icon: 'device-desktop', long: 'Native emulator (verification)', what: 'Runs the real emulator for this machine: the second opinion on what the WASM build shows.' },
       ],
       notices: list(raw.notices), projects: list(raw.projects), systems: list(raw.systems), programs: list(raw.programs),
       collapsedGroups: list(raw.collapsedGroups), running: list(raw.running), history: list(raw.history),
       command: raw.command || '',
+      host: raw.host || {},
     };
   }
 
@@ -251,9 +253,19 @@
         fix));
   }
 
+  // The second line under each runtime's name: where it will actually open.
+  // Only what is known — no line rather than a guess.
+  function runtimeWhere(id, sys) {
+    if (id === 'editor') return state.host.editor || null;
+    if (id === 'browser') return state.host.browser || null;
+    if (id === 'native') return sys.emulator || null;
+    return null;
+  }
+
   function runButtons(p) {
     const sys = systemOf(state.system) || { name: state.system };
     const buttons = state.runtimes.map((r) => {
+      const where = runtimeWhere(r.id, sys);
       const a = p.runtimes[r.id];
       const ok = p.onSystem && a.ok;
       const isPrimary = ok && r.id === p.primary;
@@ -262,7 +274,7 @@
         class: `btn run${isPrimary ? ' primary' : ''}`, 'data-action': 'run', 'data-runtime': r.id, 'data-program': p.id, 'data-hint': r.what,
         'aria-disabled': ok ? null : 'true', 'aria-describedby': ok ? null : `reason-${p.id}`, title: ok ? label : `${r.long} unavailable: ${a.reason || ''}`, 'aria-label': ok ? label : `${r.long} unavailable`,
         'data-key': `big:${p.id}:${r.id}`,
-      }, icon(r.icon), h('span', null, r.label));
+      }, icon(r.icon), h('span', { class: 'txt' }, h('span', { class: 'name' }, r.label), where && h('span', { class: 'where' }, where)));
     });
     const lead = state.runtimes.find((r) => r.id === p.primary);
     const hint = lead ? (lead.id === 'native' && sys.emulator ? `Runs the real ${sys.emulator} emulator with ${p.title} loaded. The second opinion on what the WASM build shows.` : lead.what) : 'Nothing can run this combination.';
@@ -280,7 +292,6 @@
     return h('div', { class: `drawer${single ? ' single' : ''}`, role: 'region', 'aria-label': `${p.title} details` },
       p.description && h('p', { class: 'desc' }, p.description),
       p.entry && h('button', { class: 'source', 'data-action': 'openSource', 'data-program': p.id, 'data-key': `source:${p.id}`, title: `Open the entry file of ${p.title}`, 'aria-label': `Open source file ${p.entry}` }, icon('go-to-file'), h('span', null, p.entry)),
-      single && h('div', { class: 'subh' }, runButtons(p)),
       p.primaryMoved && h('p', { class: 'hint' }, p.primaryMoved),
       reason,
       inputs && h('div', { class: 'subh' }, inputs),
@@ -324,7 +335,7 @@
       h('span', { class: 'acts', role: 'group', 'aria-label': `Run ${p.title} in` }, btns));
   }
 
-  function programList(single) {
+  function programList() {
     const q = ui.filter.trim().toLowerCase();
     const shown = state.programs.filter((p) => !q || p.title.toLowerCase().includes(q) || p.id.toLowerCase().includes(q));
     const groups = [];
@@ -345,12 +356,14 @@
           icon(collapsed ? 'chevron-right' : 'chevron-down'), h('span', null, g.name), h('span', { class: 'grow' }), h('span', { class: 'n' }, g.items.length)),
         rows));
     }
-    return [
-      state.programs.length > 7 && h('div', { class: 'filter' }, icon('search'),
-        h('input', { class: 'input', 'data-filter': 'true', 'data-key': 'filter', placeholder: 'Filter programs', 'aria-label': 'Filter programs', value: ui.filter })),
-      h('div', { class: 'legend', 'aria-hidden': 'true' }, h('span', { class: 'lead' }, 'Programs'), state.runtimes.map((r) => h('span', null, icon(r.icon), h('span', { class: 'lbl' }, r.label)))),
-      h('div', { role: 'list', 'aria-label': 'Programs' }, out.length > 0 ? out : h('p', { class: 'none' }, `No programs match “${ui.filter}”.`)),
-    ];
+    return h('div', { role: 'list', 'aria-label': 'Programs' }, out.length > 0 ? out : h('p', { class: 'none' }, `No programs match “${ui.filter}”.`));
+  }
+
+  // The filter sits above the list and never scrolls with it: a long project
+  // is narrowed from a box that is always in the same place.
+  function filterBox() {
+    return h('div', { class: 'filter' }, icon('search'),
+      h('input', { class: 'input', 'data-filter': 'true', 'data-key': 'filter', placeholder: 'Filter programs', 'aria-label': 'Filter programs', value: ui.filter }));
   }
 
   // ── running ───────────────────────────────────────────────────────────────
@@ -391,57 +404,95 @@
       h('button', { class: 'ibtn', 'data-action': 'rerun', 'data-history': x.id, 'data-key': `again:${x.id}`, title: 'Run again', 'aria-label': `Run ${x.title} again` }, icon('debug-restart')));
   }
 
-  function tools() {
-    const row = (ico, name, sub, action) => h('button', { class: 'row-btn', 'data-action': action, 'data-key': `tool:${action}` }, icon(ico), h('span', { class: 'who' }, h('div', null, name), h('div', { class: 'sub' }, sub)), icon('chevron-right'));
+  // The foot of the panel: the tools, one row, always in reach.
+  function footer() {
+    const b = (ico, name, action, title) => h('button', { class: 'foot-btn', 'data-action': action, 'data-key': `tool:${action}`, title }, icon(ico), h('span', null, name));
     // Studio opens in an editor tab on our own wasm build; the real emulator is a
     // separate, labelled button beside it, not a hidden fallback.
-    const studio = h('div', { class: 'row-split' },
-      row('rocket', 'Studio', 'Edit sprites, sound and tiles, in an editor tab', 'studio'),
-      h('button', { class: 'ibtn', 'data-action': 'studioNative', 'data-key': 'tool:studioNative', title: 'Open Studio in the native emulator (x16emu)', 'aria-label': 'Open Studio in the native emulator' }, icon('device-desktop')));
-    return [sectionLabel('Tools'), h('div', { class: 'rows' }, studio, row('pulse', 'Doctor', 'Check the toolchains and emulators', 'doctor'), row('info', 'Project details', 'Config, packages, systems', 'details'))];
+    return h('div', { class: 'foot', role: 'toolbar', 'aria-label': 'Tools' },
+      b('rocket', 'Studio', 'studio', 'Studio: edit sprites, sound and tiles, in an editor tab'),
+      h('button', { class: 'ibtn', 'data-action': 'studioNative', 'data-key': 'tool:studioNative', title: 'Open Studio in the native emulator (x16emu)', 'aria-label': 'Open Studio in the native emulator' }, icon('device-desktop')),
+      h('span', { class: 'grow' }),
+      b('pulse', 'Doctor', 'doctor', 'Doctor: check the toolchains and emulators'),
+      b('info', 'Details', 'details', 'Project details: config, packages, systems'));
+  }
+
+  // Programs | Running: which pane fills the middle. Each has its count; the
+  // running one carries the live dot, so a run is visible from either pane.
+  function tabs() {
+    const t = (id, label, count, live) => h('button', {
+      class: `tab${ui.tab === id ? ' on' : ''}`, role: 'tab', 'aria-selected': String(ui.tab === id), 'data-action': 'tab', 'data-tab': id, 'data-key': `tab:${id}`,
+    }, live && h('span', { class: 'dot' }), h('span', null, label), count > 0 && h('span', { class: 'badge' }, count));
+    return h('div', { class: 'seg', role: 'tablist', 'aria-label': 'Panes' },
+      t('programs', 'Programs', state.programs.length, false),
+      t('running', 'Running', state.running.length, state.running.length > 0));
+  }
+
+  function runningPane() {
+    return [
+      state.running.length === 0
+        ? h('p', { class: 'muted small' }, 'Nothing is running. Run a program and it shows up here.')
+        : h('div', { class: 'items', role: 'list', 'aria-label': 'Running' }, state.running.map(runItem)),
+      state.history.length > 0 && [sectionLabel('Recent'), h('div', { class: 'hist', role: 'list' }, state.history.map(historyRow))],
+    ];
+  }
+
+  // The selected program's run tiles, in the header: whatever the list is
+  // scrolled to, what a click will run is always in view, and named.
+  function focusBlock(p) {
+    return h('div', { class: 'focus' },
+      h('div', { class: 'focus-name' }, h('span', { class: 'lbl' }, 'Program'), h('b', null, p.title)),
+      runButtons(p));
   }
 
   // ── the whole page ────────────────────────────────────────────────────────
   function view() {
     navRow = 0;
-    const out = [];
-    state.notices.forEach((n) => out.push(notice(n)));
-    if (state.phase === 'loading') { out.push(skeleton()); return out; }
-    if (state.phase === 'empty' || !state.project) { out.push(emptyState()); return out; }
+    const notices = state.notices.map(notice);
+    if (state.phase === 'loading') { root.className = 'plain'; return [notices, skeleton()]; }
+    if (state.phase === 'empty' || !state.project) { root.className = 'plain'; return [notices, emptyState()]; }
+    root.className = '';
 
     const sys = systemOf(state.system);
     const several = state.programs.length > 1;
     const p = selected();
+    const systemPicker = picker('System', 'lbl-system', sys ? sys.short : state.system, sys && sys.region && sys.region !== '—' ? sys.region : sys && !sys.emulator ? 'browser' : null, 'menu-system', ui.menu === 'system');
+
+    // Fixed: what is chosen and what a click will run.
+    const head = [notices];
     if (several) {
-      out.push(h('div', { class: 'strip' },
+      head.push(h('div', { class: 'strip' },
         picker('Project', 'lbl-project', state.project.name, null, 'menu-project', ui.menu === 'project'),
-        picker('System', 'lbl-system', sys ? sys.short : state.system, sys && sys.region && sys.region !== '—' ? sys.region : sys && !sys.emulator ? 'browser' : null, 'menu-system', ui.menu === 'system')));
+        systemPicker,
+        ui.menu === 'project' && projectMenu(),
+        ui.menu === 'system' && systemMenu()));
     } else {
-      out.push(h('div', { class: 'project' }, h('img', { src: root.dataset.logo || '', alt: '' }),
+      head.push(h('div', { class: 'project' }, h('img', { src: root.dataset.logo || '', alt: '' }),
         h('div', { class: 'who' }, h('div', { class: 'name' }, state.project.name), state.project.sub && state.project.sub !== state.project.name && h('div', { class: 'sub' }, state.project.sub)),
         h('button', { class: 'ibtn', 'data-action': 'details', 'data-key': 'project:details', title: 'Project details', 'aria-label': 'Project details' }, icon('info'))));
-      out.push(h('div', { class: 'strip one' }, picker('System', 'lbl-system', sys ? sys.short : state.system, sys && sys.region && sys.region !== '—' ? sys.region : null, 'menu-system', ui.menu === 'system')));
+      head.push(h('div', { class: 'strip one' }, systemPicker, ui.menu === 'system' && systemMenu()));
     }
-    if (ui.menu === 'project') out.push(projectMenu());
-    if (ui.menu === 'system') out.push(systemMenu());
     if (state.summary) {
-      out.push(h('div', { class: 'summary row' },
+      head.push(h('div', { class: 'summary row' },
         h('span', null, h('b', null, state.summary.name), ` · ${state.summary.text}`),
         h('button', { class: 'ibtn', 'data-action': 'configureSystem', 'data-key': 'summary:options', title: 'Hardware, region and language for this run', 'aria-label': 'Hardware, region and language' }, icon('settings-gear'))));
     }
-    if (state.programs.length === 0) out.push(h('p', { class: 'none' }, 'No programs found in this project. Add one to the config’s programs.'));
-    else if (several) out.push(programList());
-    else if (p) {
-      if (p.title !== state.project.name) out.push(h('div', { class: 'ptitle' }, p.title));
-      out.push(drawer(p, true));
+    if (p) head.push(focusBlock(p));
+
+    // Scrolls: the one pane the tabs pick.
+    const body = [tabs()];
+    if (ui.tab === 'running') {
+      body.push(h('div', { class: 'scroll', role: 'tabpanel', 'aria-label': 'Running' }, runningPane()));
+    } else if (state.programs.length === 0) {
+      body.push(h('div', { class: 'scroll', role: 'tabpanel' }, h('p', { class: 'none' }, 'No programs found in this project. Add one to the config’s programs.')));
+    } else if (several) {
+      if (state.programs.length > 7) body.push(filterBox());
+      body.push(h('div', { class: 'scroll', role: 'tabpanel', 'aria-label': 'Programs' }, programList()));
+    } else {
+      body.push(h('div', { class: 'scroll', role: 'tabpanel', 'aria-label': p.title }, drawer(p, true)));
     }
-    out.push(sectionLabel('Running', state.running.length));
-    out.push(state.running.length === 0
-      ? h('p', { class: 'muted small' }, 'Nothing is running. Run a program above and it shows up here.')
-      : h('div', { class: 'items', role: 'list' }, state.running.map(runItem)));
-    if (state.history.length > 0) out.push(sectionLabel('Recent'), h('div', { class: 'hist', role: 'list' }, state.history.map(historyRow)));
-    out.push(...tools());
-    return out;
+
+    return [h('div', { class: 'hdr' }, head), h('div', { class: 'body' }, body), footer()];
   }
 
   // ── rendering, focus and roving tabindex ──────────────────────────────────
@@ -523,6 +574,7 @@
       case 'menu-system': setMenu('system', 'picker:System'); break;
       case 'menu': setMenu(el.getAttribute('data-menu-name'), `more:${state.program}`); break;
       case 'toggle': { const id = el.getAttribute('data-open'); ui.open[id] = !ui.open[id]; persist(); render(); break; }
+      case 'tab': ui.tab = el.getAttribute('data-tab') === 'running' ? 'running' : 'programs'; persist(); render(); focusKey(`tab:${ui.tab}`); break;
       case 'toggle-group': {
         const name = el.getAttribute('data-group');
         const now = name in ui.collapsed ? ui.collapsed[name] : state.collapsedGroups.includes(name);
@@ -556,7 +608,11 @@
   function disabled(el) {
     const id = el.getAttribute('data-program');
     if (!id) return;
-    if (id !== state.program) { state.program = id; ui.navKey = `row:${id}`; post({ type: 'select', program: id }); render(); }
+    // The reason lives in the program's drawer, on the Programs pane.
+    const move = id !== state.program || ui.tab !== 'programs';
+    if (id !== state.program) { state.program = id; ui.navKey = `row:${id}`; post({ type: 'select', program: id }); }
+    if (ui.tab !== 'programs') { ui.tab = 'programs'; persist(); }
+    if (move) render();
     focusKey(`reason:${id}`);
   }
 

@@ -42,12 +42,17 @@ the project overview is in the [root README](../../README.md).
 Each program in the launcher has three run buttons, and none needs another
 first:
 
-- **Editor** runs the program's **WASM build** in a tab inside the editor. This
+- **Preview** runs the program's **WASM build** in a tab inside the editor. This
   is the primary way to run a program: it is 8BitScript's own implementation of
   the machine, compiled straight from your source, and it is the same build you
   can host, share or embed.
 - **Browser** runs the same WASM build in your web browser.
-- **Native** runs the real emulator (VICE, `x16emu`, …) with the program
+
+Under each name the button says where it will open: the editor you are in
+(Cursor, VS Code, …), your default browser (read from the system's https
+handler on macOS, Windows and Linux; no line when it cannot be told), and
+the emulator's own executable (`x64sc`, `xvic`, `x16emu`, …).
+- **Emulate** runs the real emulator (VICE, `x16emu`, …) with the program
   loaded. It is the second opinion — what the real machine shows — and the way
   to check that the WASM build is telling the truth (`8bs conform` does that
   comparison for you). Where a machine's WASM build cannot yet do something
@@ -178,55 +183,68 @@ file explorer, search, and source control live. Clicking it opens a side
 bar with one thing in it: a launcher.
 
 ```
-8BITSCRIPT                              📖  🚀  ♥  ⟳  …
-
-  8BITSCRIPT
-    8BitScript     this workspace · pnpm    Update
-    2048           0.7.1 · pnpm             Update
-
-  QUICK LAUNCH
-    PROGRAM  [ 2048  —  ../2048                 ▾ ] 📄
-    ENTRY    [ main                             ▾ ]   (only with several `programs`)
-    SYSTEM   [ PET 2001 (8K)                    ▾ ]
-    fitted as Commodore PET · ram=8 · NTSC
-
-  ┌──────────────────────────────────────────────┐
-  │  ▶   Run 2048                                │
-  │      PET 2001 (8K) · ram=8                   │
-  └──────────────────────────────────────────────┘
-
-  RUNNING MACHINES
-    ▾ 2048           run · pet · 12s        ⏹
-        Emulator   xpet
-        Image      dist/2048-pet.prg
-        Memory     8 bytes RAM · 331 bytes program
-
-  8bs run --system 'PET 2001 (8K)' --checkout /src/8bitscript --size
+  PROJECT              SYSTEM
+  [ Vegas Nights  ▾ ]  [ C64  NTSC     ▾ ]        fixed
+  Commodore 64 · 64 KB · NTSC · English       ⚙
+  PROGRAM  3×3 Slot
+  ┌──────────┬──────────┬──────────┐
+  │ Preview  │ Browser  │ Emulate  │
+  │ Cursor   │ Safari   │ x64sc    │
+  └──────────┴──────────┴──────────┘
+  Runs the real x64sc emulator with 3×3 Slot loaded…
+  ─────────────────────────────────────────────
+  Programs 10   ● Running 2                       fixed
+  🔍 Filter programs
+  ▾ SLOTS                                    3  ┐
+    3×3 Slot                        ▢  ⊕  ▭    │ scrolls
+      Three paylines across the middle…       │
+      ⎘ src/labs/slot3x3/main.8bs              │
+      › Inputs 3                     defaults  │
+      Build   Command                      …   │
+    5×5 Ways Slot                              │
+    Lobby                                      ┘
+  ─────────────────────────────────────────────
+  🚀 Studio  ▭        ♥ Doctor     ⓘ Details     fixed
 ```
 
-The side bar is **the 8BitScript tree, each workspace program, and
-named-system quick launch**. **Update** on **8BitScript** refreshes the
+The panel is three bands, and only the middle one scrolls. The **head** is
+what is chosen and what a click will run: the **Project** and **System**
+pickers, a one-line summary of the fitted machine (the gear opens
+**Configure System**), and the three run tiles for the selected program —
+**Preview**, **Browser**, **Emulate** — each saying under its name where it
+will open. The tiles never leave the screen, however long the list below
+is. The middle is one of two panes, **Programs** or **Running**, with a
+filter box above the list once a project has more than seven programs.
+Selecting a program row moves the tiles to it and opens a drawer under the
+row with its description, source file, **Inputs**, **Build** and
+**Command**; a row's own three small run buttons appear when the row is
+pointed at, selected or focused, and stay lit while that run is live.
+**Running** lists each live run with Stop and its details, and **Recent**
+below it. The **foot** is the tools: **Studio**, its native-emulator
+button, **Doctor** and **Project details**.
+
+**Update** on the **8BitScript** entry in the Project menu refreshes the
 toolchain: `pnpm install` at this workspace if it is the 8BitScript repo,
 `git pull` plus install for a clone the editor keeps under its global
 storage, or **Install** clones `https://github.com/8BitScript/8bitscript.git`
-(`trunk`) into that storage when nothing is there yet. A second row
-appears for each **program** in the workspace — 2048, not hello-world,
-not Studio — with its own Update. Examples and apps are in the Program
-dropdown, not as install buttons. Hardware fitting and project details
-live in editor tabs — **Configure System** and **Show Project** — the
-same pattern as Controller Setup. The hardware matrix is not in the
-side bar.
+(`trunk`) into that storage when nothing is there yet. Hardware fitting and
+project details live in editor tabs — **Configure System** and **Show
+Project** — the same pattern as Controller Setup. The hardware matrix is
+not in the side bar.
 
-- **Entry** — a project whose config lists several `programs` (a lobby and
-  a set of small labs, say) gets an **Entry** dropdown under Program. Run and
-  Build pass the choice on as `--program <name>`, the System list narrows to
-  the machines that program's own `targets` allow, and the pick is remembered
-  per project (`8bitscript.program`). With a `main` and nothing chosen, `main`
-  runs; with several programs and no `main`, Run asks once. Tasks: Run Task
-  lists every program on each of its machines, and a `tasks.json` entry can
-  name its own with `"program": "<name>"`. A project with one program shows no
-  dropdown and passes no flag.
-- **Run** — starts `8bs run --system '<name>' --size` (or `8bs run <machine>`) for the selected project as a task in
+- **Programs** — a project whose config lists several `programs` (a lobby
+  and a set of small labs, say) shows them as the list, grouped by their
+  `group`. Selecting one moves the run tiles to it; a run or a Build passes
+  the choice on as `--program <name>`, the System list narrows to the
+  machines that program's own `targets` allow, and the pick is remembered
+  per project (`8bitscript.program`). With a `main` and nothing chosen,
+  `main` runs; with several programs and no `main`, Run asks once. Tasks:
+  Run Task lists every program on each of its machines, and a `tasks.json`
+  entry can name its own with `"program": "<name>"`. A project with one
+  program shows no list, only the program's own drawer, and passes no flag.
+- **Preview, Browser, Emulate** — each starts `8bs run --system '<name>'
+  --size` (or `8bs run <machine>`), with the runtime's own flags
+  (`--web --no-open`, `--web`, none), for the selected program as a task in
   its own terminal, from the project's directory. A **Use local 8BitScript**
   toggle runs this checkout's CLI (`--checkout`) instead of
   `node_modules/.bin/8bs`, so a consumer app can keep published versions in
@@ -249,19 +267,19 @@ side bar.
   line under it names the machine, the hardware fitted to it, and the
   region — nothing has to be read off a dropdown to know what pressing it
   means. It greys out when the selected project does not target the selected
-  system, or its emulator is missing, and says which in the line below. Run
-  and Build work for every machine in the System list.
+  system, or its emulator is missing, and says which in the line below. The
+  tiles and Build work for every machine in the System list.
 - **Build** — the same as Run, but `8bs build --system '<name>' --size` (or
   `--target <machine>`), which stops at the built file instead of
   starting an emulator.
-- **Program** — the program both buttons act on (`8bitscript.project`).
-  Every directory in the workspace with an `8bitscript.config.8bs` is in the list,
-  grouped as **Programs**, **Examples**, and **Apps**. Apps are packages whose
-  `package.json` declares an `8bitscript.app`, [Studio](../../docs/studio.md)
-  being the first. The 📄 beside it opens the program's entry `.8bs` file.
-  Picking a program loads what it is set up for — the first of its systems,
-  hardware and region and all — and a program with none keeps the current
-  machine when it targets it.
+- **Project** — the folder the tiles and Build act on (`8bitscript.project`).
+  Every directory in the workspace with an `8bitscript.config.8bs` is in the
+  menu, grouped as **Projects**, **Examples**, and **Apps**. Apps are packages
+  whose `package.json` declares an `8bitscript.app`, [Studio](../../docs/studio.md)
+  being the first. The source path in a program's drawer opens its entry
+  `.8bs` file. Picking a project loads what it is set up for — the first of
+  its systems, hardware and region and all — and a project with none keeps
+  the current machine when it targets it.
 
   **The examples that ship with the toolchain are in the list** under
   *Examples* (`8bitscript.showExamples`, on by default), not under Programs —
@@ -608,10 +626,19 @@ reload cannot pick up yesterday's bundle by accident. While the window is
 open it watches `src/`, `media/`, `syntaxes/`, and `snippets/`. A change does
 not rebuild in the background — the launcher shows **Rebuild the local
 extension**. While that runs it shows status, and only after the rebuild
-finishes does **Reload this window** appear. Grammar and media changes follow
-the same two-step flow so a half-written bundle is never the thing a reload
-loads. If the editor does not pick up the symlink, copy the directory instead
-of linking it — some builds scan for real directories.
+finishes does the next step appear: **Restart the extension** when only
+`src/` or `media/` changed (the extension host restarts in a second and
+loads the new bundle; the window stays), or **Reload this window** when
+something the editor itself reads changed — `package.json`, a grammar, a
+snippet file, `bootstrap.cjs`. Grammar and media changes follow the same
+two-step flow so a half-written bundle is never the thing a reload loads.
+The restart is also the road around a second prompt seen in Cursor: a
+window reload of a linked checkout was followed, within seconds, by
+*Extensions have been modified on disk. Please reload the window.* — the
+editor re-scanning its extensions at window start. A restart of the
+extension host does not start the window. If the editor does not pick up
+the symlink, copy the directory instead of linking it — some builds scan
+for real directories.
 
 Cursor's built-in npm task detector opens every `package.json` it finds and
 toasts **Npm task detection: failed to parse the file** when that open

@@ -116,7 +116,7 @@ const readyStates = (view) => view.posted.filter((m) => m.type === 'state' && m.
 /** The run commands do real work in the runner; here they only record what the view asked for. */
 const STUBBED = ['8bitscript.runUnit', '8bitscript.build', '8bitscript.openBareEmulator', '8bitscript.previewTab.show'];
 
-async function withLauncher(fn, { settings = {}, configure, cli: cliOptions } = {}) {
+async function withLauncher(fn, { settings = {}, configure, cli: cliOptions, detectBrowser = async () => null } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), '8bs-launcher-'));
   const store = new Map();
   const context = {
@@ -136,7 +136,7 @@ async function withLauncher(fn, { settings = {}, configure, cli: cliOptions } = 
     for (const id of STUBBED) vscode.__mock.commandHandlers.set(id, () => undefined);
     projects.projects[0].toolchain = cli;
     if (configure) configure(projects.projects[0], dir);
-    const provider = registerLauncherView(context, projects, null);
+    const provider = registerLauncherView(context, projects, null, { detectBrowser });
     const view = fakeView();
     provider.resolveWebviewView(view);
     const first = await stateAfter(view);
@@ -207,6 +207,22 @@ test('the page restricts what it can load to the extension\'s media directory wh
 
 // ── the state ───────────────────────────────────────────────────────────────
 
+test('the state names the editor and, once it answers, the default browser — asked once per window', async () => {
+  let asked = 0;
+  await withLauncher(async ({ view, provider, first }) => {
+    assert.equal(first.host.editor, 'VS Code', 'vscode.env.appName, shortened');
+    let latest = first;
+    for (let i = 0; i < 300 && latest.host.browser === null; i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      latest = view.posted.filter((m) => m.type === 'state' && m.state.phase === 'ready').at(-1).state;
+    }
+    assert.equal(latest.host.browser, 'Arc', 'posted again once the browser answered');
+    provider.resolveWebviewView(fakeView());
+    await tick();
+    assert.equal(asked, 1, 'not asked again when the view is resolved again');
+  }, { detectBrowser: async () => { asked += 1; return 'Arc'; } });
+});
+
 test('the first thing posted is the loading state, then the real one', async () => {
   await withLauncher(({ view }) => {
     const states = view.posted.filter((m) => m.type === 'state').map((m) => m.state.phase);
@@ -246,7 +262,7 @@ test('the C64 has no WASM build in the CLI\'s own report, so Editor and Browser 
   });
 });
 
-test('the PET has a WASM build, so Editor is the default and Browser is available', async () => {
+test('the PET has a WASM build, so Preview is the default and Browser is available', async () => {
   await withLauncher(({ first }) => {
     const main = first.programs[0];
     assert.equal(main.runtimes.editor.ok && main.runtimes.browser.ok && main.runtimes.native.ok, true);
@@ -378,7 +394,7 @@ test('a remembered runtime that stopped working moves the primary and says why',
   await withLauncher(async ({ view }) => {
     const state = await send(view, { type: 'selectRuntime', program: 'main', runtime: 'native' });
     assert.equal(state.programs[0].primary, 'editor');
-    assert.equal(state.programs[0].primaryMoved, 'Native is unavailable here, so Editor is the default.');
+    assert.equal(state.programs[0].primaryMoved, 'Emulate is unavailable here, so Preview is the default.');
   }, { settings: { system: 'web' } });
 });
 
@@ -632,7 +648,7 @@ test('a state with no project is the empty state, with whatever notices there ar
 });
 
 test('the dev-reload banner is a notice with the right action for each phase', async () => {
-  for (const [phase, label, type] of [['dirty', 'Rebuild the local extension', 'rebuildExtension'], ['ready', 'Reload this window', 'reloadWindow'], ['error', 'Rebuild the local extension', 'rebuildExtension']]) {
+  for (const [phase, label, type, reload] of [['dirty', 'Rebuild the local extension', 'rebuildExtension'], ['ready', 'Restart the extension', 'reloadWindow', false], ['ready', 'Reload this window', 'reloadWindow', true], ['error', 'Rebuild the local extension', 'rebuildExtension']]) {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), '8bs-launcher-dev-'));
     try {
       vscode.__mock.reset();
@@ -640,7 +656,7 @@ test('the dev-reload banner is a notice with the right action for each phase', a
       const context = { subscriptions: [], globalStorageUri: { fsPath: dir } };
       const projects = registerRunner(context, { appendLine() {} });
       await tick();
-      const devReload = { phase, error: 'boom', onDidChange: () => ({ dispose() {} }) };
+      const devReload = { phase, error: 'boom', reload: reload === true, onDidChange: () => ({ dispose() {} }) };
       const provider = registerLauncherView(context, projects, devReload);
       const view = fakeView();
       provider.resolveWebviewView(view);
@@ -648,6 +664,13 @@ test('the dev-reload banner is a notice with the right action for each phase', a
       const notice = state.notices.find((n) => n.id === 'dev-reload');
       assert.equal(notice.actions[0].label, label, phase);
       assert.equal(notice.actions[0].msg.type, type);
+      if (phase === 'ready') {
+        // The one message, two editor commands: the restart when the extension
+        // alone reads what changed, the window reload when the editor does.
+        view.webview.__fire({ type: 'reloadWindow' });
+        await tick();
+        assert.equal(ran(reload ? 'workbench.action.reloadWindow' : 'workbench.action.restartExtensionHost').length, 1, `reload=${reload}`);
+      }
       assert.equal(notice.kind, phase === 'error' ? 'error' : 'info');
       if (phase === 'error') assert.equal(notice.text, 'boom');
       for (const subscription of context.subscriptions) subscription.dispose?.();

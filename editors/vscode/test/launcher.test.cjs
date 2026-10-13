@@ -56,13 +56,14 @@ test('no project draws the empty state, and its three buttons post their message
   assert.deepEqual(page.posted.slice(1).map((m) => m.type), ['openFolder', 'tryExample', 'learn']);
 });
 
-test('a project with several programs draws the strip, the legend and the grouped list', () => {
+test('a project with several programs draws the strip, the panes and the grouped list', () => {
   const page = mount(vegas());
   assert.equal(page.all('.strip .picker').length, 2, 'Project and System pickers');
   assert.match(norm(page.one('.strip')), /Vegas Nights/);
   assert.match(norm(page.one('.strip')), /C64\s*NTSC/);
   assert.match(norm(page.one('.summary')), /Commodore 64 · 64 KB · NTSC · English/);
-  assert.deepEqual(page.all('.legend .lbl').map((el) => el.textContent), ['Editor', 'Browser', 'Native'], 'three runtimes, always in this order');
+  assert.deepEqual(page.all('.seg .tab').map((el) => el.querySelector('span:not(.badge):not(.dot)').textContent), ['Programs', 'Running'], 'two panes');
+  assert.equal(page.byKey('tab:programs').getAttribute('aria-selected'), 'true', 'programs first');
   assert.deepEqual(page.all('.group-head').map((el) => el.getAttribute('data-group')), ['Slots', 'Labs', 'Test rigs']);
   assert.deepEqual(page.all('.prow .name').map((el) => el.textContent), ['3×3 Slot', '5×5 Ways Slot', 'Lobby', 'Hello Reels', 'Sound Test', 'Tile Test'], 'Test rigs start folded');
   assert.equal(page.one('[data-group="Test rigs"]').getAttribute('aria-expanded'), 'false');
@@ -115,7 +116,7 @@ test('a runtime that cannot work stays focusable, says why, and does not run', (
   page.click(editor);
   assert.equal(page.messages('run').length, 0, 'clicking it runs nothing');
   assert.equal(page.active().getAttribute('data-key'), 'reason:slot3x3', 'it moves focus to the reason instead');
-  assert.match(norm(page.active()), /Editor and Browser are unavailable/);
+  assert.match(norm(page.active()), /Preview and Browser are unavailable/);
 });
 
 test('using a disabled button on another row selects that row and focuses its reason', () => {
@@ -130,7 +131,7 @@ test('the Web system disables Native with the right reason and offers Editor ins
   const page = mount(vegas({ system: 'web' }));
   assert.equal(page.byKey('run:slot3x3:native').getAttribute('aria-disabled'), 'true');
   const reason = page.byKey('reason:slot3x3');
-  assert.match(norm(reason), /Native is unavailable\. The browser has no native emulator; it runs in the browser\./);
+  assert.match(norm(reason), /Emulate is unavailable\. The browser has no native emulator; it runs in the browser\./);
   assert.equal(page.byKey('use:editor'), null, 'Editor is already the primary, so there is nothing to switch to');
 });
 
@@ -139,7 +140,7 @@ test('a missing emulator is a fixable, amber note with an install button and Doc
   const reason = page.byKey('reason:slot3x3');
   assert.match(reason.className, /warn/);
   assert.match(norm(reason), /xvic is not installed/);
-  assert.match(norm(page.app), /Native is unavailable here, so Editor is the default/, 'and the primary moved, saying so');
+  assert.match(norm(page.app), /Emulate is unavailable here, so Preview is the default/, 'and the primary moved, saying so');
   page.click(page.byKey('fix:emulator'));
   page.click(page.byKey('fix:doctor'));
   assert.deepEqual(page.posted.slice(-2), [{ type: 'fix', kind: 'emulator' }, { type: 'doctor' }]);
@@ -150,8 +151,8 @@ test('when WASM and the emulator are both unavailable the note says each reason 
   const reason = page.byKey('reason:slot3x3');
   const lines = Array.from(reason.querySelectorAll('.why-line')).map(norm);
   assert.deepEqual(lines, [
-    'Editor and Browser are unavailable. No wasm build for c64 yet.',
-    'Native is unavailable. x64sc is not installed.',
+    'Preview and Browser are unavailable. No wasm build for c64 yet.',
+    'Emulate is unavailable. x64sc is not installed.',
   ]);
   assert.ok(page.byKey('fix:emulator'), 'the install is offered');
   assert.equal(page.byKey('use:native'), null, 'and so is no switch to the runtime that is itself unavailable');
@@ -454,11 +455,11 @@ test('a project with one program has no picker or list: the header, the system a
 });
 
 test('Running: one card per run with its own Stop, Show tab and Open in browser', () => {
-  const page = mount(vegas({ program: 'slot5x5', running: RUNNING, history: HISTORY, live: { slot5x5: ['editor', 'native'] } }));
+  const page = mount(vegas({ program: 'slot5x5', running: RUNNING, history: HISTORY, live: { slot5x5: ['editor', 'native'] } }), { tab: 'running' });
   assert.equal(page.all('.run-item').length, 2);
   assert.match(norm(page.one('.sec + .items, .items')), /5×5 Ways Slot/);
-  assert.match(norm(page.all('.run-item')[0]), /C64Native50 fps/);
-  assert.match(norm(page.all('.run-item')[1]), /C64Editor60 fps/);
+  assert.match(norm(page.all('.run-item')[0]), /C64Emulate50 fps/);
+  assert.match(norm(page.all('.run-item')[1]), /C64Preview60 fps/);
   assert.equal(page.byKey('show:r1'), null, 'a native run has no tab to show');
   page.click(page.byKey('show:r2'));
   page.click(page.byKey('ob:r2'));
@@ -467,11 +468,12 @@ test('Running: one card per run with its own Stop, Show tab and Open in browser'
   assert.deepEqual(page.posted.slice(-4), [
     { type: 'focus', runId: 'r2' }, { type: 'openInBrowser', runId: 'r2' }, { type: 'stop', runId: 'r1' }, { type: 'stop', runId: 'r2' },
   ]);
+  page.click(page.byKey('tab:programs'));
   assert.ok(page.all('.prow .st.live').length === 1, 'and the program row shows a live dot');
 });
 
 test('a run\'s Command and Details open independently and show what was kept', () => {
-  const page = mount(vegas({ program: 'slot5x5', running: RUNNING, live: { slot5x5: ['native'] } }));
+  const page = mount(vegas({ program: 'slot5x5', running: RUNNING, live: { slot5x5: ['native'] } }), { tab: 'running' });
   page.click(page.byKey('rcb:r1'));
   assert.equal(norm(page.one('.rc .cmd')), '8bs run c64 --program slot5x5 --size');
   page.click(page.byKey('dis:rm:r1'));
@@ -484,7 +486,7 @@ test('a run\'s Command and Details open independently and show what was kept', (
 
 test('a run can carry a QR code for the network address, drawn from the host\'s SVG', () => {
   const run = { ...RUNNING[1], qrSvg: '<svg viewBox="0 0 1 1"><rect width="1" height="1"/></svg>' };
-  const page = mount(vegas({ running: [run] }), { open: { 'rm:r2': true } });
+  const page = mount(vegas({ running: [run] }), { open: { 'rm:r2': true }, tab: 'running' });
   const qr = page.one('.qr');
   assert.equal(qr.getAttribute('role'), 'img');
   assert.match(qr.getAttribute('aria-label'), /QR code/);
@@ -492,10 +494,10 @@ test('a run can carry a QR code for the network address, drawn from the host\'s 
 });
 
 test('Recent lists past runs with a failure in words and a way to run it again', () => {
-  const page = mount(vegas({ running: RUNNING, history: HISTORY }));
+  const page = mount(vegas({ running: RUNNING, history: HISTORY }), { tab: 'running' });
   const rows = page.all('.hist-row');
   assert.equal(rows.length, 2);
-  assert.match(norm(rows[1]), /Tile TestVIC-20 · NativeBuild failed · 2 errors · 13:48/);
+  assert.match(norm(rows[1]), /Tile TestVIC-20 · EmulateBuild failed · 2 errors · 13:48/);
   page.click(page.byKey('again:h2'));
   assert.deepEqual(page.last(), { type: 'rerun', historyId: 'h2' });
 });
@@ -514,7 +516,8 @@ test('Tools: Studio opens in the editor tab, and the native emulator is its own 
   assert.ok(native, 'a separate button for the native emulator');
   assert.match(native.getAttribute('aria-label'), /native emulator/i);
   assert.match(native.getAttribute('title'), /native emulator/i);
-  assert.match(norm(page.byKey('tool:studio')), /Studio.*editor tab/);
+  assert.match(norm(page.byKey('tool:studio')), /Studio/);
+  assert.match(page.byKey('tool:studio').getAttribute('title'), /editor tab/);
   page.click(native);
   assert.equal(page.last().type, 'studioNative');
   page.click(page.byKey('tool:studio'));
@@ -536,9 +539,9 @@ test('notices render by kind with their actions, and an action posts its own mes
   assert.deepEqual(page.posted.slice(-2), [{ type: 'fix', kind: 'packages', dir: '/v' }, { type: 'rebuildExtension' }]);
 });
 
-test('"Use Native instead" changes what the primary button means', () => {
+test('"Use Emulate instead" changes what the primary button means', () => {
   const page = mount(vegas({ system: 'web', program: 'slot3x3' }));
-  // On the Web, Editor is the default; on a machine where it cannot run the
+  // On the Web, Preview is the default; on a machine where it cannot run the
   // note offers the other runtime.
   const wasm = mount(vegas({ system: 'c64', program: 'tile-test' }));
   assert.equal(wasm.byKey('use:native'), null, 'Native is already the primary there');
@@ -588,7 +591,8 @@ test('a state with a project but no programs says so instead of drawing an empty
 
 test('narrow and wide are one layout: the markup does not change with width (CSS container queries do the work)', () => {
   const css = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'media', 'launcher.css'), 'utf8');
-  assert.match(css, /@container \(max-width: 256px\)[\s\S]*\.runs \.run \{[^}]*flex-direction: column/, 'icon-over-label when narrow');
+  assert.match(css, /^\.run \{[^}]*flex-direction: column/m, 'icon over the name over where it opens, at every width');
+  assert.match(css, /@container \(max-width: 256px\)[\s\S]*\.runs \.run \{[^}]*padding/, 'narrow only tightens the tile');
   assert.match(css, /container-type: inline-size/);
 });
 
@@ -598,4 +602,110 @@ test('the stylesheet uses theme variables, not colours, and respects reduced mot
   assert.match(css, /prefers-reduced-motion: reduce/);
   assert.match(css, /forced-colors: active/);
   assert.match(css, /\{\{CODICON\}\}/, 'the icon font url is filled in by the view');
+});
+
+test('each big run button says where it will open: the editor, the default browser, the emulator binary', () => {
+  const page = mount({ ...single({ system: 'vic20' }), host: { editor: 'Cursor', browser: 'Arc' } });
+  const where = (id) => page.byKey(`big:main:${id}`);
+  assert.equal(where('editor').querySelector('.name').textContent, 'Preview');
+  assert.equal(where('editor').querySelector('.where').textContent, 'Cursor');
+  assert.equal(where('browser').querySelector('.name').textContent, 'Browser');
+  assert.equal(where('browser').querySelector('.where').textContent, 'Arc');
+  assert.equal(where('native').querySelector('.name').textContent, 'Emulate');
+  assert.equal(where('native').querySelector('.where').textContent, 'xvic', 'the machine\'s own emulator binary');
+});
+
+test('a name nobody could find is no second line, not a guess', () => {
+  const page = mount({ ...single({ system: 'web' }), host: { editor: 'VS Code', browser: null } });
+  assert.equal(page.byKey('big:main:editor').querySelector('.where').textContent, 'VS Code');
+  assert.equal(page.byKey('big:main:browser').querySelector('.where'), null);
+  assert.equal(page.byKey('big:main:native').querySelector('.where'), null, 'the web has no emulator');
+});
+
+// ── the fixed layout ────────────────────────────────────────────────────────
+// The panel is three bands and only the middle one scrolls: the pickers, the
+// selected program's run tiles and the tools never move, however long the
+// list is.
+
+test('the head holds the pickers and the selected program\'s tiles; the list is the only thing that scrolls; the tools are the foot', () => {
+  const page = mount(vegas({ program: 'slot5x5' }));
+  const bands = Array.from(page.app.children).map((el) => el.className);
+  assert.deepEqual(bands, ['hdr', 'body', 'foot']);
+  const hdr = page.one('.hdr');
+  assert.equal(hdr.querySelectorAll('.strip .picker').length, 2);
+  assert.match(norm(hdr.querySelector('.focus-name')), /Program\s*5×5 Ways Slot/, 'the tiles say which program they run');
+  assert.deepEqual(Array.from(hdr.querySelectorAll('.runs .run .name')).map((el) => el.textContent), ['Preview', 'Browser', 'Emulate']);
+  assert.equal(page.one('.body .scroll [role="list"]').getAttribute('aria-label'), 'Programs', 'the list lives in the scrolling pane');
+  assert.ok(page.one('.body > .filter'), 'the filter sits above the scrolling pane, not inside it');
+  assert.equal(page.one('.scroll .filter'), null);
+  assert.deepEqual(Array.from(page.one('.foot').querySelectorAll('[data-key]')).map((el) => el.getAttribute('data-key')), ['tool:studio', 'tool:studioNative', 'tool:doctor', 'tool:details']);
+  assert.equal(page.one('.drawer .runs'), null, 'the drawer no longer repeats the tiles');
+});
+
+test('the head\'s tiles run the selected program, and selecting another row moves them', () => {
+  const page = mount(vegas({ system: 'vic20' }));
+  assert.match(norm(page.one('.focus-name')), /3×3 Slot/);
+  page.click(page.byKey('big:slot3x3:browser'));
+  assert.deepEqual(page.last(), { type: 'run', runtime: 'browser', program: 'slot3x3', system: 'vic20', inputs: {} });
+  page.click(page.byKey('row:slot5x5'));
+  assert.match(norm(page.one('.focus-name')), /5×5 Ways Slot/);
+  assert.ok(page.byKey('big:slot5x5:editor'));
+  assert.equal(page.byKey('big:slot3x3:editor'), null, 'one set of tiles, for the selected program');
+});
+
+test('Programs and Running are two panes of the same middle; the choice is kept across reloads', () => {
+  const page = mount(vegas({ running: RUNNING, history: HISTORY }));
+  assert.equal(page.all('.run-item').length, 0, 'the running list is not drawn under the programs');
+  assert.match(norm(page.byKey('tab:running')), /Running\s*2/);
+  assert.ok(page.byKey('tab:running').querySelector('.dot'), 'something is running: the tab says so from the other pane');
+  page.click(page.byKey('tab:running'));
+  assert.equal(page.byKey('tab:running').getAttribute('aria-selected'), 'true');
+  assert.equal(page.all('.run-item').length, 2);
+  assert.equal(page.all('.hist-row').length, 2, 'Recent is under Running');
+  assert.equal(page.one('.scroll [role="list"][aria-label="Programs"]'), null);
+  assert.equal(page.state().tab, 'running');
+  assert.equal(page.posted.filter((m) => m.type === 'tab').length, 0, 'a pane is the page\'s own business, nothing is posted');
+  page.click(page.byKey('tab:programs'));
+  assert.equal(page.all('.prow').length, 6);
+});
+
+test('a row\'s own run buttons are quiet until the row is pointed at, selected or focused; a live one stays lit', () => {
+  const css = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'media', 'launcher.css'), 'utf8');
+  assert.match(css, /\.prow \.acts \.ibtn \{ opacity: 0/);
+  assert.match(css, /\.prow:hover \.acts \.ibtn, \.prow\.sel \.acts \.ibtn, \.prow:focus-within \.acts \.ibtn, \.prow \.acts \.ibtn\.live \{ opacity: 1/);
+  assert.match(css, /forced-colors: active\)[\s\S]*\.prow \.acts \.ibtn \{ opacity: 1/, 'high contrast shows them always');
+  // Quiet, not gone: every row still has its three, reachable by keyboard.
+  const page = mount(vegas());
+  assert.equal(page.all('.prow')[1].querySelectorAll('[data-action="run"]').length, 3);
+});
+
+test('the page never scrolls as a whole: the head and the foot are fixed and the pane between them scrolls', () => {
+  const css = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'media', 'launcher.css'), 'utf8');
+  assert.match(css, /html, body \{[^}]*height: 100%;[^}]*overflow: hidden/);
+  assert.match(css, /#app \{[^}]*display: flex; flex-direction: column/);
+  assert.match(css, /\.hdr \{ flex: none/);
+  assert.match(css, /\.scroll \{ flex: 1; min-height: 0; overflow-y: auto/);
+  assert.match(css, /\.foot \{ flex: none/);
+  assert.match(css, /html, body \{ margin: 0; padding: 0;/, 'the editor pads a webview body 20px a side; the gutter is the page\'s own');
+  assert.match(css, /#app\.plain \{ display: block; overflow-y: auto/, 'loading and empty states are a plain column');
+  assert.equal(mount({ phase: 'empty' }).app.className, 'plain');
+  // A short view (dragged into the bottom panel, or a head tall with notices)
+  // gives the bands up and scrolls as one page, so nothing is clipped.
+  assert.match(css, /@media \(max-height: 520px\) \{\s*html, body \{ overflow: auto; \}\s*#app \{ display: block; height: auto; \}/);
+});
+
+test('a greyed tile explains itself even from the Running pane: it moves to Programs, where the reason is', () => {
+  const page = mount(vegas({ system: 'vic20', program: 'tile-test' }), { tab: 'running' });
+  assert.equal(page.one('.reason'), null, 'no drawer on this pane');
+  page.click(page.byKey('big:tile-test:editor'));
+  assert.equal(page.byKey('tab:programs').getAttribute('aria-selected'), 'true');
+  assert.equal(page.document.activeElement.getAttribute('data-key'), 'reason:tile-test');
+  assert.equal(page.state().tab, 'programs');
+});
+
+test('the Running pane with nothing running says so, and still lists Recent', () => {
+  const page = mount(vegas({ history: HISTORY }), { tab: 'running' });
+  assert.match(norm(page.one('.scroll')), /Nothing is running\. Run a program and it shows up here\./);
+  assert.equal(page.all('.hist-row').length, 2);
+  assert.equal(page.byKey('tab:running').querySelector('.dot'), null, 'no dot when nothing runs');
 });
