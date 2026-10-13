@@ -62,7 +62,7 @@ test('a project with several programs draws the strip, the legend and the groupe
   assert.match(norm(page.one('.strip')), /Vegas Nights/);
   assert.match(norm(page.one('.strip')), /C64\s*NTSC/);
   assert.match(norm(page.one('.summary')), /Commodore 64 · 64 KB · NTSC · English/);
-  assert.deepEqual(page.all('.legend .lbl').map((el) => el.textContent), ['Editor', 'Browser', 'Native'], 'three runtimes, always in this order');
+  assert.deepEqual(page.all('.legend .lbl').map((el) => el.textContent), ['Run', 'Browser', 'Emulator'], 'three runtimes, always in this order');
   assert.deepEqual(page.all('.group-head').map((el) => el.getAttribute('data-group')), ['Slots', 'Labs', 'Test rigs']);
   assert.deepEqual(page.all('.prow .name').map((el) => el.textContent), ['3×3 Slot', '5×5 Ways Slot', 'Lobby', 'Hello Reels', 'Sound Test', 'Tile Test'], 'Test rigs start folded');
   assert.equal(page.one('[data-group="Test rigs"]').getAttribute('aria-expanded'), 'false');
@@ -115,7 +115,7 @@ test('a runtime that cannot work stays focusable, says why, and does not run', (
   page.click(editor);
   assert.equal(page.messages('run').length, 0, 'clicking it runs nothing');
   assert.equal(page.active().getAttribute('data-key'), 'reason:slot3x3', 'it moves focus to the reason instead');
-  assert.match(norm(page.active()), /Editor and Browser are unavailable/);
+  assert.match(norm(page.active()), /Run and Browser are unavailable/);
 });
 
 test('using a disabled button on another row selects that row and focuses its reason', () => {
@@ -130,7 +130,7 @@ test('the Web system disables Native with the right reason and offers Editor ins
   const page = mount(vegas({ system: 'web' }));
   assert.equal(page.byKey('run:slot3x3:native').getAttribute('aria-disabled'), 'true');
   const reason = page.byKey('reason:slot3x3');
-  assert.match(norm(reason), /Native is unavailable\. The browser has no native emulator; it runs in the browser\./);
+  assert.match(norm(reason), /Emulator is unavailable\. The browser has no native emulator; it runs in the browser\./);
   assert.equal(page.byKey('use:editor'), null, 'Editor is already the primary, so there is nothing to switch to');
 });
 
@@ -139,7 +139,7 @@ test('a missing emulator is a fixable, amber note with an install button and Doc
   const reason = page.byKey('reason:slot3x3');
   assert.match(reason.className, /warn/);
   assert.match(norm(reason), /xvic is not installed/);
-  assert.match(norm(page.app), /Native is unavailable here, so Editor is the default/, 'and the primary moved, saying so');
+  assert.match(norm(page.app), /Emulator is unavailable here, so Run is the default/, 'and the primary moved, saying so');
   page.click(page.byKey('fix:emulator'));
   page.click(page.byKey('fix:doctor'));
   assert.deepEqual(page.posted.slice(-2), [{ type: 'fix', kind: 'emulator' }, { type: 'doctor' }]);
@@ -150,8 +150,8 @@ test('when WASM and the emulator are both unavailable the note says each reason 
   const reason = page.byKey('reason:slot3x3');
   const lines = Array.from(reason.querySelectorAll('.why-line')).map(norm);
   assert.deepEqual(lines, [
-    'Editor and Browser are unavailable. No wasm build for c64 yet.',
-    'Native is unavailable. x64sc is not installed.',
+    'Run and Browser are unavailable. No wasm build for c64 yet.',
+    'Emulator is unavailable. x64sc is not installed.',
   ]);
   assert.ok(page.byKey('fix:emulator'), 'the install is offered');
   assert.equal(page.byKey('use:native'), null, 'and so is no switch to the runtime that is itself unavailable');
@@ -457,8 +457,8 @@ test('Running: one card per run with its own Stop, Show tab and Open in browser'
   const page = mount(vegas({ program: 'slot5x5', running: RUNNING, history: HISTORY, live: { slot5x5: ['editor', 'native'] } }));
   assert.equal(page.all('.run-item').length, 2);
   assert.match(norm(page.one('.sec + .items, .items')), /5×5 Ways Slot/);
-  assert.match(norm(page.all('.run-item')[0]), /C64Native50 fps/);
-  assert.match(norm(page.all('.run-item')[1]), /C64Editor60 fps/);
+  assert.match(norm(page.all('.run-item')[0]), /C64Emulator50 fps/);
+  assert.match(norm(page.all('.run-item')[1]), /C64Run60 fps/);
   assert.equal(page.byKey('show:r1'), null, 'a native run has no tab to show');
   page.click(page.byKey('show:r2'));
   page.click(page.byKey('ob:r2'));
@@ -495,7 +495,7 @@ test('Recent lists past runs with a failure in words and a way to run it again',
   const page = mount(vegas({ running: RUNNING, history: HISTORY }));
   const rows = page.all('.hist-row');
   assert.equal(rows.length, 2);
-  assert.match(norm(rows[1]), /Tile TestVIC-20 · NativeBuild failed · 2 errors · 13:48/);
+  assert.match(norm(rows[1]), /Tile TestVIC-20 · EmulatorBuild failed · 2 errors · 13:48/);
   page.click(page.byKey('again:h2'));
   assert.deepEqual(page.last(), { type: 'rerun', historyId: 'h2' });
 });
@@ -536,9 +536,9 @@ test('notices render by kind with their actions, and an action posts its own mes
   assert.deepEqual(page.posted.slice(-2), [{ type: 'fix', kind: 'packages', dir: '/v' }, { type: 'rebuildExtension' }]);
 });
 
-test('"Use Native instead" changes what the primary button means', () => {
+test('"Use Emulator instead" changes what the primary button means', () => {
   const page = mount(vegas({ system: 'web', program: 'slot3x3' }));
-  // On the Web, Editor is the default; on a machine where it cannot run the
+  // On the Web, Run is the default; on a machine where it cannot run the
   // note offers the other runtime.
   const wasm = mount(vegas({ system: 'c64', program: 'tile-test' }));
   assert.equal(wasm.byKey('use:native'), null, 'Native is already the primary there');

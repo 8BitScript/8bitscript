@@ -16,7 +16,7 @@ const matrixFor = (target, extra = {}) => units.runtimeMatrix({ runtime: units.l
 test('there are exactly three runtimes, always in the order Editor, Browser, Native, matching the model', () => {
   assert.deepEqual(RUNTIME_IDS, ['editor', 'browser', 'native']);
   assert.deepEqual(RUNTIME_IDS, units.RUNTIMES, 'the page and the model agree on the three and their order');
-  assert.deepEqual(RUNTIMES.map((r) => r.label), ['Editor', 'Browser', 'Native']);
+  assert.deepEqual(RUNTIMES.map((r) => r.label), ['Run', 'Browser', 'Emulator']);
   assert.ok(RUNTIMES.every((r) => r.what.length > 10 && r.long && r.icon));
   assert.throws(() => { RUNTIMES.push({}); }, TypeError, 'the table cannot be changed from outside');
 });
@@ -73,7 +73,7 @@ test('a cell the model did not return is closed, not guessed open', () => {
 
 test('a remembered runtime that stopped working is said so once, and only then', () => {
   const av = availabilityFromMatrix(matrixFor('web'), { emulator: null });
-  assert.equal(movedNote('native', 'editor', av), 'Native is unavailable here, so Editor is the default.');
+  assert.equal(movedNote('native', 'editor', av), 'Emulator is unavailable here, so Run is the default.');
   assert.equal(movedNote('editor', 'editor', av), '', 'it did not move');
   assert.equal(movedNote(null, 'editor', av), '', 'nothing was remembered');
   assert.equal(movedNote('browser', 'editor', av), '', 'a remembered runtime that still works needs no note');

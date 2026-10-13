@@ -246,7 +246,7 @@ test('the C64 has no WASM build in the CLI\'s own report, so Editor and Browser 
   });
 });
 
-test('the PET has a WASM build, so Editor is the default and Browser is available', async () => {
+test('the PET has a WASM build, so Run is the default and Browser is available', async () => {
   await withLauncher(({ first }) => {
     const main = first.programs[0];
     assert.equal(main.runtimes.editor.ok && main.runtimes.browser.ok && main.runtimes.native.ok, true);
@@ -378,7 +378,7 @@ test('a remembered runtime that stopped working moves the primary and says why',
   await withLauncher(async ({ view }) => {
     const state = await send(view, { type: 'selectRuntime', program: 'main', runtime: 'native' });
     assert.equal(state.programs[0].primary, 'editor');
-    assert.equal(state.programs[0].primaryMoved, 'Native is unavailable here, so Editor is the default.');
+    assert.equal(state.programs[0].primaryMoved, 'Emulator is unavailable here, so Run is the default.');
   }, { settings: { system: 'web' } });
 });
 

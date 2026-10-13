@@ -44,9 +44,9 @@
       ...raw,
       phase: raw.phase || 'ready',
       runtimes: list(raw.runtimes).length ? raw.runtimes : [
-        { id: 'editor', label: 'Editor', icon: 'open-preview', long: 'Editor tab', what: 'Runs the WASM build in a tab inside the editor. The primary way to run a program.' },
+        { id: 'editor', label: 'Run', icon: 'open-preview', long: 'Editor tab', what: 'Runs the WASM build in a tab inside the editor. The primary way to run a program.' },
         { id: 'browser', label: 'Browser', icon: 'globe', long: 'Web browser', what: 'Runs the WASM build in your web browser: the page you can share.' },
-        { id: 'native', label: 'Native', icon: 'device-desktop', long: 'Native emulator (verification)', what: 'Runs the real emulator for this machine: the second opinion on what the WASM build shows.' },
+        { id: 'native', label: 'Emulator', icon: 'device-desktop', long: 'Native emulator (verification)', what: 'Runs the real emulator for this machine: the second opinion on what the WASM build shows.' },
       ],
       notices: list(raw.notices), projects: list(raw.projects), systems: list(raw.systems), programs: list(raw.programs),
       collapsedGroups: list(raw.collapsedGroups), running: list(raw.running), history: list(raw.history),
