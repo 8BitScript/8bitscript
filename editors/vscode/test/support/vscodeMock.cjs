@@ -257,6 +257,7 @@ function createVscodeMock() {
       createWebviewPanel(viewType, title, column, options) {
         const messageEmitter = makeEmitter();
         const disposeEmitter = makeEmitter();
+        const viewStateEmitter = makeEmitter();
         const posted = [];
         const panel = {
           viewType,
@@ -275,8 +276,15 @@ function createVscodeMock() {
             __fire: (message) => messageEmitter.fire(message),
           },
           reveal: () => {},
+          active: true,
           onDidDispose: disposeEmitter.event,
           __dispose: () => disposeEmitter.fire(),
+          onDidChangeViewState: viewStateEmitter.event,
+          // The tab brought forward (true) or put behind another (false).
+          __setActive: (active) => {
+            panel.active = active;
+            viewStateEmitter.fire({ webviewPanel: panel });
+          },
         };
         webviewPanels.push(panel);
         return panel;
