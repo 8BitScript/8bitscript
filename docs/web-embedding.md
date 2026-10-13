@@ -65,7 +65,10 @@ If you would rather hold a handle:
 
 ## Cross-origin isolation
 
-This is the one requirement, and it is not optional.
+This is the one requirement for the program to run in a worker, which is
+how it should run. A browser with JavaScript Promise Integration can run it
+without (see [below](#without-isolation-jspi)), and that is what an
+editor's tab does, but a page you publish should send the headers.
 
 The program runs in a Web Worker, and the page paints the program's screen
 memory while the program is still running — that memory is a
@@ -84,10 +87,34 @@ fine and the module instantiates fine, but `postMessage` throws
 — for the buffer and for a `WebAssembly.Memory` alike. There is no worker
 arrangement that avoids it, either: a worker sitting inside a blocking
 `waitFrame()` never returns to its event loop, so it cannot be sent input by
-message while a program is running. Shared memory is the only channel.
+message while a program is running. Shared memory is the only channel to a
+*blocked* program.
 
-Without the headers the loader does not fail silently — it says so on the
-screen, and tells you which two headers are missing.
+Without the headers, and without JSPI, the loader does not fail silently —
+it says so on the screen, and tells you which two headers are missing.
+
+### Without isolation: JSPI
+
+Some pages can never be isolated: a frame inside a document that is not
+isolated itself, because isolation belongs to the whole frame tree. An
+editor's webview is one — the Studio tab in VS Code frames the page `8bs run
+cx16 --web` serves, and the editor's window sends no headers of its own.
+
+On such a page the loader takes a second road, when the browser has it:
+JavaScript Promise Integration (`WebAssembly.Suspending` and
+`WebAssembly.promising`; present in Chromium 148 and in the Electron that
+ships with current VS Code and Cursor, and checked for at run time rather
+than assumed). The program runs on the page's own thread, and
+`waitFrame()` *suspends* the program until the next frame instead of
+blocking a worker on it — nothing is shared, so nothing needs isolating,
+and the page paints and writes input into the program's memory directly.
+The frame clock and the two-frame bank are the same.
+
+Why it is the second road and not the first: the program and the page share
+a thread. A frame the program takes too long over is a frame the page cannot
+paint, and a program that loops without ever calling `waitFrame()` freezes
+its own page rather than its own worker. On a page that *is* isolated the
+loader always uses the worker, JSPI or not.
 
 ### Setting the headers
 

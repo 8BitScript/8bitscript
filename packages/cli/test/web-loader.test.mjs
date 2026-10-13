@@ -425,9 +425,11 @@ test('a resize re-grids between frames, never mid-frame', () => {
   const relayout = source.slice(source.indexOf('function relayout('), source.indexOf('function fit('));
   assert.match(relayout, /applyGrid\(measured\)/);
   // The memory write happens in applyGrid (a re-grid) and once when the
-  // worker hands its memory over — never straight from a resize event.
+  // program's memory arrives — from the worker, or on this thread before a
+  // suspended program's entry (web-suspend.test.mjs) — never straight from
+  // a resize event.
   const writes = [...source.matchAll(/writeGrid\(\);/g)].length;
-  assert.equal(writes, 2, 'writeGrid: applyGrid and the memory hand-off only');
+  assert.equal(writes, 3, 'writeGrid: applyGrid and the two memory hand-offs only');
 });
 
 // The grid rule, like borderFor, exists twice — here and in web-layout.mjs —
