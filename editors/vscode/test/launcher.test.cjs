@@ -686,6 +686,7 @@ test('the page never scrolls as a whole: the head and the foot are fixed and the
   assert.match(css, /\.hdr \{ flex: none/);
   assert.match(css, /\.scroll \{ flex: 1; min-height: 0; overflow-y: auto/);
   assert.match(css, /\.foot \{ flex: none/);
+  assert.match(css, /html, body \{ margin: 0; padding: 0;/, 'the editor pads a webview body 20px a side; the gutter is the page\'s own');
   assert.match(css, /#app\.plain \{ display: block; overflow-y: auto/, 'loading and empty states are a plain column');
   assert.equal(mount({ phase: 'empty' }).app.className, 'plain');
   // A short view (dragged into the bottom panel, or a head tall with notices)
