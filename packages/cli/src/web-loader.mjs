@@ -34,10 +34,8 @@
 // So the gate is not on having shared memory, it is on *sharing* it. There is
 // no arrangement of workers that dodges it either: a worker sitting inside a
 // blocking waitFrame() never returns to its event loop, so it cannot receive
-// an input message while a program is running — shared memory is not an
-// optimization here, it is the only channel that works. Cross-origin
-// isolation is therefore a real requirement, not a nicety, and the honest
-// thing is to require it, detect it, and say so plainly when it's missing.
+// an input message while a program is running — shared memory is the only
+// channel between a *blocked* program and the page.
 //
 // Hosts that can send headers should (writeWebBundle emits `_headers`, and
 // docs/web-embedding.md has Apache/nginx/Vercel forms). Hosts that can't —
@@ -49,6 +47,35 @@
 // `COEP: require-corp` to the *embedder's whole page*, which can break their
 // unrelated third-party images, scripts and frames. That is their call, not
 // ours.
+//
+// ## When the page cannot be isolated at all: suspend instead of block
+//
+// One kind of page can never be isolated by any header or shim: a frame
+// inside a document that is not isolated itself, because isolation is a
+// property of the whole frame tree. An editor's webview is exactly that —
+// the Studio tab in VS Code frames the URL `8bs run cx16 --web` serves, and
+// the editor's own window sends no COOP/COEP, so the frame's
+// crossOriginIsolated is false whatever the CLI's server sends. That tab is
+// the primary way a program is run (docs/project/wasm-primary.md), so "say
+// so plainly" is not an answer there.
+//
+// The way out is to stop needing a blocked program: JavaScript Promise
+// Integration (`WebAssembly.Suspending` / `WebAssembly.promising` — measured
+// present in Chromium 148, Cursor's Electron 42 and Node 26's V8 14.6, and
+// gated on at run time by suspendable() below rather than assumed) lets an
+// imported function suspend the wasm stack and resume it when a promise
+// settles. On a page that is not isolated but has JSPI, the program runs on
+// the page's own thread: waitFrame() is a Suspending import that resolves
+// when tick() releases the next frame, and the page paints and writes input
+// into the program's memory directly — one thread, so nothing is shared,
+// posted or isolated. The frame clock, the two-frame bank, the resize-
+// between-frames rule and the HUD are the same code; only who waits on
+// `ctrl` differs. The costs, which are why the worker stays the first
+// choice: the program and the page share a thread, so a frame the program
+// spends too long on is a frame the page cannot paint, and a program that
+// never calls waitFrame() inside a loop freezes its own page instead of
+// its own worker. A page with neither isolation nor JSPI gets the message
+// below, which says what both roads need.
 import { glyphTableLiteral } from './font8x8.mjs';
 import { vicSource } from './web-vic.mjs';
 import {
@@ -327,8 +354,14 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
   var WORKER_SOURCE = ${JSON.stringify(renderWorker())};
   var ISOLATION_HELP =
     'this page is not cross-origin isolated, so it cannot share memory with ' +
-    'the program. Send Cross-Origin-Opener-Policy: same-origin and ' +
+    'the program, and this browser cannot suspend WebAssembly (JSPI) instead. ' +
+    'Send Cross-Origin-Opener-Policy: same-origin and ' +
     'Cross-Origin-Embedder-Policy: require-corp, or load coi.js first.';
+  // Thrown through the program's own stack to end a suspended run: a
+  // promise it is waiting on is rejected with this, so entry() unwinds the
+  // way wasm-host.mjs's FrameLimitReached unwinds a headless run. Never
+  // reported as the program failing — it was asked to stop.
+  var STOPPED = { stopped: true };
 
   // --- rules shared with the build (packages/cli/src/web-layout.mjs, and,
   // for the raster compositor below, packages/cli/src/web-scanline.mjs) -----
@@ -618,6 +651,12 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
 
   function isolated() {
     return typeof SharedArrayBuffer !== 'undefined' && global.crossOriginIsolated !== false;
+  }
+
+  // JavaScript Promise Integration: the road that needs no isolation (see
+  // the file header). Both halves, because neither is any use alone.
+  function suspendable() {
+    return typeof WebAssembly.Suspending === 'function' && typeof WebAssembly.promising === 'function';
   }
 
   function coarsePointer() {
@@ -1001,6 +1040,10 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
     var destroyed = false;
     var worker = null;
     var ctrl = null;
+    // Suspended mode only: the program's pending waitFrame(), as the
+    // promise callbacks that resume it and the frame number it will have
+    // taken when they do. null while the program is running or owed.
+    var resume = null;
     var acc = 0;
     var last = null;
     var fpsWindowStart = null;
@@ -1025,7 +1068,15 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
             pendingMeasure = null;
           }
           Atomics.add(ctrl, ISSUED, 1);
+          // A worker wakes from Atomics.wait and takes the frame itself; a
+          // suspended program is handed it here, on its own thread.
           Atomics.notify(ctrl, ISSUED);
+          if (resume) {
+            var pending = resume;
+            resume = null;
+            Atomics.store(ctrl, CONSUMED, pending.next);
+            pending.resolve();
+          }
         }
       }
       if (hud && ctrl) {
@@ -1057,14 +1108,19 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
       // unused by a program that never calls waitFrame() and therefore
       // never enters the worker's waitFrame() closure that reads it — so a
       // program that never asks for a frame no longer has to ask for
-      // isolation either. A program that does still gets exactly the
-      // requirement and the message this always had; nothing here changes
-      // for it.
+      // isolation either. A program that does runs in the worker when the
+      // page is isolated, on the page's own thread when it is not but the
+      // browser can suspend wasm (the file header's second road), and gets
+      // the message otherwise.
       fetch(wasmUrl).then(function (response) {
         return response.arrayBuffer();
       }).then(WebAssembly.compile).then(function (module) {
         var needsShared = WebAssembly.Module.imports(module).some(function (i) { return i.module === 'env' && i.name === 'waitFrame'; });
         if (needsShared && !isolated()) {
+          if (suspendable()) {
+            startSuspended(module);
+            return;
+          }
           say(ISOLATION_HELP);
           if (options.onError) options.onError(new Error(ISOLATION_HELP));
           return;
@@ -1078,10 +1134,9 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
 
     function startWorker(needsShared) {
       running = true;
-      // null, not a plain Int32Array, when nothing will ever wait on it:
-      // Atomics.add/notify (tick(), below) throw on a non-shared buffer,
-      // and tick()'s own ctrl check already treats a falsy ctrl as nothing
-      // to release frames for — the exact case this is.
+      // null when nothing will ever wait on it: tick()'s own ctrl check
+      // treats a falsy ctrl as nothing to release frames for — the exact
+      // case this is.
       ctrl = needsShared ? new Int32Array(new SharedArrayBuffer(8)) : null;
       worker = new Worker(options.worker ? new URL(options.worker, document.baseURI).href : blobWorkerUrl());
       worker.onmessage = function (event) {
@@ -1133,6 +1188,59 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
       raf = requestAnimationFrame(tick);
     }
 
+    // The program on this thread, suspended between frames instead of
+    // blocked in a worker. ctrl is a plain Int32Array here — the same two
+    // words tick() already keeps, read and written by one thread, so the
+    // Atomics calls on it are ordinary loads and stores (Atomics.notify on
+    // an unshared buffer wakes nobody and returns 0; only Atomics.wait
+    // would throw, and nothing waits).
+    function startSuspended(module) {
+      running = true;
+      ctrl = new Int32Array(2);
+      // The worker's waitFrame() with its loop replaced by a promise: a
+      // frame already owed is taken at once without suspending (the same
+      // 0/1/2-frames-per-wait rule); otherwise the stack is parked until
+      // tick() releases one, and tick() moves CONSUMED when it does.
+      var waitFrame = new WebAssembly.Suspending(function () {
+        var next = Atomics.load(ctrl, CONSUMED) + 1;
+        if (Atomics.load(ctrl, ISSUED) >= next) {
+          Atomics.store(ctrl, CONSUMED, next);
+          return undefined;
+        }
+        return new Promise(function (resolve, reject) {
+          resume = { resolve: resolve, reject: reject, next: next };
+        });
+      });
+      WebAssembly.instantiate(module, { env: { waitFrame: waitFrame } }).then(function (instance) {
+        if (destroyed) return;
+        // The page's view of the program's memory, with no copy and no
+        // message in between: this is the program's own buffer.
+        mem = new Uint8Array(instance.exports.memory.buffer);
+        writeInput();
+        writeHost();
+        // Before entry(), on this thread — the same ordering the worker
+        // keeps for the same reason (startWorker's own note).
+        writeGrid();
+        var exported = null;
+        Object.keys(instance.exports).forEach(function (name) {
+          if (exported === null && typeof instance.exports[name] === 'function') exported = instance.exports[name];
+        });
+        var entry = WebAssembly.promising(exported);
+        entry().then(function () {
+          say('the program finished');
+          if (options.onDone) options.onDone();
+        }, function (error) {
+          if (error === STOPPED) return;
+          say('the program failed: ' + String(error));
+          if (options.onError) options.onError(error instanceof Error ? error : new Error(String(error)));
+        });
+        raf = requestAnimationFrame(tick);
+      }).catch(function (error) {
+        say('the program failed: ' + error.message);
+        if (options.onError) options.onError(error);
+      });
+    }
+
     function destroy() {
       if (destroyed) return;
       destroyed = true;
@@ -1141,6 +1249,13 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
       clearTimeout(hintTimer);
       clearTimeout(pulseTimer);
       if (worker) worker.terminate();
+      // A suspended program is unwound, not terminated: it has no thread
+      // of its own to end.
+      if (resume) {
+        var pending = resume;
+        resume = null;
+        pending.reject(STOPPED);
+      }
       if (observer) observer.disconnect();
       global.removeEventListener('resize', resize);
       document.removeEventListener('fullscreenchange', resize);

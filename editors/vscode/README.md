@@ -327,7 +327,12 @@ SYSTEM
   an **editor tab** on the Commander X16, its baseline, running on our own
   WebAssembly build (`8bs run cx16 --web`): our compiler to wasm and our own
   model of the machine, not the vendor emulator and not a full-screen
-  window. The **Studio** tab frames it, with **Reset** (boot the same build
+  window. An editor tab is a webview, which cannot be cross-origin
+  isolated, so inside it the program runs on the page's own thread with
+  JavaScript Promise Integration rather than in a worker — the same
+  program and frame clock, and nothing you have to configure (the browser
+  run, isolated by the CLI's own headers, uses the worker). The
+  **Studio** tab frames it, with **Reset** (boot the same build
   again), **Rebuild**, **Stop** and **Open in browser** above the screen.
   Closing the tab ends the run, and it shows up under Running like any
   `8bs run`, with its own Stop. The small desktop button beside the Studio
