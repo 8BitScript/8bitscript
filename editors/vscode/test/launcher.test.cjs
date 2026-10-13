@@ -688,4 +688,23 @@ test('the page never scrolls as a whole: the head and the foot are fixed and the
   assert.match(css, /\.foot \{ flex: none/);
   assert.match(css, /#app\.plain \{ display: block; overflow-y: auto/, 'loading and empty states are a plain column');
   assert.equal(mount({ phase: 'empty' }).app.className, 'plain');
+  // A short view (dragged into the bottom panel, or a head tall with notices)
+  // gives the bands up and scrolls as one page, so nothing is clipped.
+  assert.match(css, /@media \(max-height: 520px\) \{\s*html, body \{ overflow: auto; \}\s*#app \{ display: block; height: auto; \}/);
+});
+
+test('a greyed tile explains itself even from the Running pane: it moves to Programs, where the reason is', () => {
+  const page = mount(vegas({ system: 'vic20', program: 'tile-test' }), { tab: 'running' });
+  assert.equal(page.one('.reason'), null, 'no drawer on this pane');
+  page.click(page.byKey('big:tile-test:editor'));
+  assert.equal(page.byKey('tab:programs').getAttribute('aria-selected'), 'true');
+  assert.equal(page.document.activeElement.getAttribute('data-key'), 'reason:tile-test');
+  assert.equal(page.state().tab, 'programs');
+});
+
+test('the Running pane with nothing running says so, and still lists Recent', () => {
+  const page = mount(vegas({ history: HISTORY }), { tab: 'running' });
+  assert.match(norm(page.one('.scroll')), /Nothing is running\. Run a program and it shows up here\./);
+  assert.equal(page.all('.hist-row').length, 2);
+  assert.equal(page.byKey('tab:running').querySelector('.dot'), null, 'no dot when nothing runs');
 });

@@ -163,10 +163,14 @@ function rebuild(root, { outfile, spawnFn = spawn } = {}) {
  *            them.
  * `null` — ignore (dist, tests, node_modules, anything else).
  *
- * The distinction matters because a window reload is the slow road and,
- * in Cursor, is followed by a second "extensions have been modified on
- * disk" prompt for a linked source checkout; restarting the extension
- * host alone is quick and never prompts.
+ * The distinction matters because a window reload is the slow road, and
+ * in Cursor a linked source checkout was seen (its logs, 2026-10-12) to
+ * get a second prompt — the only one Cursor has with that wording is
+ * "Extensions have been modified on disk. Please reload the window." —
+ * within six seconds of the reload, which comes from the editor re-scanning
+ * its installed extensions at window start. A restart of the extension
+ * host does not start the window, so it should not trip that; it is also
+ * a second instead of a reload.
  */
 function classifyChange(root, filePath) {
   const relative = path.relative(root, filePath);

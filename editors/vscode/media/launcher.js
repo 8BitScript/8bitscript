@@ -608,7 +608,11 @@
   function disabled(el) {
     const id = el.getAttribute('data-program');
     if (!id) return;
-    if (id !== state.program) { state.program = id; ui.navKey = `row:${id}`; post({ type: 'select', program: id }); render(); }
+    // The reason lives in the program's drawer, on the Programs pane.
+    const move = id !== state.program || ui.tab !== 'programs';
+    if (id !== state.program) { state.program = id; ui.navKey = `row:${id}`; post({ type: 'select', program: id }); }
+    if (ui.tab !== 'programs') { ui.tab = 'programs'; persist(); }
+    if (move) render();
     focusKey(`reason:${id}`);
   }
 

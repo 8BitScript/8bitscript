@@ -291,6 +291,16 @@ button { cursor: pointer; }
 .filter .input { padding-left: 28px; }
 .none { margin: 12px 0 0; font-size: 12px; color: var(--muted); }
 
+/* Short: a view dragged into the bottom panel, or a head grown tall with
+   notices, cannot afford fixed bands — below 520px the page is a plain
+   column that scrolls as one, so nothing is ever clipped out of reach. */
+@media (max-height: 520px) {
+  html, body { overflow: auto; }
+  #app { display: block; height: auto; }
+  .hdr, .foot { border: 0; }
+  .scroll { overflow: visible; }
+}
+
 /* Narrow: below 256px the pickers stack and the run buttons put the icon over the word.
    Last on purpose, so it wins over the base rules above. */
 @container (max-width: 256px) {

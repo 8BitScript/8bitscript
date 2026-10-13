@@ -232,16 +232,19 @@ project details live in editor tabs — **Configure System** and **Show
 Project** — the same pattern as Controller Setup. The hardware matrix is
 not in the side bar.
 
-- **Entry** — a project whose config lists several `programs` (a lobby and
-  a set of small labs, say) gets an **Entry** dropdown under Program. Run and
-  Build pass the choice on as `--program <name>`, the System list narrows to
-  the machines that program's own `targets` allow, and the pick is remembered
-  per project (`8bitscript.program`). With a `main` and nothing chosen, `main`
-  runs; with several programs and no `main`, Run asks once. Tasks: Run Task
-  lists every program on each of its machines, and a `tasks.json` entry can
-  name its own with `"program": "<name>"`. A project with one program shows no
-  dropdown and passes no flag.
-- **Run** — starts `8bs run --system '<name>' --size` (or `8bs run <machine>`) for the selected project as a task in
+- **Programs** — a project whose config lists several `programs` (a lobby
+  and a set of small labs, say) shows them as the list, grouped by their
+  `group`. Selecting one moves the run tiles to it; a run or a Build passes
+  the choice on as `--program <name>`, the System list narrows to the
+  machines that program's own `targets` allow, and the pick is remembered
+  per project (`8bitscript.program`). With a `main` and nothing chosen,
+  `main` runs; with several programs and no `main`, Run asks once. Tasks:
+  Run Task lists every program on each of its machines, and a `tasks.json`
+  entry can name its own with `"program": "<name>"`. A project with one
+  program shows no list, only the program's own drawer, and passes no flag.
+- **Preview, Browser, Emulate** — each starts `8bs run --system '<name>'
+  --size` (or `8bs run <machine>`), with the runtime's own flags
+  (`--web --no-open`, `--web`, none), for the selected program as a task in
   its own terminal, from the project's directory. A **Use local 8BitScript**
   toggle runs this checkout's CLI (`--checkout`) instead of
   `node_modules/.bin/8bs`, so a consumer app can keep published versions in
@@ -264,19 +267,19 @@ not in the side bar.
   line under it names the machine, the hardware fitted to it, and the
   region — nothing has to be read off a dropdown to know what pressing it
   means. It greys out when the selected project does not target the selected
-  system, or its emulator is missing, and says which in the line below. Run
-  and Build work for every machine in the System list.
+  system, or its emulator is missing, and says which in the line below. The
+  tiles and Build work for every machine in the System list.
 - **Build** — the same as Run, but `8bs build --system '<name>' --size` (or
   `--target <machine>`), which stops at the built file instead of
   starting an emulator.
-- **Program** — the program both buttons act on (`8bitscript.project`).
-  Every directory in the workspace with an `8bitscript.config.8bs` is in the list,
-  grouped as **Programs**, **Examples**, and **Apps**. Apps are packages whose
-  `package.json` declares an `8bitscript.app`, [Studio](../../docs/studio.md)
-  being the first. The 📄 beside it opens the program's entry `.8bs` file.
-  Picking a program loads what it is set up for — the first of its systems,
-  hardware and region and all — and a program with none keeps the current
-  machine when it targets it.
+- **Project** — the folder the tiles and Build act on (`8bitscript.project`).
+  Every directory in the workspace with an `8bitscript.config.8bs` is in the
+  menu, grouped as **Projects**, **Examples**, and **Apps**. Apps are packages
+  whose `package.json` declares an `8bitscript.app`, [Studio](../../docs/studio.md)
+  being the first. The source path in a program's drawer opens its entry
+  `.8bs` file. Picking a project loads what it is set up for — the first of
+  its systems, hardware and region and all — and a project with none keeps
+  the current machine when it targets it.
 
   **The examples that ship with the toolchain are in the list** under
   *Examples* (`8bitscript.showExamples`, on by default), not under Programs —
@@ -629,10 +632,13 @@ loads the new bundle; the window stays), or **Reload this window** when
 something the editor itself reads changed — `package.json`, a grammar, a
 snippet file, `bootstrap.cjs`. Grammar and media changes follow the same
 two-step flow so a half-written bundle is never the thing a reload loads.
-The restart is also what avoids Cursor's second prompt: a window reload of
-a linked checkout is followed by *Extensions have been modified on disk*,
-a restart is not. If the editor does not pick up the symlink, copy the
-directory instead of linking it — some builds scan for real directories.
+The restart is also the road around a second prompt seen in Cursor: a
+window reload of a linked checkout was followed, within seconds, by
+*Extensions have been modified on disk. Please reload the window.* — the
+editor re-scanning its extensions at window start. A restart of the
+extension host does not start the window. If the editor does not pick up
+the symlink, copy the directory instead of linking it — some builds scan
+for real directories.
 
 Cursor's built-in npm task detector opens every `package.json` it finds and
 toasts **Npm task detection: failed to parse the file** when that open

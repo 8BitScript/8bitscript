@@ -140,11 +140,11 @@ test('media-only changes still wait for an explicit rebuild', async () => {
 });
 
 // A finished rebuild of src/ or media/ is shown by restarting the extension
-// host — quick, and it never trips Cursor's "extensions have been modified on
-// disk" prompt that follows a window reload of a linked checkout. Only a
-// change the editor itself reads (manifest, grammar, snippets, bootstrap)
-// asks for the window reload, and once asked it stays asked: nothing short
-// of that reload clears it.
+// host — a second instead of a window reload, and a road that does not start
+// the window, where Cursor was seen to re-scan a linked checkout and prompt
+// again. Only a change the editor itself reads (manifest, grammar, snippets,
+// bootstrap) asks for the window reload, and once asked it stays asked:
+// nothing short of that reload clears it.
 test('a rebuild wants the extension host restarted unless something needs the window reloaded', async () => {
   const ctl = createDevReloadState({ rebuild: async () => {} });
   assert.equal(ctl.reload, false);
