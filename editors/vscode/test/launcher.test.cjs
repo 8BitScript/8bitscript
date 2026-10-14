@@ -418,6 +418,11 @@ test('a long Project menu opens on a filter that searches folded groups too', ()
   assert.equal(page.active().getAttribute('data-key'), 'project-filter', 'typing keeps focus in the field');
   page.key(page.byKey('project-filter'), 'ArrowDown');
   assert.equal(page.active().getAttribute('data-key'), 'pg:Examples', 'the arrow leaves the field for the list');
+  assert.equal(page.key(page.byKey('project-filter'), 'Home').defaultPrevented, false, 'Home and End move the caret, not the focus');
+  assert.equal(page.active().getAttribute('data-key'), 'pg:Examples');
+  page.focus(page.byKey('project-filter'));
+  assert.equal(page.key(page.byKey('project-filter'), 'End').defaultPrevented, false);
+  assert.equal(page.active().getAttribute('data-key'), 'project-filter');
   page.type(page.byKey('project-filter'), 'zzz');
   assert.match(norm(page.one('[data-menu="project"] .none')), /No projects match “zzz”\./);
   assert.equal(page.key(page.byKey('project-filter'), 'ArrowDown').defaultPrevented, false, 'nothing to move to');
@@ -520,7 +525,7 @@ test('the hint under the big buttons follows hover and focus', () => {
   assert.equal(norm(page.one('#hint')), 'Runs the WASM build in your web browser: the page you can share.');
 });
 
-test('a project with one program has no picker or list: the header, the system and big run buttons', () => {
+test('a project with one program has no program list: the header, the system and big run buttons', () => {
   const page = mount(single({ system: 'vic20' }));
   assert.equal(page.all('.prow').length, 0);
   assert.equal(page.all('.strip .picker').length, 1, 'just System');
