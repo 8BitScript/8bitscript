@@ -152,11 +152,11 @@
       filter,
       groups.length === 0 && h('p', { class: 'none' }, `No ${noun}s match “${raw}”.`),
       groups.map((g) => {
-        if (!g.name) return g.items.map(item);
+        if (!g.name) return g.items.map((r) => item(r));
         const shut = !query && isFolded(g);
         return [h('button', { class: 'it grp', role: 'menuitem', tabindex: -1, 'aria-expanded': String(!shut), 'data-action': foldAction, 'data-group': g.name, 'data-key': `${name}-group:${g.name}` },
           icon(shut ? 'chevron-right' : 'chevron-down'), h('span', { class: 'who' }, g.name), h('span', { class: 'spec' }, ` ${g.items.length}`)),
-        !shut && g.items.map(item)];
+        !shut && g.items.map((r) => item(r))];
       }));
   }
 
