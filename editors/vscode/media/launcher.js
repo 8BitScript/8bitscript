@@ -27,17 +27,16 @@
   let state = null;
   const saved = vscode.getState() || {};
   const ui = {
-    filter: '',
     open: {},            // disclosure id -> true
-    collapsed: {},       // group name -> true/false (overrides the state's default)
+    collapsed: {},       // Program-menu group -> true/false (overrides its default)
     projectFolds: {},    // Project-menu group -> true/false (overrides its default)
-    projectFilter: '',   // what the Project menu's filter holds; not kept across reloads
-    menu: null,          // 'project' | 'system' | 'more' | null
-    navKey: null,        // the one list control in the tab order
+    filters: { project: '', program: '' }, // what each menu's filter holds; not kept across reloads
+    menu: null,          // 'project' | 'program' | 'system' | 'more' | null
     tab: 'programs',     // 'programs' | 'running': which pane fills the middle
     ...saved,
   };
-  const persist = () => vscode.setState({ filter: ui.filter, open: ui.open, collapsed: ui.collapsed, projectFolds: ui.projectFolds, navKey: ui.navKey, tab: ui.tab });
+  ui.filters = { project: '', program: '' };
+  const persist = () => vscode.setState({ open: ui.open, collapsed: ui.collapsed, projectFolds: ui.projectFolds, tab: ui.tab });
   const post = (message) => vscode.postMessage(message);
 
   /** A posted state with every list a list, so a short or older message cannot break the page. */
@@ -131,39 +130,71 @@
     return h('button', { class: 'it', role: props.role || 'menuitem', tabindex: -1, ...props }, kids || null, h('span', { class: 'who' }, label));
   }
 
-  // A workspace beside the repository holds a dozen projects, most of them
-  // examples and the toolchain's own; those groups start folded, the filter
-  // appears once the list is long, and each row says where it lives.
-  const PROJECT_FILTER_AT = 8;
-  function projectMenu() {
-    const query = ui.projectFilter.trim().toLowerCase();
+  // A list that can grow past what fits — the projects in a workspace beside
+  // the repository, the labs in a project like Vegas Nights — is a menu with
+  // folding groups and, once it is long, a filter that searches the folded
+  // ones too. The Project and Program menus are both this.
+  const FILTER_AT = 8;
+  function groupedMenu({ name, label, rows, text, isFolded, foldAction, item }) {
+    const raw = ui.filters[name];
+    const query = raw.trim().toLowerCase();
     const groups = [];
-    for (const p of state.projects) {
-      if (query && !`${p.label} ${p.where || ''}`.toLowerCase().includes(query)) continue;
-      let g = groups.find((x) => x.name === p.group);
-      if (!g) groups.push(g = { name: p.group, items: [] });
-      g.items.push(p);
+    for (const r of rows) {
+      if (query && !text(r).toLowerCase().includes(query)) continue;
+      let g = groups.find((x) => x.name === r.group);
+      if (!g) groups.push(g = { name: r.group, items: [] });
+      g.items.push(r);
     }
-    const folded = (g) => {
-      if (query || !g.name) return false;
-      if (ui.projectFolds[g.name] !== undefined) return ui.projectFolds[g.name];
-      return g.items.every((p) => p.quiet) && !g.items.some((p) => p.id === state.project?.id);
-    };
-    const item = (p) => menuItem([p.label, p.where && p.where !== p.label && h('span', { class: 'spec' }, ` ${p.where}`)], {
-      role: 'menuitemradio', 'aria-checked': String(p.id === state.project?.id), 'data-action': 'select-project', 'data-project': p.id, 'data-key': `pm:${p.id}`, title: p.where || null,
-    }, h('span', { class: 'tick' }, p.id === state.project?.id && icon('check')));
-    const filter = state.projects.length >= PROJECT_FILTER_AT && h('div', { class: 'filter in-menu' }, icon('search'),
-      h('input', { class: 'input', 'data-filter': 'project', 'data-key': 'project-filter', placeholder: 'Filter projects', 'aria-label': 'Filter projects', value: ui.projectFilter }));
-    return h('div', { class: 'menu projects', role: 'menu', 'aria-label': 'Project', 'data-menu': 'project' },
+    const noun = label.toLowerCase();
+    const filter = rows.length >= FILTER_AT && h('div', { class: 'filter in-menu' }, icon('search'),
+      h('input', { class: 'input', 'data-filter': name, 'data-key': `${name}-filter`, placeholder: `Filter ${noun}s`, 'aria-label': `Filter ${noun}s`, value: raw }));
+    return h('div', { class: 'menu long', role: 'menu', 'aria-label': label, 'data-menu': name },
       filter,
-      groups.length === 0 && h('p', { class: 'none' }, `No projects match “${ui.projectFilter}”.`),
+      groups.length === 0 && h('p', { class: 'none' }, `No ${noun}s match “${raw}”.`),
       groups.map((g) => {
-        if (!g.name) return g.items.map(item);
-        const shut = folded(g);
-        return [h('button', { class: 'it grp', role: 'menuitem', tabindex: -1, 'aria-expanded': String(!shut), 'data-action': 'toggle-project-group', 'data-group': g.name, 'data-key': `pg:${g.name}` },
+        if (!g.name) return g.items.map((r) => item(r));
+        const shut = !query && isFolded(g);
+        return [h('button', { class: 'it grp', role: 'menuitem', tabindex: -1, 'aria-expanded': String(!shut), 'data-action': foldAction, 'data-group': g.name, 'data-key': `${name}-group:${g.name}` },
           icon(shut ? 'chevron-right' : 'chevron-down'), h('span', { class: 'who' }, g.name), h('span', { class: 'spec' }, ` ${g.items.length}`)),
-        !shut && g.items.map(item)];
+        !shut && g.items.map((r) => item(r))];
       }));
+  }
+
+  // Examples and the repository's own projects start folded; each row says
+  // where the project lives.
+  function projectMenu() {
+    const current = state.project?.id;
+    return groupedMenu({
+      name: 'project', label: 'Project', rows: state.projects, foldAction: 'toggle-project-group',
+      text: (p) => `${p.label} ${p.where || ''}`,
+      isFolded: (g) => (ui.projectFolds[g.name] !== undefined ? ui.projectFolds[g.name]
+        : g.items.every((p) => p.quiet) && !g.items.some((p) => p.id === current)),
+      item: (p) => menuItem([p.label, p.where && p.where !== p.label && h('span', { class: 'spec' }, ` ${p.where}`)], {
+        role: 'menuitemradio', 'aria-checked': String(p.id === current), 'data-action': 'select-project', 'data-project': p.id, 'data-key': `pm:${p.id}`, title: p.where || null,
+      }, h('span', { class: 'tick' }, p.id === current && icon('check'))),
+    });
+  }
+
+  // A long project's groups start folded, all but the one holding the
+  // selected program; a group the config folds stays folded. A program the
+  // machine cannot run is still there to pick — picking it moves the machine.
+  const FOLD_AT = 12;
+  function programMenu() {
+    const sys = systemOf(state.system) || { name: state.system };
+    const long = state.programs.length > FOLD_AT;
+    return groupedMenu({
+      name: 'program', label: 'Program', rows: state.programs, foldAction: 'toggle-group',
+      text: (p) => `${p.title} ${p.id} ${p.group || ''}`,
+      isFolded: (g) => (g.name in ui.collapsed ? ui.collapsed[g.name]
+        : state.collapsedGroups.includes(g.name) || (long && !g.items.some((p) => p.id === state.program))),
+      item: (p) => {
+        const live = p.live.length > 0;
+        return menuItem([p.title, !p.onSystem && h('span', { class: 'spec' }, ` not on ${sys.name}`)], {
+          class: `it${p.onSystem ? '' : ' dim'}`, role: 'menuitemradio', 'aria-checked': String(p.id === state.program), 'data-action': 'select-program', 'data-program': p.id, 'data-key': `prog:${p.id}`,
+          'aria-label': [p.title, live ? 'running' : null, !p.onSystem ? `not on ${sys.name}` : null].filter(Boolean).join(', '), title: p.entry || null,
+        }, [h('span', { class: 'tick' }, p.id === state.program && icon('check')), live && h('span', { class: 'dot', title: 'Running' })]);
+      },
+    });
   }
 
   function systemMenu() {
@@ -327,68 +358,6 @@
       cmdOpen && codeBlock(state.command, `panel-${cmdId}`, `copy:${p.id}`));
   }
 
-  // ── the list ──────────────────────────────────────────────────────────────
-  let navRow = 0;
-  function programRow(p) {
-    const sel = p.id === state.program;
-    const sys = systemOf(state.system) || { name: state.system };
-    const ri = navRow++;
-    const live = p.live.length > 0;
-    const btns = state.runtimes.map((r, col) => {
-      const a = p.runtimes[r.id];
-      const ok = p.onSystem && a.ok;
-      const isLive = p.live.includes(r.id);
-      const isPrimary = ok && sel && r.id === p.primary;
-      const tip = !p.onSystem ? `${p.title} doesn't target ${sys.name}` : ok
-        ? (isLive ? `${r.long}: running. Click to restart it.` : `Run ${p.title} on ${sys.name} in ${r.long.toLowerCase()}`)
-        : `${r.long} unavailable: ${a.reason || ''}`;
-      return h('button', {
-        class: `ibtn${isPrimary ? ' primary' : ''}${isLive ? ' live' : ''}`, 'data-action': 'run', 'data-runtime': r.id, 'data-program': p.id,
-        'data-nav-row': ri, 'data-nav-col': col + 1, 'data-key': `run:${p.id}:${r.id}`, tabindex: -1, 'aria-disabled': ok ? null : 'true', title: tip, 'aria-label': tip,
-      }, icon(r.icon));
-    });
-    const lead = state.runtimes.find((r) => r.id === p.primary);
-    const nameLabel = [p.title, live ? 'running' : null, !p.onSystem ? `not on ${sys.name}` : null].filter(Boolean).join(', ');
-    return h('div', { class: `prow${sel ? ' sel' : ''}`, role: 'listitem' },
-      h('span', { class: `st${live ? ' live' : ''}`, title: live ? 'Running' : null }),
-      h('button', {
-        class: `name${p.onSystem ? '' : ' dim'}`, 'data-action': 'select-program', 'data-program': p.id, 'data-nav-row': ri, 'data-nav-col': 0, 'data-key': `row:${p.id}`, tabindex: -1,
-        'aria-expanded': String(sel), 'aria-current': sel ? 'true' : null, 'aria-label': nameLabel, 'aria-keyshortcuts': 'Enter', title: lead && p.onSystem ? `${p.title} · Enter runs in ${lead.label}` : p.title,
-      }, p.title),
-      h('span', { class: 'acts', role: 'group', 'aria-label': `Run ${p.title} in` }, btns));
-  }
-
-  function programList() {
-    const q = ui.filter.trim().toLowerCase();
-    const shown = state.programs.filter((p) => !q || p.title.toLowerCase().includes(q) || p.id.toLowerCase().includes(q));
-    const groups = [];
-    for (const p of shown) {
-      let g = groups.find((x) => x.name === p.group);
-      if (!g) groups.push(g = { name: p.group, items: [] });
-      g.items.push(p);
-    }
-    const out = [];
-    for (const g of groups) {
-      const collapsed = !q && g.name && (g.name in ui.collapsed ? ui.collapsed[g.name] : state.collapsedGroups.includes(g.name));
-      // The header takes its place in the keyboard walk before the rows under it.
-      const ri = g.name ? navRow++ : -1;
-      const rows = collapsed ? [] : g.items.map((p) => [programRow(p), p.id === state.program ? drawer(p, false) : null]);
-      if (!g.name) { out.push(h('div', { role: 'group', 'aria-label': 'Programs' }, rows)); continue; }
-      out.push(h('div', { role: 'group', 'aria-label': g.name },
-        h('button', { class: 'group-head', 'aria-expanded': String(!collapsed), 'data-action': 'toggle-group', 'data-group': g.name, 'data-nav-row': ri, 'data-nav-col': 0, 'data-key': `group:${g.name}`, tabindex: -1 },
-          icon(collapsed ? 'chevron-right' : 'chevron-down'), h('span', null, g.name), h('span', { class: 'grow' }), h('span', { class: 'n' }, g.items.length)),
-        rows));
-    }
-    return h('div', { role: 'list', 'aria-label': 'Programs' }, out.length > 0 ? out : h('p', { class: 'none' }, `No programs match “${ui.filter}”.`));
-  }
-
-  // The filter sits above the list and never scrolls with it: a long project
-  // is narrowed from a box that is always in the same place.
-  function filterBox() {
-    return h('div', { class: 'filter' }, icon('search'),
-      h('input', { class: 'input', 'data-filter': 'true', 'data-key': 'filter', placeholder: 'Filter programs', 'aria-label': 'Filter programs', value: ui.filter }));
-  }
-
   // ── running ───────────────────────────────────────────────────────────────
   function tag(runtimeId) {
     const r = runtimeOf(runtimeId);
@@ -447,7 +416,7 @@
       class: `tab${ui.tab === id ? ' on' : ''}`, role: 'tab', 'aria-selected': String(ui.tab === id), 'data-action': 'tab', 'data-tab': id, 'data-key': `tab:${id}`,
     }, live && h('span', { class: 'dot' }), h('span', null, label), count > 0 && h('span', { class: 'badge' }, count));
     return h('div', { class: 'seg', role: 'tablist', 'aria-label': 'Panes' },
-      t('programs', 'Programs', state.programs.length, false),
+      t('programs', 'Program', 0, false),
       t('running', 'Running', state.running.length, state.running.length > 0));
   }
 
@@ -460,49 +429,48 @@
     ];
   }
 
-  // The selected program's run tiles, in the header: whatever the list is
-  // scrolled to, what a click will run is always in view, and named.
+  // The selected program's run tiles, in the header, under the program they
+  // run: named when it is the only one, picked from a menu when there are more.
   function focusBlock(p) {
-    return h('div', { class: 'focus' },
-      h('div', { class: 'focus-name' }, h('span', { class: 'lbl' }, 'Program'), h('b', null, p.title)),
-      runButtons(p));
+    if (state.programs.length < 2) {
+      return h('div', { class: 'focus' },
+        h('div', { class: 'focus-name' }, h('span', { class: 'lbl' }, 'Program'), h('b', null, p.title)),
+        runButtons(p));
+    }
+    return [
+      h('div', { class: 'strip one' },
+        picker('Program', 'lbl-program', p.title, p.group || null, 'menu-program', ui.menu === 'program'),
+        ui.menu === 'program' && programMenu()),
+      h('div', { class: 'focus tight' }, runButtons(p)),
+    ];
   }
 
   // ── the whole page ────────────────────────────────────────────────────────
   function view() {
-    navRow = 0;
     const notices = state.notices.map(notice);
     if (state.phase === 'loading') { root.className = 'plain'; return [notices, skeleton()]; }
     if (state.phase === 'empty' || !state.project) { root.className = 'plain'; return [notices, emptyState()]; }
     root.className = '';
 
     const sys = systemOf(state.system);
-    const several = state.programs.length > 1;
     const p = selected();
     const systemPicker = picker('System', 'lbl-system', sys ? sys.short : state.system, sys && sys.region && sys.region !== '—' ? sys.region : sys && !sys.emulator ? 'browser' : null, 'menu-system', ui.menu === 'system');
 
-    // Fixed: what is chosen and what a click will run.
+    // Fixed: the same three rows for every project — which project, which
+    // machine, which program — and what a click will run.
     const head = [notices];
-    if (several) {
-      head.push(h('div', { class: 'strip' },
-        picker('Project', 'lbl-project', state.project.name, null, 'menu-project', ui.menu === 'project'),
-        systemPicker,
-        ui.menu === 'project' && projectMenu(),
-        ui.menu === 'system' && systemMenu()));
-    } else {
-      // One program: the project is the heading. With other projects to go
-      // to, its name is the Project picker; alone, it is just a name.
-      const who = [h('div', { class: 'name' }, state.project.name), state.project.sub && state.project.sub !== state.project.name && h('div', { class: 'sub' }, state.project.sub)];
-      const open = ui.menu === 'project';
-      head.push(h('div', { class: 'project' }, h('img', { src: root.dataset.logo || '', alt: '' }),
-        state.projects.length > 1
-          ? h('button', { class: 'who switch', 'aria-haspopup': 'menu', 'aria-expanded': String(open), 'aria-label': `Project: ${state.project.name}`, title: 'Switch project', 'data-action': 'menu-project', 'data-key': 'picker:Project' },
-            h('span', { class: 'grow' }, who), icon(open ? 'chevron-up' : 'chevron-down'))
-          : h('div', { class: 'who' }, who),
-        h('button', { class: 'ibtn', 'data-action': 'details', 'data-key': 'project:details', title: 'Project details', 'aria-label': 'Project details' }, icon('info')),
-        open && projectMenu()));
-      head.push(h('div', { class: 'strip one' }, systemPicker, ui.menu === 'system' && systemMenu()));
-    }
+    // The project is the heading. With other projects to go to, its name is
+    // the Project picker; alone, it is just a name.
+    const who = [h('div', { class: 'name' }, state.project.name), state.project.sub && state.project.sub !== state.project.name && h('div', { class: 'sub' }, state.project.sub)];
+    const open = ui.menu === 'project';
+    head.push(h('div', { class: 'project' }, h('img', { src: root.dataset.logo || '', alt: '' }),
+      state.projects.length > 1
+        ? h('button', { class: 'who switch', 'aria-haspopup': 'menu', 'aria-expanded': String(open), 'aria-label': `Project: ${state.project.name}`, title: 'Switch project', 'data-action': 'menu-project', 'data-key': 'picker:Project' },
+          h('span', { class: 'grow' }, who), icon(open ? 'chevron-up' : 'chevron-down'))
+        : h('div', { class: 'who' }, who),
+      h('button', { class: 'ibtn', 'data-action': 'details', 'data-key': 'project:details', title: 'Project details', 'aria-label': 'Project details' }, icon('info')),
+      open && projectMenu()));
+    head.push(h('div', { class: 'strip one' }, systemPicker, ui.menu === 'system' && systemMenu()));
     if (state.summary) {
       head.push(h('div', { class: 'summary row' },
         h('span', null, h('b', null, state.summary.name), ` · ${state.summary.text}`),
@@ -516,9 +484,6 @@
       body.push(h('div', { class: 'scroll', role: 'tabpanel', 'aria-label': 'Running' }, runningPane()));
     } else if (state.programs.length === 0) {
       body.push(h('div', { class: 'scroll', role: 'tabpanel' }, h('p', { class: 'none' }, 'No programs found in this project. Add one to the config’s programs.')));
-    } else if (several) {
-      if (state.programs.length > 7) body.push(filterBox());
-      body.push(h('div', { class: 'scroll', role: 'tabpanel', 'aria-label': 'Programs' }, programList()));
     } else {
       body.push(h('div', { class: 'scroll', role: 'tabpanel', 'aria-label': p.title }, drawer(p, true)));
     }
@@ -526,23 +491,7 @@
     return [h('div', { class: 'hdr' }, head), h('div', { class: 'body' }, body), footer()];
   }
 
-  // ── rendering, focus and roving tabindex ──────────────────────────────────
-  function navCells() {
-    const rows = [];
-    root.querySelectorAll('[data-nav-row]').forEach((el) => {
-      const r = Number(el.getAttribute('data-nav-row'));
-      (rows[r] = rows[r] || []).push(el);
-    });
-    return rows.filter(Boolean).map((cells) => cells.sort((a, b) => Number(a.getAttribute('data-nav-col')) - Number(b.getAttribute('data-nav-col'))));
-  }
-  function applyRoving() {
-    const cells = [].concat(...navCells());
-    if (cells.length === 0) return;
-    const current = cells.find((el) => el.getAttribute('data-key') === ui.navKey)
-      || cells.find((el) => el.getAttribute('data-key') === `row:${state.program}`) || cells[0];
-    cells.forEach((el) => el.setAttribute('tabindex', el === current ? '0' : '-1'));
-  }
-
+  // ── rendering and focus ───────────────────────────────────────────────────
   function render() {
     if (!state) return;
     const active = document.activeElement;
@@ -550,7 +499,6 @@
     const caret = active && typeof active.selectionStart === 'number' ? [active.selectionStart, active.selectionEnd] : null;
     while (root.firstChild) root.removeChild(root.firstChild);
     appendAll(root, view());
-    applyRoving();
     if (key) {
       const again = Array.from(root.querySelectorAll('[data-key]')).find((el) => el.getAttribute('data-key') === key);
       if (again && again.focus) {
@@ -598,17 +546,18 @@
       case 'build': if (prog) post({ type: 'build', program: prog.id, system: state.system }); break;
       case 'boot': ui.menu = null; post({ type: 'boot', system: state.system }); render(); break;
       case 'select-program':
-        if (prog) { ui.navKey = `row:${prog.id}`; state.program = prog.id; ui.menu = null; post({ type: 'select', program: prog.id }); persist(); render(); focusKey(`row:${prog.id}`); }
+        if (prog) { state.program = prog.id; ui.menu = null; ui.filters.program = ''; post({ type: 'select', program: prog.id }); render(); focusKey('picker:Program'); }
         break;
       case 'select-system': ui.menu = null; post({ type: 'select', system: el.getAttribute('data-system') }); render(); focusKey('picker:System'); break;
-      case 'select-project': ui.menu = null; ui.projectFilter = ''; post({ type: 'select', project: el.getAttribute('data-project') }); render(); focusKey('picker:Project'); break;
+      case 'select-project': ui.menu = null; ui.filters.project = ''; post({ type: 'select', project: el.getAttribute('data-project') }); render(); focusKey('picker:Project'); break;
       case 'toggle-project-group': {
         const name = el.getAttribute('data-group');
         ui.projectFolds[name] = el.getAttribute('aria-expanded') === 'true';
-        persist(); render(); focusKey(`pg:${name}`);
+        persist(); render(); focusKey(`project-group:${name}`);
         break;
       }
       case 'menu-project': setMenu('project', 'picker:Project'); break;
+      case 'menu-program': setMenu('program', 'picker:Program'); break;
       case 'menu-system': setMenu('system', 'picker:System'); break;
       case 'menu': setMenu(el.getAttribute('data-menu-name'), `more:${state.program}`); break;
       case 'toggle': { const id = el.getAttribute('data-open'); ui.open[id] = !ui.open[id]; persist(); render(); break; }
@@ -616,7 +565,7 @@
       case 'toggle-group': {
         const name = el.getAttribute('data-group');
         const now = name in ui.collapsed ? ui.collapsed[name] : state.collapsedGroups.includes(name);
-        ui.collapsed[name] = !now; persist(); render(); break;
+        ui.collapsed[name] = !now; persist(); render(); focusKey(`program-group:${name}`); break;
       }
       case 'inputsReset': if (prog) { prog.inputs.forEach((i) => { i.value = i.def; }); post({ type: 'inputsReset', program: prog.id }); render(); } break;
       case 'openSource': post({ type: 'openSource', program: el.getAttribute('data-program') || state.program }); break;
@@ -648,7 +597,7 @@
     if (!id) return;
     // The reason lives in the program's drawer, on the Programs pane.
     const move = id !== state.program || ui.tab !== 'programs';
-    if (id !== state.program) { state.program = id; ui.navKey = `row:${id}`; post({ type: 'select', program: id }); }
+    if (id !== state.program) { state.program = id; post({ type: 'select', program: id }); }
     if (ui.tab !== 'programs') { ui.tab = 'programs'; persist(); }
     if (move) render();
     focusKey(`reason:${id}`);
@@ -678,10 +627,8 @@
   root.addEventListener('input', (event) => {
     const el = event.target;
     const which = el && el.getAttribute ? el.getAttribute('data-filter') : null;
-    if (which === 'project') { ui.projectFilter = el.value; render(); return; }
-    if (which !== 'true') return;
-    ui.filter = el.value;
-    persist();
+    if (!which || !(which in ui.filters)) return;
+    ui.filters[which] = el.value;
     render();
   });
 
@@ -694,9 +641,6 @@
   root.addEventListener('focusin', (event) => {
     const el = event.target;
     showHint(el);
-    if (!el || !el.getAttribute || !el.hasAttribute('data-nav-row')) return;
-    ui.navKey = el.getAttribute('data-key');
-    applyRoving();
   });
 
   root.addEventListener('pointerover', (event) => showHint(event.target));
@@ -719,31 +663,11 @@
       if (key === 'End' && !typing) { event.preventDefault(); items[items.length - 1].focus(); return; }
       if (key === 'Escape' || key === 'Tab') {
         event.preventDefault();
-        closeMenu({ project: 'picker:Project', system: 'picker:System', more: `more:${state.program}` }[menu.getAttribute('data-menu')]);
+        closeMenu({ project: 'picker:Project', program: 'picker:Program', system: 'picker:System', more: `more:${state.program}` }[menu.getAttribute('data-menu')]);
         return;
       }
     }
     if (key === 'Escape' && ui.menu) { closeMenu(); return; }
-
-    // The program list is one tab stop; arrows move inside it.
-    if (el.hasAttribute('data-nav-row')) {
-      const rows = navCells();
-      const r = rows.findIndex((cells) => cells.includes(el));
-      if (r < 0) return;
-      const c = rows[r].indexOf(el);
-      const go = (rr, cc) => { const row = rows[Math.max(0, Math.min(rows.length - 1, rr))]; const target = row[Math.min(cc, row.length - 1)]; if (target) { event.preventDefault(); target.focus(); } };
-      if (key === 'ArrowDown') return go(r + 1, c);
-      if (key === 'ArrowUp') return go(r - 1, c);
-      if (key === 'ArrowRight') return go(r, c + 1);
-      if (key === 'ArrowLeft') return go(r, c - 1);
-      if (key === 'Home') return go(0, c);
-      if (key === 'End') return go(rows.length - 1, c);
-      // Enter on a program's name runs what the row's primary button runs.
-      if (key === 'Enter' && el.getAttribute('data-action') === 'select-program') {
-        const prog = programOf(el.getAttribute('data-program'));
-        if (prog && prog.primary && prog.onSystem) { event.preventDefault(); post(runMessage(prog, prog.primary)); }
-      }
-    }
   });
 
   document.addEventListener('click', (event) => {

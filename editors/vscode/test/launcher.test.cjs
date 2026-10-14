@@ -14,6 +14,9 @@ const mount = (state, saved) => {
   page.send(state);
   return page;
 };
+/** Pick a program the way a person does: open the Program picker, click the program. */
+const choose = (page, id) => { page.click(page.byKey('picker:Program')); page.click(page.byKey(`prog:${id}`)); };
+const menuItems = (page, name) => page.all(`[data-menu="${name}"] [role="menuitemradio"]`);
 const keys = (page, selector) => page.all(selector).map((el) => el.getAttribute('data-key'));
 // Text as a person reads it: icon glyphs (private-use codepoints) are not words.
 const norm = (el) => el.textContent.replace(/[\uE000-\uF8FF]/g, '').replace(/\s+/g, ' ').trim();
@@ -56,59 +59,59 @@ test('no project draws the empty state, and its three buttons post their message
   assert.deepEqual(page.posted.slice(1).map((m) => m.type), ['openFolder', 'tryExample', 'learn']);
 });
 
-test('a project with several programs draws the strip, the panes and the grouped list', () => {
+test('a project with several programs has the same head as one: the project, System, then a Program picker', () => {
   const page = mount(vegas());
-  assert.equal(page.all('.strip .picker').length, 2, 'Project and System pickers');
-  assert.match(norm(page.one('.strip')), /Vegas Nights/);
-  assert.match(norm(page.one('.strip')), /C64\s*NTSC/);
+  assert.match(norm(page.one('.project')), /Vegas Nights/);
+  assert.ok(page.byKey('picker:Project'), 'the heading switches projects');
+  assert.deepEqual(page.all('.strip .picker').map((el) => el.getAttribute('data-key')), ['picker:System', 'picker:Program'], 'one per row, never side by side');
+  assert.ok(page.all('.strip').every((el) => el.className === 'strip one'));
+  assert.match(norm(page.byKey('picker:System')), /C64\s*NTSC/);
+  assert.match(norm(page.byKey('picker:Program')), /3×3 Slot\s*Slots/, 'the program and its group');
   assert.match(norm(page.one('.summary')), /Commodore 64 · 64 KB · NTSC · English/);
-  assert.deepEqual(page.all('.seg .tab').map((el) => el.querySelector('span:not(.badge):not(.dot)').textContent), ['Programs', 'Running'], 'two panes');
-  assert.equal(page.byKey('tab:programs').getAttribute('aria-selected'), 'true', 'programs first');
-  assert.deepEqual(page.all('.group-head').map((el) => el.getAttribute('data-group')), ['Slots', 'Labs', 'Test rigs']);
-  assert.deepEqual(page.all('.prow .name').map((el) => el.textContent), ['3×3 Slot', '5×5 Ways Slot', 'Lobby', 'Hello Reels', 'Sound Test', 'Tile Test'], 'Test rigs start folded');
-  assert.equal(page.one('[data-group="Test rigs"]').getAttribute('aria-expanded'), 'false');
-  assert.equal(page.one('[data-group="Slots"]').getAttribute('aria-expanded'), 'true');
-  assert.equal(page.all('.prow').length, 6);
+  assert.deepEqual(page.all('.seg .tab').map((el) => el.querySelector('span:not(.badge):not(.dot)').textContent), ['Program', 'Running'], 'two panes');
+  assert.equal(page.byKey('tab:programs').getAttribute('aria-selected'), 'true', 'the program first');
+  assert.equal(page.all('.drawer').length, 1, 'the pane holds the selected program, not a list of them');
+  assert.equal(page.one('.drawer').getAttribute('aria-label'), '3×3 Slot details');
 });
 
-test('every row has three labelled run buttons, in the order Editor, Browser, Native', () => {
+test('the tiles are three labelled run buttons, in the order Editor, Browser, Native', () => {
   const page = mount(vegas({ system: 'vic20' }));
-  const row = page.all('.prow')[0];
-  const buttons = Array.from(row.querySelectorAll('[data-action="run"]'));
+  const buttons = page.all('.runs [data-action="run"]');
   assert.deepEqual(buttons.map((b) => b.getAttribute('data-runtime')), ['editor', 'browser', 'native']);
-  assert.equal(row.querySelector('[role="group"]').getAttribute('aria-label'), 'Run 3×3 Slot in');
+  assert.equal(page.one('.runs').getAttribute('aria-label'), 'Run in');
   assert.match(buttons[0].getAttribute('aria-label'), /^Run 3×3 Slot on Commodore VIC-20 in editor tab/);
-  assert.match(buttons[2].getAttribute('aria-label'), /native emulator \(verification\)$/);
+  assert.match(buttons[2].getAttribute('aria-label'), /native emulator \(verification\)/);
 });
 
-test('only the selected row fills its primary runtime, and it is the last one used', () => {
+test('the filled tile is the primary runtime, and it is the last one used', () => {
   const page = mount(vegas({ system: 'vic20', remembered: { slot3x3: 'native' } }));
-  const filled = page.all('.ibtn.primary');
+  const filled = page.all('.runs .run.primary');
   assert.equal(filled.length, 1);
-  assert.equal(filled[0].getAttribute('data-key'), 'run:slot3x3:native');
+  assert.equal(filled[0].getAttribute('data-key'), 'big:slot3x3:native');
   const fresh = mount(vegas({ system: 'vic20' }));
-  assert.equal(fresh.all('.ibtn.primary')[0].getAttribute('data-key'), 'run:slot3x3:editor', 'with nothing remembered the default is the Editor tab');
+  assert.equal(fresh.all('.runs .run.primary')[0].getAttribute('data-key'), 'big:slot3x3:editor', 'with nothing remembered the default is the Editor tab');
 });
 
 test('clicking a run button posts that runtime for that program, the system and only the changed inputs', () => {
   const page = mount(vegas({ system: 'vic20', program: 'slot5x5', values: { slot5x5: { SEED: 10, FORCE_BONUS: true } } }));
-  page.click(page.byKey('run:slot5x5:browser'));
+  page.click(page.byKey('big:slot5x5:browser'));
   assert.deepEqual(page.last(), { type: 'run', runtime: 'browser', program: 'slot5x5', system: 'vic20', inputs: { SEED: 10, FORCE_BONUS: true } });
-  page.click(page.byKey('run:slot3x3:native'));
+  choose(page, 'slot3x3');
+  page.click(page.byKey('big:slot3x3:native'));
   assert.deepEqual(page.last(), { type: 'run', runtime: 'native', program: 'slot3x3', system: 'vic20', inputs: {} }, 'another program carries none of those');
 });
 
 test('Native does not need Editor: it posts on its own, and the others are separate messages', () => {
   const page = mount(vegas({ system: 'cx16' }));
-  page.click(page.byKey('run:slot3x3:native'));
-  page.click(page.byKey('run:slot3x3:editor'));
-  page.click(page.byKey('run:slot3x3:browser'));
+  page.click(page.byKey('big:slot3x3:native'));
+  page.click(page.byKey('big:slot3x3:editor'));
+  page.click(page.byKey('big:slot3x3:browser'));
   assert.deepEqual(page.messages('run').map((m) => m.runtime), ['native', 'editor', 'browser']);
 });
 
 test('a runtime that cannot work stays focusable, says why, and does not run', () => {
   const page = mount(vegas({ system: 'c64' }));
-  const editor = page.byKey('run:slot3x3:editor');
+  const editor = page.byKey('big:slot3x3:editor');
   assert.equal(editor.getAttribute('aria-disabled'), 'true');
   assert.equal(editor.hasAttribute('disabled'), false, 'aria-disabled, never disabled, so a keyboard can reach it');
   assert.match(editor.getAttribute('aria-label'), /unavailable/);
@@ -119,17 +122,9 @@ test('a runtime that cannot work stays focusable, says why, and does not run', (
   assert.match(norm(page.active()), /Preview and Browser are unavailable/);
 });
 
-test('using a disabled button on another row selects that row and focuses its reason', () => {
-  const page = mount(vegas({ system: 'c64', program: 'slot3x3' }));
-  page.click(page.byKey('run:slot5x5:editor'));
-  assert.deepEqual(page.messages('select').at(-1), { type: 'select', program: 'slot5x5' });
-  assert.equal(page.active().getAttribute('data-key'), 'reason:slot5x5');
-  assert.equal(page.one('.prow.sel .name').textContent, '5×5 Ways Slot');
-});
-
 test('the Web system disables Native with the right reason and offers Editor instead', () => {
   const page = mount(vegas({ system: 'web' }));
-  assert.equal(page.byKey('run:slot3x3:native').getAttribute('aria-disabled'), 'true');
+  assert.equal(page.byKey('big:slot3x3:native').getAttribute('aria-disabled'), 'true');
   const reason = page.byKey('reason:slot3x3');
   assert.match(norm(reason), /Emulate is unavailable\. The browser has no native emulator; it runs in the browser\./);
   assert.equal(page.byKey('use:editor'), null, 'Editor is already the primary, so there is nothing to switch to');
@@ -161,20 +156,27 @@ test('when WASM and the emulator are both unavailable the note says each reason 
 
 test('a program that does not target the system is dimmed and explained', () => {
   const page = mount(vegas({ system: 'web', program: 'tile-test' }));
-  assert.ok(page.one('.name.dim'), 'the row is dimmed');
-  assert.equal(page.byKey('run:tile-test:editor').getAttribute('aria-disabled'), 'true');
+  page.click(page.byKey('picker:Program'));
+  const item = page.byKey('prog:tile-test');
+  assert.match(item.className, /dim/, 'the menu dims it');
+  assert.match(norm(item), /Tile Test not on Web/);
+  assert.match(item.getAttribute('aria-label'), /not on Web/);
+  assert.equal(item.getAttribute('aria-disabled'), null, 'but it can still be picked: picking it moves the machine');
+  assert.equal(page.byKey('big:tile-test:editor').getAttribute('aria-disabled'), 'true');
   assert.match(norm(page.byKey('reason:tile-test')), /Not on this system\. Tile Test doesn't target Web\./);
 });
 
-test('selecting a row posts select, opens its drawer, and keeps focus on the row', () => {
+test('picking a program posts select, shows its drawer, and returns focus to the picker', () => {
   const page = mount(vegas());
-  page.click(page.byKey('row:slot5x5'));
+  page.click(page.byKey('picker:Program'));
+  assert.equal(page.byKey('prog:slot3x3').getAttribute('aria-checked'), 'true');
+  page.click(page.byKey('prog:slot5x5'));
   assert.deepEqual(page.messages('select').at(-1), { type: 'select', program: 'slot5x5' });
+  assert.equal(page.all('[data-menu="program"]').length, 0, 'picking closes the menu');
   assert.equal(page.all('.drawer').length, 1);
   assert.equal(page.one('.drawer').getAttribute('aria-label'), '5×5 Ways Slot details');
-  assert.equal(page.active().getAttribute('data-key'), 'row:slot5x5');
-  assert.equal(page.byKey('row:slot5x5').getAttribute('aria-expanded'), 'true');
-  assert.equal(page.byKey('row:slot5x5').getAttribute('aria-current'), 'true');
+  assert.equal(page.active().getAttribute('data-key'), 'picker:Program');
+  assert.match(norm(page.byKey('picker:Program')), /5×5 Ways Slot/);
 });
 
 test('the drawer names the source file, and clicking it opens THAT program\'s entry', () => {
@@ -230,7 +232,7 @@ test('editing an input posts it, draws it as changed, and the next run carries i
   pick(theme, 'cosmic');
   page.change(theme);
   assert.deepEqual(page.messages('input').at(-1), { type: 'input', program: 'slot5x5', name: 'THEME', value: 'cosmic' });
-  page.click(page.byKey('run:slot5x5:native'));
+  page.click(page.byKey('big:slot5x5:native'));
   assert.deepEqual(page.last().inputs, { SEED: 42, FORCE_BONUS: true, THEME: 'cosmic' });
 });
 
@@ -387,14 +389,14 @@ test('the Project menu folds examples and the repository\'s own projects until a
   page.click(page.byKey('picker:Project'));
   const shown = () => page.all('[data-menu="project"] [role="menuitemradio"]').map((el) => el.getAttribute('data-project'));
   assert.deepEqual(shown(), ['/2048', '/v', '/studio'], 'the quiet groups start folded');
-  const examples = page.byKey('pg:Examples');
+  const examples = page.byKey('project-group:Examples');
   assert.equal(examples.getAttribute('aria-expanded'), 'false');
   assert.match(norm(examples), /Examples 6/, 'a folded group says how many it holds');
   page.click(examples);
   assert.equal(shown().length, 9, 'unfolded');
-  assert.equal(page.active().getAttribute('data-key'), 'pg:Examples', 'focus stays on the group');
+  assert.equal(page.active().getAttribute('data-key'), 'project-group:Examples', 'focus stays on the group');
   assert.equal(page.state().projectFolds.Examples, false, 'and the choice is kept');
-  page.click(page.byKey('pg:Programs'));
+  page.click(page.byKey('project-group:Programs'));
   assert.ok(!shown().includes('/2048'), 'any group folds');
 });
 
@@ -403,8 +405,8 @@ test('a quiet group holding the open project starts unfolded', () => {
   state.project = { id: '/conform', name: 'conform', sub: 'packages/cli/conform' };
   const page = mount(state);
   page.click(page.byKey('picker:Project'));
-  assert.equal(page.byKey('pg:8BitScript repository').getAttribute('aria-expanded'), 'true');
-  assert.equal(page.byKey('pg:Examples').getAttribute('aria-expanded'), 'false');
+  assert.equal(page.byKey('project-group:8BitScript repository').getAttribute('aria-expanded'), 'true');
+  assert.equal(page.byKey('project-group:Examples').getAttribute('aria-expanded'), 'false');
 });
 
 test('a long Project menu opens on a filter that searches folded groups too', () => {
@@ -417,9 +419,9 @@ test('a long Project menu opens on a filter that searches folded groups too', ()
   assert.deepEqual(page.all('[data-menu="project"] [role="menuitemradio"]').map((el) => el.getAttribute('data-project')), ['/ex/hello-world', '/ex/hello-8bx']);
   assert.equal(page.active().getAttribute('data-key'), 'project-filter', 'typing keeps focus in the field');
   page.key(page.byKey('project-filter'), 'ArrowDown');
-  assert.equal(page.active().getAttribute('data-key'), 'pg:Examples', 'the arrow leaves the field for the list');
+  assert.equal(page.active().getAttribute('data-key'), 'project-group:Examples', 'the arrow leaves the field for the list');
   assert.equal(page.key(page.byKey('project-filter'), 'Home').defaultPrevented, false, 'Home and End move the caret, not the focus');
-  assert.equal(page.active().getAttribute('data-key'), 'pg:Examples');
+  assert.equal(page.active().getAttribute('data-key'), 'project-group:Examples');
   page.focus(page.byKey('project-filter'));
   assert.equal(page.key(page.byKey('project-filter'), 'End').defaultPrevented, false);
   assert.equal(page.active().getAttribute('data-key'), 'project-filter');
@@ -432,86 +434,74 @@ test('a long Project menu opens on a filter that searches folded groups too', ()
   assert.equal(mount(single()).byKey('project-filter'), null, 'two projects need no filter');
 });
 
-test('folding a group persists, and a fold survives the next state', () => {
+test('the Program menu folds a group the config folds, and a fold is kept and survives the next state', () => {
   const page = mount(vegas());
-  page.click(page.one('[data-group="Labs"]'));
-  assert.deepEqual(page.all('.prow .name').map((el) => el.textContent), ['3×3 Slot', '5×5 Ways Slot', 'Lobby'], 'Labs folded');
+  page.click(page.byKey('picker:Program'));
+  const shown = () => menuItems(page, 'program').map((el) => el.getAttribute('data-program'));
+  assert.equal(page.byKey('program-group:Test rigs').getAttribute('aria-expanded'), 'false', 'Test rigs starts folded');
+  assert.equal(page.byKey('program-group:Slots').getAttribute('aria-expanded'), 'true');
+  const all = shown().length;
+  page.click(page.byKey('program-group:Labs'));
   assert.equal(page.state().collapsed.Labs, true);
-  page.click(page.one('[data-group="Test rigs"]'));
-  assert.equal(page.all('.prow .name').length, 3 + 4, 'Test rigs opened');
+  assert.equal(page.active().getAttribute('data-key'), 'program-group:Labs', 'focus stays on the group');
+  assert.equal(shown().length, all - 3, 'Labs folded');
+  page.click(page.byKey('program-group:Test rigs'));
+  assert.equal(shown().length, all - 3 + 4, 'Test rigs opened');
   page.send(vegas());
-  assert.equal(page.one('[data-group="Labs"]').getAttribute('aria-expanded'), 'false', 'a new state does not unfold it');
+  assert.equal(page.byKey('program-group:Labs').getAttribute('aria-expanded'), 'false', 'a new state does not unfold it');
 });
 
 test('a saved fold is restored when the view reopens', () => {
   const page = mount(vegas(), { collapsed: { Slots: true } });
-  assert.equal(page.all('.prow .name').filter((el) => el.textContent === '3×3 Slot').length, 0);
+  page.click(page.byKey('picker:Program'));
+  assert.equal(page.byKey('prog:slot5x5'), null);
 });
 
-test('the filter appears for a long list, narrows it across folds, and says when nothing matches', () => {
+test('a long project folds every group but the selected program\'s', () => {
+  const many = require('./support/launcherFixtures.cjs').PROGRAMS;
+  const programs = Array.from({ length: 3 }, (_, i) => many.map((p) => ({ ...p, id: `${p.id}-${i}`, group: `${p.group} ${i}` }))).flat();
+  const page = mount(vegas({ programs, program: programs[0].id }));
+  page.click(page.byKey('picker:Program'));
+  const open = page.all('[data-menu="program"] .grp').filter((el) => el.getAttribute('aria-expanded') === 'true').map((el) => el.getAttribute('data-group'));
+  assert.deepEqual(open, [programs[0].group]);
+});
+
+test('a long Program menu opens on a filter that searches folded groups and says when nothing matches', () => {
   const page = mount(vegas());
-  const filter = page.byKey('filter');
-  assert.ok(filter, 'more than seven programs');
-  page.focus(filter);
+  page.click(page.byKey('picker:Program'));
+  const filter = page.byKey('program-filter');
+  assert.ok(filter, 'eight or more programs');
+  assert.equal(page.active(), filter);
   page.type(filter, 'ruler');
-  assert.deepEqual(page.all('.prow .name').map((el) => el.textContent), ['slot3x3-ruler', 'slot5x5-retrigger-jackpot-seeded-ruler'], 'matches are shown even inside a folded group');
-  assert.equal(page.active().getAttribute('data-key'), 'filter', 'typing keeps focus in the field');
-  page.type(page.byKey('filter'), 'zzz');
-  assert.match(norm(page.one('.none')), /No programs match “zzz”\./);
-  page.type(page.byKey('filter'), '');
-  assert.equal(page.all('.prow').length, 6);
-  assert.equal(mount(single()).byKey('filter'), null, 'no filter for a single program');
+  assert.deepEqual(menuItems(page, 'program').map(norm), ['slot3x3-ruler', 'slot5x5-retrigger-jackpot-seeded-ruler'], 'matches are shown even inside a folded group');
+  assert.equal(page.active().getAttribute('data-key'), 'program-filter', 'typing keeps focus in the field');
+  page.type(page.byKey('program-filter'), 'zzz');
+  assert.match(norm(page.one('[data-menu="program"] .none')), /No programs match “zzz”\./);
+  page.key(page.byKey('program-filter'), 'Escape');
+  assert.equal(page.active().getAttribute('data-key'), 'picker:Program');
 });
 
-test('a short list has no filter', () => {
-  const four = vegas({ programs: require('./support/launcherFixtures.cjs').PROGRAMS.slice(0, 4), program: 'slot3x3' });
-  assert.equal(mount(four).byKey('filter'), null);
+test('a short list has no filter, and a single program has no picker', () => {
+  const four = mount(vegas({ programs: require('./support/launcherFixtures.cjs').PROGRAMS.slice(0, 4), program: 'slot3x3' }));
+  four.click(four.byKey('picker:Program'));
+  assert.equal(four.byKey('program-filter'), null);
+  assert.equal(mount(single()).byKey('picker:Program'), null);
 });
 
-test('the program list is one tab stop and the arrow keys move inside it', () => {
+test('the Program menu is walked with the arrows, and Escape returns to the picker', () => {
   const page = mount(vegas());
-  const stops = page.all('[data-nav-row][tabindex="0"]');
-  assert.equal(stops.length, 1);
-  assert.equal(stops[0].getAttribute('data-key'), 'row:slot3x3');
-  assert.ok(page.all('[data-nav-row]').filter((el) => el !== stops[0]).every((el) => el.getAttribute('tabindex') === '-1'));
-  const name = page.byKey('row:slot3x3');
-  page.focus(name);
-  page.key(name, 'ArrowRight');
-  assert.equal(page.active().getAttribute('data-key'), 'run:slot3x3:editor');
-  page.key(page.active(), 'ArrowRight');
-  assert.equal(page.active().getAttribute('data-key'), 'run:slot3x3:browser');
+  page.click(page.byKey('picker:Program'));
   page.key(page.active(), 'ArrowDown');
-  assert.equal(page.active().getAttribute('data-key'), 'run:slot5x5:browser', 'same column on the next row');
-  page.key(page.active(), 'ArrowLeft');
-  page.key(page.active(), 'ArrowLeft');
-  assert.equal(page.active().getAttribute('data-key'), 'row:slot5x5');
-  page.key(page.active(), 'ArrowUp');
-  assert.equal(page.active().getAttribute('data-key'), 'row:slot3x3');
-  page.key(page.active(), 'ArrowUp');
-  assert.equal(page.active().getAttribute('data-key'), 'group:Slots', 'headers are part of the walk');
-  assert.equal(page.all('[data-nav-row][tabindex="0"]')[0].getAttribute('data-key'), 'group:Slots', 'and the one tab stop follows focus');
+  assert.equal(page.active().getAttribute('data-key'), 'program-group:Slots', 'headers are part of the walk');
+  page.key(page.active(), 'ArrowDown');
+  assert.equal(page.active().getAttribute('data-key'), 'prog:slot3x3');
   page.key(page.active(), 'End');
-  assert.equal(page.active().getAttribute('data-key'), 'group:Test rigs');
+  assert.equal(page.active().getAttribute('data-key'), 'program-group:Test rigs');
   page.key(page.active(), 'Home');
-  assert.equal(page.active().getAttribute('data-key'), 'group:Slots');
-});
-
-test('Enter on a program runs its primary runtime; Enter on a header folds it', () => {
-  const page = mount(vegas({ system: 'vic20', remembered: { slot3x3: 'native' } }));
-  const name = page.byKey('row:slot3x3');
-  const event = page.key(name, 'Enter');
-  assert.equal(event.defaultPrevented, true);
-  assert.deepEqual(page.last(), { type: 'run', runtime: 'native', program: 'slot3x3', system: 'vic20', inputs: {} });
-  page.click(page.one('[data-group="Labs"]'));
-  assert.equal(page.one('[data-group="Labs"]').getAttribute('aria-expanded'), 'false');
-});
-
-test('Enter on a program with nowhere to run does nothing but select', () => {
-  const page = mount(vegas({ system: 'web', program: 'tile-test' }));
-  const before = page.posted.length;
-  const event = page.key(page.byKey('row:tile-test'), 'Enter');
-  assert.equal(event.defaultPrevented, false);
-  assert.equal(page.posted.length, before);
+  assert.equal(page.active().getAttribute('data-key'), 'program-group:Slots');
+  page.key(page.active(), 'Escape');
+  assert.equal(page.all('[data-menu="program"]').length, 0);
+  assert.equal(page.active().getAttribute('data-key'), 'picker:Program');
 });
 
 test('the hint under the big buttons follows hover and focus', () => {
@@ -527,8 +517,8 @@ test('the hint under the big buttons follows hover and focus', () => {
 
 test('a project with one program has no program list: the header, the system and big run buttons', () => {
   const page = mount(single({ system: 'vic20' }));
-  assert.equal(page.all('.prow').length, 0);
   assert.equal(page.all('.strip .picker').length, 1, 'just System');
+  assert.match(norm(page.one('.focus-name')), /Program\s*2048/, 'the one program is named, not picked');
   assert.match(norm(page.one('.project')), /2048/);
   const big = page.all('.runs .run');
   assert.deepEqual(big.map((b) => b.getAttribute('data-runtime')), ['editor', 'browser', 'native']);
@@ -555,7 +545,9 @@ test('Running: one card per run with its own Stop, Show tab and Open in browser'
     { type: 'focus', runId: 'r2' }, { type: 'openInBrowser', runId: 'r2' }, { type: 'stop', runId: 'r1' }, { type: 'stop', runId: 'r2' },
   ]);
   page.click(page.byKey('tab:programs'));
-  assert.ok(page.all('.prow .st.live').length === 1, 'and the program row shows a live dot');
+  page.click(page.byKey('picker:Program'));
+  assert.ok(page.byKey('prog:slot5x5').querySelector('.dot'), 'and the Program menu shows which program is running');
+  assert.match(page.byKey('prog:slot5x5').getAttribute('aria-label'), /running/);
 });
 
 test('a run\'s Command and Details open independently and show what was kept', () => {
@@ -636,13 +628,23 @@ test('"Use Emulate instead" changes what the primary button means', () => {
   assert.ok(use, 'a reason that points elsewhere offers the switch');
   forced.click(use);
   assert.deepEqual(forced.messages('selectRuntime').at(-1), { type: 'selectRuntime', program: 'tile-test', runtime: 'native' });
-  assert.ok(page.all('.prow.sel').length === 1);
+  assert.match(norm(page.byKey('picker:Program')), /3×3 Slot/);
 });
 
 test('every control that posts is a real button, and nothing is clickable but buttons and inputs', () => {
   const page = mount(vegas({ program: 'slot5x5', running: RUNNING, history: HISTORY }), { open: { 'inputs:slot5x5': true, 'command:slot5x5': true } });
   for (const el of page.all('[data-action]')) {
     assert.equal(el.tagName, 'BUTTON', `${el.getAttribute('data-action')} should be a button`);
+  }
+  for (const menu of ['picker:Program', 'picker:Project']) {
+    page.click(page.byKey(menu));
+    const open = page.all('[data-menu] [data-action]');
+    assert.ok(open.length > 0, `${menu} opened`);
+    for (const el of open) {
+      assert.equal(el.tagName, 'BUTTON', `${el.getAttribute('data-action')} in ${menu} should be a button`);
+      assert.ok(el.getAttribute('aria-label') || norm(el), `${el.getAttribute('data-key')} has no name`);
+    }
+    page.key(page.active(), 'Escape');
   }
 });
 
@@ -713,28 +715,25 @@ test('a name nobody could find is no second line, not a guess', () => {
 // selected program's run tiles and the tools never move, however long the
 // list is.
 
-test('the head holds the pickers and the selected program\'s tiles; the list is the only thing that scrolls; the tools are the foot', () => {
+test('the head holds the pickers and the selected program\'s tiles; the program\'s details scroll; the tools are the foot', () => {
   const page = mount(vegas({ program: 'slot5x5' }));
   const bands = Array.from(page.app.children).map((el) => el.className);
   assert.deepEqual(bands, ['hdr', 'body', 'foot']);
   const hdr = page.one('.hdr');
   assert.equal(hdr.querySelectorAll('.strip .picker').length, 2);
-  assert.match(norm(hdr.querySelector('.focus-name')), /Program\s*5×5 Ways Slot/, 'the tiles say which program they run');
+  assert.match(norm(hdr.querySelector('[data-key="picker:Program"]')), /5×5 Ways Slot/, 'the tiles sit under the program they run');
   assert.deepEqual(Array.from(hdr.querySelectorAll('.runs .run .name')).map((el) => el.textContent), ['Preview', 'Browser', 'Emulate']);
-  assert.equal(page.one('.body .scroll [role="list"]').getAttribute('aria-label'), 'Programs', 'the list lives in the scrolling pane');
-  assert.ok(page.one('.body > .filter'), 'the filter sits above the scrolling pane, not inside it');
-  assert.equal(page.one('.scroll .filter'), null);
+  assert.ok(page.one('.body .scroll .drawer'), 'the details live in the scrolling pane');
+  assert.equal(page.one('.body > .filter'), null, 'no list, so no filter over it');
   assert.deepEqual(Array.from(page.one('.foot').querySelectorAll('[data-key]')).map((el) => el.getAttribute('data-key')), ['tool:studio', 'tool:studioNative', 'tool:doctor', 'tool:details']);
   assert.equal(page.one('.drawer .runs'), null, 'the drawer no longer repeats the tiles');
 });
 
-test('the head\'s tiles run the selected program, and selecting another row moves them', () => {
+test('the head\'s tiles run the selected program, and picking another moves them', () => {
   const page = mount(vegas({ system: 'vic20' }));
-  assert.match(norm(page.one('.focus-name')), /3×3 Slot/);
   page.click(page.byKey('big:slot3x3:browser'));
   assert.deepEqual(page.last(), { type: 'run', runtime: 'browser', program: 'slot3x3', system: 'vic20', inputs: {} });
-  page.click(page.byKey('row:slot5x5'));
-  assert.match(norm(page.one('.focus-name')), /5×5 Ways Slot/);
+  choose(page, 'slot5x5');
   assert.ok(page.byKey('big:slot5x5:editor'));
   assert.equal(page.byKey('big:slot3x3:editor'), null, 'one set of tiles, for the selected program');
 });
@@ -748,28 +747,19 @@ test('Programs and Running are two panes of the same middle; the choice is kept 
   assert.equal(page.byKey('tab:running').getAttribute('aria-selected'), 'true');
   assert.equal(page.all('.run-item').length, 2);
   assert.equal(page.all('.hist-row').length, 2, 'Recent is under Running');
-  assert.equal(page.one('.scroll [role="list"][aria-label="Programs"]'), null);
+  assert.equal(page.one('.drawer'), null, 'the program\'s details are on the other pane');
   assert.equal(page.state().tab, 'running');
   assert.equal(page.posted.filter((m) => m.type === 'tab').length, 0, 'a pane is the page\'s own business, nothing is posted');
   page.click(page.byKey('tab:programs'));
-  assert.equal(page.all('.prow').length, 6);
-});
-
-test('a row\'s own run buttons are quiet until the row is pointed at, selected or focused; a live one stays lit', () => {
-  const css = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'media', 'launcher.css'), 'utf8');
-  assert.match(css, /\.prow \.acts \.ibtn \{ opacity: 0/);
-  assert.match(css, /\.prow:hover \.acts \.ibtn, \.prow\.sel \.acts \.ibtn, \.prow:focus-within \.acts \.ibtn, \.prow \.acts \.ibtn\.live \{ opacity: 1/);
-  assert.match(css, /forced-colors: active\)[\s\S]*\.prow \.acts \.ibtn \{ opacity: 1/, 'high contrast shows them always');
-  // Quiet, not gone: every row still has its three, reachable by keyboard.
-  const page = mount(vegas());
-  assert.equal(page.all('.prow')[1].querySelectorAll('[data-action="run"]').length, 3);
+  assert.equal(page.all('.drawer').length, 1);
 });
 
 test('the page never scrolls as a whole: the head and the foot are fixed and the pane between them scrolls', () => {
   const css = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'media', 'launcher.css'), 'utf8');
   assert.match(css, /html, body \{[^}]*height: 100%;[^}]*overflow: hidden/);
   assert.match(css, /#app \{[^}]*display: flex; flex-direction: column/);
-  assert.match(css, /\.hdr \{ flex: none/);
+  assert.match(css, /\.hdr \{[^}]*flex: none/);
+  assert.match(css, /\.hdr \{[^}]*position: relative; z-index: 2/, 'above the pane, so a menu hanging out of the head is never under it');
   assert.match(css, /\.scroll \{ flex: 1; min-height: 0; overflow-y: auto/);
   assert.match(css, /\.foot \{ flex: none/);
   assert.match(css, /html, body \{ margin: 0; padding: 0;/, 'the editor pads a webview body 20px a side; the gutter is the page\'s own');
