@@ -343,13 +343,13 @@ class Projects {
   /**
    * What the Project dropdown offers: the workspace's own projects, the
    * apps the toolchain ships (always — they are the point of shipping
-   * them), and its examples unless hidden (`8bitscript.showExamples`).
-   * They sit in a group of their own, so the workspace's projects stay
-   * first and easy to reach.
+   * them), and its examples unless hidden (`8bitscript.showExamples`) —
+   * shipped ones and, in the repository, its own. They sit in a group of
+   * their own, so the workspace's projects stay first and easy to reach.
    */
   get visible() {
-    const shipped = settings.getShowExamples() ? [...this.examples, ...this.apps] : this.apps;
-    return withShipped(this.projects, shipped);
+    if (settings.getShowExamples()) return withShipped(this.projects, [...this.examples, ...this.apps]);
+    return withShipped(this.projects.filter((p) => p.kind !== 'example'), this.apps);
   }
 
   /** Every project there is, listed or not — what a command resolves against. */
@@ -357,14 +357,9 @@ class Projects {
     return withShipped(this.projects, [...this.examples, ...this.apps]);
   }
 
-  /**
-   * Whether offering the toggle would change anything. Inside the
-   * repository the examples are already workspace projects, so there is
-   * nothing to add and the button stays hidden.
-   */
+  /** Whether offering the toggle would change anything: there is an example to show or hide. */
   hasExamples() {
-    const own = new Set(this.projects.map((p) => p.dir));
-    return this.examples.some((example) => !own.has(example.dir));
+    return this.examples.length > 0 || this.projects.some((p) => p.kind === 'example');
   }
 
   /**
@@ -1643,7 +1638,7 @@ function registerRunner(context, output) {
     if (projects.all.length === 0) await projects.refresh();
     const studio = ofKind(projects.all, 'app').find((p) => p.name === '@8bitscript/studio');
     if (!studio) {
-      vscode.window.showInformationMessage('Studio is not installed. Install 8BitScript from the side bar, or install @8bitscript/cli in a project.');
+      vscode.window.showInformationMessage('Studio is not installed. Install 8BitScript from the side bar, or add the toolchain to a project as a dev dependency: pnpm add -D @8bitscript/cli.');
       return null;
     }
     return studio;

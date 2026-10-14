@@ -50,7 +50,7 @@
     "joystick",
     "media-walk",
     "swarm",
-    "shared-release-targets.ts",
+    "shared-release-targets.mjs",
     "generate-shared-assets.mjs",
     "README.md"
   ],

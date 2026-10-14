@@ -30,12 +30,14 @@
     filter: '',
     open: {},            // disclosure id -> true
     collapsed: {},       // group name -> true/false (overrides the state's default)
+    projectFolds: {},    // Project-menu group -> true/false (overrides its default)
+    projectFilter: '',   // what the Project menu's filter holds; not kept across reloads
     menu: null,          // 'project' | 'system' | 'more' | null
     navKey: null,        // the one list control in the tab order
     tab: 'programs',     // 'programs' | 'running': which pane fills the middle
     ...saved,
   };
-  const persist = () => vscode.setState({ filter: ui.filter, open: ui.open, collapsed: ui.collapsed, navKey: ui.navKey, tab: ui.tab });
+  const persist = () => vscode.setState({ filter: ui.filter, open: ui.open, collapsed: ui.collapsed, projectFolds: ui.projectFolds, navKey: ui.navKey, tab: ui.tab });
   const post = (message) => vscode.postMessage(message);
 
   /** A posted state with every list a list, so a short or older message cannot break the page. */
@@ -129,18 +131,39 @@
     return h('button', { class: 'it', role: props.role || 'menuitem', tabindex: -1, ...props }, kids || null, h('span', { class: 'who' }, label));
   }
 
+  // A workspace beside the repository holds a dozen projects, most of them
+  // examples and the toolchain's own; those groups start folded, the filter
+  // appears once the list is long, and each row says where it lives.
+  const PROJECT_FILTER_AT = 8;
   function projectMenu() {
+    const query = ui.projectFilter.trim().toLowerCase();
     const groups = [];
     for (const p of state.projects) {
+      if (query && !`${p.label} ${p.where || ''}`.toLowerCase().includes(query)) continue;
       let g = groups.find((x) => x.name === p.group);
       if (!g) groups.push(g = { name: p.group, items: [] });
       g.items.push(p);
     }
-    return h('div', { class: 'menu', role: 'menu', 'aria-label': 'Project', 'data-menu': 'project' },
-      groups.map((g) => [g.name && h('div', { class: 'grp' }, g.name),
-        g.items.map((p) => menuItem(p.label, {
-          role: 'menuitemradio', 'aria-checked': String(p.id === state.project?.id), 'data-action': 'select-project', 'data-project': p.id, 'data-key': `pm:${p.id}`, title: p.where || null,
-        }, h('span', { class: 'tick' }, p.id === state.project?.id && icon('check'))))]));
+    const folded = (g) => {
+      if (query || !g.name) return false;
+      if (ui.projectFolds[g.name] !== undefined) return ui.projectFolds[g.name];
+      return g.items.every((p) => p.quiet) && !g.items.some((p) => p.id === state.project?.id);
+    };
+    const item = (p) => menuItem([p.label, p.where && p.where !== p.label && h('span', { class: 'spec' }, ` ${p.where}`)], {
+      role: 'menuitemradio', 'aria-checked': String(p.id === state.project?.id), 'data-action': 'select-project', 'data-project': p.id, 'data-key': `pm:${p.id}`, title: p.where || null,
+    }, h('span', { class: 'tick' }, p.id === state.project?.id && icon('check')));
+    const filter = state.projects.length >= PROJECT_FILTER_AT && h('div', { class: 'filter in-menu' }, icon('search'),
+      h('input', { class: 'input', 'data-filter': 'project', 'data-key': 'project-filter', placeholder: 'Filter projects', 'aria-label': 'Filter projects', value: ui.projectFilter }));
+    return h('div', { class: 'menu projects', role: 'menu', 'aria-label': 'Project', 'data-menu': 'project' },
+      filter,
+      groups.length === 0 && h('p', { class: 'none' }, `No projects match “${ui.projectFilter}”.`),
+      groups.map((g) => {
+        if (!g.name) return g.items.map(item);
+        const shut = folded(g);
+        return [h('button', { class: 'it grp', role: 'menuitem', tabindex: -1, 'aria-expanded': String(!shut), 'data-action': 'toggle-project-group', 'data-group': g.name, 'data-key': `pg:${g.name}` },
+          icon(shut ? 'chevron-right' : 'chevron-down'), h('span', { class: 'who' }, g.name), h('span', { class: 'spec' }, ` ${g.items.length}`)),
+        !shut && g.items.map(item)];
+      }));
   }
 
   function systemMenu() {
@@ -467,9 +490,17 @@
         ui.menu === 'project' && projectMenu(),
         ui.menu === 'system' && systemMenu()));
     } else {
+      // One program: the project is the heading. With other projects to go
+      // to, its name is the Project picker; alone, it is just a name.
+      const who = [h('div', { class: 'name' }, state.project.name), state.project.sub && state.project.sub !== state.project.name && h('div', { class: 'sub' }, state.project.sub)];
+      const open = ui.menu === 'project';
       head.push(h('div', { class: 'project' }, h('img', { src: root.dataset.logo || '', alt: '' }),
-        h('div', { class: 'who' }, h('div', { class: 'name' }, state.project.name), state.project.sub && state.project.sub !== state.project.name && h('div', { class: 'sub' }, state.project.sub)),
-        h('button', { class: 'ibtn', 'data-action': 'details', 'data-key': 'project:details', title: 'Project details', 'aria-label': 'Project details' }, icon('info'))));
+        state.projects.length > 1
+          ? h('button', { class: 'who switch', 'aria-haspopup': 'menu', 'aria-expanded': String(open), 'aria-label': `Project: ${state.project.name}`, title: 'Switch project', 'data-action': 'menu-project', 'data-key': 'picker:Project' },
+            h('span', { class: 'grow' }, who), icon(open ? 'chevron-up' : 'chevron-down'))
+          : h('div', { class: 'who' }, who),
+        h('button', { class: 'ibtn', 'data-action': 'details', 'data-key': 'project:details', title: 'Project details', 'aria-label': 'Project details' }, icon('info')),
+        open && projectMenu()));
       head.push(h('div', { class: 'strip one' }, systemPicker, ui.menu === 'system' && systemMenu()));
     }
     if (state.summary) {
@@ -546,7 +577,8 @@
     ui.menu = ui.menu === name ? null : name;
     render();
     if (ui.menu) {
-      const first = root.querySelector(`[data-menu="${ui.menu}"] [role^="menuitem"]:not([aria-disabled="true"])`);
+      const first = root.querySelector(`[data-menu="${ui.menu}"] [data-filter]`)
+        || root.querySelector(`[data-menu="${ui.menu}"] [role^="menuitem"]:not([aria-disabled="true"])`);
       if (first) first.focus();
     } else if (triggerKey) focusKey(triggerKey);
   }
@@ -569,7 +601,13 @@
         if (prog) { ui.navKey = `row:${prog.id}`; state.program = prog.id; ui.menu = null; post({ type: 'select', program: prog.id }); persist(); render(); focusKey(`row:${prog.id}`); }
         break;
       case 'select-system': ui.menu = null; post({ type: 'select', system: el.getAttribute('data-system') }); render(); focusKey('picker:System'); break;
-      case 'select-project': ui.menu = null; post({ type: 'select', project: el.getAttribute('data-project') }); render(); focusKey('picker:Project'); break;
+      case 'select-project': ui.menu = null; ui.projectFilter = ''; post({ type: 'select', project: el.getAttribute('data-project') }); render(); focusKey('picker:Project'); break;
+      case 'toggle-project-group': {
+        const name = el.getAttribute('data-group');
+        ui.projectFolds[name] = el.getAttribute('aria-expanded') === 'true';
+        persist(); render(); focusKey(`pg:${name}`);
+        break;
+      }
       case 'menu-project': setMenu('project', 'picker:Project'); break;
       case 'menu-system': setMenu('system', 'picker:System'); break;
       case 'menu': setMenu(el.getAttribute('data-menu-name'), `more:${state.program}`); break;
@@ -639,7 +677,9 @@
 
   root.addEventListener('input', (event) => {
     const el = event.target;
-    if (!el || !el.getAttribute || el.getAttribute('data-filter') !== 'true') return;
+    const which = el && el.getAttribute ? el.getAttribute('data-filter') : null;
+    if (which === 'project') { ui.projectFilter = el.value; render(); return; }
+    if (which !== 'true') return;
     ui.filter = el.value;
     persist();
     render();
@@ -671,10 +711,12 @@
     if (menu) {
       const items = Array.from(menu.querySelectorAll('[role^="menuitem"]:not([aria-disabled="true"])'));
       const at = items.indexOf(el);
+      const typing = el.hasAttribute('data-filter');
+      if (items.length === 0 && key !== 'Escape' && key !== 'Tab') return;
       if (key === 'ArrowDown') { event.preventDefault(); items[(at + 1) % items.length].focus(); return; }
       if (key === 'ArrowUp') { event.preventDefault(); items[(at - 1 + items.length) % items.length].focus(); return; }
-      if (key === 'Home') { event.preventDefault(); items[0].focus(); return; }
-      if (key === 'End') { event.preventDefault(); items[items.length - 1].focus(); return; }
+      if (key === 'Home' && !typing) { event.preventDefault(); items[0].focus(); return; }
+      if (key === 'End' && !typing) { event.preventDefault(); items[items.length - 1].focus(); return; }
       if (key === 'Escape' || key === 'Tab') {
         event.preventDefault();
         closeMenu({ project: 'picker:Project', system: 'picker:System', more: `more:${state.program}` }[menu.getAttribute('data-menu')]);

@@ -19,7 +19,7 @@ capability should be shaped is not a claim that the capability exists yet.
 `vic20`, `cx16`, and `web` (`RELEASE_MACHINES` in
 `packages/compiler/src/resolver/index.mjs`). Examples, Studio, and the
 editor launcher share
-[`packages/examples/shared-release-targets.ts`](packages/examples/shared-release-targets.ts).
+[`packages/examples/shared-release-targets.mjs`](packages/examples/shared-release-targets.mjs).
 Every other id stays in `MACHINES` so twins, facts, and `8bs check` keep
 working; restoring the rest to `RELEASE_MACHINES` is planned after this
 narrow release is polished. See [`docs/index.md`](docs/index.md) and

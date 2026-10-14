@@ -959,6 +959,9 @@ importers:
       '@8bitscript/audio':
         specifier: workspace:*
         version: link:../audio
+      '@8bitscript/examples':
+        specifier: workspace:*
+        version: link:../examples
       '@8bitscript/graphics':
         specifier: workspace:*
         version: link:../graphics

@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 
 import { link, RELEASE_MACHINES } from '../../compiler/index.mjs';
 import { stockFacts } from '../../cli/src/hardware.mjs';
-import { releaseTargets } from '../shared-release-targets.ts';
+import { releaseTargets } from '../shared-release-targets.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
@@ -93,7 +93,7 @@ test('the CLI depends on the examples, so they ship with the toolchain', () => {
   assert.equal(pkg.version, cli.version, 'one version across the workspace');
 });
 
-// Every example shares the five release targets from shared-release-targets.ts
+// Every example shares the five release targets from shared-release-targets.mjs
 // (PET 4032 32K, stock C64, VIC-20 8K, CX16, web).
 const RELEASE_FIVE = [...RELEASE_MACHINES];
 
@@ -114,7 +114,7 @@ for (const name of Object.keys(examples)) {
 }
 
 // joystick is the controller test app. The release PET is the 32K 4032 from
-// shared-release-targets.ts; the unexpanded VIC-20 is 8K in that file too.
+// shared-release-targets.mjs; the unexpanded VIC-20 is 8K in that file too.
 // `link` does not lay out an image, so this is not a size check — it is the
 // guard that those budgets stay written down where someone changing the
 // example will see them, next to the measured sizes in its README.

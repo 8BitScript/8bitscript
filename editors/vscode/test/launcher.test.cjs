@@ -340,10 +340,91 @@ test('the Project menu groups projects and posts the pick', () => {
   const page = mount(vegas());
   page.click(page.one('[data-action="menu-project"]'));
   const items = page.all('[data-menu="project"] [role="menuitemradio"]');
-  assert.deepEqual(items.map(norm), ['Vegas Nights', '2048']);
+  assert.deepEqual(items.map(norm), ['Vegas Nights vegas-nights', '2048'], 'where it lives, unless that is its name');
   assert.equal(items[0].getAttribute('aria-checked'), 'true');
   page.click(items[1]);
   assert.deepEqual(page.last(), { type: 'select', project: '/2048' });
+});
+
+test('a project with one program still switches projects: its name is the Project picker', () => {
+  const page = mount(single());
+  const name = page.byKey('picker:Project');
+  assert.ok(name, 'the heading is a button when there is somewhere else to go');
+  assert.equal(name.getAttribute('aria-haspopup'), 'menu');
+  page.click(name);
+  assert.equal(page.byKey('picker:Project').getAttribute('aria-expanded'), 'true');
+  const items = page.all('[data-menu="project"] [role="menuitemradio"]');
+  assert.deepEqual(items.map((el) => el.getAttribute('data-project')), ['/v', '/2048']);
+  page.click(items[0]);
+  assert.deepEqual(page.last(), { type: 'select', project: '/v' });
+  assert.equal(page.all('[data-menu="project"]').length, 0, 'picking closes the menu');
+});
+
+test('a project alone in its workspace is a heading, not a picker', () => {
+  const state = single();
+  state.projects = state.projects.filter((p) => p.id === '/2048');
+  const page = mount(state);
+  assert.equal(page.byKey('picker:Project'), null);
+  assert.match(norm(page.one('.project')), /2048/);
+});
+
+/** A workspace beside a checkout of the repository: two programs, six examples, Studio and conform. */
+function crowded() {
+  const state = single();
+  const ex = ['hello-world', 'joystick', 'fancy', 'hello-8bx', 'swarm', 'media-walk'];
+  state.projects = [
+    { id: '/2048', label: '2048', where: '2048', group: 'Programs' },
+    { id: '/v', label: 'vegas-nights', where: 'vegas-nights', group: 'Programs' },
+    ...ex.map((name) => ({ id: `/ex/${name}`, label: name, where: `packages/examples/${name}`, group: 'Examples', quiet: true })),
+    { id: '/studio', label: 'Studio', where: '@8bitscript/studio', group: 'Apps' },
+    { id: '/conform', label: 'conform', where: 'packages/cli/conform', group: '8BitScript repository', quiet: true },
+  ];
+  return state;
+}
+
+test('the Project menu folds examples and the repository\'s own projects until asked, and remembers it', () => {
+  const page = mount(crowded());
+  page.click(page.byKey('picker:Project'));
+  const shown = () => page.all('[data-menu="project"] [role="menuitemradio"]').map((el) => el.getAttribute('data-project'));
+  assert.deepEqual(shown(), ['/2048', '/v', '/studio'], 'the quiet groups start folded');
+  const examples = page.byKey('pg:Examples');
+  assert.equal(examples.getAttribute('aria-expanded'), 'false');
+  assert.match(norm(examples), /Examples 6/, 'a folded group says how many it holds');
+  page.click(examples);
+  assert.equal(shown().length, 9, 'unfolded');
+  assert.equal(page.active().getAttribute('data-key'), 'pg:Examples', 'focus stays on the group');
+  assert.equal(page.state().projectFolds.Examples, false, 'and the choice is kept');
+  page.click(page.byKey('pg:Programs'));
+  assert.ok(!shown().includes('/2048'), 'any group folds');
+});
+
+test('a quiet group holding the open project starts unfolded', () => {
+  const state = crowded();
+  state.project = { id: '/conform', name: 'conform', sub: 'packages/cli/conform' };
+  const page = mount(state);
+  page.click(page.byKey('picker:Project'));
+  assert.equal(page.byKey('pg:8BitScript repository').getAttribute('aria-expanded'), 'true');
+  assert.equal(page.byKey('pg:Examples').getAttribute('aria-expanded'), 'false');
+});
+
+test('a long Project menu opens on a filter that searches folded groups too', () => {
+  const page = mount(crowded());
+  page.click(page.byKey('picker:Project'));
+  const filter = page.byKey('project-filter');
+  assert.ok(filter, 'ten projects get a filter');
+  assert.equal(page.active(), filter, 'and the menu opens on it');
+  page.type(filter, 'hello');
+  assert.deepEqual(page.all('[data-menu="project"] [role="menuitemradio"]').map((el) => el.getAttribute('data-project')), ['/ex/hello-world', '/ex/hello-8bx']);
+  assert.equal(page.active().getAttribute('data-key'), 'project-filter', 'typing keeps focus in the field');
+  page.key(page.byKey('project-filter'), 'ArrowDown');
+  assert.equal(page.active().getAttribute('data-key'), 'pg:Examples', 'the arrow leaves the field for the list');
+  page.type(page.byKey('project-filter'), 'zzz');
+  assert.match(norm(page.one('[data-menu="project"] .none')), /No projects match “zzz”\./);
+  assert.equal(page.key(page.byKey('project-filter'), 'ArrowDown').defaultPrevented, false, 'nothing to move to');
+  page.key(page.byKey('project-filter'), 'Escape');
+  assert.equal(page.all('[data-menu="project"]').length, 0);
+  assert.equal(page.active().getAttribute('data-key'), 'picker:Project');
+  assert.equal(mount(single()).byKey('project-filter'), null, 'two projects need no filter');
 });
 
 test('folding a group persists, and a fold survives the next state', () => {

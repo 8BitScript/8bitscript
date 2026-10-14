@@ -21,7 +21,7 @@ at the same cost.
 `web` (`RELEASE_MACHINES` in `packages/compiler/src/resolver/index.mjs`).
 `8bs build` and `8bs run` work for those ids only; examples, Studio, and
 the editor launcher share
-[`packages/examples/shared-release-targets.ts`](../packages/examples/shared-release-targets.ts).
+[`packages/examples/shared-release-targets.mjs`](../packages/examples/shared-release-targets.mjs).
 
 The compiler still names the **original nine** and the **remaining roadmap
 machines** (`plus4`, `oric`, `apple2`, `bbc`, `atari5200`, `lynx`, `pce`,

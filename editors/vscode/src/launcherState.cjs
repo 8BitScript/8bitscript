@@ -25,7 +25,7 @@
 //   runtimes: [{ id, label, icon, long, what }]      // always the three, in order
 //   notices: [{ id, kind: 'info'|'warn'|'error', icon, title?, text,
 //               actions: [{ label, icon?, msg }] }]  // msg is a PageMessage
-//   projects: [{ id, label, where, group }]          // group: 'Projects'|'Examples'|'Apps'
+//   projects: [{ id, label, where, group, quiet? }]  // group: a KINDS label; quiet groups start folded
 //   project: { id, name, sub } | null
 //   systems: [{ id, short, name, spec, region, group, emulator, enabled, reason? }]
 //   system: <a systems[].id>

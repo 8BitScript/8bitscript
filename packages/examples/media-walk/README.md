@@ -2,7 +2,7 @@
 
 One PNG walk cycle (`player.8bg`), WAV blip and two-note song (`theme.8ba`), composed in `Walk.8bx`. Shared `mark.8bg` / `chime.8ba` sit beside the hero assets. PET build uses **4032** 32K with an attached speaker so the VIA song plays.
 
-Targets: release five from [`../shared-release-targets.ts`](../shared-release-targets.ts), with `speaker: attached` on PET.
+Targets: release five from [`../shared-release-targets.mjs`](../shared-release-targets.mjs), with `speaker: attached` on PET.
 
 ## Run
 

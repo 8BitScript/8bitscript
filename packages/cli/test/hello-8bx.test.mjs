@@ -45,7 +45,7 @@ async function buildExample(name, target) {
     cpSync(join(EXAMPLES, name, 'src'), join(dir, 'src'), { recursive: true });
     const configName = exampleConfigName(name);
     cpSync(join(EXAMPLES, name, configName), join(dir, configName));
-    cpSync(join(EXAMPLES, 'shared-release-targets.ts'), join(root, 'shared-release-targets.ts'));
+    cpSync(join(EXAMPLES, 'shared-release-targets.mjs'), join(root, 'shared-release-targets.mjs'));
     process.chdir(dir);
     const result = await silently(() => compile(target, undefined, { checkout: REPO }));
     assert.equal(result.ok, true, `${name} builds for ${target}`);

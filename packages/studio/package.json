@@ -17,7 +17,7 @@
   },
   "files": [
     "src",
-    "8bs.config.ts"
+    "8bitscript.config.8bs"
   ],
   "scripts": {
     "start": "8bs run cx16",
@@ -32,6 +32,7 @@
   },
   "dependencies": {
     "@8bitscript/audio": "workspace:*",
+    "@8bitscript/examples": "workspace:*",
     "@8bitscript/graphics": "workspace:*",
     "@8bitscript/screen": "workspace:*",
     "@8bitscript/sprites": "workspace:*",
