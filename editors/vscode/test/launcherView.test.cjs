@@ -249,6 +249,23 @@ test('the state describes the project from the model: its programs with titles, 
   });
 });
 
+test('the Project entries are grouped by kind, and examples and the repository\'s own are quiet', async () => {
+  await withLauncher(async ({ view, projects }) => {
+    const like = (name, kind) => ({ ...projects.projects[0], dir: `/w/${name}`, name, title: name, kind });
+    projects.projects.push(like('hello', 'example'), like('conform', 'internal'));
+    const seen = readyStates(view);
+    projects.changed.fire();
+    await tick();
+    const state = await stateAfter(view, seen);
+    const row = (id) => state.projects.find((p) => p.id === id);
+    assert.equal(row('/w/hello').group, 'Examples');
+    assert.equal(row('/w/hello').quiet, true);
+    assert.equal(row('/w/conform').group, '8BitScript repository');
+    assert.equal(row('/w/conform').quiet, true);
+    assert.equal(state.projects[0].quiet, undefined, 'a program is not');
+  });
+});
+
 test('the C64 has no WASM build in the CLI\'s own report, so Editor and Browser are off with its reason and Native is the primary', async () => {
   await withLauncher(({ first }) => {
     const main = first.programs[0];

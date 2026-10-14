@@ -2,7 +2,8 @@
 // and a web smoke test for the bare bar and mark.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFile } from 'node:child_process';
@@ -12,6 +13,7 @@ import { link } from '../../compiler/index.mjs';
 import { loadCatalog, resolveHardware, stockFacts } from '../../cli/src/hardware.mjs';
 import { instantiateProgram, FrameLimitReached } from '../../cli/src/wasm-host.mjs';
 import { layoutFromHardware } from '../../cli/src/web-layout.mjs';
+import { loadConfig } from '../../cli/src/config.mjs';
 
 const run = promisify(execFile);
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -79,6 +81,33 @@ test('release config matches shared-release-targets and names the X16 baseline',
   assert.match(config, /^  input: \{ primary: 'mouse', also: \['keyboard', 'stick', 'pad'\] \},$/m);
   assert.match(config, /targets: \{ \.\.\.releaseTargets \}/);
   assert.match(config, /^    'Commander X16': \{ target: 'cx16' \},$/m);
+});
+
+// An npm install puts Studio and the examples inside node_modules, where only
+// what `files` lists arrives and Node will not strip types. Copy each package
+// the way a pack would and load the configs from there: Studio's must be in
+// the tarball, and its targets and every example's must still resolve.
+test('Studio and the examples load their configs from an installed copy', async () => {
+  assert.ok(pkg.files.includes('8bitscript.config.8bs'), 'Studio ships its config');
+  const root = mkdtempSync(join(tmpdir(), '8bs-installed-'));
+  try {
+    const scope = join(root, 'node_modules', '@8bitscript');
+    for (const name of ['studio', 'examples']) {
+      const from = join(ROOT, '..', name);
+      const manifest = JSON.parse(readFileSync(join(from, 'package.json'), 'utf8'));
+      mkdirSync(join(scope, name), { recursive: true });
+      cpSync(join(from, 'package.json'), join(scope, name, 'package.json'));
+      for (const entry of manifest.files) cpSync(join(from, entry), join(scope, name, entry), { recursive: true });
+    }
+    const examples = JSON.parse(readFileSync(join(scope, 'examples', 'package.json'), 'utf8'))['8bitscript'].examples;
+    const dirs = [join(scope, 'studio'), ...Object.values(examples).map((e) => join(scope, 'examples', e.dir))];
+    for (const dir of dirs) {
+      const config = await loadConfig(dir);
+      assert.deepEqual(Object.keys(config?.targets ?? {}).sort(), [...RELEASE_TARGETS].sort(), dir);
+    }
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
 /** `8bs build --target <target>` in Studio's own directory. */

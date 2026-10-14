@@ -1,6 +1,6 @@
 // Studio is an ordinary 8BitScript app. This release builds for five
-// machines — the same set as packages/examples/shared-release-targets.ts.
-import { releaseTargets } from '../examples/shared-release-targets.ts';
+// machines — the same set as packages/examples/shared-release-targets.mjs.
+import { releaseTargets } from '@8bitscript/examples/shared-release-targets.mjs';
 
 // The X16 is the baseline: keyboard, mouse, VERA, and room to grow the
 // full editor. `8bs run` with no target starts there; `8bs build --release`

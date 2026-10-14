@@ -1,4 +1,4 @@
-import { releaseTargets } from '../shared-release-targets.ts';
+import { releaseTargets } from '../shared-release-targets.mjs';
 
 export default {
   entry: 'src/main.8bs',

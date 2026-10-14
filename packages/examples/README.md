@@ -7,7 +7,7 @@ and beside Studio. Each example is an ordinary project: a directory with an
 `8bitscript.config.8bs`, a program under `src/*.8bs`, and the four source
 kinds this release dogfoods — **`.8bs`** (program), **`.8bx`** (composition),
 **`.8bg`** / **`.8ba`** (portable media). Every example imports
-[`shared-release-targets.ts`](shared-release-targets.ts) for its `targets`
+[`shared-release-targets.mjs`](shared-release-targets.mjs) for its `targets`
 (PET **4032** 32K, VIC-20 **8K**, C64, CX16, web). Shared `mark.8bg` /
 `chime.8ba` assets are generated with [`generate-shared-assets.mjs`](generate-shared-assets.mjs).
 Run with `8bs run <target>` from inside an example directory.

@@ -4,7 +4,7 @@
 
 It carries no media. A program that draws once and returns has no frame to drive any: `audio.update()` is what releases the voice `audio.play()` arms, and `graphics.place()` leaves its drawing to the next update on every machine but the VIC-20 — so a chime here sticks on and an object here costs its whole pipeline to show nothing. Media lives in the examples with a frame loop: `fancy`, `swarm`, `joystick`, `media-walk`.
 
-Targets come from [`../shared-release-targets.ts`](../shared-release-targets.ts) (PET **4032** 32K, VIC-20 8K, C64, CX16, web).
+Targets come from [`../shared-release-targets.mjs`](../shared-release-targets.mjs) (PET **4032** 32K, VIC-20 8K, C64, CX16, web).
 
 ## Run
 

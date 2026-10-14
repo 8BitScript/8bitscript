@@ -274,9 +274,14 @@ not in the side bar.
   starting an emulator.
 - **Project** — the folder the tiles and Build act on (`8bitscript.project`).
   Every directory in the workspace with an `8bitscript.config.8bs` is in the
-  menu, grouped as **Projects**, **Examples**, and **Apps**. Apps are packages
-  whose `package.json` declares an `8bitscript.app`, [Studio](../../docs/studio.md)
-  being the first. The source path in a program's drawer opens its entry
+  menu, grouped as **Programs**, **Examples**, **Apps**, and — when this
+  repository is open — **8BitScript repository**, the toolchain's own test
+  programs (`conform`). Apps are packages whose `package.json` declares an
+  `8bitscript.app`, [Studio](../../docs/studio.md) being the first. The
+  picker is there whenever the workspace has more than one project; for a
+  project with a single program, its name in the header is the picker.
+  Examples and the repository's group start folded, eight or more projects
+  get a filter, and each row says where the project lives. The source path in a program's drawer opens its entry
   `.8bs` file. Picking a project loads what it is set up for — the first of
   its systems, hardware and region and all — and a project with none keeps
   the current machine when it targets it.
@@ -285,9 +290,9 @@ not in the side bar.
   *Examples* (`8bitscript.showExamples`, on by default), not under Programs —
   including when this repo is open and they are ordinary workspace folders.
   They come from `@8bitscript/examples`, which `@8bitscript/cli`
-  depends on, so any project that has installed the CLI has them — today
-  that's `hello-world` and `joystick`. The 📖 in the title bar hides or
-  shows them. **Launch
+  depends on, so any project that has installed the CLI
+  (`pnpm add -D @8bitscript/cli`) has them, and Studio with them. The 📖
+  in the title bar hides or shows them, the repository's own included. **Launch
   Example…** reaches them either way, and one that is already selected
   stays in the list even with the toggle off, so hiding them never blanks
   the picker.

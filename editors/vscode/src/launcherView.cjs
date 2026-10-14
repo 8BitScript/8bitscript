@@ -563,9 +563,17 @@ class LauncherViewProvider {
   }
 }
 
-/** The project picker's entries, grouped into Projects / Examples / Apps. */
+/**
+ * The project picker's entries, grouped into Programs / Examples / Apps /
+ * the repository's own. Examples and the repository's projects are
+ * `quiet`: their groups start folded, so a workspace beside a checkout of
+ * the repository still opens on the programs someone is writing.
+ */
 function projectOptions(projects) {
-  const entry = (project, group) => ({ id: project.dir, label: labelOf(project), where: whereLabel(project), group });
+  const entry = (project, group) => ({
+    id: project.dir, label: labelOf(project), where: whereLabel(project), group,
+    ...(project.kind === 'example' || project.kind === 'internal' ? { quiet: true } : {}),
+  });
   const sections = byKind(projects);
   if (!sections) return projects.map((project) => entry(project, ''));
   return sections.flatMap(({ label, projects: group }) => group.map((project) => entry(project, label)));

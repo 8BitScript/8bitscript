@@ -83,7 +83,7 @@ button { cursor: pointer; }
 .btn.ghost:hover:not([aria-disabled="true"]) { background: var(--vscode-toolbar-hoverBackground); }
 .btn.sm { height: 24px; padding: 0 8px; font-size: 12px; }
 .btn[aria-disabled="true"], .ibtn[aria-disabled="true"] { opacity: .45; cursor: not-allowed; }
-:is(.btn, .ibtn, .chip, .picker, .row-btn, .link, .disclosure, .name, .group-head, .source, .it, .seg button):focus-visible {
+:is(.btn, .ibtn, .chip, .picker, .row-btn, .link, .disclosure, .name, .group-head, .source, .it, .switch, .seg button):focus-visible {
   outline: 1px solid var(--vscode-focusBorder); outline-offset: 2px; }
 .ibtn { width: 24px; height: 24px; display: inline-grid; place-items: center; padding: 0; border: 0; border-radius: var(--r);
   background: transparent; color: var(--vscode-icon-foreground); }
@@ -97,6 +97,12 @@ button { cursor: pointer; }
 .project .who { flex: 1; min-width: 0; }
 .project .name { font-size: 14px; line-height: 20px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .project .sub { font-size: 11px; line-height: 16px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.project { position: relative; }
+.project > .menu { position: absolute; left: 0; right: 0; top: 100%; z-index: 5; margin-top: 0; }
+.project .switch { display: flex; align-items: center; gap: 6px; margin: -2px -4px; padding: 2px 4px; border: 0; border-radius: var(--r);
+  background: transparent; color: inherit; text-align: left; }
+.project .switch:hover { background: var(--vscode-toolbar-hoverBackground); }
+.project .switch .grow { flex: 1; min-width: 0; }
 
 /* ── pickers, menus and form controls ─────────────────────────────────────── */
 .picker { width: 100%; display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 4px 8px 4px 10px; text-align: left;
@@ -255,6 +261,9 @@ button { cursor: pointer; }
 .menu .it .spec { font-size: 11px; color: var(--muted); }
 .menu .it .tick { width: 16px; }
 .menu .it[aria-disabled="true"] { opacity: .45; cursor: not-allowed; }
+.menu.projects { max-height: min(60vh, 420px); overflow-y: auto; }
+.menu .filter.in-menu { margin: 0 0 4px; }
+.menu .none { padding: 6px 8px; color: var(--muted); }
 .menu hr { border: 0; border-top: 1px solid var(--vscode-menu-separatorBackground, var(--line)); margin: 4px 0; }
 
 /* ── the program list ─────────────────────────────────────────────────────── */

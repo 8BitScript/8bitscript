@@ -2,7 +2,7 @@
 
 Raster showpiece: title wobble and colour bands behind `#fact(video.raster)` on C64, X16 and web; the colour bands without the wobble on VIC-20 (`raster.FINE_SCROLL` is false there); static title elsewhere. Four pillars: `Mark.8bx`, `mark.8bg`, `chime.8ba`.
 
-Targets: [`../shared-release-targets.ts`](../shared-release-targets.ts).
+Targets: [`../shared-release-targets.mjs`](../shared-release-targets.mjs).
 
 ## Run
 

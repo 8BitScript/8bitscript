@@ -446,6 +446,13 @@ test('kindOf: an app declares itself; an example is named by a parent manifest',
   assert.equal(kindOf(hello, null), 'example');
 });
 
+test('kindOf: a project inside the repository that is not an example or an app is the toolchain’s own', () => {
+  const repo = path.resolve(__dirname, '..', '..', '..');
+  assert.equal(kindOf(path.join(repo, 'packages', 'cli', 'conform'), null), 'internal');
+  assert.equal(kindOf(path.join(repo, 'packages', 'studio'), { '8bitscript': { app: { title: 'Studio' } } }), 'app', 'an app stays an app');
+  assert.equal(kindOf(path.join(os.tmpdir(), 'game'), null), 'project', 'outside the repository is a program');
+});
+
 test('loadApps finds the apps that ship with the toolchain, in a checkout and installed, once each', (t) => {
   const root = scratch(t);
   const repo = checkout(root);
@@ -496,12 +503,14 @@ test('byKind splits a mixed list into Programs / Examples / Apps, and still labe
   const game = { name: 'game', kind: 'project' };
   const border = { name: 'border', kind: 'example' };
   const studio = { name: '@8bitscript/studio', kind: 'app' };
+  const conform = { name: 'conform', kind: 'internal' };
   assert.deepEqual(
-    byKind([studio, border, game]).map((s) => [s.kind, s.label, s.projects.map((p) => p.name)]),
+    byKind([conform, studio, border, game]).map((s) => [s.kind, s.label, s.projects.map((p) => p.name)]),
     [
       ['project', 'Programs', ['game']],
       ['example', 'Examples', ['border']],
       ['app', 'Apps', ['@8bitscript/studio']],
+      ['internal', '8BitScript repository', ['conform']],
     ],
   );
   assert.deepEqual(byKind([studio, border]).map((s) => s.kind), ['example', 'app'], 'only the kinds present');

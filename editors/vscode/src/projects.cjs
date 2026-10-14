@@ -239,17 +239,18 @@ const NO_BARE_EMULATOR = new Set(['web']);
 
 const DEFAULT_ENTRY = 'src/main.8bs';
 
-/** The three kinds of project, in the order the launcher groups them. */
+/** The four kinds of project, in the order the launcher groups them. */
 const KINDS = [
   { id: 'project', label: 'Programs' },
   { id: 'example', label: 'Examples' },
   { id: 'app', label: 'Apps' },
+  { id: 'internal', label: '8BitScript repository' },
 ];
 
 const BINARY = process.platform === 'win32' ? '8bs.cmd' : '8bs';
 
 const { hardwareArgs } = require('./hardwareCatalog.cjs');
-const { checkoutCli } = require('./checkout.cjs');
+const { checkoutCli, isCheckout } = require('./checkout.cjs');
 
 // Drop line and block comments so a commented-out key is not read as live.
 function stripComments(text) {
@@ -521,17 +522,36 @@ function namedByExamplesManifest(dir) {
 }
 
 /**
+ * Whether `dir` sits inside a checkout of the 8BitScript repository — the
+ * toolchain's own test programs (packages/cli/conform), not anyone's game.
+ *
+ * @param {string} dir
+ * @returns {boolean}
+ */
+function insideCheckout(dir) {
+  let current = path.resolve(dir);
+  for (;;) {
+    if (isCheckout(current)) return true;
+    const parent = path.dirname(current);
+    if (parent === current) return false;
+    current = parent;
+  }
+}
+
+/**
  * Which kind of project a directory holds: an app declares itself in its
  * package.json; an example is whatever a parent `8bitscript.examples`
- * manifest names; everything else is a program.
+ * manifest names; any other project inside the repository is one of the
+ * toolchain's own; everything else is a program.
  *
  * @param {string} dir
  * @param {object | null} pkg
- * @returns {'project' | 'example' | 'app'}
+ * @returns {'project' | 'example' | 'app' | 'internal'}
  */
 function kindOf(dir, pkg) {
   if (appManifest(pkg)) return 'app';
   if (namedByExamplesManifest(dir)) return 'example';
+  if (insideCheckout(dir)) return 'internal';
   return 'project';
 }
 

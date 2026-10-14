@@ -2,7 +2,7 @@
 
 Sixteen sprites on a frame timeline — `Scene.8bx` for cues, `flock.8bs` for motion, shape twins for C64/PET. Shared `mark.8bg` / `chime.8ba` in the program entry; primary composition stays in `Scene.8bx`.
 
-Targets: [`../shared-release-targets.ts`](../shared-release-targets.ts).
+Targets: [`../shared-release-targets.mjs`](../shared-release-targets.mjs).
 
 ## Run
 
