@@ -45,7 +45,9 @@ export const VERA_PALETTE = VERA_DEFAULT_12BIT.map((rgb) => {
 // The rest copy 1 so a color byte `& 15` still lands on green when a program
 // writes a C64-named color through text.setColor — the host ignores per-cell
 // color on this skin (`colorPerCell: false`) and paints with 0/1 only.
-export const PET_GREEN = '#55ff55';
+// Measured from xpet's own screenshot (101, 208, 69); the old #55ff55 read as
+// a paler, washed-out green beside the emulator.
+export const PET_GREEN = '#65d045';
 export const PET_PALETTE = [
   '#000000', PET_GREEN, PET_GREEN, PET_GREEN,
   PET_GREEN, PET_GREEN, PET_GREEN, PET_GREEN,

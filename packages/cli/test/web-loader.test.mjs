@@ -596,7 +596,7 @@ test('the loader paints the PET skin with all three slots applied, identically t
   const frame = assertPaintParity(layout, mem);
   // ...and the entries really land: the border turns green at line 100, the
   // background at 120, and the band's vacated columns stay black.
-  const green = [0x55, 0xff, 0x55];
+  const green = [0x65, 0xd0, 0x45];
   assert.deepEqual(framePixel(frame, 0, BORDER_PX + 99), [0, 0, 0]);
   assert.deepEqual(framePixel(frame, 0, BORDER_PX + 100), green);
   assert.deepEqual(framePixel(frame, BORDER_PX + 300, BORDER_PX + 120), green);
