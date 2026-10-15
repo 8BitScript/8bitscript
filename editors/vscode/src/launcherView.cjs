@@ -401,6 +401,7 @@ class LauncherViewProvider {
 
     const live = this.projects.running.list().filter((r) => r.dir === project.dir && r.command === 'run');
     const selected = this.chosenProgram(unit, project);
+    const groupOf = programGroups(unit.programs);
     const programs = unit.programs.map((p) => {
       const onSystem = p.targets.length === 0 || p.targets.includes(machine);
       const matrix = units.runtimeMatrix({ runtime: runtimeRow, target: machine, program: p, doctor });
@@ -412,7 +413,7 @@ class LauncherViewProvider {
       return {
         id: p.name,
         title: p.label,
-        group: p.group ?? '',
+        group: groupOf.get(p.name) ?? '',
         description: p.description ?? '',
         entry: p.entryRelative,
         onSystem,
@@ -563,12 +564,46 @@ class LauncherViewProvider {
   }
 }
 
-/** The project picker's entries, grouped into Projects / Examples / Apps. */
+/**
+ * The project picker's entries, grouped into Programs / Examples / Apps /
+ * the repository's own. Examples and the repository's projects are
+ * `quiet`: their groups start folded, so a workspace beside a checkout of
+ * the repository still opens on the programs someone is writing.
+ */
 function projectOptions(projects) {
-  const entry = (project, group) => ({ id: project.dir, label: labelOf(project), where: whereLabel(project), group });
+  const entry = (project, group) => ({
+    id: project.dir, label: labelOf(project), where: whereLabel(project), group,
+    ...(project.kind === 'example' || project.kind === 'internal' ? { quiet: true } : {}),
+  });
   const sections = byKind(projects);
   if (!sections) return projects.map((project) => entry(project, ''));
   return sections.flatMap(({ label, projects: group }) => group.map((project) => entry(project, label)));
+}
+
+/**
+ * The group each program sits under in the Program menu. A config that
+ * names groups is the word on it; otherwise programs are grouped by the
+ * folder their entry file is in (Vegas Nights' `src/labs/slot3x3/*` are
+ * `slot3x3`), a folder holding a single program is no group, and a project
+ * that would land in one group gets none.
+ *
+ * @param {{ name: string, group?: string|null, entryRelative?: string }[]} programs
+ * @returns {Map<string, string>}
+ */
+function programGroups(programs) {
+  const out = new Map();
+  if (programs.some((p) => p.group)) {
+    for (const p of programs) out.set(p.name, p.group ?? '');
+    return out;
+  }
+  const folderOf = (p) => path.basename(path.dirname(p.entryRelative ?? ''));
+  const counts = new Map();
+  for (const p of programs) counts.set(folderOf(p), (counts.get(folderOf(p)) ?? 0) + 1);
+  for (const p of programs) out.set(p.name, counts.get(folderOf(p)) > 1 ? folderOf(p) : '');
+  const named = new Set([...out.values()].filter(Boolean));
+  const ungrouped = [...out.values()].some((g) => !g);
+  if (named.size === 1 && !ungrouped) for (const name of out.keys()) out.set(name, '');
+  return out;
 }
 
 /**
@@ -645,4 +680,4 @@ function registerLauncherView(context, projects, devReload, options) {
   return provider;
 }
 
-module.exports = { registerLauncherView, runtimeOfRow };
+module.exports = { registerLauncherView, runtimeOfRow, programGroups };

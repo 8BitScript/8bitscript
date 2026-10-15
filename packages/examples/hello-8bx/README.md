@@ -2,7 +2,7 @@
 
 The same greeting as `hello-world`, drawn through `Hello.8bx` instead of a direct `text.print()`. On the release PET and C64 this build is byte-identical to `hello-world` once the component inlines. Neither carries media — see `hello-world`'s own source for why a program that draws once and returns can drive none.
 
-Targets: [`../shared-release-targets.ts`](../shared-release-targets.ts).
+Targets: [`../shared-release-targets.mjs`](../shared-release-targets.mjs).
 
 ## Run
 

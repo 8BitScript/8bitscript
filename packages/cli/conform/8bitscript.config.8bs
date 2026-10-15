@@ -3,7 +3,7 @@
 // probe: it draws something every machine can draw, then holds still, so the
 // two captures show the same logical state whenever they are taken.
 //
-// The hardware is the release set's (packages/examples/shared-release-targets.ts):
+// The hardware is the release set's (packages/examples/shared-release-targets.mjs):
 // the PET 4032 with 32K, the VIC-20 with 8K, the C64 and the X16 stock.
 export default {
   programs: {

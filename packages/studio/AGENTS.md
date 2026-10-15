@@ -45,7 +45,7 @@ menus, and no editor screens yet.
 ## Release targets
 
 This release builds for **five** machines, shared with
-[`packages/examples/shared-release-targets.ts`](../examples/shared-release-targets.ts):
+[`packages/examples/shared-release-targets.mjs`](../examples/shared-release-targets.mjs):
 
 | Target | Why |
 | --- | --- |
@@ -55,9 +55,9 @@ This release builds for **five** machines, shared with
 | `pet` | 4032 with 32K RAM |
 | `web` | Headless and in-browser smoke tests |
 
-`8bs.config.ts` spreads `releaseTargets` into `targets` and names those five
+`8bitscript.config.8bs` imports `releaseTargets` from `@8bitscript/examples` (a dependency, so it resolves where Studio is installed too) and spreads it into `targets` and names those five
 in `systems`. Adding a machine to the release set is one edit in
-`shared-release-targets.ts` and matching tests.
+`shared-release-targets.mjs` and matching tests.
 
 ## Tiers (direction, not implemented)
 
@@ -120,4 +120,4 @@ sources: `node generate-assets.mjs` from this package.
 - Keep strings on the portable character set when text returns to the UI.
 - When the shell grows, re-measure with `8bs build --release` and record
   bytes in this file in the same commit.
-- Touching `shared-release-targets.ts` affects examples and Studio together.
+- Touching `shared-release-targets.mjs` affects examples and Studio together.

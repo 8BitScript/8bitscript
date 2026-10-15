@@ -183,45 +183,39 @@ file explorer, search, and source control live. Clicking it opens a side
 bar with one thing in it: a launcher.
 
 ```
-  PROJECT              SYSTEM
-  [ Vegas Nights  ▾ ]  [ C64  NTSC     ▾ ]        fixed
+  ▣ Vegas Nights                          ▾  ⓘ     fixed
+  SYSTEM
+  [ C64  NTSC                              ▾ ]
   Commodore 64 · 64 KB · NTSC · English       ⚙
-  PROGRAM  3×3 Slot
+  PROGRAM
+  [ 3×3 Slot  Slots                        ▾ ]
   ┌──────────┬──────────┬──────────┐
   │ Preview  │ Browser  │ Emulate  │
   │ Cursor   │ Safari   │ x64sc    │
   └──────────┴──────────┴──────────┘
   Runs the real x64sc emulator with 3×3 Slot loaded…
   ─────────────────────────────────────────────
-  Programs 10   ● Running 2                       fixed
-  🔍 Filter programs
-  ▾ SLOTS                                    3  ┐
-    3×3 Slot                        ▢  ⊕  ▭    │ scrolls
-      Three paylines across the middle…       │
-      ⎘ src/labs/slot3x3/main.8bs              │
-      › Inputs 3                     defaults  │
-      Build   Command                      …   │
-    5×5 Ways Slot                              │
-    Lobby                                      ┘
+  Program   ● Running 2                         fixed
+  Three paylines across the middle…             ┐
+  ⎘ src/labs/slot3x3/main.8bs                   │ scrolls
+  › Inputs 3                         defaults   │
+  Build   Command                          …    ┘
   ─────────────────────────────────────────────
   🚀 Studio  ▭        ♥ Doctor     ⓘ Details     fixed
 ```
 
 The panel is three bands, and only the middle one scrolls. The **head** is
-what is chosen and what a click will run: the **Project** and **System**
-pickers, a one-line summary of the fitted machine (the gear opens
-**Configure System**), and the three run tiles for the selected program —
-**Preview**, **Browser**, **Emulate** — each saying under its name where it
-will open. The tiles never leave the screen, however long the list below
-is. The middle is one of two panes, **Programs** or **Running**, with a
-filter box above the list once a project has more than seven programs.
-Selecting a program row moves the tiles to it and opens a drawer under the
-row with its description, source file, **Inputs**, **Build** and
-**Command**; a row's own three small run buttons appear when the row is
-pointed at, selected or focused, and stay lit while that run is live.
-**Running** lists each live run with Stop and its details, and **Recent**
-below it. The **foot** is the tools: **Studio**, its native-emulator
-button, **Doctor** and **Project details**.
+what is chosen and what a click will run, the same three rows for every
+project: the project's name (the **Project** picker, when the workspace has
+more than one), the **System** picker with a one-line summary of the fitted
+machine (the gear opens **Configure System**), and the **Program** picker —
+or just the program's name, when there is only one — over the three run
+tiles, **Preview**, **Browser**, **Emulate**, each saying under its name
+where it will open. The middle is one of two panes: **Program**, the
+selected program's description, source file, **Inputs**, **Build** and
+**Command**; or **Running**, each live run with Stop and its details, and
+**Recent** below it. The **foot** is the tools: **Studio**, its
+native-emulator button, **Doctor** and **Project details**.
 
 **Update** on the **8BitScript** entry in the Project menu refreshes the
 toolchain: `pnpm install` at this workspace if it is the 8BitScript repo,
@@ -232,16 +226,22 @@ project details live in editor tabs — **Configure System** and **Show
 Project** — the same pattern as Controller Setup. The hardware matrix is
 not in the side bar.
 
-- **Programs** — a project whose config lists several `programs` (a lobby
-  and a set of small labs, say) shows them as the list, grouped by their
-  `group`. Selecting one moves the run tiles to it; a run or a Build passes
+- **Program** — a project whose config lists several `programs` (a lobby
+  and a set of small labs, say) offers them in the Program picker, grouped
+  by their `group` — or, when the config names none, by the folder each
+  entry file is in (`src/labs/slot3x3/*` under **slot3x3**; a folder with
+  one program is no group). Past twelve programs every group but the
+  selected program's starts folded, eight or more get a filter that
+  searches the folded ones too, a program the machine cannot run is dimmed
+  (and can still be picked: the machine follows it), and a running one
+  carries a dot. Picking one moves the run tiles to it; a run or a Build passes
   the choice on as `--program <name>`, the System list narrows to the
   machines that program's own `targets` allow, and the pick is remembered
   per project (`8bitscript.program`). With a `main` and nothing chosen,
   `main` runs; with several programs and no `main`, Run asks once. Tasks:
   Run Task lists every program on each of its machines, and a `tasks.json`
   entry can name its own with `"program": "<name>"`. A project with one
-  program shows no list, only the program's own drawer, and passes no flag.
+  program names it instead of offering a picker, and passes no flag.
 - **Preview, Browser, Emulate** — each starts `8bs run --system '<name>'
   --size` (or `8bs run <machine>`), with the runtime's own flags
   (`--web --no-open`, `--web`, none), for the selected program as a task in
@@ -274,9 +274,14 @@ not in the side bar.
   starting an emulator.
 - **Project** — the folder the tiles and Build act on (`8bitscript.project`).
   Every directory in the workspace with an `8bitscript.config.8bs` is in the
-  menu, grouped as **Projects**, **Examples**, and **Apps**. Apps are packages
-  whose `package.json` declares an `8bitscript.app`, [Studio](../../docs/studio.md)
-  being the first. The source path in a program's drawer opens its entry
+  menu, grouped as **Programs**, **Examples**, **Apps**, and — when this
+  repository is open — **8BitScript repository**, the toolchain's own test
+  programs (`conform`). Apps are packages whose `package.json` declares an
+  `8bitscript.app`, [Studio](../../docs/studio.md) being the first. The
+  picker is there whenever the workspace has more than one project; for a
+  project with a single program, its name in the header is the picker.
+  Examples and the repository's group start folded, eight or more projects
+  get a filter, and each row says where the project lives. The source path in a program's drawer opens its entry
   `.8bs` file. Picking a project loads what it is set up for — the first of
   its systems, hardware and region and all — and a project with none keeps
   the current machine when it targets it.
@@ -285,9 +290,9 @@ not in the side bar.
   *Examples* (`8bitscript.showExamples`, on by default), not under Programs —
   including when this repo is open and they are ordinary workspace folders.
   They come from `@8bitscript/examples`, which `@8bitscript/cli`
-  depends on, so any project that has installed the CLI has them — today
-  that's `hello-world` and `joystick`. The 📖 in the title bar hides or
-  shows them. **Launch
+  depends on, so any project that has installed the CLI
+  (`pnpm add -D @8bitscript/cli`) has them, and Studio with them. The 📖
+  in the title bar hides or shows them, the repository's own included. **Launch
   Example…** reaches them either way, and one that is already selected
   stays in the list even with the toggle off, so hiding them never blanks
   the picker.

@@ -13,7 +13,7 @@ const { installVscodeMock } = require('./support/vscodeMock.cjs');
 
 const vscode = installVscodeMock();
 const { registerRunner } = require('../src/runner.cjs');
-const { registerLauncherView, runtimeOfRow } = require('../src/launcherView.cjs');
+const { registerLauncherView, runtimeOfRow, programGroups } = require('../src/launcherView.cjs');
 
 const tick = () => new Promise((resolve) => setImmediate(resolve));
 const plain = (value) => JSON.parse(JSON.stringify(value));
@@ -246,6 +246,40 @@ test('the state describes the project from the model: its programs with titles, 
     assert.ok(first.systems.every((s) => s.enabled), 'main targets all of them');
     assert.deepEqual(first.collapsedGroups, ['Test rigs'], 'groups that start with Test start folded');
     assert.ok(first.projects.some((p) => p.id === dir));
+  });
+});
+
+test('programs with no groups of their own are grouped by the folder their entry is in', () => {
+  const p = (name, entry, group = null) => ({ name, entryRelative: entry, group });
+  const lab = [
+    p('main', 'src/lobby/main.8bs'),
+    p('hello-reels', 'src/labs/hello-reels/main.8bs'),
+    p('slot3x3', 'src/labs/slot3x3/main.8bs'),
+    p('slot3x3-lose', 'src/labs/slot3x3/lose.8bs'),
+    p('slot5x5', 'src/labs/slot5x5/main.8bs'),
+    p('slot5x5-win', 'src/labs/slot5x5/win.8bs'),
+  ];
+  assert.deepEqual(Object.fromEntries(programGroups(lab)), {
+    main: '', 'hello-reels': '', slot3x3: 'slot3x3', 'slot3x3-lose': 'slot3x3', slot5x5: 'slot5x5', 'slot5x5-win': 'slot5x5',
+  }, 'a folder of one is no group');
+  assert.deepEqual([...programGroups([p('a', 'src/a.8bs'), p('b', 'src/b.8bs')]).values()], ['', ''], 'everything in one folder is no grouping at all');
+  assert.deepEqual(Object.fromEntries(programGroups([p('a', 'src/x/a.8bs', 'Slots'), p('b', 'src/x/b.8bs')])), { a: 'Slots', b: '' }, 'a config that names groups is the word on it');
+});
+
+test('the Project entries are grouped by kind, and examples and the repository\'s own are quiet', async () => {
+  await withLauncher(async ({ view, projects }) => {
+    const like = (name, kind) => ({ ...projects.projects[0], dir: `/w/${name}`, name, title: name, kind });
+    projects.projects.push(like('hello', 'example'), like('conform', 'internal'));
+    const seen = readyStates(view);
+    projects.changed.fire();
+    await tick();
+    const state = await stateAfter(view, seen);
+    const row = (id) => state.projects.find((p) => p.id === id);
+    assert.equal(row('/w/hello').group, 'Examples');
+    assert.equal(row('/w/hello').quiet, true);
+    assert.equal(row('/w/conform').group, '8BitScript repository');
+    assert.equal(row('/w/conform').quiet, true);
+    assert.equal(state.projects[0].quiet, undefined, 'a program is not');
   });
 });
 

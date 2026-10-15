@@ -295,6 +295,28 @@ test('Projects.visible hides shipped examples when showExamples is off, apps sta
   assert.ok(names.includes('studio'));
 });
 
+test('Projects.visible hides the repository’s own examples too, and the toggle is offered for them', () => {
+  vscode.__mock.reset();
+  vscode.__mock.configStore.set('showExamples', false);
+  const projects = new Projects({ appendLine() {} });
+  projects.projects = [
+    fakeProject('/game', { kind: 'project', name: 'game' }),
+    fakeProject('/repo/packages/examples/hello', { kind: 'example', name: 'hello' }),
+    fakeProject('/repo/packages/cli/conform', { kind: 'internal', name: 'conform' }),
+  ];
+  assert.deepEqual(projects.visible.map((p) => p.name), ['game', 'conform']);
+  assert.equal(projects.hasExamples(), true);
+  vscode.__mock.configStore.set('showExamples', true);
+  assert.deepEqual(projects.visible.map((p) => p.name), ['game', 'hello', 'conform']);
+});
+
+test('Projects.hasExamples is false with no example anywhere', () => {
+  vscode.__mock.reset();
+  const projects = new Projects({ appendLine() {} });
+  projects.projects = [fakeProject('/game', { kind: 'project', name: 'game' })];
+  assert.equal(projects.hasExamples(), false);
+});
+
 test('registerRunner: run resolves a named system through settings and executes the right task', async () => {
   const dir = tmpDir();
   try {
