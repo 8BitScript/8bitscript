@@ -152,3 +152,28 @@ test('the Preview page: a real machine gets its own name throughout, never a lef
   assert.equal($('empty').textContent, 'PET is not running.');
   assert.doesNotMatch($('status').textContent + $('empty').textContent + $('rebuild').textContent, /Studio/);
 });
+
+test('keyboard focus goes to the program\'s frame: when it loads, when the page gains focus, when the host says the tab is active', () => {
+  // A key pressed with focus on this page never reaches the cross-origin
+  // frame the machine runs in: the PET's arrows did nothing in the tab
+  // until someone clicked the screen (2026-10-13).
+  const calls = [];
+  const { dom, sandbox } = runWebviewScripts([STUDIO_JS], (d) => {
+    const frame = d.getElementById('frame');
+    frame.focus = () => calls.push('frame');
+    frame.contentWindow = { focus: () => calls.push('window') };
+  });
+  const frame = dom.getElementById('frame');
+
+  frame.dispatch('load');
+  assert.deepEqual(calls, ['frame', 'window'], 'a frame that has loaded — first open, Reset, Rebuild — takes focus');
+  sandbox.window.dispatch('focus');
+  assert.deepEqual(calls.slice(2), ['frame', 'window'], 'the page gaining focus hands it on');
+  sandbox.window.dispatch('message', { data: { type: 'focus' } });
+  assert.deepEqual(calls.slice(4), ['frame', 'window'], 'the host\'s word that the tab is active does too');
+
+  // A frame mid-navigation can refuse; the page carries on.
+  frame.contentWindow = { focus: () => { throw new Error('navigating'); } };
+  assert.doesNotThrow(() => frame.dispatch('load'));
+  assert.equal(calls.length, 7, 'the frame element still took focus');
+});

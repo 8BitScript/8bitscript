@@ -414,3 +414,25 @@ test('"Open in emulator" does not knock the preview back to "being built": its o
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('the tab brought forward tells its page to give the program keyboard focus; put behind, it says nothing', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), '8bs-studio-focus-'));
+  const context = { subscriptions: [] };
+  try {
+    vscode.__mock.reset();
+    const projects = fakeProjects();
+    registerStudioView(context, projects);
+    projects.runs.push({ dir, target: 'cx16', web: true });
+    await vscode.__mock.trigger('8bitscript.studioTab.show', { dir, target: 'cx16', launchedAt: Date.now() });
+    await tick();
+    const panel = vscode.__mock.webviewPanels.at(-1);
+    const before = panel.posted.length;
+    panel.__setActive(false);
+    assert.equal(panel.posted.length, before, 'a tab going behind another posts nothing');
+    panel.__setActive(true);
+    assert.deepEqual(panel.posted.at(-1), { type: 'focus' });
+    panel.__dispose();
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

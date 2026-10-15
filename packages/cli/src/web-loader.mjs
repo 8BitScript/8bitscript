@@ -1011,8 +1011,15 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
     var pointerStart = null;
     function onPointerDown(e) {
       if (e.pointerType === 'mouse' && e.button !== 0) return;
-      // A tap is also how an embedded screen takes the keyboard.
+      // A tap is also how a screen takes the keyboard. Embedded, that is
+      // the root element. Full-page, it is this window — and it has to be
+      // asked for: preventDefault() below cancels the press's default
+      // action, which is also what would have moved focus into this page
+      // when it is itself framed (the editor's Preview tab frames it
+      // cross-origin), so without this a click on the screen left the
+      // keyboard with the page around it and the arrows did nothing.
       if (keyboard === 'focus') root.focus({ preventScroll: true });
+      else if (typeof global.focus === 'function') global.focus();
       pointerStart = { x: e.clientX, y: e.clientY };
       e.preventDefault();
     }

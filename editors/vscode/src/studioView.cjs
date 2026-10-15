@@ -375,6 +375,12 @@ function registerTab(context, projects, { commandName, viewType, panelTitle, tab
       const view = new StudioPanel(panel, projects, { tabTitle, onRebuild, forceLabels, nativeReport });
       const subscriptions = [
         panel.webview.onDidReceiveMessage((message) => view.apply(message)),
+        // The tab brought forward: the page hands keyboard focus to the
+        // program's frame (media/studio.js focusFrame), or the arrows go to
+        // the page around it.
+        panel.onDidChangeViewState(({ webviewPanel }) => {
+          if (webviewPanel.active) webviewPanel.webview.postMessage({ type: 'focus' });
+        }),
         // Runs starting and ending, and the live poll's last-run re-reads,
         // both arrive here — no timer of the tab's own.
         projects.onDidChange(() => { view.refresh().catch(() => {}); }),
