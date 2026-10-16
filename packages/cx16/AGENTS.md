@@ -573,9 +573,20 @@ hardware sprites do not exist there. What the page does draw is
   address the page reads; `packages/cli/test/web-cx16.test.mjs` pins the two
   together) and draws the character. One cell, one ink, no restore; colour is
   dropped with 8BS2111. The native build keeps its VERA sprites.
+- the portable **input** from the page's key byte: `input.cx16.web.8bs` stands
+  in for `input.8bs`, whose poll is KERNAL calls in `asm6502` (the wasm backend
+  lowers none, so until this twin any program that imported
+  `@8bitscript/input` — 2048, `examples/joystick`, the Vegas Nights lobby —
+  refused to build here). It reads `inputOffset` once a frame — arrows, Enter
+  for confirm, Escape for cancel — at `text.CELL_COUNT * 2 + 2` (8514: there is
+  no address override for this machine, so it is `agreementFor()`'s default
+  behind `text.cx16.web.8bs`'s two planes; `packages/cli/test/web-cx16-input.test.mjs`
+  pins the three together). No SNES pads and no mouse: `pointer()` is false and
+  `Input.CONFIRM_LABELS` is `RETURN`. `packages/compiler/test/cx16-web-twin.test.mjs`
+  holds its exports to `input.8bs`'s.
 
 Not there: sound (8BS2211, `.8ba` has no wasm driver and `audio.tone` is not
-wired for this build), the mouse and the X16-only modules that talk to VERA, the
+wired for this build), SNES pads, the mouse and the X16-only modules that talk to VERA, the
 KERNAL or the banks (`@8bitscript/cx16/mouse`, `/pointer`, `/psg`, `/banks`), and
 the raster list (machine code, so a program that uses it does not build here).
 The list is `wasm.limits` in this package's manifest, shown by
@@ -593,6 +604,7 @@ packages/cx16/test/banks-probe.8bs       the probe run for real: prints the KiB,
 packages/cx16/src/mouse.8bs              @8bitscript/cx16/mouse: mouse.begin/poll/present/x/y/left/hide/show, through the KERNAL
 packages/cx16/src/input.8bs              @8bitscript/cx16/input: the pointer in cells; joy0 keyboard (Enter=START) and SNES pads 1/2
 packages/cx16/test/input.test.mjs        KERNAL $FF53/$FF9F/$FF56; SNES bits against the ROM joystick driver
+packages/cx16/src/input.cx16.web.8bs     input.8bs on the wasm build: the page's key byte, no pads, no pointer
 packages/cx16/src/pointer.8bs            @8bitscript/cx16/pointer: the firmware arrow; update() empty unless recovering from hide()
 packages/cx16/test/mouse-probe.8bs       run under x16emu: green border when present(); test/mouse.test.mjs reads it
 packages/cx16/src/text.8bs               @8bitscript/cx16/text: text.print/printNumber/setColor/setReverse/putChar/putColor, CELL_COUNT 4256, COLUMNS 76, TextColor

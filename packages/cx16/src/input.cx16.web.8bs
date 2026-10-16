@@ -1,0 +1,128 @@
+// input.8bs's own `.web` twin — build.mjs's internal `web` tag resolves this
+// in place of input.8bs whenever this package builds through the wasm backend
+// (`8bs build --target cx16 --web`, `8bs run cx16 --web`, the editor's tab).
+//
+// The native file is machine code from top to bottom: it calls the KERNAL's
+// `ps2data_fetch`, `joystick_scan`, `kbd_scan` and `joystick_get` from
+// asm6502 blocks, and reads the mouse through ./mouse.8bs, which is asm6502
+// too. The wasm backend lowers no asm6502 at all, so any program that
+// imported the portable @8bitscript/input refused to build for the X16's wasm
+// rail ("'input_poll': 'asm' blocks ... never lowered on the web target") —
+// the 2048 game among them. There is no KERNAL and no VERA behind a wasm
+// build to call in any case. The page, on the other hand, already listens for
+// keys and stores a snapshot of them at one byte of the program's memory
+// (web-layout.mjs agreementFor(): `inputOffset`), the way it does for every
+// wasm build; this twin reads that byte once a frame and works out what
+// began, which is exactly what `poll()` gives a program on any other machine.
+//
+//   - left / right / up / down — ArrowLeft / ArrowRight / ArrowUp / ArrowDown
+//                                (the keyboard joystick's D-pad on the X16)
+//   - confirm                  — Enter (START on the keyboard joystick)
+//   - cancel                   — Escape
+//
+// No SNES pads and no mouse: the page has neither to offer, so pointer() is
+// false here even though `input.mouse` is true for the machine, and this file
+// never imports ./mouse.8bs (asm6502 the wasm backend cannot lower).
+//
+// Where the byte is: this package has no address override in web-layout.mjs
+// (REAL_MACHINE_LAYOUT.cx16 `memoryFor: () => ({})`), so the page uses
+// agreementFor()'s own default — the character plane at 2, the colour plane
+// one cell count later, and the input byte one cell count after that. That is
+// where text.cx16.web.8bs draws (its CHAR_BASE is 2), and its text.CELL_COUNT
+// is the grid's size, so the byte is text.CELL_COUNT * 2 + 2 — 8514 on the
+// 76x56 grid. packages/cli/test/web-cx16-input.test.mjs holds this formula,
+// text.cx16.web.8bs's own bases and the page's layout to the same byte. Keep
+// the export list identical to input.8bs —
+// packages/compiler/test/cx16-web-twin.test.mjs holds the two to the same
+// names.
+import { text } from "./text.8bs";
+
+// One bit per thing a program can ask about, so a frame's input is one
+// byte and an edge is one AND. The page's side is web-layout.mjs's InputEdge.
+namespace Edge {
+    const LEFT: utinyint = 1;
+    const RIGHT: utinyint = 2;
+    const UP: utinyint = 4;
+    const DOWN: utinyint = 8;
+    const CONFIRM: utinyint = 16;
+    const CANCEL: utinyint = 32;
+}
+
+// What is held now, what was held at the last poll, and what began this
+// frame — `now & ~last`, written with the XOR the language has.
+let held: utinyint = 0;
+let before: utinyint = 0;
+let began: utinyint = 0;
+
+export namespace input {
+
+    // Once, at start-up, before the first poll(). One poll before the
+    // program's first, so the edge detector starts from what is actually held
+    // rather than from nothing: without it, a key already down when the
+    // program starts reads as a fresh press on frame one.
+    function begin(): void {
+        input.poll();
+    }
+
+    // Read the page's snapshot and work out what began this frame. Once a
+    // frame, right after waitFrame().
+    function poll(): void {
+        before = held;
+        // agreementFor(76 x 56).inputOffset. Not a const of its own: a const
+        // initializer must be a literal or another const (8BS3001), so the
+        // arithmetic is written here, where the fold pass turns it into the
+        // one literal this grid needs.
+        held = memory.read(text.CELL_COUNT * 2 + 2);
+        began = held & (before ^ 0xFF);
+    }
+
+    // The four directions, each true only on the frame its press began.
+    function left(): bool {
+        return (began & Edge.LEFT) != 0;
+    }
+
+    function right(): bool {
+        return (began & Edge.RIGHT) != 0;
+    }
+
+    function up(): bool {
+        return (began & Edge.UP) != 0;
+    }
+
+    function down(): bool {
+        return (began & Edge.DOWN) != 0;
+    }
+
+    // Enter.
+    function confirm(): bool {
+        return (began & Edge.CONFIRM) != 0;
+    }
+
+    // Escape.
+    function cancel(): bool {
+        return (began & Edge.CANCEL) != 0;
+    }
+
+    // The page passes no mouse to this build, so no pointer — a constant,
+    // not a measurement.
+    function pointer(): bool {
+        return false;
+    }
+
+    function pointerCell(): usmallint {
+        return 0;
+    }
+
+    function pointerButton(): bool {
+        return false;
+    }
+}
+
+// Compile-time names for the confirm control, interpolated into catalogs
+// as {control} / {other}. OR / ODER lives in the catalog, not here. RETURN
+// alone: the native build's START is a pad button, and a page has no pad.
+export namespace Input {
+    const CONFIRM_LABEL: string = "RETURN";
+    const ALT_CONFIRM_LABEL: string = "RETURN";
+    const CONFIRM_LABELS: string = "RETURN";
+}

@@ -48,7 +48,11 @@ function fakeProjects({ doctor = null, targets = new Map(), all = [] } = {}) {
     loadDoctor: async () => doctor,
     loadTargets: async () => targets,
     running: {
-      matching: (dir, target, only = {}) => runs.filter((r) => r.dir === dir && r.target === target && (only.web === undefined || r.web === only.web)),
+      // The same rule as Running.matching: `runtime` falls back to `web` (the
+      // older spelling of the editor's tab), and a run with neither is native.
+      matching: (dir, target, only = {}) => runs.filter((r) => r.dir === dir && r.target === target
+        && (only.web === undefined || (r.web === true) === only.web)
+        && (only.runtime === undefined || (r.runtime ?? (r.web === true ? 'editor' : 'native')) === only.runtime)),
       stop: (dir, target, only) => stopped.push({ dir, target, only }),
     },
   };
@@ -132,7 +136,7 @@ test('the tab follows a run: building until a fresh URL lands, framed once it do
     assert.deepEqual(vscode.__mock.openedExternal, ['http://127.0.0.1:2222/']);
     panel.webview.__fire({ type: 'stop' });
     await tick();
-    assert.deepEqual(projects.stopped, [{ dir, target: 'cx16', only: { web: true } }], 'only the tab\'s run, never a native window');
+    assert.deepEqual(projects.stopped, [{ dir, target: 'cx16', only: { runtime: 'editor' } }], 'only the tab\'s run, never a native window');
     panel.webview.__fire({ type: 'rebuild' });
     await tick();
     assert.ok(vscode.__mock.executedCommands.some((c) => c.id === '8bitscript.openStudio'), 'a tab with no word on its mode rebuilds the default way: our wasm build');
@@ -161,7 +165,7 @@ test('the tab follows a run: building until a fresh URL lands, framed once it do
     // Closing the tab stops the run.
     projects.stopped.length = 0;
     panel.__dispose();
-    assert.deepEqual(projects.stopped, [{ dir, target: 'cx16', only: { web: true } }]);
+    assert.deepEqual(projects.stopped, [{ dir, target: 'cx16', only: { runtime: 'editor' } }]);
     // And the next show opens a fresh one.
     await vscode.__mock.trigger('8bitscript.studioTab.show', { dir, target: 'cx16', launchedAt: Date.now() });
     await tick();
@@ -249,8 +253,74 @@ test('closing the Preview tab stops its run, exactly as closing Studio\'s own ta
 
     projects.stopped.length = 0;
     panel.__dispose();
-    assert.deepEqual(projects.stopped, [{ dir, target: 'pet', only: { web: true } }],
+    assert.deepEqual(projects.stopped, [{ dir, target: 'pet', only: { runtime: 'editor' } }],
       'closing the Preview tab ends exactly the run it was following');
+  } finally {
+    for (const subscription of context.subscriptions) subscription.dispose?.();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('the Preview tab on the synthetic web target: its run carries runtime editor and no web flag, and the tab still follows it — titled Web, never Studio', async () => {
+  // runner.cjs's makeTask leaves `web` off for the web target (it keys the
+  // last-run file, and the web target has only the one), so a tab that
+  // looked for `web: true` saw no run at all: "Studio is not running", under
+  // Studio's own default title.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), '8bs-preview-tab-web-'));
+  const context = { subscriptions: [] };
+  try {
+    vscode.__mock.reset();
+    const projects = fakeProjects();
+    registerStudioView(context, projects);
+
+    const launchedAt = Date.now();
+    projects.runs.push({ dir, target: 'web', runtime: 'editor' });
+    await vscode.__mock.trigger('8bitscript.previewTab.show', { dir, target: 'web', launchedAt });
+    await tick();
+    const panel = vscode.__mock.webviewPanels.at(-1);
+    assert.doesNotMatch(panel.webview.html, /class="title">Studio/, 'the Preview tab is not titled Studio');
+    assert.match(panel.webview.html, /window\.__8bsTitle = "Web";/, 'so the page says "Web is being built", never "Studio is not running"');
+    assert.match(panel.webview.html, /Web <span class="sub">wasm build<\/span>/);
+    assert.match(panel.webview.html, /window\.__8bsHasMouse = false;/);
+    panel.webview.__fire({ type: 'ready' });
+    await tick();
+    assert.equal(panel.posted.at(-1).phase, 'building', 'the run is seen, not "stopped"');
+
+    // The web target's one last-run file: .8bs-last-web.json, no -web suffix.
+    writeLastRun(dir, 'web', { url: 'http://127.0.0.1:4444/', emulator: 'browser', writtenAt: new Date().toISOString() });
+    projects.changed.fire();
+    await tick();
+    await tick();
+    assert.match(panel.webview.html, /<iframe id="frame" src="http:\/\/127\.0\.0\.1:4444\/"/);
+    assert.match(panel.webview.html, /window\.__8bsTitle = "Web";/);
+    panel.webview.__fire({ type: 'ready' });
+    await tick();
+    assert.equal(panel.posted.at(-1).phase, 'running');
+
+    panel.webview.__fire({ type: 'stop' });
+    await tick();
+    assert.deepEqual(projects.stopped, [{ dir, target: 'web', only: { runtime: 'editor' } }]);
+    panel.__dispose();
+  } finally {
+    for (const subscription of context.subscriptions) subscription.dispose?.();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('the Preview tab on a target with no labels of its own is called by that target\'s name, never Studio\'s', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), '8bs-preview-tab-unlabelled-'));
+  const context = { subscriptions: [] };
+  try {
+    vscode.__mock.reset();
+    const projects = fakeProjects();
+    registerStudioView(context, projects);
+    projects.runs.push({ dir, target: 'atari8', runtime: 'editor' });
+    await vscode.__mock.trigger('8bitscript.previewTab.show', { dir, target: 'atari8', launchedAt: Date.now() });
+    await tick();
+    const panel = vscode.__mock.webviewPanels.at(-1);
+    assert.match(panel.webview.html, /atari8 <span class="sub">wasm build<\/span>/);
+    assert.match(panel.webview.html, /window\.__8bsTitle = "atari8";/);
+    panel.__dispose();
   } finally {
     for (const subscription of context.subscriptions) subscription.dispose?.();
     fs.rmSync(dir, { recursive: true, force: true });
@@ -411,6 +481,28 @@ test('"Open in emulator" does not knock the preview back to "being built": its o
       'still "running" with the preview\'s own numbers — never "building", and never the native run\'s 110');
   } finally {
     for (const subscription of context.subscriptions) subscription.dispose?.();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('the tab brought forward tells its page to give the program keyboard focus; put behind, it says nothing', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), '8bs-studio-focus-'));
+  const context = { subscriptions: [] };
+  try {
+    vscode.__mock.reset();
+    const projects = fakeProjects();
+    registerStudioView(context, projects);
+    projects.runs.push({ dir, target: 'cx16', web: true });
+    await vscode.__mock.trigger('8bitscript.studioTab.show', { dir, target: 'cx16', launchedAt: Date.now() });
+    await tick();
+    const panel = vscode.__mock.webviewPanels.at(-1);
+    const before = panel.posted.length;
+    panel.__setActive(false);
+    assert.equal(panel.posted.length, before, 'a tab going behind another posts nothing');
+    panel.__setActive(true);
+    assert.deepEqual(panel.posted.at(-1), { type: 'focus' });
+    panel.__dispose();
+  } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });

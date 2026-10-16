@@ -69,7 +69,7 @@ function programThatLoops() {
  * Uint8Array that notes the one 64K view the loader makes over the
  * program's buffer.
  */
-function page({ isolated, wasm, WebAssembly: wa, Worker }) {
+function page({ isolated, wasm, WebAssembly: wa, Worker, mount = {}, focused = [] }) {
   const listeners = new Map();
   const element = () => {
     const el = {
@@ -82,7 +82,7 @@ function page({ isolated, wasm, WebAssembly: wa, Worker }) {
       addEventListener(type, fn) { listeners.set(type, fn); },
       removeEventListener() {},
       getBoundingClientRect() { return { width: 384, height: 216 }; },
-      focus() {},
+      focus() { focused.push('element'); },
       getContext() {
         return {
           canvas: el,
@@ -122,6 +122,7 @@ function page({ isolated, wasm, WebAssembly: wa, Worker }) {
     innerHeight: 216,
     addEventListener() {},
     removeEventListener() {},
+    focus() { focused.push('window'); },
     requestAnimationFrame(fn) { frames.push(fn); return frames.length; },
     cancelAnimationFrame() {},
     fetch(url) {
@@ -136,6 +137,7 @@ function page({ isolated, wasm, WebAssembly: wa, Worker }) {
     src: 'program.wasm',
     onError: (error) => errors.push(error),
     onDone: () => { done += 1; },
+    ...mount,
   });
   // The next rAF callback the loader asked for, called as the browser would.
   const tick = (now) => { const fn = frames.pop(); frames.length = 0; fn(now); };
@@ -213,4 +215,33 @@ test('an isolated page still runs the program in a worker, suspension or not', a
   assert.equal(p.memory(), null, 'this thread never instantiates the program');
   p.screen.destroy();
   assert.equal(workers[0].terminated, true);
+});
+
+// Framed cross-origin — the editor's Preview tab — a full-page screen only
+// gets the keyboard if a click moves focus into it, and its own pointerdown
+// handler calls preventDefault(), which cancels exactly that. So a tap asks
+// for focus itself: the window when the screen is the whole page, its own
+// element when it is embedded. Before this, a click on the PET in the
+// Preview tab left the arrows with the page around it (2026-10-13; reproduced
+// in headless Chromium: framed, a click and LEFT changed no pixels).
+test('a tap gives the screen the keyboard: the window when full-page, its own element when embedded', async () => {
+  const press = { pointerType: 'mouse', button: 0, clientX: 10, clientY: 10, preventDefault() {} };
+  const fullFocus = [];
+  const full = page({ isolated: false, wasm: programThatLoops(), mount: { fullPage: true }, focused: fullFocus });
+  await full.settle(() => full.frames.length > 0 || full.errors.length > 0);
+  fullFocus.length = 0;
+  full.listeners.get('pointerdown')(press);
+  assert.deepEqual(fullFocus, ['window'], 'full-page: the window is asked for focus');
+  full.listeners.get('pointerdown')({ ...press, button: 2 });
+  assert.deepEqual(fullFocus, ['window'], 'a right click takes nothing');
+  full.screen.destroy();
+
+  const embeddedFocus = [];
+  const embedded = page({ isolated: false, wasm: programThatLoops(), focused: embeddedFocus });
+  await embedded.settle(() => embedded.frames.length > 0 || embedded.errors.length > 0);
+  embeddedFocus.length = 0;
+  embedded.listeners.get('pointerdown')(press);
+  assert.deepEqual(embeddedFocus, ['element'], 'embedded: its own element, never the host page\'s window');
+  embedded.screen.destroy();
+  await embedded.settle();
 });

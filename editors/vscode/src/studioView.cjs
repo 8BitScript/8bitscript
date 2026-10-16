@@ -78,7 +78,13 @@ const TARGET_LABELS = {
   pet: { title: 'PET', subtitle: 'wasm build', hasMouse: false },
   vic20: { title: 'VIC-20', subtitle: 'wasm build', hasMouse: false },
   c64: { title: 'C64', subtitle: 'wasm build', hasMouse: false },
+  // The synthetic web target: input.mouse is false in its catalog.
+  web: { title: 'Web', subtitle: 'wasm build', hasMouse: false },
 };
+
+/** A bound run on a target the table above does not name yet is still that
+ * target's run: it is called by its own name, never by Studio's defaults. */
+const labelsFor = (target) => TARGET_LABELS[target] ?? { title: String(target), subtitle: 'wasm build', hasMouse: false };
 
 // Studio's tab opens on our own wasm build of the X16 by default, and is then
 // labelled like any other wasm run (TARGET_LABELS.cx16). Only when it was
@@ -188,7 +194,7 @@ class StudioPanel {
     // The fixed labels are for the vendored x16emu; a binding that says it is
     // not one (`x16emu: false`, Studio on our own wasm build) is a plain wasm run.
     const forced = this.binding?.x16emu === false ? null : this.forceLabels;
-    const labels = forced ?? (this.binding && TARGET_LABELS[this.binding.target]);
+    const labels = forced ?? (this.binding && labelsFor(this.binding.target));
     return html(this.panel.webview, {
       src,
       tabTitle: this.tabTitle,
@@ -196,9 +202,12 @@ class StudioPanel {
     });
   }
 
+  // A tab's run is the Editor runtime, whatever the target: every run made for
+  // a tab carries `runtime: 'editor'`, while `web: true` marks only a real
+  // machine's wasm page (the synthetic web target never carries it).
   running() {
     const { dir, target } = this.binding;
-    return this.projects.running.matching(dir, target, { web: true }).length > 0;
+    return this.projects.running.matching(dir, target, { runtime: 'editor' }).length > 0;
   }
 
   /**
@@ -258,7 +267,7 @@ class StudioPanel {
 
   /**
    * Launch the real emulator alongside this preview — a second, entirely
-   * separate run (`web: false` in the task definition `matching({web:true})`
+   * separate run (the native runtime, which `matching({runtime:'editor'})`
    * already tells apart from this tab's own), never a replacement for it.
    * `this.binding` only carries `{dir, target, launchedAt}` (see bind()),
    * so the project it belongs to is looked up the same way runner.cjs
@@ -321,7 +330,7 @@ class StudioPanel {
   /** End the run the tab follows — and only that one: a native Studio window stays. */
   stop() {
     if (!this.binding) return;
-    this.projects.running.stop(this.binding.dir, this.binding.target, { web: true });
+    this.projects.running.stop(this.binding.dir, this.binding.target, { runtime: 'editor' });
   }
 }
 
@@ -375,6 +384,12 @@ function registerTab(context, projects, { commandName, viewType, panelTitle, tab
       const view = new StudioPanel(panel, projects, { tabTitle, onRebuild, forceLabels, nativeReport });
       const subscriptions = [
         panel.webview.onDidReceiveMessage((message) => view.apply(message)),
+        // The tab brought forward: the page hands keyboard focus to the
+        // program's frame (media/studio.js focusFrame), or the arrows go to
+        // the page around it.
+        panel.onDidChangeViewState(({ webviewPanel }) => {
+          if (webviewPanel.active) webviewPanel.webview.postMessage({ type: 'focus' });
+        }),
         // Runs starting and ending, and the live poll's last-run re-reads,
         // both arrive here — no timer of the tab's own.
         projects.onDidChange(() => { view.refresh().catch(() => {}); }),

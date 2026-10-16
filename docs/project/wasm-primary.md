@@ -94,18 +94,19 @@ Studio and Vegas Nights (the toolchain is this branch; Vegas Nights `trunk`):
 |---|---|---|---|---|---|
 | `hello-world`, `hello-8bx` | ✔ | ✔ | ✔ | ✔ | ✔ |
 | `fancy` (raster, sprites) | ✔ | ✔ every band starts on the same line as xvic (`8bs conform vic20 --program bands`) | ✔ (sprites) | ✘ `raster_commit` | ✔ |
-| `joystick` (input, sprites) | ✔ | ✔ | ✔ | ✘ `input_poll` | ✔ |
+| `joystick` (input, sprites) | ✔ | ✔ | ✔ | ✔ (`input.cx16.web.8bs`) | ✔ |
 | `media-walk`, `swarm` (graphics, audio) | ✔ | ✔ | ✔ | ✔ | ✔ |
 | Studio | ✔ | ✔ | ✔ | ✔ | ✔ |
-| Vegas Nights lobby, `hello-reels`, `sound-test` | ✔ | ✔ | ✔ | ✘ `input_poll` | ✔ |
+| Vegas Nights lobby, `hello-reels`, `sound-test` | ✔ | ✔ | ✔ | ✔ (`input.cx16.web.8bs`) | ✔ |
 | Vegas Nights `tile-test` | ✔ | ✔ | ✔ | ✔ | not for web |
 | Vegas Nights `slot3x3` | ✘ `move_down` | ✘ `move_down` | ✔ | ✘ `play` | ✔ |
 | Vegas Nights `slot5x5`, `slot5x5-bonus` | ✔ | ✔ | ✔ | ✘ `play` | ✔ |
 
 Every ✘ is an `asm6502` block, which the wasm backend never lowers: *"'x': 'asm'
 blocks are 6502-specific machine code and are never lowered on the web target"*.
-Of 35 example builds, 32 pass now that the C64's sprites are built (27 before); of the 34 Vegas Nights builds that apply (`tile-test`
-does not target the web), 26 pass. The Vegas Nights `move_down` and `play` ones are the
+Of 35 example builds, 33 pass now that the C64's sprites are built (27 before) and the X16's
+input has a wasm twin (`joystick`, 2026-10-15); of the 34 Vegas Nights builds that apply (`tile-test`
+does not target the web), 29 pass (the X16's lobby, `hello-reels` and `sound-test` since that twin). The Vegas Nights `move_down` and `play` ones are the
 game's own machine code (the quadrant machines' block-copy hop; the X16 reel
 code) and need wasm twins in that repo.
 
@@ -162,11 +163,11 @@ modes, raster timing. Those are items 4 and 6 below.
 
 | Feature | pet | vic20 | c64 | cx16 | web |
 |---|---|---|---|---|---|
-| Builds the shared examples | ✔ 7/7 | ◐ 6/7 | ✔ 7/7 | ◐ 5/7 | ✔ 7/7 |
+| Builds the shared examples | ✔ 7/7 | ◐ 6/7 | ✔ 7/7 | ◐ 6/7 | ✔ 7/7 |
 | Text grid and character ROM (codes 0–127) | ✔ both sets, switched by `$E84C` | ✔ both sets, switched by `$9005` | ✔ | ◐ host font | ✔ |
 | Reverse video (codes 128–255) | ✔ | ✔ | ✔ | ✔ | ✔ |
 | Text colours and palette | ✔ (mono) | ◐ 6 colour-row cells: page palette vs xvic; border and background are read from `$900F` | ◐ Pepto vs VICE | ✔ VERA's default (#317) | ✔ |
-| Portable input | ✔ arrows/Enter/Esc (`input.pet.web.8bs`) | ✔ arrows/Enter/Esc (`input.vic20.web.8bs`) | ✔ arrows/Enter/Esc | ✘ `input_poll` | ✔ |
+| Portable input | ✔ arrows/Enter/Esc (`input.pet.web.8bs`) | ✔ arrows/Enter/Esc (`input.vic20.web.8bs`) | ✔ arrows/Enter/Esc | ◐ arrows/Enter/Esc (`input.cx16.web.8bs`); no pads, no pointer | ✔ |
 | Portable raster (`@8bitscript/raster`) | ◐ 3032/4032 only; untested | ✘ `raster_probeRegion` | ◐ lands one picture line early | ✘ `raster_commit` | ✔ |
 | C64 address-form raster list (`@8bitscript/c64/raster`) | n/a | n/a | ◐ applied line by line by the page; not the handler's timing | n/a | n/a |
 | Graphics objects (`@8bitscript/graphics`) | ◐ draws (`media-walk`); other ops untested on wasm | ◐ draws (`media-walk`); other ops untested on wasm | ✔ as hardware sprites (24 from eight) | ◐ one flat glyph, not a sprite (#317) | ✔ |
@@ -223,9 +224,15 @@ program that selects a set is drawn in that set. Two new probes, `charset` and
 `charset-text` (`packages/cli/conform/src/`), write every screen code 0–255 raw in
 each set and match xpet and xvic with **0** differing cells, structure and colour.
 
-**2. X16 input and raster in the wasm backend — M.** `input_poll` (keyboard, pad,
-mouse via the KERNAL) and `raster_commit` (the VERA line-IRQ driver) are
-`asm6502`. Write wasm twins in `packages/cx16/src` that read the portable input
+**2. X16 input and raster in the wasm backend — M.** *Input done (2026-10-15):*
+`input.cx16.web.8bs` reads the page's key byte (arrows, Enter, Escape; no pads,
+no pointer), and `examples/joystick`, 2048 and the Vegas Nights lobby,
+`hello-reels` and `sound-test` build on cx16 wasm (2048's board moves on poked
+keys; `packages/cli/test/web-cx16-input.test.mjs` tallies every press); its `limits`
+line now says what the twin leaves out instead of "does not build". What
+follows is the original item; the raster half is still open. `input_poll`
+(keyboard, pad, mouse via the KERNAL) and `raster_commit` (the VERA line-IRQ
+driver) are `asm6502`. Write wasm twins in `packages/cx16/src` that read the portable input
 offsets the page already writes (`inputOffset`/`hostOffset`; see how the C64
 wasm port did it in #311) and apply the portable raster list through
 `rasterBase`. *Acceptance:* `examples/joystick` and `examples/fancy` build and run

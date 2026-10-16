@@ -116,7 +116,31 @@ window.addEventListener('message', (event) => {
     state = data;
     render();
   }
+  if (data.type === 'focus') focusFrame();
 });
+
+// Keyboard focus belongs to the program, not to this page. The machine is
+// a cross-origin frame, and its keys reach it only while it has focus:
+// a key pressed with focus on this page — which is where a freshly opened
+// tab leaves it, and where a click on Reset or Rebuild leaves it — goes to
+// this page and is never seen by the program, so the arrows on a PET or a
+// C64 in this tab did nothing until someone thought to click the screen.
+// So the frame takes focus whenever it (re)loads, whenever this page gains
+// focus (the tab clicked or brought forward), and when the host says the
+// tab became the active one. focus() on a cross-origin frame's window is
+// allowed; anything else about it is not, hence the guard.
+function focusFrame() {
+  const frame = $('frame');
+  if (!frame) return;
+  if (typeof frame.focus === 'function') frame.focus();
+  try {
+    if (frame.contentWindow && typeof frame.contentWindow.focus === 'function') frame.contentWindow.focus();
+  } catch {
+    // a frame mid-navigation; the load event below tries again
+  }
+}
+$('frame')?.addEventListener('load', focusFrame);
+window.addEventListener('focus', focusFrame);
 
 $('restart').addEventListener('click', () => {
   // A reload of the frame is a cold boot of the machine with the same build.
