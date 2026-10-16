@@ -289,9 +289,10 @@ export function elaborateMedia(module, diagnostics, options = {}) {
     // slot would bind the second file's first song over the first's. The linker keeps the tally.
     const tally = options.mediaSlots;
     let local = 0;
+    let localBytes = 0;
     const slotFor = () => (tally ? tally.audio++ : local++);
     const bank = (asset, bytes) => {
-      const total = tally ? (tally.audioBytes += bytes) : bytes;
+      const total = tally ? (tally.audioBytes += bytes) : (localBytes += bytes);
       if (bytes > 0 && total > AUDIO_BANK_BYTES) {
         diagnostics.push(diagnostic(
           Codes.AUD_BANK_FULL,

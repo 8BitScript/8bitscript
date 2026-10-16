@@ -120,6 +120,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { link } from '../index.mjs';
+import { createRequire } from 'node:module';
+import { elaborateMedia } from '../src/media/elaborate.mjs';
 import { stockFacts } from '../../cli/src/hardware.mjs';
 
 const CHECKOUT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
@@ -226,4 +228,67 @@ test('every target links a program that plays songs; a machine with no driver an
       assert.deepEqual(diagnostics.filter((d) => d.severity === 'error'), [], machine);
     }
   });
+});
+
+// The encoder's edges, on hand-built AIR: what the checker reports (a clash, an overrun, an unknown
+// pattern or instrument) the encoder must still survive, dropping the event rather than the song.
+test('the encoder skips what the checker reports: a missing pattern, a rest, a clash, an overrun; an unknown instrument keeps the last', () => {
+  const song = {
+    name: 's', speed: 2,
+    order: ['gone', 'a', 'b'],
+    patterns: [
+      { name: 'a', length: 250, tracks: [
+        { name: 'lead', rows: [
+          { row: 0, note: 60, instrument: 'bell' },
+          { row: 1, note: null },
+          { row: 2, note: 62, instrument: 'nobody' },
+        ] },
+        { name: 'echo', rows: [{ row: 2, note: 64 }] },
+        { name: 'empty' },
+      ] },
+      { name: 'b', length: 10, tracks: [{ name: 'lead', rows: [{ row: 3, note: 65 }, { row: 6, note: 67 }] }] },
+    ],
+  };
+  const events = songEvents({ instruments: [{ name: 'bell', waveform: 'saw', volume: 7, decay: 4 }] }, song);
+  // Row 2's second note is a clash; pattern b's row 6 is row 256, past the last a song can hold.
+  assert.deepEqual(events.map((e) => [e.row, e.note, e.waveform, e.volume, e.decay]), [
+    [0, 60, 'saw', 7, 4], [2, 62, 'saw', 7, 4], [253, 65, 'saw', 7, 4],
+  ]);
+  const { data, rows } = encodeSong({}, { name: 't', speed: 1, patterns: [{ name: 'p', length: 4, tracks: [{ name: 'x', rows: [{ row: 1, note: 48 }] }] }] });
+  // No order plays the first pattern; no instrument is a pulse at full volume that holds a row; a
+  // song that does not say `loop false` loops.
+  assert.equal(rows, 4);
+  assert.deepEqual(data, [1, 1, 4, 1, 1, 48, (15 << 2) | 0, 1, 0]);
+  // A waveform the encoding has no code for falls back to a pulse.
+  const odd = encodeSong({ instruments: [{ name: 'i', waveform: 'organ' }] }, { name: 'u', speed: 1, loop: false, patterns: [{ name: 'p', length: 1, tracks: [{ name: 'x', rows: [{ row: 0, note: 50, instrument: 'i' }] }] }] });
+  assert.equal(odd.data[0], 0);
+  assert.equal(odd.data[SONG_HEADER + 2] & 3, 0);
+});
+
+test('the web lowers a song with the portable encoding, warns that noise plays as a square, and takes a sample\'s fallback', () => {
+  const web = createRequire(import.meta.url)('../../web/media/index.cjs');
+  const wrap = (code, message, file, start, length, severity) => ({ code, message, severity });
+  const a = air(`instrument hiss { waveform noise }
+sample zap { source "./zap.wav" fallback { synth triangle } }
+sample pop { source "./pop.wav" }
+song storm { speed 1 pattern p length 2 { track t { row 0 { note C4; instrument hiss; } } } }
+song calm { speed 1 pattern p length 2 { track t { row 0 { note C4; } } } }
+`);
+  const result = web.lowerAudio(a, new Map(), {}, 'w.8ba', wrap, { encodeSong: (song) => encodeSong(a, song) });
+  assert.deepEqual(result.samples.map((s) => [s.name, s.data]), [['zap', [2, 60]], ['pop', [0, 60]]]);
+  assert.deepEqual(result.songs.map((s) => s.data), a.songs.map((song) => encodeSong(a, song).data));
+  assert.deepEqual(result.diagnostics.map((d) => d.code), ['8BS2210', '8BS2210', '8BS2212']);
+  assert.match(result.diagnostics[2].message, /noise/);
+  assert.deepEqual(web.lowerAudio({}, new Map(), {}, 'w.8ba', wrap, {}), { samples: [], songs: [], diagnostics: [] });
+});
+
+test('elaborated on its own (no linker tally), a file still numbers its handles from zero and still refuses an overfull bank', () => {
+  const rows = Array.from({ length: 40 }, (_, i) => `row ${i} { note C4; }`).join(' ');
+  const text = `song one { speed 1 pattern p length 40 { track t { ${rows} } } }\nsong two { speed 1 pattern p length 40 { track t { ${rows} } } }\n`;
+  const diagnostics = [];
+  const { ir } = elaborateMedia({ file: 'solo.8ba', media: { kind: '.8ba', air: air(text) } }, diagnostics, { machine: 'c64', facts: stockFacts('c64'), checkout: CHECKOUT });
+  assert.deepEqual(ir.consts.map((c) => [c.name, c.value?.value ?? c.value]), [['one', 0], ['two', 1]]);
+  const full = diagnostics.filter((d) => d.code === Codes.AUD_BANK_FULL);
+  assert.equal(full.length, 1);
+  assert.match(full[0].message, /'two' brings it to 408/);
 });
