@@ -25,7 +25,7 @@
           "the X16-only modules that talk to VERA, the KERNAL or the banked RAM (@8bitscript/cx16/mouse, /pointer, /psg, /banks) read and write plain memory and see nothing",
           "the raster list (@8bitscript/raster, the X16's VERA line interrupt) is machine code and is not built for the wasm backend: a program that uses it does not build here (8bs build says 'asm' blocks are never lowered)",
           "the colours are VERA's default palette entries 0-15; a program that rewrites VERA palette entries or layer registers sees no change",
-          "the portable @8bitscript/input does not build: the X16's input poll is machine code, so any program that polls the keyboard, a pad or the mouse fails to compile for the wasm backend (examples/joystick, the Vegas Nights lobby and slots)",
+          "no SNES pads and no mouse through the portable @8bitscript/input: it works from the keyboard (arrow keys, Enter for confirm, Escape for cancel, through the page), pointer() is false, and Input.CONFIRM_LABELS is RETURN where the native build's is RETURN OR START",
           "the real emulator, compiled to WebAssembly, runs any program: 8bs run cx16 --web --x16emu (it is not this project's own implementation, and it is the fallback, not the primary runtime)"
         ]
       }

@@ -104,13 +104,13 @@ everything — and **says so in its header, in detail**. `@8bitscript/web/input`
 used to be the model of that; it now reads a snapshot byte the page writes
 into shared memory (arrows, Enter, Escape) and still returns false for the
 pointer. A real machine's **wasm build** reads that same byte: the C64's,
-the PET's and the VIC-20's packages each carry a `.web` twin of their input
-layer (`input.c64.web.8bs`, `input.pet.web.8bs`, `input.vic20.web.8bs`) that
-build.mjs's internal `web` tag links in place of the file that scans the
-chips, because on that rail the CIA, the PIA and the VIAs are bytes nothing
-writes — the PET's layer read every key as held from frame one and no press
-ever began. The X16's is still `asm6502` through the KERNAL (backlog item 2
-in `docs/project/wasm-primary.md`). `@8bitscript/cx16/input` used to be the same shape; it now answers the pointer through the KERNAL
+the PET's, the VIC-20's and the X16's packages each carry a `.web` twin of
+their input layer (`input.c64.web.8bs`, `input.pet.web.8bs`,
+`input.vic20.web.8bs`, `input.cx16.web.8bs`) that build.mjs's internal `web`
+tag links in place of the file that scans the chips, because on that rail
+the CIA, the PIA and the VIAs are bytes nothing writes — the PET's layer read
+every key as held from frame one and no press ever began — and the X16's
+KERNAL calls are `asm6502`, which the wasm backend does not lower at all. `@8bitscript/cx16/input` used to be the same shape; it now answers the pointer through the KERNAL
 (`$FF68` mouse_config, `$FF71` mouse_scan, `$FF6B` mouse_get) and still
 answers directions, confirm and cancel through the KERNAL joystick API
 (`joystick_scan` / `kbd_scan` / `joystick_get`; Enter is START on joy0)
