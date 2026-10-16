@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { encodePng } from '@8bitscript/graphics-tools';
 import { encodeWav, ffmpegAvailable } from '@8bitscript/audio-tools';
 import { Codes, link } from '../index.mjs';
+import { encodeSong } from '../src/media/audio/song.mjs';
 import { stockFacts } from '../../cli/src/hardware.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -132,12 +133,13 @@ test('C64 lowering packs 24×21 sprite bytes and a SID event list', () => {
     assert.ok(data, 'four 63-byte VIC-II frames');
     assert.equal(data.init.length, 63 * 4);
     assert.ok(data.init.some((b) => b !== 0), 'sprite bytes are not all empty');
-    const song = ir.globals.find((g) => Array.isArray(g.init) && g.init[0] === 120 && g.init[1] === 6);
+    // [flags (loop), speed, rows, count], then [row, note, wave | volume << 2, length, decay] a note.
+    const song = ir.globals.find((g) => Array.isArray(g.init) && g.init[0] === 1 && g.init[1] === 6 && g.name.includes('8ba_song'));
     assert.ok(song, 'SID song bytes');
     assert.equal(song.init[2], 16);
     assert.equal(song.init[3], 2);
-    assert.equal(song.init[5], 48); // C4
-    assert.equal(song.init[9], 55); // G4
+    assert.deepEqual(song.init.slice(4, 9), [0, 48, 60, 1, 0]); // row 0, C4, pulse at volume 15, one row, held
+    assert.equal(song.init[10], 55); // G4
     assert.ok((ir.functions ?? []).some((f) => f.mediaBind));
   });
 });
@@ -220,8 +222,9 @@ test('VIC-20 lowers four frames of quadrant-block codes and a VIC song; Odyssey 
     const gfx = vic.ir.globals.find((g) => g.name.includes('8bg') && Array.isArray(g.init));
     // Four frames of a 2×2-cell object: one screen code a cell, nothing else.
     assert.equal(gfx.init.length, 16);
-    const song = vic.ir.globals.find((g) => Array.isArray(g.init) && g.init[0] === 120);
+    const song = vic.ir.globals.find((g) => Array.isArray(g.init) && g.name.includes('8ba_song'));
     assert.ok(song);
+    assert.equal(song.init[0], 1, 'a song loops unless it says otherwise');
     assert.equal(song.init[5], 48);
 
     const cx = linked(dir, 'cx16');
@@ -367,10 +370,11 @@ test('PET audio is omitted when audio.voices is 0', () => {
     samples: [{ name: 'blip', fallback: { synth: 'noise' }, start: 0, length: 4 }],
     songs: [{ name: 'theme', tempo: 120, speed: 6, order: [], patterns: [], start: 0, length: 5 }],
   };
-  const none = petMedia.lowerAudio(air, new Map(), { 'audio.voices': 0 }, 't.8ba', wrap);
+  const helpers = { encodeSong: (song) => encodeSong(air, song) };
+  const none = petMedia.lowerAudio(air, new Map(), { 'audio.voices': 0 }, 't.8ba', wrap, helpers);
   assert.ok(none.diagnostics.some((d) => d.code === '8BS2211'));
   assert.equal(none.songs[0].data.length, 0);
-  const yes = petMedia.lowerAudio(air, new Map(), { 'audio.voices': 1 }, 't.8ba', wrap);
+  const yes = petMedia.lowerAudio(air, new Map(), { 'audio.voices': 1 }, 't.8ba', wrap, helpers);
   assert.equal(yes.samples[0].data.length, 0, 'noise cannot play on the VIA square wave');
 });
 
@@ -634,7 +638,7 @@ test('two .8bg files get slots 0 and 1 and are bound in the order they are decla
 });
 
 
-test('web lowering keeps all four animation steps as 8×8 glyph rows; its audio stays silent', () => {
+test('web lowering keeps all four animation steps as 8×8 glyph rows; its audio is lowered for the oscillator', () => {
   withProject((dir) => {
     const { ir, diagnostics } = linked(dir, 'web');
     assert.deepEqual(diagnostics.filter((d) => d.severity !== 'warning'), []);
@@ -645,6 +649,9 @@ test('web lowering keeps all four animation steps as 8×8 glyph rows; its audio 
     // and rows 0 and 7 empty — eight bytes a step, four steps.
     const step = [0, 126, 126, 126, 126, 126, 126, 0];
     assert.deepEqual(gfx.init, [...step, ...step, ...step, ...step]);
-    assert.ok(diagnostics.some((d) => d.code === Codes.AUD_NO_DRIVER && /web/.test(d.message)));
+    assert.ok(!diagnostics.some((d) => d.code === Codes.AUD_NO_DRIVER), 'the web has an audio driver now');
+    assert.ok(diagnostics.some((d) => d.code === '8BS2210' && /web/.test(d.message)), 'a sample is its synth fallback');
+    const song = ir.globals.find((g) => g.name.includes('8ba_song') && Array.isArray(g.init));
+    assert.ok(song && song.init[0] === 1 && song.init[1] === 6, 'the song bytes are the portable ones');
   });
 });

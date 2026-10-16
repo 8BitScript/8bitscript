@@ -1,25 +1,23 @@
-// @8bitscript/audio on the C64: the song drives SID. A sample is the
-// declared synth fallback (not a $D418 digi).
+// @8bitscript/audio on the C64: a song plays on SID voice 0 (songs.8bs holds the bank and the
+// sequencer). A sample is the declared synth fallback (not a $D418 digi).
 import { sid, Waveform } from "@8bitscript/c64/sid";
+import { songs } from "./songs.8bs";
 
-const MAX: utinyint = 4;
-const DATA_MAX: utinyint = 64;
-let sfx: array<u8, 64>;
-let song: array<u8, 64>;
-let sfxLen: array<u8, 4>;
-let songLen: array<u8, 4>;
-let playing: utinyint = 255;
-let row: utinyint = 0;
-let tick: utinyint = 0;
 let sfxLeft: utinyint = 0;
+// True once the program has asked for a song (audio.play or audio.music of one). Nothing but
+// those two calls assigns it, so in a program that never plays a song the linker's optimizer
+// inlines it as false, every `songsOn` test below folds away, and the sequencer and its 256-byte
+// bank are not linked at all: a program that only plays tones pays nothing for songs.
+let songsOn: bool = false;
 let ready: bool = false;
 // The master volume, 0..15, and whether the envelope is the plucked one (see blip).
 let level: utinyint = 15;
 let plucked: bool = false;
 
-// The SID decay rate (0..15, the datasheet's table) a pluck of N frames wants,
-// N = 0..9 and more: 6 ms, 24, 48, 72, 114, 168 ms for a note to die away.
-const DECAY: array<u8, 10> = [1, 1, 2, 3, 3, 4, 4, 4, 5, 5];
+// The SID decay rate (0..15, the datasheet's table: 6 ms, 24, 48, 72, 114, 168, 204, 240, 300 ms
+// ... to fall from the peak to nothing) a pluck of N frames wants, N = 0..15 and more. Frames are
+// 16.7 ms at 60 Hz, so this is a nearest-rate table, not a stopwatch.
+const DECAY: array<u8, 16> = [1, 1, 2, 3, 3, 4, 4, 5, 5, 5, 6, 6, 7, 7, 8, 8];
 
 function waveOf(code: utinyint): utinyint {
     if (code == 1) {
@@ -44,22 +42,51 @@ function ensure(): void {
     }
 }
 
-function eventAt(dataBase: utinyint, length: utinyint, atRow: utinyint, field: utinyint): utinyint {
-    // bytes 0..3 header; each event 4 bytes: row, note, wave, voice
-    let count: utinyint = song[dataBase + 3];
-    let i: utinyint = 0;
-    let off: utinyint = dataBase + 4;
-    while (i < count) {
-        if (off + 3 >= dataBase + length) {
-            return 255;
+// The master volume a note of `vol` (0..15) plays at under the game's level, rounded up so a
+// quiet note under a loud level is not lost: level * vol / 16, ceiling.
+function scaled(vol: utinyint): utinyint {
+    let product: utinyint = level * vol;
+    return (product + 15) >> 4;
+}
+
+// Start the note the sequencer says begins: a fresh gate, its waveform, its volume, and an envelope
+// that is either a pluck (a decay and no sustain, so it dies away by itself) or a held note at full.
+function startNote(): void {
+    ensure();
+    sid.release(0);
+    sid.setWaveform(0, waveOf(songs.wave()));
+    sid.setVolume(scaled(songs.volume()));
+    let decay: utinyint = songs.decay();
+    if (decay != 0) {
+        if (decay > 15) {
+            decay = 15;
         }
-        if (song[off] == atRow) {
-            return song[off + field];
-        }
-        off = off + 4;
-        i = i + 1;
+        sid.setEnvelope(0, 0, DECAY[decay], 0, 2);
+    } else {
+        sid.setEnvelope(0, 0, 0, 15, 3);
     }
-    return 255;
+    plucked = true;
+    sid.play(0, songs.note());
+}
+
+// Do what the sequencer says.
+function apply(event: utinyint): void {
+    if (event == 1) {
+        startNote();
+    } else if (event == 2) {
+        sid.release(0);
+    } else if (event == 3) {
+        sid.release(0);
+        sid.setVolume(level);
+    }
+}
+
+// One frame of a song that is playing: a note's decay, then the sequencer's next step.
+function songFrame(): void {
+    if (!songs.active()) {
+        return;
+    }
+    apply(songs.step());
 }
 
 export namespace audio {
@@ -69,34 +96,34 @@ export namespace audio {
     const NOTE_HIGH: utinyint = 83;
 
     function bind(kind: utinyint, slot: utinyint, index: utinyint, value: utinyint): void {
-        if (slot != 0 || index >= DATA_MAX) {
-            return;
-        }
-        if (kind == 0) {
-            sfx[index] = value;
-        } else {
-            song[index] = value;
-        }
+        songs.bind(kind, slot, index, value);
     }
 
     function meta(kind: utinyint, slot: utinyint, length: utinyint, a: utinyint, b: utinyint, c: utinyint): void {
-        if (slot != 0) {
-            return;
-        }
-        if (kind == 0) {
-            sfxLen[slot] = length;
-        } else {
-            songLen[slot] = length;
-        }
+        songs.meta(kind, slot, length);
         ensure();
     }
 
+    // A sample plays its fallback note for eight frames; a song plays once, from its start to its
+    // last row, and is silent after. A new sound replaces whatever is sounding.
     function play(slot: utinyint): void {
-        if (sfxLen[slot] < 2) {
+        if (songs.isSong(slot)) {
+            songsOn = true;
+            ensure();
+            sfxLeft = 0;
+            apply(songs.start(slot, false));
             return;
         }
-        sid.setWaveform(0, waveOf(sfx[0]));
-        sid.play(0, sfx[1]);
+        if (!songs.isSample(slot)) {
+            return;
+        }
+        ensure();
+        if (songsOn) {
+            songs.stop();
+        }
+        sid.release(0);
+        sid.setWaveform(0, waveOf(songs.sampleWave(slot)));
+        sid.play(0, songs.sampleNote(slot));
         sfxLeft = 8;
     }
 
@@ -106,10 +133,14 @@ export namespace audio {
     // once) so the pitch is right. Nothing else blocks.
     function tone(note: utinyint, frames: utinyint): void {
         ensure();
+        if (songsOn) {
+            songs.stop();
+        }
         if (plucked) {
             sid.setEnvelope(0, 0, 9, 8, 6);
             plucked = false;
         }
+        sid.setVolume(level);
         sid.release(0);
         sid.setWaveform(0, Waveform.PULSE);
         sid.play(0, note);
@@ -119,11 +150,27 @@ export namespace audio {
         }
     }
 
+    // Stop now: the tone, the sample and the song, and put the volume back.
     function silence(): void {
+        if (songsOn) {
+            songs.stop();
+        }
         if (ready) {
             sid.release(0);
+            sid.setVolume(level);
         }
         sfxLeft = 0;
+    }
+
+    // True while a tone, a sample or a song is sounding (a song's rests count).
+    function busy(): bool {
+        if (sfxLeft != 0) {
+            return true;
+        }
+        if (songsOn) {
+            return songs.active();
+        }
+        return false;
     }
 
     // The master volume the SID plays at, 0 (silent) to LEVEL_MAX; a level above
@@ -145,10 +192,14 @@ export namespace audio {
     // another retriggers.
     function blip(note: utinyint, frames: utinyint): void {
         ensure();
+        if (songsOn) {
+            songs.stop();
+        }
         let slow: utinyint = frames;
         if (slow > 9) {
             slow = 9;
         }
+        sid.setVolume(level);
         sid.setEnvelope(0, 0, DECAY[slow], 0, 2);
         plucked = true;
         sid.release(0);
@@ -160,10 +211,13 @@ export namespace audio {
         }
     }
 
+    // A song, repeated for ever if its file says `loop true` (the default), until the next sound
+    // or audio.silence().
     function music(slot: utinyint): void {
-        playing = slot;
-        row = 0;
-        tick = 0;
+        songsOn = true;
+        ensure();
+        sfxLeft = 0;
+        apply(songs.start(slot, true));
     }
 
     function update(): void {
@@ -174,31 +228,8 @@ export namespace audio {
             }
             return;
         }
-        if (playing == 255 || songLen[0] < 4) {
-            return;
-        }
-        let speed: utinyint = song[1];
-        if (speed == 0) {
-            speed = 6;
-        }
-        tick = tick + 1;
-        if (tick < speed) {
-            return;
-        }
-        tick = 0;
-        let length: utinyint = song[2];
-        if (length == 0) {
-            length = 16;
-        }
-        let note: utinyint = eventAt(0, songLen[0], row, 1);
-        if (note != 255) {
-            let wave: utinyint = eventAt(0, songLen[0], row, 2);
-            sid.setWaveform(0, waveOf(wave));
-            sid.play(0, note);
-        }
-        row = row + 1;
-        if (row >= length) {
-            row = 0;
+        if (songsOn) {
+            songFrame();
         }
     }
 }

@@ -75,6 +75,15 @@
             "1": { "name": "keyword.other.field.8ba" },
             "2": { "name": "constant.numeric.integer.8ba" }
           }
+        },
+        {
+          "name": "meta.field.level.8ba",
+          "match": "\\b(volume|decay)\\s+(\\d+)\\s*(;)?",
+          "captures": {
+            "1": { "name": "keyword.other.field.8ba" },
+            "2": { "name": "constant.numeric.integer.8ba" },
+            "3": { "name": "punctuation.terminator.statement.8ba" }
+          }
         }
       ]
     },
@@ -161,6 +170,15 @@
           "captures": {
             "1": { "name": "keyword.other.field.8ba" },
             "2": { "name": "constant.numeric.integer.8ba" }
+          }
+        },
+        {
+          "name": "meta.field.loop.8ba",
+          "match": "\\b(loop)\\s+(true|false)\\s*(;)?",
+          "captures": {
+            "1": { "name": "keyword.other.field.8ba" },
+            "2": { "name": "constant.language.boolean.8ba" },
+            "3": { "name": "punctuation.terminator.statement.8ba" }
           }
         },
         {
@@ -259,6 +277,15 @@
           "captures": {
             "1": { "name": "keyword.other.field.8ba" },
             "2": { "name": "entity.name.resource.8ba" },
+            "3": { "name": "punctuation.terminator.statement.8ba" }
+          }
+        },
+        {
+          "name": "meta.field.row-level.8ba",
+          "match": "\\b(length|volume)\\s+(\\d+)\\s*(;)?",
+          "captures": {
+            "1": { "name": "keyword.other.field.8ba" },
+            "2": { "name": "constant.numeric.integer.8ba" },
             "3": { "name": "punctuation.terminator.statement.8ba" }
           }
         }

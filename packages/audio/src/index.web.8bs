@@ -1,17 +1,108 @@
-// @8bitscript/audio on the web: audio.tone and audio.silence play through the
-// host's one Web Audio oscillator (@8bitscript/web/voice). A sample or a song
-// from a .8ba still has no driver here: bind, meta, play and music keep their
-// handles valid and do nothing, as the generic file does, and the build says
-// 8BS2211. Web audio is the one sound this host has; there is no chip to be
-// faithful to, so the range is a decision: C2..B7, 65 Hz to 3951 Hz.
+// @8bitscript/audio on the web: tones, samples and songs play through the host's one Web
+// Audio oscillator (@8bitscript/web/voice). A song is the bank and sequencer in songs.8bs
+// driving that voice; a sample is its declared synth fallback, as on the chips. Web audio is
+// the one sound this host has; there is no chip to be faithful to, so the range is a
+// decision: C2..B7, 65 Hz to 3951 Hz, a square, a triangle or a sawtooth (noise has no
+// oscillator here and plays as the square).
 import { voice } from "@8bitscript/web/voice";
+import { songs } from "./songs.8bs";
 
 let sfxLeft: utinyint = 0;
-// The level the game asked for (0..15), the volume sounding now, and how much a
-// plucked tone loses a frame (0 for a plain tone).
+// True once the program has asked for a song (audio.play or audio.music of one). Nothing but
+// those two calls assigns it, so in a program that never plays a song the linker's optimizer
+// inlines it as false, every `songsOn` test below folds away, and the sequencer and its 256-byte
+// bank are not linked at all: a program that only plays tones pays nothing for songs.
+let songsOn: bool = false;
+// The level the game asked for (0..15), the volume sounding now, how much a plucked tone or a
+// song note loses a frame (0 for a plain one), and the frames a song note has left to sound.
 let level: utinyint = 15;
 let shown: utinyint = 15;
 let fade: utinyint = 0;
+let decayLeft: utinyint = 0;
+
+// The oscillator shape for a `.8ba` waveform (0 pulse, 1 noise, 2 triangle, 3 saw): 0 square,
+// 1 triangle, 2 sawtooth.
+function shapeOf(code: utinyint): utinyint {
+    if (code == 2) {
+        return 1;
+    }
+    if (code == 3) {
+        return 2;
+    }
+    return 0;
+}
+
+// The volume a note of `vol` (0..15) plays at under the game's level: level * vol / 16, rounded up.
+function scaled(vol: utinyint): utinyint {
+    let product: utinyint = level * vol;
+    return (product + 15) >> 4;
+}
+
+// How much a note of `volume` loses a frame to be gone in `frames`: volume / frames, rounded up.
+function stepOf(volume: utinyint, frames: utinyint): utinyint {
+    let rest: utinyint = volume;
+    let step: utinyint = 0;
+    while (rest > 0) {
+        step = step + 1;
+        if (rest > frames) {
+            rest = rest - frames;
+        } else {
+            rest = 0;
+        }
+    }
+    return step;
+}
+
+function startNote(): void {
+    let vol: utinyint = scaled(songs.volume());
+    voice.setShape(shapeOf(songs.wave()));
+    voice.on(songs.note());
+    voice.volume(vol);
+    shown = vol;
+    fade = 0;
+    decayLeft = songs.decay();
+    if (decayLeft != 0) {
+        fade = stepOf(vol, decayLeft);
+    }
+}
+
+// Do what the sequencer says.
+function apply(event: utinyint): void {
+    if (event == 1) {
+        startNote();
+    } else if (event == 2) {
+        voice.off();
+        decayLeft = 0;
+        fade = 0;
+    } else if (event == 3) {
+        voice.off();
+        decayLeft = 0;
+        fade = 0;
+        voice.volume(level);
+    }
+}
+
+// One frame of a song that is playing: a note's decay, then the sequencer's next step.
+function songFrame(): void {
+    if (!songs.active()) {
+        return;
+    }
+    if (decayLeft != 0) {
+        decayLeft = decayLeft - 1;
+        if (decayLeft == 0) {
+            voice.off();
+            fade = 0;
+        } else if (fade != 0) {
+            if (shown > fade) {
+                shown = shown - fade;
+            } else {
+                shown = 0;
+            }
+            voice.volume(shown);
+        }
+    }
+    apply(songs.step());
+}
 
 export namespace audio {
     // The playable notes (the .8ba index, C0 = 0, A4 = 57). A note outside
@@ -20,15 +111,20 @@ export namespace audio {
     const NOTE_HIGH: utinyint = 95;
 
     function bind(kind: utinyint, slot: utinyint, index: utinyint, value: utinyint): void {
+        songs.bind(kind, slot, index, value);
     }
 
     function meta(kind: utinyint, slot: utinyint, length: utinyint, a: utinyint, b: utinyint, c: utinyint): void {
+        songs.meta(kind, slot, length);
     }
 
     // One tone for `frames` calls of update(), then silence. Replaces whatever
     // tone is sounding. Nothing blocks. The page reads the voice once a paint,
     // so a tone of one frame can fall between two and not be heard.
     function tone(note: utinyint, frames: utinyint): void {
+        if (songsOn) {
+            songs.stop();
+        }
         let n: utinyint = note;
         while (n < 24) {
             n = n + 12;
@@ -37,18 +133,38 @@ export namespace audio {
             n = n - 12;
         }
         fade = 0;
+        decayLeft = 0;
         shown = level;
+        voice.setShape(0);
         voice.on(n);
+        voice.volume(level);
         sfxLeft = frames;
         if (frames == 0) {
             sfxLeft = 1;
         }
     }
 
+    // Stop now: the tone, the sample and the song.
     function silence(): void {
+        if (songsOn) {
+            songs.stop();
+        }
         voice.off();
+        voice.volume(level);
         sfxLeft = 0;
         fade = 0;
+        decayLeft = 0;
+    }
+
+    // True while a tone, a sample or a song is sounding (a song's rests count).
+    function busy(): bool {
+        if (sfxLeft != 0) {
+            return true;
+        }
+        if (songsOn) {
+            return songs.active();
+        }
+        return false;
     }
 
     // The oscillator's gain, 0 (silent) to 15 for every tone; a level above the
@@ -72,24 +188,41 @@ export namespace audio {
         if (span == 0) {
             span = 1;
         }
-        let rest: utinyint = level;
-        let step: utinyint = 0;
-        while (rest > 0) {
-            step = step + 1;
-            if (rest > span) {
-                rest = rest - span;
-            } else {
-                rest = 0;
-            }
-        }
+        let step: utinyint = stepOf(level, span);
         audio.tone(note, span);
         fade = step;
     }
 
+    // A sample plays its fallback note for eight frames; a song plays once, from its start to its
+    // last row, and is silent after. A new sound replaces whatever is sounding.
     function play(slot: utinyint): void {
+        if (songs.isSong(slot)) {
+            songsOn = true;
+            sfxLeft = 0;
+            apply(songs.start(slot, false));
+            return;
+        }
+        if (!songs.isSample(slot)) {
+            return;
+        }
+        if (songsOn) {
+            songs.stop();
+        }
+        voice.setShape(shapeOf(songs.sampleWave(slot)));
+        voice.on(songs.sampleNote(slot));
+        voice.volume(level);
+        shown = level;
+        fade = 0;
+        decayLeft = 0;
+        sfxLeft = 8;
     }
 
+    // A song, repeated for ever if its file says `loop true` (the default), until the next sound
+    // or audio.silence().
     function music(slot: utinyint): void {
+        songsOn = true;
+        sfxLeft = 0;
+        apply(songs.start(slot, true));
     }
 
     function update(): void {
@@ -108,6 +241,10 @@ export namespace audio {
                 }
                 voice.volume(shown);
             }
+            return;
+        }
+        if (songsOn) {
+            songFrame();
         }
     }
 }

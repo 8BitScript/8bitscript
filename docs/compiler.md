@@ -52,6 +52,7 @@ Graphics diagnostics (`8BS21xx`) and audio diagnostics (`8BS22xx`):
 | 8BS2213 | FLAC source needs FFmpeg on PATH |
 | 8BS2214 | Missing required field |
 | 8BS2215 | Song names an unknown instrument |
+| 8BS2216 | The program's samples and songs do not fit the audio driver's 255-byte data bank |
 
 ## Editor and CLI contract
 
