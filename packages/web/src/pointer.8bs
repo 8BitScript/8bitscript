@@ -2,10 +2,11 @@
 // and the one target where the pointer the user already has is the
 // problem rather than the solution.
 //
-// Every call here does nothing and `DRAWS` is false: the runtime now
-// delivers arrow keys through @8bitscript/web/input, but still no pointer.
-// A mouse belongs in the same shared snapshot as those keys, and until
-// that lands there is nothing to draw.
+// Every call here does nothing and `DRAWS` is false, and that is the
+// decision this header used to ask for: **the browser's own cursor is the
+// arrow**. The runtime now delivers the pointer's position, buttons and taps
+// through @8bitscript/web/input (the pointer block after the tone registers),
+// and nothing paints a second arrow over the picture.
 //
 // This target has a decision the other eight do not, and it is worth
 // writing down before anyone implements it: **the user is already looking

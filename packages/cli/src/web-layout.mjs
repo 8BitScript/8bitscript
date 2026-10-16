@@ -143,6 +143,32 @@ export const GLYPH_BYTES = GLYPH_COUNT * GLYPH_ROW_BYTES;
 export const AUDIO_BYTES = 4;
 export const AudioRegister = { GATE: 0, NOTE: 1, WAVE: 2, VOLUME: 3 };
 
+// ---- the pointer ----------------------------------------------------------
+//
+// POINTER_BYTES bytes at the very end of the agreement (after the frame
+// counter), present only on a build whose machine has a mouse — the build's
+// `input.mouse` fact: the X16 by default, the C64 with a 1351 fitted, the
+// synthetic Modern host. They are last on purpose: every offset in front of
+// them is hard-coded in the `.web` twins, and a pointer that only some
+// machines carry must not move any of those. A machine with no mouse (the
+// PET, the VIC-20, the skins) has no region and the page never writes one;
+// a touch there is only ever translated to arrow presses (pointerRoute()).
+//
+//   PRESENT  1 once the page is writing the block (a constant: a browser
+//            always has a pointer; there is no probe to fail)
+//   BUTTONS  bit 0 left, bit 1 right — the main button and the context one
+//   X, Y     the pointer in pixels of the *inner picture* (the grid, border
+//            excluded), 16 bits little-endian each, clamped to it: what a
+//            real mouse driver's clamped position is
+//
+// The position is absolute and the program reads it as a cell the same way
+// a native layer does ((y >> 3) * COLUMNS + (x >> 3)). The browser's own
+// cursor is the arrow: nothing draws one in the picture (`pointer.DRAWS`
+// stays false on a wasm build — packages/web/AGENTS.md records the decision).
+export const POINTER_BYTES = 6;
+export const PointerRegister = { PRESENT: 0, BUTTONS: 1, X_LOW: 2, X_HIGH: 3, Y_LOW: 4, Y_HIGH: 5 };
+export const PointerButton = { LEFT: 1, RIGHT: 2 };
+
 /**
  * The eight row bytes of a user-defined glyph, or null when `code` is not in
  * the table's range or its eight rows are all zero (an undefined glyph: the
@@ -231,6 +257,8 @@ export function agreementFor({
   // machine's handler does the same in golden RAM). A machine that does not ask
   // keeps the byte out of its memory, so its program data starts where it did.
   frameCounter = false,
+  // The pointer block (POINTER_BYTES) after everything else, for a machine with a mouse.
+  pointer = false,
 } = {}) {
   const cells = cols * rows;
   const charBase = resizable ? RESIZABLE_CHAR_BASE : CHAR_BASE;
@@ -251,7 +279,9 @@ export function agreementFor({
   const audioBase = audio ? glyphEnd : -1;
   const beforeFrame = audio ? glyphEnd + AUDIO_BYTES : glyphEnd;
   const frameOffset = frameCounter ? beforeFrame : -1;
-  const reservedEnd = frameCounter ? beforeFrame + 1 : beforeFrame;
+  const afterFrame = frameCounter ? beforeFrame + 1 : beforeFrame;
+  const pointerOffset = pointer ? afterFrame : -1;
+  const reservedEnd = pointer ? afterFrame + POINTER_BYTES : afterFrame;
   return {
     cols,
     rows,
@@ -272,6 +302,7 @@ export function agreementFor({
     glyphCount: GLYPH_COUNT,
     audioBase,
     frameOffset,
+    pointerOffset,
     reservedEnd,
     rasterMaxEntries: RASTER_MAX_ENTRIES,
     columnsOffset: COLUMNS_OFFSET,
@@ -320,7 +351,7 @@ export const HostStatus = {
 export const MACHINE_HOST = {
   // Modern is the only one that resizes. A skin is a machine, and a machine's
   // screen is the size its video chip makes it.
-  hifi: { aspect: '16/9', font: 'font8x8', palette: C64_PALETTE, resizable: true },
+  hifi: { aspect: '16/9', font: 'font8x8', palette: C64_PALETTE, resizable: true, pointer: true },
   'pet-2001': { aspect: '4/3', font: 'pet', palette: PET_PALETTE },
   c64: { aspect: '4/3', font: 'font8x8', palette: C64_PALETTE },
   vic20: { aspect: '4/3', font: 'font8x8', palette: VIC20_PALETTE },
@@ -345,6 +376,7 @@ export function layoutFromHardware(hardwareOrFacts = {}) {
     resizable: host.resizable === true,
     userGlyphs: true,
     audio: true,
+    pointer: host.pointer === true,
   });
 }
 
@@ -588,6 +620,8 @@ export function layoutForRealMachine(target, hardware = {}) {
     pixelAspect,
     userGlyphs: real?.userGlyphs === true,
     frameCounter: real?.frameCounter === true,
+    // The build's own mouse fact: the X16's by default, the C64's with a 1351.
+    pointer: facts['input.mouse'] === true,
   });
   // No entry for this target: geometry only, the synthetic charBase. Not
   // correct for a real build, but no *more* wrong than layoutFromHardware
@@ -623,6 +657,7 @@ export function sidecarJson(layout = DEFAULT_LAYOUT) {
     colorBase: layout.colorBase,
     inputOffset: layout.inputOffset,
     hostOffset: layout.hostOffset,
+    pointerOffset: layout.pointerOffset ?? -1,
     rasterControlOffset: layout.rasterControlOffset,
     rasterCountOffset: layout.rasterCountOffset,
     rasterBase: layout.rasterBase,
@@ -685,6 +720,36 @@ export function swipeEdge(dx, dy) {
   if (ax < SWIPE_THRESHOLD && ay < SWIPE_THRESHOLD) return 0;
   if (ax > ay) return dx < 0 ? InputEdge.LEFT : InputEdge.RIGHT;
   return dy < 0 ? InputEdge.UP : InputEdge.DOWN;
+}
+
+/**
+ * What one finished gesture means, decided from where it began and ended —
+ * never both outcomes for one gesture. Pure, and carried into the page
+ * script (web-loader.mjs interpolates this source), so the rule is tested
+ * here and not inferred from the inlined copy.
+ *
+ * A machine WITHOUT a pointer (`hasPointer` false: the PET, the VIC-20, the
+ * skins, a future NES) has nothing to aim, so a *touch* or pen is only a
+ * keyboard: a swipe is one arrow press, a tap is confirm. A mouse is not a
+ * touchscreen and the desktop it sits on has a keyboard: a click is
+ * confirm, and a drag is nothing — it must not move tiles.
+ *
+ * A machine WITH a pointer gets the real thing for a mouse (position and
+ * buttons only, no arrows from a drag) and for a tap (a click at that
+ * spot). A touch that travelled far enough to be a swipe is still arrows,
+ * because the screen has no keyboard to fall back on and a game like 2048
+ * has nothing else to read — and then the pointer's button is not pressed.
+ *
+ * @returns {{ edge: number, click: boolean }} `edge` an InputEdge bit to
+ *   pulse (0: none), `click` whether the pointer's left button pulses.
+ */
+export function pointerRoute(pointerType, hasPointer, dx, dy) {
+  const swipe = swipeEdge(dx, dy);
+  if (pointerType === 'mouse') {
+    return hasPointer ? { edge: 0, click: true } : { edge: swipe ? 0 : InputEdge.CONFIRM, click: false };
+  }
+  if (swipe) return { edge: swipe, click: false };
+  return hasPointer ? { edge: 0, click: true } : { edge: InputEdge.CONFIRM, click: false };
 }
 
 // How far (of 1) a pad's left stick has to lean before it counts as a direction.

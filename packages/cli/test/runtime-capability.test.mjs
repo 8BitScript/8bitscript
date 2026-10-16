@@ -67,8 +67,10 @@ test('every machine whose wasm build has a known gap says so in `limits`, where 
   says('vic20', /raster list applies each entry at its picture line exactly/); // it builds now; what it does not model is the hook's timing
   assert.ok(!runtime.vic20.wasm.limits.some((line) => /does not build/.test(line)), 'the VIC-20 raster builds on wasm: the old claim is gone');
   // The raster and the sprites are held in the X16's own test below. Its input
-  // builds now (input.cx16.web.8bs) and reads a gamepad too: the mouse is the gap.
-  says('cx16', /not the mouse/);
+  // builds now (input.cx16.web.8bs) and reads a gamepad and the mouse (a pointer
+  // block): what stays a gap is that no arrow is drawn, the browser's cursor is it.
+  says('cx16', /pointer block the page writes/);
+  says('cx16', /no arrow is drawn/);
   assert.ok(!runtime.cx16.wasm.limits.some((line) => /input does not build|no SNES pads/.test(line)), 'the X16 input builds on wasm and reads a pad: the old claims are gone');
   for (const id of ['pet', 'vic20', 'c64', 'cx16']) says(id, /sound/);
 });
@@ -96,7 +98,7 @@ test('the X16 runs in the browser on our own backend, and says what its flat mod
   assert.match(limits, /sprites/, 'VERA sprites are not modelled: a picture is a glyph');
   assert.match(limits, /sound|8BS2211/, 'there is no audio driver');
   assert.match(limits, /raster/, 'the portable raster list is applied by the page, not by VERA, and says how it differs');
-  assert.match(limits, /mouse/, 'the X16-only modules see nothing, and the page carries no pointer');
+  assert.match(limits, /mouse/, 'the X16-only modules (/mouse, /pointer) see nothing: the portable input reads the page\'s pointer block instead');
   // Portable input and the raster list were machine code and did not build; they do now (backlog item 2), so
   // the capability row must not say they fail.
   assert.doesNotMatch(limits, /input does not build|does not build here|raster_commit|input_poll/, 'neither claim is true any more');

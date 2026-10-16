@@ -200,7 +200,7 @@ The standard this package holds to:
 | NES | D-pad, A/START, B | none | confirm the pad on real input |
 | VIC-20 | joystick only | none | a verified `keys.8bs`, then a `keyboard.8bs` |
 | X16 | keyboard joystick (Enter, arrows) + SNES pads 1/2 | **KERNAL mouse** | GETIN (`$FFE4`) as characters; **ALT** |
-| web | arrow keys, Enter, Escape | nothing | a pointer in the same snapshot byte |
+| web | arrow keys, Enter, Escape | **the browser's mouse** (Modern host; none on a skin) | verify on a real touch device |
 
 **Three machines have an ALT key** — the C128, the MEGA65 and the X16 — and
 none of them reads it yet. That is the prerequisite for `ALT`+letter menu

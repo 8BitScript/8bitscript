@@ -78,7 +78,8 @@ test('every synthetic skin has the region and a real machine\'s own build has no
   for (const machine of Object.keys(MACHINE_HOST)) {
     const layout = layoutFromHardware({ facts: {}, options: { machine } });
     assert.equal(layout.audioBase, layout.glyphBase + GLYPH_BYTES, machine);
-    assert.equal(layout.reservedEnd, layout.audioBase + AUDIO_BYTES, machine);
+    assert.equal(layout.reservedEnd, layout.audioBase + AUDIO_BYTES + (layout.pointerOffset >= 0 ? 6 : 0), machine);
+    if (layout.pointerOffset >= 0) assert.equal(layout.pointerOffset, layout.audioBase + AUDIO_BYTES, `${machine}: the pointer block follows the tone registers`);
     assert.ok(dataBaseFor(layout.reservedEnd) >= layout.reservedEnd, `${machine}: program data clear of the registers`);
   }
   for (const target of ['pet', 'vic20', 'c64']) {

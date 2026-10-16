@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import { runInNewContext } from 'node:vm';
 
 import { renderLoader } from '../src/web-loader.mjs';
-import { INPUT_OFFSET, InputEdge } from '../src/web-layout.mjs';
+import { INPUT_OFFSET, InputEdge, agreementFor } from '../src/web-layout.mjs';
 
 // The compiler's own output in miniature (packages/compiler/src/wasm): one
 // `env.waitFrame` import, shared memory, one exported function. Each frame it
@@ -69,7 +69,7 @@ function programThatLoops() {
  * Uint8Array that notes the one 64K view the loader makes over the
  * program's buffer.
  */
-function page({ isolated, wasm, WebAssembly: wa, Worker, mount = {}, focused = [] }) {
+function page({ isolated, wasm, WebAssembly: wa, Worker, mount = {}, focused = [], layout }) {
   const listeners = new Map();
   const element = () => {
     const el = {
@@ -81,7 +81,7 @@ function page({ isolated, wasm, WebAssembly: wa, Worker, mount = {}, focused = [
       removeChild(child) { el.children = el.children.filter((c) => c !== child); child.parentNode = null; },
       addEventListener(type, fn) { listeners.set(type, fn); },
       removeEventListener() {},
-      getBoundingClientRect() { return { width: 384, height: 216 }; },
+      getBoundingClientRect() { return { left: 0, top: 0, width: 384, height: 216 }; },
       focus() { focused.push('element'); },
       getContext() {
         return {
@@ -132,7 +132,7 @@ function page({ isolated, wasm, WebAssembly: wa, Worker, mount = {}, focused = [
   };
   if (wa) self.WebAssembly = wa;
   if (Worker) self.Worker = Worker;
-  runInNewContext(renderLoader({ frameRate: 60 }), self);
+  runInNewContext(renderLoader({ frameRate: 60, ...(layout ? { layout } : {}) }), self);
   const screen = self.EightBitScript.mount(element(), {
     src: 'program.wasm',
     onError: (error) => errors.push(error),
@@ -244,4 +244,77 @@ test('a tap gives the screen the keyboard: the window when full-page, its own el
   assert.deepEqual(embeddedFocus, ['element'], 'embedded: its own element, never the host page\'s window');
   embedded.screen.destroy();
   await embedded.settle();
+});
+
+// The pointer block. A machine with a mouse gets a real one — position in
+// the inner picture's pixels, a held left button — and a mouse drag is never
+// an arrow; a touch is a click when it stays put and arrows when it travels;
+// and a machine with no mouse gets the keyboard translation only
+// (web-layout.mjs pointerRoute()).
+async function pointerPage(layout) {
+  const p = page({ isolated: false, wasm: programThatLoops(), layout });
+  await p.settle(() => p.frames.length > 0 || p.errors.length > 0);
+  p.tick(0);
+  p.tick(17);
+  await p.settle();
+  return p;
+}
+const ev = (over) => ({ pointerType: 'mouse', button: 0, isPrimary: true, pointerId: 1, clientX: 0, clientY: 0, preventDefault() {}, ...over });
+
+test('a machine with a mouse reads a real pointer: position, held button, and no arrows from a drag', async () => {
+  const layout = agreementFor({ cols: 40, rows: 25, pointer: true });
+  const p = await pointerPage(layout);
+  const memory = p.memory();
+  const at = layout.pointerOffset;
+  assert.ok(at > layout.rasterBase, 'the block is past everything a twin hard-codes');
+  p.listeners.get('pointermove')(ev({ clientX: 100, clientY: 60 }));
+  assert.equal(memory[at], 1, 'present');
+  const x = memory[at + 2] | (memory[at + 3] << 8);
+  const y = memory[at + 4] | (memory[at + 5] << 8);
+  assert.ok(x > 0 && x < layout.innerWidth && y > 0 && y < layout.innerHeight, `inside the picture: ${x},${y}`);
+  p.listeners.get('pointerdown')(ev({ clientX: 100, clientY: 60 }));
+  assert.equal(memory[at + 1], 1, 'left button held');
+  p.listeners.get('pointermove')(ev({ clientX: 300, clientY: 60 }));
+  p.listeners.get('pointerup')(ev({ clientX: 300, clientY: 60 }));
+  assert.equal(memory[at + 1], 0, 'released');
+  assert.equal(memory[layout.inputOffset], 0, 'a mouse drag moved no arrow');
+  p.listeners.get('pointerdown')(ev({ button: 2 }));
+  assert.equal(memory[at + 1], 2, 'the right button is its own bit');
+  p.listeners.get('pointerup')(ev({ button: 2 }));
+  p.screen.destroy();
+});
+
+test('a touch on a machine with a mouse is a click when it stays put and an arrow when it swipes', async () => {
+  const layout = agreementFor({ cols: 40, rows: 25, pointer: true });
+  const p = await pointerPage(layout);
+  const memory = p.memory();
+  const at = layout.pointerOffset;
+  p.listeners.get('pointerdown')(ev({ pointerType: 'touch', clientX: 50, clientY: 50 }));
+  assert.equal(memory[at + 1], 0, 'a touch is not a held button');
+  p.listeners.get('pointerup')(ev({ pointerType: 'touch', clientX: 52, clientY: 50 }));
+  assert.equal(memory[at + 1], 1, 'a tap pulses the left button');
+  assert.equal(memory[layout.inputOffset] & InputEdge.CONFIRM, 0, 'and is not also confirm');
+  p.listeners.get('pointerdown')(ev({ pointerType: 'touch', clientX: 200, clientY: 50 }));
+  p.listeners.get('pointerup')(ev({ pointerType: 'touch', clientX: 100, clientY: 50 }));
+  assert.equal(memory[layout.inputOffset], InputEdge.LEFT, 'a swipe is one arrow');
+  p.screen.destroy();
+});
+
+test('a machine with no mouse translates a touch to the keyboard and ignores a mouse drag', async () => {
+  const layout = agreementFor({ cols: 40, rows: 25 });
+  assert.equal(layout.pointerOffset, -1);
+  const p = await pointerPage(layout);
+  const memory = p.memory();
+  p.listeners.get('pointerdown')(ev({ pointerType: 'touch', clientX: 200, clientY: 50 }));
+  p.listeners.get('pointerup')(ev({ pointerType: 'touch', clientX: 100, clientY: 50 }));
+  assert.equal(memory[layout.inputOffset], InputEdge.LEFT, 'swipe → arrow');
+  await new Promise((r) => setTimeout(r, 120));
+  assert.equal(memory[layout.inputOffset], 0);
+  p.listeners.get('pointerdown')(ev({ clientX: 200, clientY: 50 }));
+  p.listeners.get('pointerup')(ev({ clientX: 100, clientY: 50 }));
+  assert.equal(memory[layout.inputOffset], 0, 'a mouse drag moves nothing');
+  p.listeners.get('pointerdown')(ev({ clientX: 5, clientY: 5 }));
+  p.listeners.get('pointerup')(ev({ clientX: 5, clientY: 5 }));
+  assert.equal(memory[layout.inputOffset], InputEdge.CONFIRM, 'a click is confirm');
+  p.screen.destroy();
 });

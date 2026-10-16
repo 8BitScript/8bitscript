@@ -1,0 +1,24 @@
+// pointer.8bs's own `.web` twin — the wasm build links this in place of
+// ./pointer.8bs. On the wasm rail nothing draws an arrow in the picture: the
+// browser's own cursor over the canvas is the arrow, and the position the
+// program hit-tests is that cursor's (input.pointerCell(), read from the
+// page's pointer block). `DRAWS` is false, so a program's `if (pointer.DRAWS)`
+// folds away. The native file would call the KERNAL's mouse from asm6502, which the wasm backend cannot lower.
+// Keep the export list identical to pointer.8bs —
+// packages/compiler/test/cx16-web-twin.test.mjs holds the two to the same names.
+export namespace pointer {
+
+    const DRAWS: bool = false;
+
+    function begin(): void {
+    }
+
+    function setColor(color: utinyint): void {
+    }
+
+    function update(): void {
+    }
+
+    function hide(): void {
+    }
+}

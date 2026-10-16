@@ -43,6 +43,10 @@ export namespace WebRegisters {
     // host is a touchscreen. A screenshot has no viewport, so that bit
     // stays clear there.
     const HOST_OFFSET: usmallint = Video.HOST_OFFSET;
+    // The pointer block (present, buttons, x, y) on the one host that has a
+    // mouse; HAS_POINTER is false on a skin and every read of it folds away.
+    const POINTER_BASE: usmallint = Video.POINTER_BASE;
+    const HAS_POINTER: bool = Video.HAS_POINTER;
     // The per-scanline raster list ./rasterline.8bs keeps: one control
     // byte (the renderer applies the list while it is nonzero), one count
     // byte, then RASTER_MAX_ENTRIES three-byte entries — the line's low
