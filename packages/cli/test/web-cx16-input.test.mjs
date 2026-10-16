@@ -13,7 +13,7 @@
 // reads the page's snapshot byte instead, at text.CELL_COUNT * 2 + 2; this
 // holds that formula, text.cx16.web.8bs's own planes and the page's layout to
 // the same byte, since nothing in web-layout.mjs overrides the X16's address.
-// It also holds that the twin answers no pointer, and names the confirm
+// It also holds the pointer block (a cell, a press on the frame it begins), and names the confirm
 // controls as the native file does (the page reads a gamepad too).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -170,7 +170,13 @@ test("the X16 wasm build's portable input reports a press once, on the frame it 
   expectTallies(mem, COLUMNS);
 });
 
-test("the X16 wasm build's pointer answers false: the page does not carry a mouse to the program", async () => {
+test("the X16 wasm build's pointer is the page's pointer block: a cell, and a press on the frame it begins", async () => {
+  const at = LAYOUT.pointerOffset;
+  assert.ok(at > 0, 'the stock X16 has a mouse, so the layout carries the block');
+  assert.equal(at, LAYOUT.inputOffset + 837, 'the offset the twin spells: input + 4 + 192 + 640 + 1');
+  assert.match(INPUT_TWIN, /text\.CELL_COUNT \* 2 \+ 839/);
+  const ROW = 11;
+  const COL = 7;
   const mem = await runWithKeys([
     'import { input } from "@8bitscript/input";',
     'import { screen } from "@8bitscript/screen";',
@@ -179,16 +185,30 @@ test("the X16 wasm build's pointer answers false: the page does not carry a mous
     'export function main(): void {',
     '    screen.blank();',
     '    input.begin();',
-    '    waitFrame();',
-    '    input.poll();',
-    '    if (input.pointer()) { text.print(0, "P"); } else { text.print(0, "N"); }',
-    '    if (input.pointerButton()) { text.print(1, "B"); } else { text.print(1, "N"); }',
-    '    waitFrame();',
+    '    let presses: usmallint = 0;',
+    '    while (true) {',
+    '        waitFrame();',
+    '        input.poll();',
+    '        if (input.pointerButton()) { presses++; }',
+    '        if (input.pointer()) { text.printNumber(0, input.pointerCell(), 5); }',
+    '        text.printNumber(10, presses, 2);',
+    '    }',
     '}',
     '',
-  ].join('\n'), 3, () => {});
-  assert.equal(mem[SCREEN], 'N'.charCodeAt(0), 'no pointer');
-  assert.equal(mem[SCREEN + 1], 'N'.charCodeAt(0), 'no button');
+  ].join('\n'), 12, (frame, memory) => {
+    if (frame >= 2) {
+      memory[at] = 1;
+      memory[at + 2] = (COL * 8 + 3) & 255;
+      memory[at + 3] = (COL * 8 + 3) >> 8;
+      memory[at + 4] = (ROW * 8 + 2) & 255;
+      memory[at + 5] = (ROW * 8 + 2) >> 8;
+    }
+    // Held across frames 4-7: one press. Again at frame 10.
+    memory[at + 1] = (frame >= 4 && frame < 8) || frame === 10 ? 1 : 0;
+  });
+  const digits = (cell, n) => Number([...Array(n).keys()].map((k) => String.fromCharCode(mem[SCREEN + cell + k])).join(''));
+  assert.equal(digits(0, 5), ROW * COLUMNS + COL, 'the cell under the pointer');
+  assert.equal(digits(10, 2), 2, 'two presses, not the frames each was held');
 });
 
 // The page folds a browser gamepad into the same byte (web-layout.mjs padEdges), so a

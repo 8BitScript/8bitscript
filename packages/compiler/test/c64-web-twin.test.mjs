@@ -49,6 +49,7 @@ const PAIRS = [
   ['geometry.8bs', 'geometry.c64.web.8bs'],
   ['rasterline.8bs', 'rasterline.c64.web.8bs'],
   ['input.8bs', 'input.c64.web.8bs'],
+  ['pointer.8bs', 'pointer.c64.web.8bs'],
   ['raster.8bs', 'raster.c64.web.8bs'],
   ['multiplex.8bs', 'multiplex.c64.web.8bs'],
 ];

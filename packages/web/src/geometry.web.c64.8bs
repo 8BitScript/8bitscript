@@ -30,6 +30,11 @@ export namespace Video {
     // The tone registers right after the glyph table (see geometry.8bs).
     const AUDIO_BASE: usmallint = 2838;
 
+    // No pointer block: a skin is a machine with no mouse, and a touch is
+    // only ever translated to arrow presses by the page (see geometry.8bs).
+    const POINTER_BASE: usmallint = 0;
+    const HAS_POINTER: bool = false;
+
     // The same three questions the Modern host answers at run time, answered
     // here from constants: this skin is a machine, and a machine's grid does
     // not change. Both fold, so a program that asks costs nothing for asking.

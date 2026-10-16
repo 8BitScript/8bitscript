@@ -28,9 +28,17 @@
 //                                keyboard's SELECT is the left Shift key; the
 //                                page maps Escape, the browser's familiar "back"
 //
-// No mouse: the page does not carry a pointer to this build, so pointer() is
-// false here even though `input.mouse` is true for the machine, and this file
-// never imports ./mouse.8bs (asm6502 the wasm backend cannot lower).
+// The mouse: the page carries a pointer block to this build when the build's
+// `input.mouse` fact is true (the X16's is, stock) — present, buttons, x and
+// y, six bytes at the very end of the agreement, past the glyph table and the
+// frame counter (web-layout.mjs PointerRegister), so no offset above it moves.
+// A browser mouse is the X16's PS/2 one: absolute position in the picture's own
+// pixels, left and right buttons. A touch that stays put is a click at that
+// spot; a touch that travels is a swipe and arrow presses instead, never both
+// (web-layout.mjs pointerRoute()). This file never imports ./mouse.8bs
+// (asm6502 the wasm backend cannot lower): it reads the block, once a frame,
+// in poll(). Nothing draws an arrow in the picture — the browser's own cursor
+// is the arrow, so ./pointer.8bs draws nothing on this rail.
 //
 // Where the byte is: this package has no address override in web-layout.mjs
 // (REAL_MACHINE_LAYOUT.cx16 `memoryFor: () => ({})`), so the page uses
@@ -62,6 +70,17 @@ let held: utinyint = 0;
 let before: utinyint = 0;
 let began: utinyint = 0;
 
+// Whether this build has a mouse at all — the build's fact, folded. When it
+// is false the page writes no block and none of the pointer code is reached.
+const HAS_MOUSE: bool = #fact(input.mouse);
+
+// The pointer, read in poll() and kept: one answer for the whole frame.
+let pointerHere: bool = false;
+let pointerX: usmallint = 0;
+let pointerY: usmallint = 0;
+let buttonHeld: bool = false;
+let buttonBefore: bool = false;
+
 export namespace input {
 
     // Once, at start-up, before the first poll(). One poll before the
@@ -82,6 +101,18 @@ export namespace input {
         // one literal this grid needs.
         held = memory.read(text.CELL_COUNT * 2 + 2);
         began = held & (before ^ 0xFF);
+        if (HAS_MOUSE) {
+            // The block: agreementFor(76 x 56, glyph table, frame counter).pointerOffset
+            // = the input byte + 4 (host, raster control, count) + 192 (the
+            // raster list) + 640 (the glyph table) + 1 (the frame counter).
+            pointerHere = memory.read(text.CELL_COUNT * 2 + 839) != 0;
+            buttonBefore = buttonHeld;
+            buttonHeld = (memory.read(text.CELL_COUNT * 2 + 840) & 1) != 0;
+            pointerX = memory.read(text.CELL_COUNT * 2 + 842);
+            pointerX = (pointerX << 8) | memory.read(text.CELL_COUNT * 2 + 841);
+            pointerY = memory.read(text.CELL_COUNT * 2 + 844);
+            pointerY = (pointerY << 8) | memory.read(text.CELL_COUNT * 2 + 843);
+        }
     }
 
     // The four directions, each true only on the frame its press began.
@@ -111,17 +142,29 @@ export namespace input {
         return (began & Edge.CANCEL) != 0;
     }
 
-    // The page passes no mouse to this build, so no pointer — a constant,
-    // not a measurement.
+    // The browser's own cursor over the picture, or the last touch: true
+    // once the page has written a position. A browser always has a pointer,
+    // so this is the fact, not a probe.
     function pointer(): bool {
+        if (HAS_MOUSE) {
+            return pointerHere;
+        }
         return false;
     }
 
+    // Where it is, as a flat cell index — the unit text.print() takes.
     function pointerCell(): usmallint {
+        if (HAS_MOUSE) {
+            return (pointerY >> 3) * text.COLUMNS + (pointerX >> 3);
+        }
         return 0;
     }
 
+    // The left button (or a tap), on the frame its press began.
     function pointerButton(): bool {
+        if (HAS_MOUSE) {
+            return buttonHeld && !buttonBefore;
+        }
         return false;
     }
 }

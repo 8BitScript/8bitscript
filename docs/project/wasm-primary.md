@@ -167,7 +167,7 @@ modes, raster timing. Those are items 4 and 6 below.
 | Text grid and character ROM (codes 0–127) | ✔ both sets, switched by `$E84C` | ✔ both sets, switched by `$9005` | ✔ | ◐ host font | ✔ |
 | Reverse video (codes 128–255) | ✔ | ✔ | ✔ | ✔ | ✔ |
 | Text colours and palette | ✔ (mono) | ◐ 6 colour-row cells: page palette vs xvic; border and background are read from `$900F` | ◐ Pepto vs VICE | ✔ VERA's default (#317) | ✔ |
-| Portable input | ✔ arrows/Enter/Esc and a gamepad (`input.pet.web.8bs`) | ✔ arrows/Enter/Esc and a gamepad (`input.vic20.web.8bs`) | ✔ arrows/Enter/Esc and a gamepad | ◐ arrows/Enter/Esc and a gamepad (`input.cx16.web.8bs`); no pointer | ✔ |
+| Portable input | ✔ arrows/Enter/Esc and a gamepad (`input.pet.web.8bs`) | ✔ arrows/Enter/Esc and a gamepad (`input.vic20.web.8bs`) | ✔ arrows/Enter/Esc and a gamepad | ✔ arrows/Enter/Esc, a gamepad and the mouse (`input.cx16.web.8bs`) | ✔ arrows/Enter/Esc and the mouse |
 | Portable raster (`@8bitscript/raster`) | ◐ 3032/4032 only; untested | ✘ `raster_probeRegion` | ◐ lands one picture line early | ◐ all four slots at their lines and a real `raster.frame()` (`rasterline.cx16.web.8bs`); VERA semantics approximated, not yet compared with x16emu | ✔ |
 | C64 address-form raster list (`@8bitscript/c64/raster`) | n/a | n/a | ◐ applied line by line by the page; not the handler's timing | n/a | n/a |
 | Graphics objects (`@8bitscript/graphics`) | ◐ draws (`media-walk`); other ops untested on wasm | ◐ draws (`media-walk`); other ops untested on wasm | ✔ as hardware sprites (24 from eight) | ◐ one flat glyph, not a sprite (#317) | ✔ |
@@ -460,7 +460,7 @@ What is **not** done:
   gets a `kind: 'bands'` that reads one left-border column per picture row from each
   capture and compares the rows where the colour changes (tolerance stated; colours reported,
   not failed). The VIC-20's `8bs conform vic20 --program bands` (item 3) is the model.
-- **The mouse.** `input.pointer()` is false; the page carries no pointer to the program.
+- **The mouse** is a six-byte pointer block (present, buttons, x, y) at the very end of the agreement, written only for a build whose `input.mouse` fact is true: the X16 stock, the C64 with `port1=mouse1351`, the Modern web host. The PET, the VIC-20 and the web skins have none — there a touch is only translated to arrow presses (a swipe) or confirm (a tap), and a mouse drag does nothing. On a machine with a pointer a mouse is a pointer, a tap is a click, and a swipe is still arrows, never both for one gesture (`pointerRoute()` in `web-layout.mjs`). No arrow is drawn in the picture: the browser's cursor is the arrow, `pointer.DRAWS` is false on every wasm build. Not yet verified on a touch device or in a real browser; the tests drive the page's handlers with synthetic events.
   A design: a position and a button byte in the layout (X16 only, like the frame byte),
   written from pointer events, with `pointerCell()` mapped onto the 76x56 grid. Studio
   needs it.

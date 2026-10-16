@@ -166,7 +166,7 @@ Do not describe more than this as working:
   actually collapses the toolbar; it is provably harmless where it does
   not.
 
-There is no pointer, no sound, no sprites, no tiles, no bitmap, no
+The Modern host has a pointer (the browser's mouse, or the last touch) and the skins have none; the browser's cursor is the arrow and nothing draws one in the picture. There is no sound, no sprites, no tiles, no bitmap, no
 character set beyond 80 redefinable glyphs (codes 176–255, see the glyph
 table below), no scrolling beyond the raster list's per-line
 horizontal fine scroll, no storage,
@@ -391,7 +391,7 @@ web each answer is a line of code, cited above; this is the compact form.
 
 ### What is not here yet
 
-- No pointer, sound, sprites, tiles, storage, palette or layer scroll —
+- No drawn arrow, sound, sprites, tiles, storage, palette or layer scroll —
   for the web or (mostly) any machine. Keyboard directions reach the
   program, and the raster list (border/background splits, per-line fine
   scroll) is real here. `packages/studio/AGENTS.md` lists what Studio

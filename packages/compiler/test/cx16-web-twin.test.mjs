@@ -49,6 +49,7 @@ function exportsOf(text) {
 
 const PAIRS = [
   ['input.8bs', 'input.cx16.web.8bs'],
+  ['pointer.8bs', 'pointer.cx16.web.8bs'],
 ];
 
 for (const [native, twin] of PAIRS) {
@@ -82,6 +83,8 @@ test('no web twin of the X16 package contains machine code or reaches for the mo
     const { tokens } = tokenize(text);
     assert.equal(tokens.filter((t) => t.text === 'asm6502').length, 0, `${twin} has an asm6502 block`);
     assert.doesNotMatch(text, /from\s+"\.\/mouse\.8bs"/, `${twin} imports ./mouse.8bs, which is KERNAL calls in asm6502`);
-    assert.equal(tokens.filter((t) => t.text === 'mouse').length, 0, `${twin} names the mouse, which the page does not pass to this build`);
+    // The module (`mouse.begin()`), not the build's fact (`input.mouse`): the page's pointer block is read as plain memory.
+    const names = tokens.filter((t, i) => t.text === 'mouse' && tokens[i - 1]?.text !== '.');
+    assert.equal(names.length, 0, `${twin} names the mouse module, which the wasm backend cannot lower`);
   }
 });

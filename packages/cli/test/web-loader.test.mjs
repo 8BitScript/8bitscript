@@ -12,7 +12,7 @@ import {
   ANY_BORDER_SCALE, BORDER_HAIRLINE_PX, BORDER_MIN_PX, BORDER_PX, FULL_BORDER_SCALE, HOST_OFFSET, HostStatus,
   INNER_H, INNER_W, INPUT_OFFSET, MIN_COLUMNS, MAX_COLUMNS, MIN_ROWS, MAX_ROWS,
   C64_PALETTE, DEFAULT_LAYOUT, PET_PALETTE, VERA_PALETTE, VIC20_PALETTE, RASTER_ENTRY_SIZE, RASTER_MAX_ENTRIES, GLYPH_BYTES, GLYPH_FIRST,
-  InputEdge, MACHINE_HOST, agreementFor, borderFor, gridFor, layoutForRealMachine, layoutFromHardware, padEdges, padsHeld, sidecarJson, swipeEdge,
+  InputEdge, MACHINE_HOST, POINTER_BYTES, agreementFor, pointerRoute, borderFor, gridFor, layoutForRealMachine, layoutFromHardware, padEdges, padsHeld, sidecarJson, swipeEdge,
 } from '../src/web-layout.mjs';
 import { dataBaseFor } from '@8bitscript/compiler/wasm';
 import { Slot, renderFrame, rgbPalette } from '../src/web-scanline.mjs';
@@ -110,13 +110,13 @@ test('the data section starts past the register agreement on every host: registe
     assert.equal(layout.glyphBase, layout.rasterBase + RASTER_MAX_ENTRIES * RASTER_ENTRY_SIZE, machine);
     // And the four tone registers after that.
     assert.equal(layout.audioBase, layout.glyphBase + GLYPH_BYTES, machine);
-    assert.equal(layout.reservedEnd, layout.audioBase + 4, machine);
+    assert.equal(layout.reservedEnd, layout.audioBase + 4 + (host.pointer ? POINTER_BYTES : 0), machine);
     const dataBase = dataBaseFor(layout.reservedEnd);
     assert.ok(dataBase >= layout.reservedEnd, `${machine}: data at ${dataBase} would sit inside an agreement ending at ${layout.reservedEnd}`);
   }
   // The fixed skins keep their data where it always was; only Modern moves.
   assert.equal(dataBaseFor(layoutFromHardware({ facts: {}, options: { machine: 'c64' } }).reservedEnd), 8192);
-  assert.equal(dataBaseFor(layoutFromHardware({ facts: {}, options: { machine: 'hifi' } }).reservedEnd), 9216, 'Modern: past the glyph table (which ends at 9032) and the tone registers (9036)');
+  assert.equal(dataBaseFor(layoutFromHardware({ facts: {}, options: { machine: 'hifi' } }).reservedEnd), 9216, 'Modern: past the glyph table (which ends at 9032), the tone registers (9036) and the pointer block (9042)');
 });
 
 // layoutFromHardware() computes charBase/colorBase from grid size because
@@ -245,6 +245,42 @@ test('the loader\'s swipeEdge agrees with web-layout.mjs', () => {
   for (const [dx, dy] of [[0, 0], [40, 0], [-40, 0], [0, 40], [0, -40], [27, 27], [50, 49], [-9, -60]]) {
     assert.equal(inLoader(dx, dy), swipeEdge(dx, dy), `swipeEdge(${dx}, ${dy})`);
   }
+});
+
+test('the loader\'s pointerRoute agrees with web-layout.mjs, and the rule is never both outcomes', () => {
+  const { pointerRoute: inLoader } = loadLoader({ frameRate: 60 });
+  for (const type of ['mouse', 'touch', 'pen']) {
+    for (const has of [true, false]) {
+      for (const [dx, dy] of [[0, 0], [2, 3], [60, 0], [0, -60], [-40, 9]]) {
+        const want = pointerRoute(type, has, dx, dy);
+        assert.deepEqual({ ...inLoader(type, has, dx, dy) }, want, `${type} ${has} ${dx},${dy}`);
+        assert.ok(!(want.edge && want.click), 'one gesture, one meaning');
+      }
+    }
+  }
+  assert.deepEqual(pointerRoute('mouse', false, 80, 0), { edge: 0, click: false }, 'no pointer: a mouse drag moves nothing');
+  assert.deepEqual(pointerRoute('mouse', false, 0, 0), { edge: InputEdge.CONFIRM, click: false });
+  assert.deepEqual(pointerRoute('touch', false, -80, 0), { edge: InputEdge.LEFT, click: false });
+  assert.deepEqual(pointerRoute('touch', true, 0, 0), { edge: 0, click: true });
+  assert.deepEqual(pointerRoute('mouse', true, 80, 0), { edge: 0, click: true });
+});
+
+test('the pointer block is last, only where a machine has a mouse, and reserved', () => {
+  const plain = agreementFor({ cols: 40, rows: 25, frameCounter: true });
+  const mouse = agreementFor({ cols: 40, rows: 25, frameCounter: true, pointer: true });
+  assert.equal(plain.pointerOffset, -1);
+  assert.equal(mouse.pointerOffset, plain.reservedEnd, 'after the frame counter, so no earlier offset moves');
+  assert.equal(mouse.reservedEnd, plain.reservedEnd + POINTER_BYTES);
+  assert.equal(mouse.rasterBase, plain.rasterBase);
+  assert.equal(layoutFromHardware({ facts: {}, options: { machine: 'hifi' } }).pointerOffset > 0, true, 'the Modern host has one');
+  for (const machine of ['pet-2001', 'c64', 'vic20']) {
+    assert.equal(layoutFromHardware({ facts: {}, options: { machine } }).pointerOffset, -1, `${machine} skin: no mouse`);
+  }
+  assert.equal(layoutForRealMachine('cx16', { facts: { 'input.mouse': true } }).pointerOffset > 0, true);
+  assert.equal(layoutForRealMachine('c64', { facts: { 'input.mouse': false } }).pointerOffset, -1, 'a stock C64 has none');
+  assert.equal(layoutForRealMachine('c64', { facts: { 'input.mouse': true } }).pointerOffset > 0, true, 'with a 1351 it does');
+  assert.equal(layoutForRealMachine('pet', { facts: { 'input.mouse': false } }).pointerOffset, -1);
+  assert.equal(sidecarJson(mouse).pointerOffset, mouse.pointerOffset);
 });
 
 /** A gamepad as the browser hands it over: `buttons` (by index) held, `axes` leaned. */

@@ -22,9 +22,14 @@
 //   - **confirm** — Enter.
 //   - **cancel** — Escape.
 //
-// There is still no pointer. `pointer()` is a constant false; a mouse
-// belongs in the same snapshot when someone writes it, and
-// `input.mouse` stays false until then.
+// The pointer is a second block of bytes after the tone registers
+// (web-layout.mjs PointerRegister): present, buttons, x, y. It exists on
+// the Modern host only — a skin is a machine with no mouse, where a touch is
+// only ever translated to arrow presses by the page and `pointer()` folds to
+// false. `input.mouse` is true for the Modern host and false for the skins.
+// The position is the browser's own cursor (or the last touch): nothing
+// draws an arrow in the picture. A touch that stays put is a click, a touch
+// that travels is a swipe and arrows (web-layout.mjs pointerRoute()).
 //
 // `touch()` and `keyboard()` are **levels**, not edges: properties of the
 // host, written at HOST_OFFSET, not presses. A touchscreen is
@@ -48,6 +53,7 @@
 // one frame the press begins, false while it is held. `poll()` must be
 // called exactly once a frame, right after waitFrame().
 import { WebRegisters } from "./index.8bs";
+import { Video } from "./geometry.8bs";
 
 namespace Edge {
     const LEFT: utinyint = 1;
@@ -69,6 +75,15 @@ namespace HostStatus {
 let held: utinyint = 0;
 let before: utinyint = 0;
 let began: utinyint = 0;
+
+// The pointer, read once a frame in poll() and kept, so the arrow a program
+// draws and the cell it hit-tests share one answer. Only the Modern host
+// has a block (WebRegisters.HAS_POINTER); on a skin none of this is reached.
+let pointerHere: bool = false;
+let pointerX: usmallint = 0;
+let pointerY: usmallint = 0;
+let buttonHeld: bool = false;
+let buttonBefore: bool = false;
 
 export namespace input {
 
@@ -92,6 +107,15 @@ export namespace input {
         before = held;
         held = memory.read(WebRegisters.INPUT_OFFSET);
         began = held & (before ^ 0xFF);
+        if (WebRegisters.HAS_POINTER) {
+            pointerHere = memory.read(WebRegisters.POINTER_BASE) != 0;
+            buttonBefore = buttonHeld;
+            buttonHeld = (memory.read(WebRegisters.POINTER_BASE + 1) & 1) != 0;
+            pointerX = memory.read(WebRegisters.POINTER_BASE + 3);
+            pointerX = (pointerX << 8) | memory.read(WebRegisters.POINTER_BASE + 2);
+            pointerY = memory.read(WebRegisters.POINTER_BASE + 5);
+            pointerY = (pointerY << 8) | memory.read(WebRegisters.POINTER_BASE + 4);
+        }
     }
 
     function left(): bool {
@@ -132,15 +156,28 @@ export namespace input {
         return (memory.read(WebRegisters.HOST_OFFSET) & HostStatus.NO_KEYBOARD) == 0;
     }
 
+    // The browser's own cursor over the picture: a mouse, or the spot a
+    // finger last touched. True once the page has written a position.
     function pointer(): bool {
+        if (WebRegisters.HAS_POINTER) {
+            return pointerHere;
+        }
         return false;
     }
 
+    // Where it is, as a flat cell index, the unit text.print() takes.
     function pointerCell(): usmallint {
+        if (WebRegisters.HAS_POINTER) {
+            return (pointerY >> 3) * Video.columns() + (pointerX >> 3);
+        }
         return 0;
     }
 
+    // The left button (or a tap), on the frame its press began.
     function pointerButton(): bool {
+        if (WebRegisters.HAS_POINTER) {
+            return buttonHeld && !buttonBefore;
+        }
         return false;
     }
 }

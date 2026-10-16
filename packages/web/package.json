@@ -85,6 +85,7 @@
               "tag": null,
               "build": {},
               "facts": {
+                "input.mouse": true,
                 "video.columns": 48,
                 "video.rows": 27,
                 "video.palette": 16,

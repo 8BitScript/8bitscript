@@ -1,0 +1,28 @@
+// pointer.8bs's own `.web` twin — the wasm build links this in place of
+// ./pointer.8bs. On the wasm rail nothing draws an arrow in the picture: the
+// browser's own cursor over the canvas is the arrow, and the position the
+// program hit-tests is that cursor's (input.pointerCell(), read from the
+// page's pointer block). `DRAWS` is false, so a program's `if (pointer.DRAWS)`
+// folds away. The native file draws sprite 0 through the VIC-II; here that would be a second arrow on top of the browser's.
+// Keep the export list identical to pointer.8bs —
+// packages/compiler/test/c64-web-twin.test.mjs holds the two to the same names.
+export namespace pointer {
+
+    const DRAWS: bool = false;
+
+    // The native file's sprite and shape block; named here so a program that reads them still builds.
+    const SPRITE: utinyint = 0;
+    const BLOCK: utinyint = 254;
+
+    function begin(): void {
+    }
+
+    function setColor(color: utinyint): void {
+    }
+
+    function update(): void {
+    }
+
+    function hide(): void {
+    }
+}

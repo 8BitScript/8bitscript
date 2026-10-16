@@ -313,6 +313,8 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
   var COLOR_BASE = ${layout.colorBase};
   var INPUT_OFFSET = ${layout.inputOffset};
   var HOST_OFFSET = ${layout.hostOffset};
+  // The pointer block (web-layout.mjs PointerRegister), or -1 on a machine with no mouse.
+  var POINTER_OFFSET = ${layout.pointerOffset ?? -1};
   // The byte the page adds one to each time it releases a logical frame, or -1
   // for a host whose programs never ask (raster.frame() on the X16's wasm build
   // reads it; web-layout.mjs agreementFor({ frameCounter })).
@@ -378,6 +380,16 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
     if (ax < SWIPE_THRESHOLD && ay < SWIPE_THRESHOLD) return 0;
     if (ax > ay) return dx < 0 ? ${InputEdge.LEFT} : ${InputEdge.RIGHT};
     return dy < 0 ? ${InputEdge.UP} : ${InputEdge.DOWN};
+  }
+
+  // web-layout.mjs pointerRoute(), verbatim in behavior (web-loader.test.mjs holds them equal).
+  function pointerRoute(pointerType, hasPointer, dx, dy) {
+    var swipe = swipeEdge(dx, dy);
+    if (pointerType === 'mouse') {
+      return hasPointer ? { edge: 0, click: true } : { edge: swipe ? 0 : ${InputEdge.CONFIRM}, click: false };
+    }
+    if (swipe) return { edge: swipe, click: false };
+    return hasPointer ? { edge: 0, click: true } : { edge: ${InputEdge.CONFIRM}, click: false };
   }
 
   var PAD_STICK_THRESHOLD = ${PAD_STICK_THRESHOLD};
@@ -752,6 +764,7 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
     if (next.colorBase != null) COLOR_BASE = next.colorBase;
     if (next.inputOffset != null) INPUT_OFFSET = next.inputOffset;
     if (next.hostOffset != null) HOST_OFFSET = next.hostOffset;
+    if (next.pointerOffset != null) POINTER_OFFSET = next.pointerOffset;
     if (next.frameOffset != null) FRAME_OFFSET = next.frameOffset;
     if (next.rasterControlOffset != null) RASTER_CONTROL_OFFSET = next.rasterControlOffset;
     if (next.rasterCountOffset != null) RASTER_COUNT_OFFSET = next.rasterCountOffset;
@@ -1059,8 +1072,38 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
       pulseTimer = setTimeout(function () { setInputBit(bit, false); }, 80);
     }
     var pointerStart = null;
+    var pointerButtons = 0;
+    // The pointer block: where the picture's inner rectangle is under the
+    // finger or mouse, in its own pixels, clamped to it — a mouse driver's
+    // clamped position. Written only on a machine that has a mouse.
+    function writePointer(e) {
+      if (!mem || POINTER_OFFSET < 0) return;
+      var rect = canvas.getBoundingClientRect();
+      if (!(rect.width > 0) || !(rect.height > 0)) return;
+      var x = Math.round((e.clientX - rect.left) * canvas.width / rect.width - border);
+      var y = Math.round((e.clientY - rect.top) * canvas.height / rect.height - border);
+      x = Math.max(0, Math.min(INNER_W - 1, x));
+      y = Math.max(0, Math.min(INNER_H - 1, y));
+      mem[POINTER_OFFSET] = 1;
+      mem[POINTER_OFFSET + 2] = x & 255;
+      mem[POINTER_OFFSET + 3] = x >> 8;
+      mem[POINTER_OFFSET + 4] = y & 255;
+      mem[POINTER_OFFSET + 5] = y >> 8;
+    }
+    function writeButtons() {
+      if (mem && POINTER_OFFSET >= 0) mem[POINTER_OFFSET + 1] = pointerButtons;
+    }
+    var clickTimer = 0;
+    function pulseClick() {
+      pointerButtons |= 1;
+      writeButtons();
+      clearTimeout(clickTimer);
+      clickTimer = setTimeout(function () { pointerButtons &= ~1; writeButtons(); }, 80);
+    }
     function onPointerDown(e) {
-      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      var hasPointer = POINTER_OFFSET >= 0;
+      if (e.pointerType === 'mouse' && e.button !== 0 && !(hasPointer && e.button === 2)) return;
+      if (e.isPrimary === false) return;
       // A tap is also how a screen takes the keyboard. Embedded, that is
       // the root element. Full-page, it is this window — and it has to be
       // asked for: preventDefault() below cancels the press's default
@@ -1070,20 +1113,49 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
       // keyboard with the page around it and the arrows did nothing.
       if (keyboard === 'focus') root.focus({ preventScroll: true });
       else if (typeof global.focus === 'function') global.focus();
-      pointerStart = { x: e.clientX, y: e.clientY };
+      pointerStart = { x: e.clientX, y: e.clientY, id: e.pointerId };
+      if (hasPointer) {
+        writePointer(e);
+        // A mouse's buttons are real, held levels; a touch's tap is pulsed on release.
+        if (e.pointerType === 'mouse') {
+          pointerButtons |= e.button === 2 ? 2 : 1;
+          writeButtons();
+        }
+      }
+      if (canvas.setPointerCapture) { try { canvas.setPointerCapture(e.pointerId); } catch (err) {} }
       e.preventDefault();
     }
+    function onPointerMove(e) {
+      if (POINTER_OFFSET < 0 || e.isPrimary === false) return;
+      if (e.pointerType !== 'mouse' && !pointerStart) return;
+      writePointer(e);
+    }
     function onPointerUp(e) {
-      if (!pointerStart) return;
+      if (!pointerStart || e.pointerId !== pointerStart.id) return;
       var dx = e.clientX - pointerStart.x;
       var dy = e.clientY - pointerStart.y;
       pointerStart = null;
       e.preventDefault();
-      pulseBit(swipeEdge(dx, dy) || CONFIRM);
+      var hasPointer = POINTER_OFFSET >= 0;
+      if (hasPointer) writePointer(e);
+      if (hasPointer && e.pointerType === 'mouse') {
+        pointerButtons &= ~(e.button === 2 ? 2 : 1);
+        writeButtons();
+        return;
+      }
+      var route = pointerRoute(e.pointerType, hasPointer, dx, dy);
+      if (route.edge) pulseBit(route.edge);
+      if (route.click) pulseClick();
+    }
+    function onPointerCancel() {
+      pointerStart = null;
+      pointerButtons = 0;
+      writeButtons();
     }
     canvas.addEventListener('pointerdown', onPointerDown);
+    canvas.addEventListener('pointermove', onPointerMove);
     canvas.addEventListener('pointerup', onPointerUp);
-    canvas.addEventListener('pointercancel', function () { pointerStart = null; });
+    canvas.addEventListener('pointercancel', onPointerCancel);
     canvas.addEventListener('contextmenu', function (e) { e.preventDefault(); });
 
     // --- the frame clock --------------------------------------------------
@@ -1399,6 +1471,7 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
     borderFor: borderFor,
     gridFor: gridFor,
     swipeEdge: swipeEdge,
+    pointerRoute: pointerRoute,
     // The gamepad rules, exposed the same way so web-loader.test.mjs holds
     // them to web-layout.mjs.
     padEdges: padEdges,

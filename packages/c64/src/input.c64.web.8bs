@@ -46,6 +46,24 @@ let held: utinyint = 0;
 let before: utinyint = 0;
 let began: utinyint = 0;
 
+// Whether this build has a mouse — the 1351 fitted with
+// `--hardware port1=mouse1351`, as natively. Stock, none, and the page
+// writes no block. When it does, it is an absolute pointer in the picture's
+// own pixels (web-layout.mjs PointerRegister), not 1351 counters: nothing
+// reads SID's POT registers on this rail, so the page hands the program the
+// position a driver would have integrated. The browser's own cursor is the
+// arrow (./pointer.c64.web.8bs draws nothing).
+const HAS_MOUSE: bool = #fact(input.mouse);
+// agreementFor(40x25).pointerOffset: past the raster list that ends the
+// stock C64 agreement (INPUT_BYTE + 4 + 192).
+const POINTER_BYTE: usmallint = 2198;
+
+let pointerHere: bool = false;
+let pointerX: usmallint = 0;
+let pointerY: usmallint = 0;
+let buttonHeld: bool = false;
+let buttonBefore: bool = false;
+
 export namespace input {
 
     // Once, at start-up, before the first poll(). One poll before the
@@ -61,6 +79,15 @@ export namespace input {
     function poll(): void {
         before = held;
         held = memory.read(INPUT_BYTE);
+        if (HAS_MOUSE) {
+            pointerHere = memory.read(POINTER_BYTE) != 0;
+            buttonBefore = buttonHeld;
+            buttonHeld = (memory.read(POINTER_BYTE + 1) & 1) != 0;
+            pointerX = memory.read(POINTER_BYTE + 3);
+            pointerX = (pointerX << 8) | memory.read(POINTER_BYTE + 2);
+            pointerY = memory.read(POINTER_BYTE + 5);
+            pointerY = (pointerY << 8) | memory.read(POINTER_BYTE + 4);
+        }
         began = held & (before ^ 0xFF);
     }
 
@@ -91,16 +118,27 @@ export namespace input {
         return (began & Edge.CANCEL) != 0;
     }
 
-    // No pointer on this rail: there is no mouse to read.
+    // True once the page has written a position, and only on a build with a mouse.
     function pointer(): bool {
+        if (HAS_MOUSE) {
+            return pointerHere;
+        }
         return false;
     }
 
+    // Where it is, as a flat cell index.
     function pointerCell(): usmallint {
+        if (HAS_MOUSE) {
+            return (pointerY >> 3) * 40 + (pointerX >> 3);
+        }
         return 0;
     }
 
+    // The left button (a tap too), on the frame its press began.
     function pointerButton(): bool {
+        if (HAS_MOUSE) {
+            return buttonHeld && !buttonBefore;
+        }
         return false;
     }
 }
