@@ -3,7 +3,7 @@
   "displayName": "8BitScript",
   "description": "Syntax highlighting, language server, and a launcher for 8BitScript (.8bs, .8bx, .8bg, .8ba): run any program of a project on any system, in an editor tab, a browser or a native emulator.",
   "icon": "media/8bitscript-icon.png",
-  "version": "0.24.0",
+  "version": "0.25.0",
   "private": true,
   "publisher": "8bitscript",
   "license": "MIT",

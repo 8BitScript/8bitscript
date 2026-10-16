@@ -1,6 +1,0 @@
----
-"@8bitscript/cli": patch
-"8bitscript-lang": patch
----
-
-**The editor tab runs the WebAssembly build again.** Open Studio, and any program run in the editor tab, showed "this page is not cross-origin isolated, so it cannot share memory with the program". An editor's webview can never be isolated — isolation belongs to the whole frame tree, and the editor's own window sends no COOP/COEP — so no header the CLI's server sends, and not `coi.js` either, could reach it. The loader now takes a second road on such a page when the browser has JavaScript Promise Integration (`WebAssembly.Suspending` and `WebAssembly.promising`; verified in Chromium 148 and the Electron current VS Code and Cursor ship, and checked for at run time): the program runs on the page's own thread and `waitFrame()` *suspends* it until the next frame instead of blocking a worker on shared memory. Same frame clock, same two-frame bank, same input bytes; nothing is shared, so nothing needs isolating. An isolated page — the browser run, a published bundle with its `_headers` — still runs the program in a worker, and a page with neither isolation nor JSPI gets a message that names both. Pinned by `packages/cli/test/web-suspend.test.mjs`, which drives the generated loader under Node's own JSPI.

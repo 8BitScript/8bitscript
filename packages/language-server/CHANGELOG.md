@@ -1,5 +1,22 @@
 # @8bitscript/language-server
 
+## 0.25.0
+
+### Patch Changes
+
+- 828bf90: Two event handlers that call an async function mark the promise as deliberately not awaited (`void`), as the rest of the code does — a lint finding, no change in behaviour.
+- Updated dependencies [3d7b0e6]
+- Updated dependencies [8e17269]
+- Updated dependencies [4f425e1]
+- Updated dependencies [b4e50f9]
+- Updated dependencies [40d5e91]
+- Updated dependencies [3d76573]
+- Updated dependencies [88b2396]
+- Updated dependencies [8d65b3a]
+- Updated dependencies [52e8dee]
+- Updated dependencies [9dfc8ce]
+  - @8bitscript/compiler@0.25.0
+
 ## 0.24.0
 
 ### Minor Changes
