@@ -20,6 +20,8 @@ not apply to names elaborated from `.8ba`.
 instrument lead {
   waveform pulse
   polyphony 1
+  volume 12     // 0..15, how loud this instrument plays (15 if omitted)
+  decay 3       // frames its note takes to die away (0, if omitted: it holds for its length)
 }
 
 sample blip {
@@ -29,12 +31,13 @@ sample blip {
 
 song theme {
   tempo 120
-  speed 6
+  speed 6       // frames a row lasts
+  loop true     // false: a one-shot (an effect), played once and then silent
   order { main }
   pattern main length 16 {
     track lead {
-      row 0 { note C4; instrument lead; }
-      row 8 { note G4; }
+      row 0 { note C4; instrument lead; length 2; }   // sounds for two rows
+      row 8 { note G4; volume 8; }                    // a row's own volume over the instrument's
     }
   }
 }
@@ -56,18 +59,58 @@ audio.update();
 
 `audio.update()` once a frame steps the song.
 
-## How the four stress machines differ
+## How the machines differ
 
 | Machine | Sample | Song |
 | --- | --- | --- |
-| C64 | Not a `$D418` digi. The declared `fallback { synth … }` plays (`8BS2210`). | Drives `@8bitscript/c64/sid`. |
-| NES | DPCM when the encoder can represent the clip; otherwise the synth fallback (`8BS2210`). Saw is unroutable (`8BS2212`). | Pulse + noise through `@8bitscript/nes/apu`. |
-| PET | Synth fallback only if the one VIA voice can play it; noise is omitted. Stock 2001 has `audio.voices` 0, so playback is omitted (`8BS2211`). | VIA CB2 square wave when a speaker is attached. |
-| Atari 8-bit | Not volume-only PCM. Synth fallback (`8BS2210`). | Drives `@8bitscript/atari8/pokey`. |
-| VIC-20 | The first note on the soprano voice (the synth fallback). | The soprano voice, one note at a time. |
-| Commander X16 | The first note on PSG voice 0. | PSG voice 0, one note at a time. |
-| Web | No driver: **no sample bytes**, `8BS2211`. | No driver: **no song bytes**, `8BS2211`. |
+| C64 | Not a `$D418` digi. The declared `fallback { synth … }` plays for eight frames (`8BS2210`). | SID voice 0: the waveform, a master volume per note, and a SID envelope for a decay (a pluck with no sustain). |
+| PET | Synth fallback only if the one VIA voice can play it; noise is omitted. Stock 2001 has `audio.voices` 0, so playback is omitted (`8BS2211`). | The VIA's CB2 square wave when a speaker is attached. One bit: every note is the square, a volume of 0 is a rest, a decay is how long the speaker sounds. |
+| VIC-20 | The first note on the soprano (the synth fallback). | The soprano (noise on its noise voice); the chip's one volume is set per note and walked down a frame at a time for a decay. |
+| Commander X16 | The first note on PSG voice 0. | PSG voice 0: waveform and volume per note, a decay walked down a frame at a time. |
+| Web | The synth fallback, through the one oscillator (`8BS2210`). | The oscillator: square, triangle or sawtooth (noise plays as the square, `8BS2212`), a gain per note, a decay walked down a frame at a time. |
+| NES, Atari 8-bit | DPCM / the synth fallback. | Their own (older) format: pulse and noise through the APU, POKEY. No volume, decay, length or one-shot. |
 | every other machine | No driver: **no sample bytes**, `8BS2211`. | No driver: **no song bytes**, `8BS2211`. Silence is a declared fallback. |
+
+## Songs as sound effects
+
+A game's sounds are better written than coded. A `.8ba` song is a short tune: one voice, a
+speed in frames a row, and rows that start notes. The drivers play it a frame at a time from
+`audio.update()`.
+
+```8bs
+import { win, theme } from "./sounds.8ba";
+import { audio } from "@8bitscript/audio";
+
+audio.play(win);      // once, from its first row to its last, then silent
+audio.music(theme);   // for ever, if its file says `loop true` (the default)
+audio.update();       // once a frame
+audio.busy();         // true while a song (its rests too) or a tone is sounding
+audio.silence();      // stop everything now
+```
+
+- **Rows and speed.** A song is `rows` rows of `speed` frames. A note starts on its row, sounds
+  for `length` rows (default 1) and then lets go; rows with no note are rests. A new note on a
+  later row cuts the old one off. The last row's time is heard in full, so end a song with a
+  rest if it needs a tail.
+- **Instruments.** An instrument sets the waveform (`pulse`, `triangle`, `saw`, `noise`), a
+  `volume` (0..15) and a `decay` (frames the note takes to fade out; 0 holds it for its length).
+  An instrument stays in force on a track until another is named, as in a tracker. A row may
+  override the volume.
+- **One voice.** A song has one voice: two tracks that start notes on the same row are an error.
+  Several patterns in an `order` play end to end.
+- **One-shots.** `loop false` makes a song play once even for `audio.music`. `audio.play`
+  always plays a song once. Either way the voice is let go at the end: a song that reaches its
+  last row is silent after, which is how a game's effects cannot leave a tone behind.
+- **Handles.** A sample's or a song's handle is its place among every one in the program (the
+  linker counts them across files), so two `.8ba` files cannot bind to the same slot. The
+  drivers keep up to sixteen, in a 255-byte bank shared by all of them; a program that binds more
+  is `8BS2216`.
+- **The volume.** `audio.setLevel` scales every note: a note of volume *v* plays at
+  `ceil(level * v / 16)`.
+
+Song bytes are `[flags, speed, rows, count]` then `count` events of `[row, note, wave | volume << 2,
+length, decay]`; flags bit 0 is `loop`. `packages/compiler/src/media/audio/song.mjs` is the
+encoder, and `packages/audio/src/songs.8bs` the bank and the sequencer every driver shares.
 
 ## A single tone: `audio.tone`
 
@@ -121,12 +164,7 @@ only after a key press or a tap; until then the page's context is suspended
 and resumes at the first paint after one. A tone shorter than one paint (about
 16 ms) can fall between two paints and not be heard.
 
-Voice assignment in this slice is one monophonic track, `polyphony 1`,
-routed to the first channel that can play `pulse` or `noise`. No stealing.
-A request the chip cannot satisfy is a diagnostic, not a dropped note.
-
-Song bytes are `[tempo, speed, rows, count]` then events `row, note, wave, voice`.
-Wave 0 pulse / 1 noise / 2 triangle / 3 saw.
+A song is one monophonic voice; see 'Songs as sound effects' above. A request the chip cannot satisfy is a diagnostic, not a dropped note.
 
 ## Volume and plucked tones: `audio.setLevel`, `audio.blip`
 
@@ -169,11 +207,32 @@ volume, so a blip is a plain tone. `frames` is the length, as for `tone`.
 | 8BS2213 | FLAC source needs FFmpeg on PATH |
 | 8BS2214 | Missing required field |
 | 8BS2215 | Song names an unknown instrument |
+| 8BS2216 | The program's samples and songs do not fit the audio driver's 255-byte data bank |
 
 ## What it costs
 
 Measured with the graphics slice on `packages/examples/media-walk` — see
 [graphics.md](graphics.md#what-it-costs).
+
+**Audio** (`8bs build --size`, program bytes, 2026-10-04):
+
+| | tone only (`audio.tone` + `update` + `silence`) | before | after | `examples/swarm` (a sample and a song) | before | after |
+| --- | --- | --- | --- | --- | --- | --- |
+| C64 | | 1530 | **1270** | | 6989 | 7799 |
+| PET | | 608 | **380** | | 5179 | 5737 |
+| VIC-20 | | 684 | **455** | | 4860 | 5771 |
+| X16 | | 1227 | **1203** | | 5929 | 6832 |
+
+A program that plays only tones is smaller than it was: the old drivers carried a one-song
+player the tone never used. The song sequencer and its bank are linked **only if the program
+plays a song** (`audio.play` or `audio.music` of one): the drivers keep a `songsOn` flag that
+nothing but those two calls sets, and test it in front of every use of the sequencer, so the
+linker's optimizer folds it away and drops `songs.8bs` altogether (the guard test is
+`packages/compiler/test/audio-tone.test.mjs`). A program that does play a song pays for the
+bank, which is 255 bytes of zero-filled image plus the directory, and for the sequencer: about
+0.6 to 0.9 KB in `swarm`, more than the old single-song player. The web build keeps all its
+globals whatever the program reaches, so its tone-only program carries the bank's ~330 bytes of
+linear memory.
 
 Later: full tracker effects, parts, voice groups, affinity and stealing,
 cross-file `import`, MIDI and module import, Famicom expansion audio.

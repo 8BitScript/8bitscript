@@ -178,6 +178,27 @@ test('an .8ba buffer: a missing fallback diagnostic reaches the editor', async (
   });
 });
 
+test('an .8ba buffer: an instrument volume out of range reaches the editor on the value', async () => {
+  await withServer(async (client) => {
+    await client.request('initialize', { processId: null, rootUri: null, capabilities: {} });
+    client.notify('initialized', {});
+
+    const text = 'instrument chime { waveform triangle volume 16 }\n';
+    client.notify('textDocument/didOpen', {
+      textDocument: { uri: 'untitled:Untitled-1', languageId: '8bitaudio', version: 1, text },
+    });
+
+    const published = await client.waitForNotification('textDocument/publishDiagnostics');
+    const volume = published.params.diagnostics.find((d) => /volume is 0\.\.15/.test(d.message));
+    assert.ok(volume, JSON.stringify(published.params.diagnostics));
+    assert.equal(volume.code, '8BS2201');
+    assert.deepEqual(volume.range, {
+      start: { line: 0, character: text.indexOf('16') },
+      end: { line: 0, character: text.indexOf('16') + 2 },
+    });
+  });
+});
+
 test('an .8bx buffer: a diagnostic inside an attribute expression reaches the editor with its own range', async () => {
   await withServer(async (client) => {
     await client.request('initialize', { processId: null, rootUri: null, capabilities: {} });
