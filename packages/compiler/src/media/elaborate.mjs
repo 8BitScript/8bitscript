@@ -10,14 +10,14 @@ import { dirname, isAbsolute, join } from 'node:path';
 import { decodePng, sliceFrames } from '@8bitscript/graphics-tools';
 import { decodeWav, decodeFlac, encodeDpcm } from '@8bitscript/audio-tools';
 import { encodeSong } from './audio/song.mjs';
+import { Codes, diagnostic } from '../diagnostics/index.mjs';
+import { resolveSpecifier } from '../resolver/index.mjs';
+import { lowerGraphicsDefault, lowerAudioDefault } from './lower-default.mjs';
 
 // The data bank every chip driver keeps for the program's samples and songs (the drivers'
 // `bank` arrays are this size, indexed by a byte). A program that binds more is refused here
 // rather than silently losing the end of a song at run time.
 export const AUDIO_BANK_BYTES = 255;
-import { Codes, diagnostic } from '../diagnostics/index.mjs';
-import { resolveSpecifier } from '../resolver/index.mjs';
-import { lowerGraphicsDefault, lowerAudioDefault } from './lower-default.mjs';
 
 function resolveMediaPath(specifier, fromFile) {
   if (!specifier) return null;
@@ -223,7 +223,7 @@ function wrapDiagnostic(code, message, file, start, length, severity = 'error') 
 /**
  * @param {object} module  parseMediaModule's result (media.gir / media.air)
  * @param {object[]} diagnostics
- * @param {{ machine?: string, tags?: string[], facts?: object, checkout?: string|null, mediaSlots?: { graphics: number } }} options
+ * @param {{ machine?: string, tags?: string[], facts?: object, checkout?: string|null, mediaSlots?: { graphics: number, audio?: number, audioBytes?: number } }} options
  *   `mediaSlots` is one counter for the whole link, so sprites in different
  *   .8bg files get different slots.
  */
