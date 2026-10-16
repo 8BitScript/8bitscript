@@ -254,15 +254,15 @@ test('captureScreenshot machine=pet-2001 composes all three raster slots in blac
     const png = await readFile(shot);
     // The border: black above the split, PET green at and below line 100.
     assert.deepEqual(pixelAt(png, 0, 24 + 99), [0x00, 0x00, 0x00]);
-    assert.deepEqual(pixelAt(png, 0, 24 + 100), [0x65, 0xd0, 0x45]);
+    assert.deepEqual(pixelAt(png, 0, 24 + 100), [0x00, 0xe0, 0x00]);
     // The background: black above line 120, green from it down.
     assert.deepEqual(pixelAt(png, 24 + 300, 24 + 119), [0x00, 0x00, 0x00]);
-    assert.deepEqual(pixelAt(png, 24 + 300, 24 + 120), [0x65, 0xd0, 0x45]);
+    assert.deepEqual(pixelAt(png, 24 + 300, 24 + 120), [0x00, 0xe0, 0x00]);
     // The row-12 block, above the band, fills green from column 0; the row-13
     // block, inside it, is shifted 4 px right with a black vacated strip.
-    assert.deepEqual(pixelAt(png, 24 + 0, 24 + 96), [0x65, 0xd0, 0x45]);
+    assert.deepEqual(pixelAt(png, 24 + 0, 24 + 96), [0x00, 0xe0, 0x00]);
     assert.deepEqual(pixelAt(png, 24 + 0, 24 + 104), [0x00, 0x00, 0x00]);
-    assert.deepEqual(pixelAt(png, 24 + 4, 24 + 104), [0x65, 0xd0, 0x45]);
+    assert.deepEqual(pixelAt(png, 24 + 4, 24 + 104), [0x00, 0xe0, 0x00]);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

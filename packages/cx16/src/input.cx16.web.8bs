@@ -15,12 +15,20 @@
 // wasm build; this twin reads that byte once a frame and works out what
 // began, which is exactly what `poll()` gives a program on any other machine.
 //
-//   - left / right / up / down — ArrowLeft / ArrowRight / ArrowUp / ArrowDown
-//                                (the keyboard joystick's D-pad on the X16)
-//   - confirm                  — Enter (START on the keyboard joystick)
-//   - cancel                   — Escape
+// The page folds a browser gamepad into the same byte (web-layout.mjs
+// padEdges(): the "standard" layout), mapped to the controls the real X16's
+// keyboard joystick and SNES pads carry by name (kernal/drivers/x16/joystick.s):
 //
-// No SNES pads and no mouse: the page has neither to offer, so pointer() is
+//   - left / right / up / down — the arrow keys (the keyboard joystick's
+//                                D-pad on the X16), or a pad's D-pad or left
+//                                stick
+//   - confirm                  — Enter (START on the keyboard joystick), or a
+//                                pad's A or START
+//   - cancel                   — Escape, or a pad's B or SELECT. The real
+//                                keyboard's SELECT is the left Shift key; the
+//                                page maps Escape, the browser's familiar "back"
+//
+// No mouse: the page does not carry a pointer to this build, so pointer() is
 // false here even though `input.mouse` is true for the machine, and this file
 // never imports ./mouse.8bs (asm6502 the wasm backend cannot lower).
 //
@@ -93,12 +101,12 @@ export namespace input {
         return (began & Edge.DOWN) != 0;
     }
 
-    // Enter.
+    // Enter, or a pad's A or START.
     function confirm(): bool {
         return (began & Edge.CONFIRM) != 0;
     }
 
-    // Escape.
+    // Escape, or a pad's B or SELECT.
     function cancel(): bool {
         return (began & Edge.CANCEL) != 0;
     }
@@ -119,10 +127,11 @@ export namespace input {
 }
 
 // Compile-time names for the confirm control, interpolated into catalogs
-// as {control} / {other}. OR / ODER lives in the catalog, not here. RETURN
-// alone: the native build's START is a pad button, and a page has no pad.
+// as {control} / {other}. OR / ODER lives in the catalog, not here. The same
+// words as the native file: a keyboard's RETURN, and a pad's START, which the
+// page reads from a browser gamepad.
 export namespace Input {
     const CONFIRM_LABEL: string = "RETURN";
-    const ALT_CONFIRM_LABEL: string = "RETURN";
-    const CONFIRM_LABELS: string = "RETURN";
+    const ALT_CONFIRM_LABEL: string = "START";
+    const CONFIRM_LABELS: string = "RETURN OR START";
 }

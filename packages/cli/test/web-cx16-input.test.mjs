@@ -13,6 +13,8 @@
 // reads the page's snapshot byte instead, at text.CELL_COUNT * 2 + 2; this
 // holds that formula, text.cx16.web.8bs's own planes and the page's layout to
 // the same byte, since nothing in web-layout.mjs overrides the X16's address.
+// It also holds that the twin answers no pointer, and names the confirm
+// controls as the native file does (the page reads a gamepad too).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, writeFile, rm, readFile } from 'node:fs/promises';
@@ -166,4 +168,53 @@ test("the X16 wasm build's portable input reports a press once, on the frame it 
     memory[layout.inputOffset] = InputEdge.CONFIRM;
   });
   expectTallies(mem, COLUMNS);
+});
+
+test("the X16 wasm build's pointer answers false: the page does not carry a mouse to the program", async () => {
+  const mem = await runWithKeys([
+    'import { input } from "@8bitscript/input";',
+    'import { screen } from "@8bitscript/screen";',
+    'import { text } from "@8bitscript/text";',
+    '',
+    'export function main(): void {',
+    '    screen.blank();',
+    '    input.begin();',
+    '    waitFrame();',
+    '    input.poll();',
+    '    if (input.pointer()) { text.print(0, "P"); } else { text.print(0, "N"); }',
+    '    if (input.pointerButton()) { text.print(1, "B"); } else { text.print(1, "N"); }',
+    '    waitFrame();',
+    '}',
+    '',
+  ].join('\n'), 3, () => {});
+  assert.equal(mem[SCREEN], 'N'.charCodeAt(0), 'no pointer');
+  assert.equal(mem[SCREEN + 1], 'N'.charCodeAt(0), 'no button');
+});
+
+// The page folds a browser gamepad into the same byte (web-layout.mjs padEdges), so a
+// pad's START confirms here as it does natively: the twin names the same controls.
+test("the X16 wasm build names the confirm controls as the native build does: RETURN, and a pad's START", async () => {
+  const mem = await runWithKeys([
+    'import { Input } from "@8bitscript/input";',
+    'import { screen } from "@8bitscript/screen";',
+    'import { text } from "@8bitscript/text";',
+    '',
+    'export function main(): void {',
+    '    screen.blank();',
+    '    text.print(0, Input.CONFIRM_LABEL);',
+    `    text.print(${COLUMNS}, Input.ALT_CONFIRM_LABEL);`,
+    `    text.print(${COLUMNS * 2}, Input.CONFIRM_LABELS);`,
+    '    waitFrame();',
+    '}',
+    '',
+  ].join('\n'), 2, () => {});
+  const read = (cell, length) => String.fromCharCode(...mem.subarray(SCREEN + cell, SCREEN + cell + length));
+  assert.equal(read(0, 6), 'RETURN');
+  assert.equal(read(COLUMNS, 5), 'START');
+  assert.equal(read(COLUMNS * 2, 15), 'RETURN OR START');
+  const native = readFileSync(resolve(REPO, 'packages', 'cx16', 'src', 'input.8bs'), 'utf8');
+  for (const name of ['CONFIRM_LABEL', 'ALT_CONFIRM_LABEL', 'CONFIRM_LABELS']) {
+    const value = (source) => new RegExp(`const ${name}: string = ("[^"]*");`).exec(source)?.[1];
+    assert.equal(value(INPUT_TWIN), value(native), `Input.${name} is the native file's`);
+  }
 });

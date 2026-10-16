@@ -578,17 +578,29 @@ hardware sprites do not exist there. What the page does draw is
   lowers none, so until this twin any program that imported
   `@8bitscript/input` — 2048, `examples/joystick`, the Vegas Nights lobby —
   refused to build here). It reads `inputOffset` once a frame — arrows, Enter
-  for confirm, Escape for cancel — at `text.CELL_COUNT * 2 + 2` (8514: there is
-  no address override for this machine, so it is `agreementFor()`'s default
-  behind `text.cx16.web.8bs`'s two planes; `packages/cli/test/web-cx16-input.test.mjs`
-  pins the three together). No SNES pads and no mouse: `pointer()` is false and
-  `Input.CONFIRM_LABELS` is `RETURN`. `packages/compiler/test/cx16-web-twin.test.mjs`
-  holds its exports to `input.8bs`'s.
+  for confirm, Escape for cancel, and a gamepad's D-pad or left stick, A/START
+  and B/SELECT, which the page folds into the same byte — at
+  `text.CELL_COUNT * 2 + 2` (8514: there is no address override for this
+  machine, so it is `agreementFor()`'s default behind `text.cx16.web.8bs`'s two
+  planes; `packages/cli/test/web-cx16-input.test.mjs` pins the three together).
+  No mouse: `pointer()` is false. `Input.CONFIRM_LABELS` is the native file's
+  `RETURN OR START`, since a pad's START confirms here too.
+  `packages/compiler/test/cx16-web-twin.test.mjs` holds its exports to
+  `input.8bs`'s.
+- the **portable raster list** (`rasterline.cx16.web.8bs`): the same Slot numbers, 32
+  entries, 3-byte stride and `at`/`insert`/`setValue`/`commit`/`enable` rules as the VERA
+  handler's file, held in the twin and copied to the page's raster region on
+  `commit()`/`enable()`, which the page applies at each picture line. `raster.frame()` is
+  real: the page adds one to a byte past the glyph table (`frameOffset`, this machine's
+  layout only) each frame it releases, and `frame()` is the distance since `enable()`.
+  What the model does not do — VERA's own timing, palette values past 15, the KERNAL's
+  PETSCII set for `CHARSET`, the wrapped value above a list's first entry — is in
+  `wasm.limits`. `packages/cli/test/web-cx16-raster.test.mjs` pins the offsets to
+  the layout and the twin's names to the native file's.
 
 Not there: sound (8BS2211, `.8ba` has no wasm driver and `audio.tone` is not
-wired for this build), SNES pads, the mouse and the X16-only modules that talk to VERA, the
-KERNAL or the banks (`@8bitscript/cx16/mouse`, `/pointer`, `/psg`, `/banks`), and
-the raster list (machine code, so a program that uses it does not build here).
+wired for this build), the mouse and the X16-only modules that talk to VERA, the
+KERNAL or the banks (`@8bitscript/cx16/mouse`, `/pointer`, `/psg`, `/banks`).
 The list is `wasm.limits` in this package's manifest, shown by
 `8bs targets --json` and by the editor. A feature in that list is not a bug in
 the program: it is the model's edge, and moving it is a change here.
@@ -604,7 +616,7 @@ packages/cx16/test/banks-probe.8bs       the probe run for real: prints the KiB,
 packages/cx16/src/mouse.8bs              @8bitscript/cx16/mouse: mouse.begin/poll/present/x/y/left/hide/show, through the KERNAL
 packages/cx16/src/input.8bs              @8bitscript/cx16/input: the pointer in cells; joy0 keyboard (Enter=START) and SNES pads 1/2
 packages/cx16/test/input.test.mjs        KERNAL $FF53/$FF9F/$FF56; SNES bits against the ROM joystick driver
-packages/cx16/src/input.cx16.web.8bs     input.8bs on the wasm build: the page's key byte, no pads, no pointer
+packages/cx16/src/input.cx16.web.8bs     input.8bs on the wasm build: the page's key byte (keys and a gamepad), no pointer
 packages/cx16/src/pointer.8bs            @8bitscript/cx16/pointer: the firmware arrow; update() empty unless recovering from hide()
 packages/cx16/test/mouse-probe.8bs       run under x16emu: green border when present(); test/mouse.test.mjs reads it
 packages/cx16/src/text.8bs               @8bitscript/cx16/text: text.print/printNumber/setColor/setReverse/putChar/putColor, CELL_COUNT 4256, COLUMNS 76, TextColor
@@ -615,6 +627,7 @@ packages/cx16/test/graphics-ops.test.mjs under x16emu, hide / place / setFrame /
 packages/compiler/test/graphics-cx16-ops.test.mjs   the same calls held at the link level (CI runs it): shapes, VRAM numbers
 packages/compiler/test/media-cx16.test.mjs   the lowering as data: palette, nibble order, padding, windows
 packages/cx16/src/rasterline.8bs         @8bitscript/cx16/rasterline (behind @8bitscript/raster): the list and plan in Golden RAM ($0401-$077F), the VERA line-IRQ handler on CINV
+packages/cx16/src/rasterline.cx16.web.8bs rasterline.8bs on the wasm build: the list copied to the page's raster region on commit()/enable(); frame() reads the page's frame byte
 packages/cx16/test/raster-probe.8bs      the probe: every slot at a known line, an adjacent pair, setValue after sixty frames
 packages/cx16/test/raster.test.mjs       links the probe; under x16emu, each split on its line, whole, and live through input.poll()
 packages/cx16/test/text.test.mjs         locate() widens before * 28 / * 76; reverse is black glyphs on the fill colour
