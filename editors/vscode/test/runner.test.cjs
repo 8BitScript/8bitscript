@@ -905,6 +905,31 @@ test('registerRunner: previewOn picks a project and target (a single one of each
   }
 });
 
+test('registerRunner: previewOn on the web target stops the tab\'s earlier run by runtime, though a web-target run carries no web flag', async () => {
+  const dir = tmpDir();
+  try {
+    vscode.__mock.reset();
+    vscode.workspace.findFiles = () => Promise.resolve([]);
+    vscode.commands.registerCommand('8bitscript.previewTab.show', () => {});
+    await withRunner(path.join(dir, '.storage'), { appendLine() {} }, async (projects) => {
+      const cli = writeFakeCli(dir);
+      projects.projects = [fakeProject(dir, { toolchain: cli, targets: ['web'] })];
+      const ended = [];
+      const running = (runtime) => ({ task: { definition: { type: '8bitscript', command: 'run', projectDir: dir, target: 'web', runtime }, name: 'x' }, terminate: () => ended.push(runtime) });
+      projects.running.executions.add(running('editor'));
+      projects.running.executions.add(running('browser'));
+      await vscode.__mock.trigger('8bitscript.previewOn', { dir, target: 'web' });
+      await tick();
+      assert.deepEqual(ended, ['editor'], 'the tab\'s own run, never the browser page');
+      const executed = vscode.__mock.executedTasks.at(-1);
+      assert.equal(executed.task.definition.runtime, 'editor');
+      assert.equal(executed.task.definition.web, undefined);
+    });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('registerRunner: openStudioNative opens Studio on the system it was told to — a named system or a bare machine — and on the X16 for one it no longer lists', async () => {
   const dir = tmpDir();
   try {
