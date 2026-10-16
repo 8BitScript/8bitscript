@@ -1704,7 +1704,8 @@ function registerRunner(context, output) {
    * reaches for too once it has decided (WEB_PREVIEW_READY, the
    * preferWebPreview setting) that this run should be one. */
   async function runInPreviewTab(project, target) {
-    projects.running.stop(project.dir, target, { web: true });
+    // By runtime, not `web`: the synthetic web target's tab run has no `web` flag.
+    projects.running.stop(project.dir, target, { runtime: 'editor' });
     const launchedAt = Date.now();
     const started = await execute('run', { project, target, web: true });
     if (!started) return;
