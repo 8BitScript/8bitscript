@@ -266,6 +266,12 @@
         "icon": "$(device-desktop)"
       },
       {
+        "command": "8bitscript.openStudioCx16",
+        "title": "Open Studio on the X16 (WebAssembly)",
+        "category": "8BitScript",
+        "icon": "$(window)"
+      },
+      {
         "command": "8bitscript.openStudioX16emu",
         "title": "Open Studio in x16emu (in a Tab)",
         "category": "8BitScript",

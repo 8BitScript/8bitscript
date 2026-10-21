@@ -139,7 +139,7 @@ test('the tab follows a run: building until a fresh URL lands, framed once it do
     assert.deepEqual(projects.stopped, [{ dir, target: 'cx16', only: { runtime: 'editor' } }], 'only the tab\'s run, never a native window');
     panel.webview.__fire({ type: 'rebuild' });
     await tick();
-    assert.ok(vscode.__mock.executedCommands.some((c) => c.id === '8bitscript.openStudio'), 'a tab with no word on its mode rebuilds the default way: our wasm build');
+    assert.ok(vscode.__mock.executedCommands.some((c) => c.id === '8bitscript.openStudioCx16'), 'a tab with no word on its mode rebuilds the default way: our wasm build');
     panel.webview.__fire({ type: 'something-else' });
     await tick();
 
@@ -400,7 +400,7 @@ test('Studio on our own wasm build: the tab reads the -web report, is labelled a
 
     panel.webview.__fire({ type: 'rebuild' });
     await tick();
-    assert.ok(vscode.__mock.executedCommands.some((c) => c.id === '8bitscript.openStudio'));
+    assert.ok(vscode.__mock.executedCommands.some((c) => c.id === '8bitscript.openStudioCx16'));
     assert.ok(!vscode.__mock.executedCommands.some((c) => c.id === '8bitscript.openStudioX16emu'));
     panel.__dispose(); // the tab is a singleton: the next test gets its own
   } finally {

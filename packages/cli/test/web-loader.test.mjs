@@ -995,3 +995,8 @@ test('a host with no glyph table draws none in the loader either, whatever bytes
   mem.fill(0xff, where, where + GLYPH_BYTES);
   assertPaintParity(real, mem);
 });
+
+test('the fluid host fits the canvas at a whole number of device pixels; the rule is in the loader', () => {
+  const source = renderLoader({ frameRate: 60 });
+  assert.match(source, /if \(RESIZABLE && PIXEL_ASPECT === 1\) \{[^}]*Math\.floor\(scale \* dpr\)[^}]*scale = whole \/ dpr/s);
+});

@@ -1,0 +1,22 @@
+// The DAW's bottom row: a solid bar in reverse video with sample text on
+// the left (what is ready, what the keys do) and the grid size on the right.
+// Both ends come from the run's own facts, so it reads true on every target.
+import { text, TextColor } from "@8bitscript/text";
+
+export component DawStatusBar() {
+    let columns: usmallint = text.columns();
+    let row: usmallint = (text.rows() - 1) * columns;
+    text.setColor(TextColor.CYAN);
+    text.setReverse(true);
+    text.fill(row, columns, 32);
+    text.print(row + 1, "READY");
+    text.print(row + 9, "DAW MODULE");
+    if (columns > 40) {
+        text.print(row + 22, "NO SOUND YET");
+    }
+    text.printNumber(row + columns - 6, columns, 2);
+    text.print(row + columns - 4, "X");
+    text.printNumber(row + columns - 3, text.rows(), 2);
+    text.setReverse(false);
+    text.setColor(TextColor.WHITE);
+}

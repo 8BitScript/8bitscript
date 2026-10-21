@@ -954,6 +954,15 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
     function fit(measured) {
       var scale = Math.min(measured.width / (canvas.width * PIXEL_ASPECT), measured.height / canvas.height);
       if (!(scale > 0)) scale = 1;
+      // The fluid host draws at a whole number of device pixels per chip
+      // pixel, so 8x8 text stays crisp instead of some pixels coming out a
+      // device pixel wider than their neighbours. It may leave a margin;
+      // below one device pixel per pixel it keeps the fractional fit.
+      if (RESIZABLE && PIXEL_ASPECT === 1) {
+        var dpr = global.devicePixelRatio || 1;
+        var whole = Math.floor(scale * dpr);
+        if (whole >= 1) scale = whole / dpr;
+      }
       canvas.style.width = Math.max(1, Math.floor(canvas.width * PIXEL_ASPECT * scale)) + 'px';
       canvas.style.height = Math.max(1, Math.floor(canvas.height * scale)) + 'px';
       if (fullPage) {

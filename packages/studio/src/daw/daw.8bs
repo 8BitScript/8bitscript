@@ -1,0 +1,13 @@
+// The DAW module: the music editor, and the first module Studio opens into.
+// A module owns the screen between the shell's two edges and draws its own
+// bars; today that is the menu bar and the status bar, and nothing between
+// them yet.
+import { DawMenuBar } from "./MenuBar.8bx";
+import { DawStatusBar } from "./StatusBar.8bx";
+
+export namespace daw {
+    function draw(): void {
+        DawMenuBar();
+        DawStatusBar();
+    }
+}

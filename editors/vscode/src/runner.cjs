@@ -1629,11 +1629,13 @@ function registerRunner(context, output) {
   // The WebAssembly build is the primary way to run anything here: our own
   // backend compiles the program straight to wasm and our own model of the
   // machine runs it (`8bs run <t> --web`), with no vendor emulator in the
-  // loop. So Studio opens in an editor tab on the Commander X16's wasm build
-  // — the machine it is designed on (packages/studio's baseline) — and the
-  // other two ways to run it are explicit, separate commands rather than a
-  // hidden fallback: `openStudioNative` (the real x16emu window) and
-  // `openStudioX16emu` (the vendored x16emu compiled to wasm, in the tab).
+  // loop. So Studio opens in an editor tab on the modern responsive web
+  // build (`8bs run web`: the fluid grid that follows the tab, drawn crisp at
+  // a whole-number scale), and the other ways to run it are explicit,
+  // separate commands rather than a hidden fallback: `openStudioCx16` (our
+  // wasm model of the Commander X16, the baseline machine, in the tab),
+  // `openStudioNative` (the real x16emu window) and `openStudioX16emu` (the
+  // vendored x16emu compiled to wasm, in the tab).
   async function studioProject() {
     if (projects.all.length === 0) await projects.refresh();
     const studio = ofKind(projects.all, 'app').find((p) => p.name === '@8bitscript/studio');
@@ -1644,27 +1646,29 @@ function registerRunner(context, output) {
     return studio;
   }
   /**
-   * Run Studio in the editor tab and follow it there. `x16emu` swaps our wasm
-   * model of the X16 for the vendored x16emu in the same tab. A tab's run
+   * Run Studio in the editor tab and follow it there, on the modern web build
+   * unless `target` names a machine. `x16emu` swaps our wasm model of the X16
+   * for the vendored x16emu in the same tab. A tab's run
    * already in flight is stopped first, so two servers never write the same
    * last-run file, and the tab is then pointed at the new run; a native Studio
    * window is left alone.
    */
-  async function openStudioInTab({ x16emu = false } = {}) {
+  async function openStudioInTab({ target = 'web', x16emu = false } = {}) {
     const studio = await studioProject();
     if (!studio) return;
-    projects.running.stop(studio.dir, 'cx16', { web: true });
+    projects.running.stop(studio.dir, target, { web: true });
     const launchedAt = Date.now();
-    const started = await execute('run', { project: studio, target: 'cx16', web: true, ...(x16emu ? { x16emu: true } : {}) });
+    const started = await execute('run', { project: studio, target, web: true, ...(x16emu ? { x16emu: true } : {}) });
     if (!started) return;
-    await vscode.commands.executeCommand('8bitscript.studioTab.show', { dir: studio.dir, target: 'cx16', launchedAt, x16emu });
+    await vscode.commands.executeCommand('8bitscript.studioTab.show', { dir: studio.dir, target, launchedAt, x16emu });
   }
   command('8bitscript.openStudio', (node) => openStudioInTab({ x16emu: node?.x16emu === true }));
   // The rocket in the title bar and the palette's "Launch Studio" do the same: no picker.
   command('8bitscript.launchStudio', () => openStudioInTab());
   // Kept for people who bound it: it was "Studio in a tab" back when that meant x16emu.
   command('8bitscript.openStudioTab', () => openStudioInTab());
-  command('8bitscript.openStudioX16emu', () => openStudioInTab({ x16emu: true }));
+  command('8bitscript.openStudioX16emu', () => openStudioInTab({ target: 'cx16', x16emu: true }));
+  command('8bitscript.openStudioCx16', () => openStudioInTab({ target: 'cx16' }));
   // The real emulator in its own window — a named system or a bare machine can
   // still be asked for, as the side bar's old sliver menu did; nothing named is
   // Studio's baseline, the Commander X16.
