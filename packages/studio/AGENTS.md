@@ -27,7 +27,7 @@ Do not describe more than this as working:
 
 1. **`src/studio.8bs`** — the shell: paints the screen, places the mark,
    starts the chime, runs the frame loop, and repaints the module when the
-   grid changes size (the modern web build's grid follows the window).
+   grid changes size (the browser build's grid follows the window).
 2. **`src/daw/`** — the DAW module. `daw.8bs` draws the module;
    `MenuBar.8bx` is the top row (reverse video across the grid, sample
    labels FILE EDIT SONG TRACK VIEW HELP); `StatusBar.8bx` is the bottom row
@@ -93,9 +93,11 @@ embed as a web page.
 
 - VS Code **Open Studio** (the Studio row in the side bar, the 🚀 in the title
   bar, **Launch Studio**, **Open Studio in a Tab**) runs `8bs run web` in an
-  editor tab: the modern responsive build, whose grid follows the tab and is
-  drawn at a whole-number scale so the 8×8 pixels stay sharp. Not a native
-  window, not x16emu.
+  editor tab: the modern responsive build in its high-resolution mode
+  (`machine=hifi-hires`, set on the `web` target in this package's config),
+  where a cell is a whole number of device pixels, text is about 16 CSS
+  pixels on any display, and the window decides how many cells fit — about
+  76x56 on a laptop, as on the X16. Not a native window, not x16emu.
 - **Open Studio on the X16 (WebAssembly)** runs `8bs run cx16 --web` in the
   tab: our model of the Commander X16, the baseline machine.
 - `8bs run web` or `8bs run cx16 --web` from this directory is the same

@@ -79,7 +79,7 @@ test('release config matches shared-release-targets and names the X16 baseline',
   assert.match(config, /shared-release-targets/);
   assert.match(config, /^  baseline: 'cx16',$/m);
   assert.match(config, /^  input: \{ primary: 'mouse', also: \['keyboard', 'stick', 'pad'\] \},$/m);
-  assert.match(config, /targets: \{ \.\.\.releaseTargets \}/);
+  assert.match(config, /targets: \{ \.\.\.releaseTargets, web: \{ hardware: \{ machine: 'hifi-hires' \} \} \}/);
   assert.match(config, /^    'Commander X16': \{ target: 'cx16' \},$/m);
 });
 
@@ -127,7 +127,7 @@ for (const target of RELEASE_TARGETS) {
 
 test('the web shell opens into the DAW: a menu bar on top, a status bar below, and keeps running', async () => {
   const wasm = readFileSync(await buildStudio('web'));
-  const layout = layoutFromHardware(resolveHardware(loadCatalog('web'), {}).hardware);
+  const layout = layoutFromHardware(resolveHardware(loadCatalog('web'), { defaults: { machine: 'hifi-hires' } }).hardware);
   const total = 30;
   let frame = 0;
   let mem;
@@ -157,7 +157,7 @@ test('the web shell opens into the DAW: a menu bar on top, a status bar below, a
   };
   assert.match(row(0), /FILE\s+EDIT\s+SONG\s+TRACK\s+VIEW\s+HELP/);
   assert.match(row(layout.rows - 1), /READY\s+DAW MODULE/);
-  assert.match(row(layout.rows - 1), new RegExp(`${layout.cols}X${layout.rows} $`));
+  assert.match(row(layout.rows - 1), new RegExp(`GRID ${String(layout.cols).padStart(3, '0')}X${String(layout.rows).padStart(3, '0')} $`));
   assert.ok(row(0)[0] !== ' ', 'the mark.8bg glyph sits in the corner cell on web');
   assert.equal(mem[0], 6, 'border BLUE');
   assert.equal(mem[1], 0, 'background BLACK');

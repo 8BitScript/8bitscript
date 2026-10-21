@@ -1,0 +1,107 @@
+// @8bitscript/web — the high-resolution Modern host (`--hardware
+// machine=hifi-hires`): the same moving grid as geometry.8bs, sized for up to
+// 160 x 100 cells instead of 64 x 64, because here the window decides how
+// many cells of native size fit (see hiresGridFor() in
+// packages/cli/src/web-layout.mjs). Every number below is agreementFor() with
+// `hires` on, and test/web-hires.test.mjs holds the two to each other.
+//
+//   0      border color
+//   1      background color
+//   2      live columns      3      live rows
+//   4      CHAR_BASE         MAX_CELLS (16000) character codes
+//   16004  COLOR_BASE        MAX_CELLS color bytes
+//   32004  INPUT_OFFSET      32005  HOST_OFFSET
+//   32006  RASTER_CONTROL    32007  RASTER_COUNT
+//   32008  RASTER_BASE       64 three-byte entries; a line's ninth and tenth
+//                            bits ride in the slot byte's bits 7 and 6, so
+//                            all 800 picture lines fit
+//   32200  GLYPH_BASE        80 glyphs of eight row bytes
+//   32840  AUDIO_BASE        four tone registers
+//   32844  POINTER_BASE      six bytes
+//   32850  the end of the agreement; the program's data starts at 33024.
+//
+// The 64K wasm page has about 31K left above that for the program.
+
+export namespace Video {
+    // The largest grid the host will hand out, and what the map is sized for.
+    const MAX_COLUMNS: utinyint = 160;
+    const MAX_ROWS: utinyint = 100;
+    const MAX_CELLS: usmallint = 16000;
+
+    // The grid a 16:9 window gets, and the one this host has always had.
+    // It is what columns()/rows() answer before the host has written
+    // anything — see below — not a limit on what they can answer.
+    const COLUMNS: utinyint = 76;
+    const ROWS: utinyint = 56;
+    const CELL_COUNT: usmallint = 4256;
+
+    const COLUMNS_OFFSET: usmallint = 2;
+    const ROWS_OFFSET: usmallint = 3;
+    const CHAR_BASE: usmallint = 4;
+    const COLOR_BASE: usmallint = 16004;
+    const INPUT_OFFSET: usmallint = 32004;
+    const HOST_OFFSET: usmallint = 32005;
+
+    // The raster list ./rasterline.8bs keeps: HOST_OFFSET + 1/2/3, the same
+    // arithmetic agreementFor() in packages/cli/src/web-layout.mjs does.
+    const RASTER_CONTROL_OFFSET: usmallint = 32006;
+    const RASTER_COUNT_OFFSET: usmallint = 32007;
+    const RASTER_BASE: usmallint = 32008;
+    const RASTER_MAX_ENTRIES: utinyint = 64;
+
+    // The redefinable glyph table right after the raster list: GLYPH_COUNT
+    // glyphs of eight row bytes (bit 0 the leftmost pixel), drawn for the
+    // character codes GLYPH_FIRST.. when any of a glyph's rows is nonzero —
+    // the same arithmetic agreementFor() in packages/cli/src/web-layout.mjs does.
+    const GLYPH_BASE: usmallint = 32200;
+    const GLYPH_FIRST: utinyint = 176;
+    const GLYPH_COUNT: utinyint = 80;
+
+    // The tone registers right after the glyph table: GATE, NOTE, WAVE and
+    // VOLUME, four bytes (web-layout.mjs AudioRegister). The page plays them
+    // through one oscillator; @8bitscript/audio writes them.
+    const AUDIO_BASE: usmallint = 32840;
+
+    // The pointer block after the tone registers: PRESENT, BUTTONS, X and Y
+    // (16 bits each, in pixels of the inner picture) — web-layout.mjs
+    // PointerRegister. Only this host has a mouse; a skin is a machine
+    // with none, and says so with HAS_POINTER false so the calls fold.
+    const POINTER_BASE: usmallint = 32844;
+    const HAS_POINTER: bool = true;
+
+    // True where the grid can change under a running program. A build-time
+    // fact, so `if (screen.RESIZABLE)` folds away entirely on every machine
+    // that cannot — see ./screen.8bs.
+    const RESIZABLE: bool = true;
+
+    // The live grid. Zero means the host has not written yet: the program
+    // starts the instant the worker has its memory, and the page writes these
+    // when it first sees that memory, so there is a frame in which a program
+    // that asks would otherwise get nothing. Answering with the compiled
+    // default makes that frame lay out like a 16:9 window rather than like a
+    // zero-column screen, and the next resized() corrects it.
+    function columns(): utinyint {
+        let live: utinyint = memory.read(Video.COLUMNS_OFFSET);
+        if (live == 0) {
+            return Video.COLUMNS;
+        }
+        return live;
+    }
+
+    function rows(): utinyint {
+        let live: utinyint = memory.read(Video.ROWS_OFFSET);
+        if (live == 0) {
+            return Video.ROWS;
+        }
+        return live;
+    }
+
+    // Widened before the multiply, not after: columns() and rows() are both
+    // utinyint, and 27 x 48 is 1296 — a product that does not fit in the type
+    // its operands have. Every cell index on this host has the same hazard,
+    // which is why a derived layout computes them in usmallint throughout.
+    function cells(): usmallint {
+        let wide: usmallint = Video.columns();
+        return wide * Video.rows();
+    }
+}

@@ -91,8 +91,8 @@ export namespace raster {
     // False, and nothing added, if the line is past the visible picture
     // (Video.rows() * 8 lines — up to 512 on the resizable host, so the
     // line is a usmallint), below the last entry's, the slot is not one
-    // of the four, or the list is full. The line's ninth bit is packed
-    // into the slot byte's bit 7 — see the header comment.
+    // of the four, or the list is full. The line's ninth and tenth bits are
+    // packed into the slot byte's bits 7 and 6 — see the header comment.
     function at(line: usmallint, slot: utinyint, value: utinyint): bool {
         let limit: usmallint = Video.rows();
         limit = limit * 8;
@@ -110,7 +110,7 @@ export namespace raster {
         entry = Video.RASTER_BASE + entry * 3;
         let high: utinyint = line / 256;
         memory.write(entry, line % 256);
-        memory.write(entry + 1, slot | (high << 7));
+        memory.write(entry + 1, slot | ((high & 1) << 7) | ((high >> 1) << 6));
         memory.write(entry + 2, value);
         memory.write(Video.RASTER_COUNT_OFFSET, held + 1);
         lastLine = line;
@@ -138,7 +138,7 @@ export namespace raster {
         pos = Video.RASTER_BASE + pos * 3;
         while (pos > Video.RASTER_BASE) {
             let above: usmallint = memory.read(pos - 3);
-            above = above + (memory.read(pos - 2) >> 7) * 256;
+            above = above + (memory.read(pos - 2) >> 7) * 256 + ((memory.read(pos - 2) >> 6) & 1) * 512;
             if (above <= line) {
                 break;
             }
@@ -148,7 +148,7 @@ export namespace raster {
             pos = pos - 3;
         }
         memory.write(pos, low);
-        memory.write(pos + 1, slot | (high << 7));
+        memory.write(pos + 1, slot | ((high & 1) << 7) | ((high >> 1) << 6));
         memory.write(pos + 2, value);
         memory.write(Video.RASTER_COUNT_OFFSET, held + 1);
         return true;

@@ -11,12 +11,13 @@ export component DawStatusBar() {
     text.fill(row, columns, 32);
     text.print(row + 1, "READY");
     text.print(row + 9, "DAW MODULE");
-    if (columns > 40) {
+    if (columns > 48) {
         text.print(row + 22, "NO SOUND YET");
     }
-    text.printNumber(row + columns - 6, columns, 2);
-    text.print(row + columns - 4, "X");
-    text.printNumber(row + columns - 3, text.rows(), 2);
+    text.print(row + columns - 13, "GRID");
+    text.printNumber(row + columns - 8, columns, 3);
+    text.print(row + columns - 5, "X");
+    text.printNumber(row + columns - 4, text.rows(), 3);
     text.setReverse(false);
     text.setColor(TextColor.WHITE);
 }

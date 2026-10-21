@@ -92,6 +92,17 @@
                 "video.colorPerCell": true
               }
             },
+            "hifi-hires": {
+              "label": "High-resolution host: native text size, the window sets the grid",
+              "build": {},
+              "facts": {
+                "input.mouse": true,
+                "video.columns": 76,
+                "video.rows": 56,
+                "video.palette": 16,
+                "video.colorPerCell": true
+              }
+            },
             "pet-2001": {
               "label": "PET 2001 — 40×25 green phosphor, 4:3",
               "build": {},
@@ -136,6 +147,9 @@
       "presets": {
         "c64": {
           "machine": "c64"
+        },
+        "hifi-hires": {
+          "machine": "hifi-hires"
         },
         "pet-2001": {
           "machine": "pet-2001"

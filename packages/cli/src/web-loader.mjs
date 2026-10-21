@@ -84,6 +84,7 @@ import {
   INNER_H, INNER_W, INPUT_OFFSET, InputEdge, KEY_TO_EDGE, SWIPE_THRESHOLD, PAD_STICK_THRESHOLD,
   ANY_BORDER_SCALE, BORDER_HAIRLINE_PX, BORDER_MIN_PX, FULL_BORDER_SCALE,
   COLUMNS_OFFSET, ROWS_OFFSET, MAX_COLUMNS, MAX_ROWS, MIN_COLUMNS, MIN_ROWS,
+  HIRES_MAX_COLUMNS, HIRES_MAX_ROWS, HIRES_TEXT_CSS_PX, HIRES_DEFAULT_COLUMNS, HIRES_DEFAULT_ROWS,
   RASTER_MAX_ENTRIES, TARGET_CELLS, GLYPH_FIRST, GLYPH_COUNT,
 } from './web-layout.mjs';
 
@@ -343,6 +344,17 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
   // Modern only: the grid follows the window. Every machine skin is fixed,
   // because a skin is a machine. See packages/cli/src/web-layout.mjs.
   var RESIZABLE = ${layout.resizable === true};
+  // The Modern host at native text size (hifi-hires): the window decides how
+  // many cells fit, and a cell is a whole number of device pixels. See
+  // hiresGridFor() in packages/cli/src/web-layout.mjs.
+  var HIRES = ${layout.hires === true};
+  var HIRES_MAX_COLUMNS = ${HIRES_MAX_COLUMNS};
+  var HIRES_MAX_ROWS = ${HIRES_MAX_ROWS};
+  var HIRES_TEXT_CSS_PX = ${HIRES_TEXT_CSS_PX};
+  var HIRES_DEFAULT_COLUMNS = ${HIRES_DEFAULT_COLUMNS};
+  var HIRES_DEFAULT_ROWS = ${HIRES_DEFAULT_ROWS};
+  // Device pixels per font pixel on a hires host; set by applyGrid().
+  var hiresK = 0;
   var COLUMNS_OFFSET = ${COLUMNS_OFFSET};
   var ROWS_OFFSET = ${ROWS_OFFSET};
   var MIN_COLUMNS = ${MIN_COLUMNS};
@@ -437,6 +449,27 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
     return { cols: cols, rows: rows };
   }
 
+  // The hires rule, the twin of hiresGridFor() in web-layout.mjs (checked
+  // against it in web-loader.test.mjs).
+  function hiresGridFor(box) {
+    var dpr = box && box.dpr > 0 ? box.dpr : 1;
+    var k = Math.max(1, Math.round((HIRES_TEXT_CSS_PX / CHAR_W) * dpr));
+    var width = box && box.width;
+    var height = box && box.height;
+    if (!(width > 0) || !(height > 0)) return { cols: HIRES_DEFAULT_COLUMNS, rows: HIRES_DEFAULT_ROWS, k: k };
+    function cellsAt(n) {
+      return { cols: Math.floor(width * dpr / (CHAR_W * n)), rows: Math.floor(height * dpr / (CHAR_H * n)) };
+    }
+    var grid = cellsAt(k);
+    while (k > 1 && (grid.cols < MIN_COLUMNS || grid.rows < MIN_ROWS)) grid = cellsAt(--k);
+    while (grid.cols > HIRES_MAX_COLUMNS || grid.rows > HIRES_MAX_ROWS) grid = cellsAt(++k);
+    return {
+      cols: Math.min(HIRES_MAX_COLUMNS, Math.max(MIN_COLUMNS, grid.cols)),
+      rows: Math.min(HIRES_MAX_ROWS, Math.max(MIN_ROWS, grid.rows)),
+      k: k,
+    };
+  }
+
   // The border is decoration, and on a small screen decoration is the first
   // thing that has to go: 48 of every 432 horizontal pixels (the default
   // 16:9 host) is a slice of the canvas spent on nothing. A phone renders the
@@ -520,8 +553,8 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
       // Bit 7 of the slot byte is the line's ninth bit: the resizable host
       // reaches 512 picture lines and a single line byte stops at 255.
       entries.push({
-        line: mem[at] + ((mem[at + 1] & 128) === 0 ? 0 : 256),
-        slot: mem[at + 1] & 127,
+        line: mem[at] + ((mem[at + 1] & 128) === 0 ? 0 : 256) + ((mem[at + 1] & 64) === 0 ? 0 : 512),
+        slot: mem[at + 1] & 63,
         value: mem[at + 2],
       });
     }
@@ -881,7 +914,13 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
     // happens to come out the same.
     function applyGrid(measured) {
       if (!RESIZABLE) return false;
-      var grid = gridFor(measured);
+      var grid;
+      if (HIRES) {
+        grid = hiresGridFor({ width: measured.width, height: measured.height, dpr: global.devicePixelRatio || 1 });
+        hiresK = grid.k;
+      } else {
+        grid = gridFor(measured);
+      }
       if (grid.cols === gridCols && grid.rows === gridRows) return false;
       gridCols = grid.cols;
       gridRows = grid.rows;
@@ -930,7 +969,9 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
     }
     function relayout(measured) {
       var regridded = applyGrid(measured);
-      var next = fixedBorder === null
+      // A hires host has no border: the picture is the window, and the margin
+      // a whole-pixel fit leaves is the host's own black.
+      var next = HIRES ? 0 : fixedBorder === null
         ? borderFor({ width: measured.width, height: measured.height, coarse: coarsePointer() })
         : fixedBorder;
       // Assigning canvas.width/height clears the canvas and resets every bit
@@ -954,12 +995,16 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
     function fit(measured) {
       var scale = Math.min(measured.width / (canvas.width * PIXEL_ASPECT), measured.height / canvas.height);
       if (!(scale > 0)) scale = 1;
-      // The fluid host draws at a whole number of device pixels per chip
-      // pixel, so 8x8 text stays crisp instead of some pixels coming out a
-      // device pixel wider than their neighbours. It may leave a margin;
-      // below one device pixel per pixel it keeps the fractional fit.
-      if (RESIZABLE && PIXEL_ASPECT === 1) {
-        var dpr = global.devicePixelRatio || 1;
+      var dpr = global.devicePixelRatio || 1;
+      if (HIRES && hiresK > 0) {
+        // Exactly k device pixels per font pixel: nothing fractional, nothing
+        // stretched. The margin is whatever the window had left over.
+        scale = hiresK / dpr;
+      } else if (RESIZABLE && PIXEL_ASPECT === 1) {
+        // The fluid host draws at a whole number of device pixels per chip
+        // pixel, so 8x8 text stays crisp instead of some pixels coming out a
+        // device pixel wider than their neighbours. It may leave a margin;
+        // below one device pixel per pixel it keeps the fractional fit.
         var whole = Math.floor(scale * dpr);
         if (whole >= 1) scale = whole / dpr;
       }
@@ -1479,6 +1524,7 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
     mount: mount,
     borderFor: borderFor,
     gridFor: gridFor,
+    hiresGridFor: hiresGridFor,
     swipeEdge: swipeEdge,
     pointerRoute: pointerRoute,
     // The gamepad rules, exposed the same way so web-loader.test.mjs holds
@@ -1514,6 +1560,7 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
       aspect: ASPECT,
       pixelAspect: PIXEL_ASPECT,
       resizable: RESIZABLE,
+      hires: HIRES,
       fullBorder: BORDER_PX,
     },
   };

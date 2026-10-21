@@ -306,7 +306,7 @@ test('a project profile shadows a catalog preset of the same name, and unknown n
   const badValue = resolveHardware(catalog, { overrides: { ram: '32k' } });
   assert.match(badValue.error, /'32k' is not a value the vic20's 'ram' option takes/);
   const none = resolveHardware(loadCatalog('web'), { profile: 'x' });
-  assert.match(none.error, /unknown web profile 'x'\. Profiles: c64, pet-2001, vic20/);
+  assert.match(none.error, /unknown web profile 'x'\. Profiles: c64, hifi-hires, pet-2001, vic20/);
 });
 
 test('parseHardwareArg and the config helpers', () => {
