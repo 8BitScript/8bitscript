@@ -7,20 +7,13 @@ on the NES. It is an ordinary 8BitScript program: `8bs run <target>` here
 starts it, and the VS Code extension's **Open Studio** opens it in an editor
 tab on our own WebAssembly build of the X16 (the same page you could share).
 
-Today it is the desk and nothing behind it: a menu bar whose menus drop
-down — the mark, FILE, and CHARACTERS, SPRITES and MUSIC (one EDIT menu
-where the row is 22 cells) — driven by keys, a stick, a pad or a mouse,
-and a screen per editor that shows what this machine has for it: the
-characters screen draws the portable character set on the machine's own
-font, the others their hardware's own numbers. It has a dark mode (blue border,
-black screen, white ink) and a light one (white screen, black ink),
-switched from the mark's menu on every machine with more than two
-colors. Nothing edits, plays or
-loads yet — there is still no glyph, sound or storage capability to build
-an editor on, and each screen says so on its last line;
-[`AGENTS.md`](AGENTS.md) has the tiers, the design, and what each editor
-is waiting for. It is designed on the Commander X16 and builds for all
-nine machines; `8bs build --release` says what each is short of.
+Today it opens into the DAW module, the music editor, and shows only its
+frame: a solid menu bar (FILE, EDIT, SONG, TRACK, VIEW, HELP) and a solid
+status bar with the grid size, over a black screen with the mark in the
+corner. Nothing opens, edits, plays or loads yet; [`AGENTS.md`](AGENTS.md)
+has the design and what the DAW is waiting for. It builds for the Commander
+X16, C64, expanded VIC-20, PET 4032 and the browser, and **Open Studio** in
+VS Code runs the modern responsive web build.
 
 ```bash
 pnpm start                 # the Commander X16

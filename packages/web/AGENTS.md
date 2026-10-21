@@ -389,6 +389,33 @@ web each answer is a line of code, cited above; this is the compact form.
   is the 8BX spec's §74 as decided: the viewport is a run fact, read
   between frames; nothing reactive, no retained tree.
 
+### High resolution: `machine=hifi-hires`
+
+The same Modern host at native text size. `hifi` holds the cell count near
+1296 and scales the picture to the window; `hifi-hires` fixes the size of a
+cell on the glass and lets the window say how many fit. One font pixel is
+`k = round(2 * devicePixelRatio)` whole device pixels, so text is about 16 CSS
+pixels everywhere (2 on a plain monitor, 4 on a retina laptop, 6 on a phone),
+the canvas is shown at exactly `k / dpr` CSS pixels per font pixel, and there
+is no border. 1920x1080 at a ratio of 1 gets 120x67; a 1440x800 retina window
+gets 90x50. The rule is `hiresGridFor()` in `web-layout.mjs`, inlined in the
+loader and held to it by `test/web-hires.test.mjs`, whose table of (width,
+height, ratio) cases is the only check on it (a headless screenshot has no
+pixel ratio).
+
+- The map is sized for 160x100 cells: 32,000 bytes of the 64K wasm page for
+  characters and colours, leaving about 31K above `reservedEnd` for the
+  program. A display that would need more (4K at a ratio of 1) raises `k` to the
+  next whole device pixel instead of adding cells; a window too small for 24
+  columns lowers it.
+- Raster entries reach line 800, so a line's tenth bit rides in the slot byte's
+  bit 6 beside the ninth in bit 7 (`web-scanline.mjs`, the loader's copy and
+  `rasterline.8bs` agree).
+- The program's twin is `src/geometry.web.hifi-hires.8bs`; its numbers are
+  `agreementFor({ hires: true })`'s, and the same test checks them.
+- Frame 0 and screenshots use the X16's own 76x56.
+- `hifi` is unchanged: 16:9 is still 48x27, scaled at whole device pixels.
+
 ### What is not here yet
 
 - No drawn arrow, sound, sprites, tiles, storage, palette or layer scroll —

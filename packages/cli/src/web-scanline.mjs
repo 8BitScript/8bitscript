@@ -43,8 +43,9 @@ export function rgbPalette(colors) {
  * sorting here, the same rule the C64's address list enforces on insert.
  *
  * An entry is three bytes — the line's low byte, the slot byte, the value —
- * with the line's ninth bit packed into the slot byte's bit 7, because the
- * resizable Modern host can hand out up to 64 rows (512 picture lines) and a
+ * with the line's ninth bit packed into the slot byte's bit 7 and its tenth
+ * into bit 6, because the resizable Modern host can hand out up to 64 rows
+ * (512 picture lines), the high-resolution one up to 100 (800), and a
  * single line byte stops at 255. Slots only need the low bits, so the format
  * stays three bytes wide and every offset in the agreement page stays put.
  *
@@ -61,8 +62,8 @@ export function readRasterEntries(mem, layout) {
   for (let i = 0; i < count; i += 1) {
     const at = layout.rasterBase + i * 3;
     entries.push({
-      line: mem[at] + ((mem[at + 1] & 128) === 0 ? 0 : 256),
-      slot: mem[at + 1] & 127,
+      line: mem[at] + ((mem[at + 1] & 128) === 0 ? 0 : 256) + ((mem[at + 1] & 64) === 0 ? 0 : 512),
+      slot: mem[at + 1] & 63,
       value: mem[at + 2],
     });
   }

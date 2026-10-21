@@ -92,6 +92,33 @@ export const ROWS_OFFSET = 3;
 export const MIN_COLUMNS = 24;
 export const MIN_ROWS = 18;
 
+// ---- high resolution: the Modern host at native text size -----------------
+//
+// `hifi-hires` is the same host with a different rule for the grid. Where
+// `hifi` holds the cell count near 1296 and scales the picture to fill the
+// window, `hifi-hires` fixes the size of a cell on the glass and lets the
+// window decide how many fit: one font pixel is `k` whole device pixels,
+// with k = round(2 * devicePixelRatio), so a cell is 8k device pixels and
+// text is about HIRES_TEXT_CSS_PX CSS pixels on any display (2 on a plain
+// monitor, 4 on a retina laptop, 6 on a phone). Nothing is stretched: the
+// canvas is shown at exactly k / dpr CSS pixels per font pixel.
+//
+// The map is sized for the largest grid it will hand out, 160 x 100 cells,
+// which is 32,000 bytes of the 64K wasm page for characters and colours and
+// leaves the rest for the program. A display that would need more cells than
+// that (a 4K monitor at a pixel ratio of 1) raises k to the next whole
+// device pixel instead, so text there is a little larger, not blurry and
+// not out of memory. A window too small for MIN_COLUMNS lowers k instead.
+// Lines for the raster list reach 800, which is why a raster entry's line
+// carries a tenth bit (slot byte bit 6) alongside the ninth.
+export const HIRES_MAX_COLUMNS = 160;
+export const HIRES_MAX_ROWS = 100;
+export const HIRES_MAX_CELLS = HIRES_MAX_COLUMNS * HIRES_MAX_ROWS;
+export const HIRES_TEXT_CSS_PX = 16;
+// What the grid is before the host has measured anything: the X16's own.
+export const HIRES_DEFAULT_COLUMNS = 76;
+export const HIRES_DEFAULT_ROWS = 56;
+
 // ---- the per-scanline raster list -----------------------------------------
 //
 // Right after HOST_OFFSET: one control byte (the renderer applies the list
@@ -219,6 +246,25 @@ export function gridFor({ width, height } = {}) {
 }
 
 /**
+ * The high-resolution grid for a box of `width`x`height` CSS pixels at
+ * `dpr` device pixels per CSS pixel: `k` whole device pixels per font pixel
+ * and the cells that fit. See HIRES_MAX_COLUMNS. An unmeasured box gets the
+ * X16's own 76x56 at the k a pixel ratio of 1 would use.
+ *
+ * @param {{ width?: number, height?: number, dpr?: number }} [box]
+ */
+export function hiresGridFor({ width, height, dpr } = {}) {
+  const ratio = dpr > 0 ? dpr : 1;
+  let k = Math.max(1, Math.round((HIRES_TEXT_CSS_PX / CHAR_W) * ratio));
+  if (!(width > 0) || !(height > 0)) return { cols: HIRES_DEFAULT_COLUMNS, rows: HIRES_DEFAULT_ROWS, k };
+  const fit = (n) => ({ cols: Math.floor((width * ratio) / (CHAR_W * n)), rows: Math.floor((height * ratio) / (CHAR_H * n)) });
+  let grid = fit(k);
+  while (k > 1 && (grid.cols < MIN_COLUMNS || grid.rows < MIN_ROWS)) grid = fit(--k);
+  while (grid.cols > HIRES_MAX_COLUMNS || grid.rows > HIRES_MAX_ROWS) grid = fit(++k);
+  return { cols: clamp(grid.cols, MIN_COLUMNS, HIRES_MAX_COLUMNS), rows: clamp(grid.rows, MIN_ROWS, HIRES_MAX_ROWS), k };
+}
+
+/**
  * Memory-map and canvas facts for one grid. `COLOR_BASE = 2 + cols*rows`,
  * then color RAM of the same length, then INPUT_OFFSET, then HOST_OFFSET.
  *
@@ -236,6 +282,8 @@ export function agreementFor({
   colorPerCell = true,
   font = 'font8x8',
   resizable = false,
+  // The high-resolution Modern host: resizable, with the larger map above.
+  hires = false,
   // How much wider than tall one drawn pixel is, physically — 1 for a
   // host with no chip to be unfaithful to (the default web target) or a
   // real machine whose own pixel shape has not been measured yet. Real
@@ -262,7 +310,7 @@ export function agreementFor({
 } = {}) {
   const cells = cols * rows;
   const charBase = resizable ? RESIZABLE_CHAR_BASE : CHAR_BASE;
-  const region = resizable ? MAX_CELLS : cells;
+  const region = hires ? HIRES_MAX_CELLS : resizable ? MAX_CELLS : cells;
   const colorBase = charBase + region;
   const inputOffset = colorBase + region;
   const hostOffset = inputOffset + 1;
@@ -286,6 +334,7 @@ export function agreementFor({
     cols,
     rows,
     resizable,
+    hires,
     charWidth: CHAR_W,
     charHeight: CHAR_H,
     innerWidth: cols * CHAR_W,
@@ -307,8 +356,8 @@ export function agreementFor({
     rasterMaxEntries: RASTER_MAX_ENTRIES,
     columnsOffset: COLUMNS_OFFSET,
     rowsOffset: ROWS_OFFSET,
-    maxCols: MAX_COLUMNS,
-    maxRows: MAX_ROWS,
+    maxCols: hires ? HIRES_MAX_COLUMNS : MAX_COLUMNS,
+    maxRows: hires ? HIRES_MAX_ROWS : MAX_ROWS,
     palette: [...palette],
     aspect,
     colorPerCell,
@@ -352,6 +401,8 @@ export const MACHINE_HOST = {
   // Modern is the only one that resizes. A skin is a machine, and a machine's
   // screen is the size its video chip makes it.
   hifi: { aspect: '16/9', font: 'font8x8', palette: C64_PALETTE, resizable: true, pointer: true },
+  // The same host at native text size: see hiresGridFor().
+  'hifi-hires': { aspect: '16/9', font: 'font8x8', palette: C64_PALETTE, resizable: true, hires: true, pointer: true },
   'pet-2001': { aspect: '4/3', font: 'pet', palette: PET_PALETTE },
   c64: { aspect: '4/3', font: 'font8x8', palette: C64_PALETTE },
   vic20: { aspect: '4/3', font: 'font8x8', palette: VIC20_PALETTE },
@@ -374,6 +425,7 @@ export function layoutFromHardware(hardwareOrFacts = {}) {
     colorPerCell: facts['video.colorPerCell'] !== false,
     font: host.font,
     resizable: host.resizable === true,
+    hires: host.hires === true,
     userGlyphs: true,
     audio: true,
     pointer: host.pointer === true,
@@ -647,6 +699,7 @@ export function sidecarJson(layout = DEFAULT_LAYOUT) {
     cols: layout.cols,
     rows: layout.rows,
     resizable: layout.resizable === true,
+    hires: layout.hires === true,
     columnsOffset: layout.columnsOffset,
     rowsOffset: layout.rowsOffset,
     maxCols: layout.maxCols,

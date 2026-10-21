@@ -422,7 +422,7 @@ function registerStudioView(context, projects) {
     setOpen: (view) => { open = view; },
     // Studio's own Rebuild means "build Studio again, the way this tab was
     // opened" — the command already knows which project and target that is.
-    onRebuild: (binding) => vscode.commands.executeCommand(binding?.x16emu ? '8bitscript.openStudioX16emu' : '8bitscript.openStudio'),
+    onRebuild: (binding) => vscode.commands.executeCommand(binding?.x16emu ? '8bitscript.openStudioX16emu' : binding?.target === 'cx16' ? '8bitscript.openStudioCx16' : '8bitscript.openStudio'),
     // Fixed labels for the vendored x16emu only (see STUDIO_LABELS).
     forceLabels: STUDIO_LABELS,
     // Without a binding that says which, assume the old behaviour: --x16emu

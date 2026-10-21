@@ -7,9 +7,13 @@ command. Read the root [`AGENTS.md`](../../AGENTS.md) first.
 ## What Studio is
 
 Studio is the asset editor that ships with the toolchain and is meant to run
-on the machines themselves. Today it is only the **shell**: a dark screen, a
-cyan top bar, the pixel-8 mark in the corner, and a short chime when it
-starts. It is an ordinary 8BitScript program — `.8bs`, `.8bx`, `.8bg`,
+on the machines themselves. Today it is the **shell** and one module, the **DAW**: a dark screen
+with a solid menu bar on top (sample labels, nothing opens), a solid status
+bar along the bottom (sample text and the grid size), the pixel-8 mark in
+the corner, and a short chime when it starts. The DAW is the music editor
+and the first of Studio's modules; Studio opens straight into it, and other
+modules (image and tile editing, sound files, the player) plug into the same
+shell later. It is an ordinary 8BitScript program — `.8bs`, `.8bx`, `.8bg`,
 `.8ba` — built and run like any other project. `@8bitscript/cli` depends on
 `@8bitscript/studio`, so installing the toolchain installs Studio.
 
@@ -17,30 +21,27 @@ Studio is the first **app** (`8bitscript.app` in `package.json`). The VS
 Code extension lists apps separately from projects and examples; **Launch
 Studio** builds and runs this package.
 
-## Four pillars (what exists today)
+## What exists today
 
 Do not describe more than this as working:
 
-1. **`src/Bar.8bx`** — the top row through `@8bitscript/ui/menubar`: `begin`
-   and `end` with no menu items, so the bar is one blank row in the bar
-   colors. Policy and input stay out of the component; see
-   [`packages/ui/AGENTS.md`](../ui/AGENTS.md).
-2. **`src/mark.8bg`** — the logo as media: an 8×8 PNG compiled through
-   `@8bitscript/graphics` and drawn at the stage origin offset by a few
-   pixels. Not `menubar.icon()` — the mark is allowed to become a real
-   sprite on machines that have one.
-3. **`src/chime.8ba`** — a one-shot sample on start via `audio.play()`. The
-   main loop calls `audio.update()` so machines with a driver can finish the
-   sound; elsewhere the call is empty.
-4. **Commander X16 baseline** — `baseline: 'cx16'` in `8bs.config.ts`, mouse
-   as `input.primary`, and `8bs run` with no target starting on the X16.
-   Other machines in this release are compared to that build, not re-designed
-   per target in Studio source.
+1. **`src/studio.8bs`** — the shell: paints the screen, places the mark,
+   starts the chime, runs the frame loop, and repaints the module when the
+   grid changes size (the browser build's grid follows the window).
+2. **`src/daw/`** — the DAW module. `daw.8bs` draws the module;
+   `MenuBar.8bx` is the top row (reverse video across the grid, sample
+   labels FILE EDIT SONG TRACK VIEW HELP); `StatusBar.8bx` is the bottom row
+   (sample text and the live `columns X rows`). Both read `text.columns()`
+   and `text.rows()` on every draw, so they fit any grid, fluid or fixed.
+   Text stays on the portable character set and the portable `TextColor`s.
+3. **`src/mark.8bg`** — the logo as media, drawn at the stage origin.
+4. **`src/chime.8ba`** — a one-shot sample on start via `audio.play()`.
+5. **Commander X16 baseline** — `baseline: 'cx16'` in the config, mouse as
+   `input.primary`. Other machines are compared to that build.
 
-`src/studio.8bs` wires the four pieces: `paint()`, `<StudioBar />`,
-`graphics.place(mark, …)`, `audio.play(chime)`, then `waitFrame()` with
-`graphics.update()` and `audio.update()`. There is **no** input loop, no
-menus, and no editor screens yet.
+There is **no** input loop, no menus that open, no tracks, and no sound from
+the DAW yet. The layout for the rest of the DAW is the "Studio DAW Layout"
+mock; the decisions behind it are on the Studio sheet.
 
 ## Release targets
 
@@ -91,9 +92,16 @@ emulator in the loop — which is also what makes a Studio you can share or
 embed as a web page.
 
 - VS Code **Open Studio** (the Studio row in the side bar, the 🚀 in the title
-  bar, **Launch Studio**, **Open Studio in a Tab**) runs `8bs run cx16 --web` in
-  an editor tab. Not a native window, not x16emu.
-- `8bs run cx16 --web` from this directory is the same without the editor.
+  bar, **Launch Studio**, **Open Studio in a Tab**) runs `8bs run web` in an
+  editor tab: the modern responsive build in its high-resolution mode
+  (`machine=hifi-hires`, set on the `web` target in this package's config),
+  where a cell is a whole number of device pixels, text is about 16 CSS
+  pixels on any display, and the window decides how many cells fit — about
+  76x56 on a laptop, as on the X16. Not a native window, not x16emu.
+- **Open Studio on the X16 (WebAssembly)** runs `8bs run cx16 --web` in the
+  tab: our model of the Commander X16, the baseline machine.
+- `8bs run web` or `8bs run cx16 --web` from this directory is the same
+  without the editor.
 - `8bs run` in this directory (X16), or `pnpm start` / `pnpm run start:<target>`,
   opens the native `x16emu`; so does **Open Studio in the Native Emulator**.
 - `8bs run cx16 --web --x16emu` (**Open Studio in x16emu (in a Tab)**) is the

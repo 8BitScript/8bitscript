@@ -1,0 +1,19 @@
+// The DAW's top row: a solid bar in reverse video across whatever grid this
+// run has, with the mark's cell kept clear in the corner. The labels are
+// sample text; no menu opens yet. text.columns() is read on every draw, so a
+// fluid grid (the browser's) gets a bar as wide as the window.
+import { text, TextColor } from "@8bitscript/text";
+
+export component DawMenuBar() {
+    text.setColor(TextColor.CYAN);
+    text.setReverse(true);
+    text.fill(0, text.columns(), 32);
+    text.print(3, "FILE");
+    text.print(9, "EDIT");
+    text.print(15, "SONG");
+    text.print(21, "TRACK");
+    text.print(28, "VIEW");
+    text.print(34, "HELP");
+    text.setReverse(false);
+    text.setColor(TextColor.WHITE);
+}

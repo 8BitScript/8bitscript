@@ -1,32 +1,39 @@
-// 8BitScript Studio: a bare top bar and the mark in the corner. Built on
-// four pillars — Bar.8bx for the row, mark.8bg for the logo, chime.8ba on
-// start, and the Commander X16 as the baseline machine everything else is
-// measured against. Editors, menus and input wait on capabilities listed in
-// AGENTS.md.
+// 8BitScript Studio: the shell and its modules. The shell paints the
+// screen, puts the mark in the corner and runs the frame loop; a module
+// draws everything else. The DAW (src/daw) is the only module today and
+// Studio opens straight into it. Built on the same pillars as ever: the
+// mark as media, the chime on start, the Commander X16 as the baseline.
 import { screen, BorderColor, BackgroundColor } from "@8bitscript/screen";
 import { text, TextColor } from "@8bitscript/text";
-import { menubar } from "@8bitscript/ui/menubar";
 import { graphics } from "@8bitscript/graphics";
 import { audio } from "@8bitscript/audio";
 import { mark } from "./mark.8bg";
 import { chime } from "./chime.8ba";
-import { StudioBar } from "./Bar.8bx";
+import { daw } from "./daw/daw.8bs";
 
 function paint(): void {
     screen.blank(BorderColor.BLUE, BackgroundColor.BLACK);
-    menubar.setColors(TextColor.CYAN, TextColor.WHITE);
     text.setColor(TextColor.WHITE);
 }
 
 export namespace studio {
     function start(): void {
+        let columns: utinyint = text.columns();
+        let rows: utinyint = text.rows();
         paint();
-        StudioBar();
-        text.setColor(TextColor.WHITE);
+        daw.draw();
         graphics.place(mark, 4, 4);
         audio.play(chime);
         while (true) {
             waitFrame();
+            // A fluid grid (the browser's) changes between frames: paint the
+            // whole screen again on the new size.
+            if (text.columns() != columns || text.rows() != rows) {
+                columns = text.columns();
+                rows = text.rows();
+                paint();
+                daw.draw();
+            }
             graphics.update();
             audio.update();
         }
