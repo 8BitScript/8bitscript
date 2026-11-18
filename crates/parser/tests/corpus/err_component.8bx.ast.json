@@ -4,183 +4,184 @@
       {
         "allowsChildren": false,
         "body": {
+          "body": [],
+          "length": 2,
+          "start": 15,
+          "type": "BlockStatement"
+        },
+        "exported": false,
+        "length": 17,
+        "name": {
+          "length": 1,
+          "name": "B",
+          "start": 10,
+          "type": "Identifier"
+        },
+        "params": [
+          {
+            "defaultValue": null,
+            "length": 1,
+            "name": {
+              "length": 1,
+              "name": "x",
+              "start": 12,
+              "type": "Identifier"
+            },
+            "optional": false,
+            "start": 12,
+            "type": "Parameter",
+            "typeAnnotation": null
+          }
+        ],
+        "start": 0,
+        "type": "ComponentDeclaration"
+      },
+      {
+        "allowsChildren": false,
+        "body": {
           "body": [
-            {
-              "expression": {
-                "args": [],
-                "callee": {
-                  "length": 1,
-                  "radix": 10,
-                  "raw": "5",
-                  "start": 10,
-                  "type": "IntegerLiteral",
-                  "value": 5
-                },
-                "length": 3,
-                "start": 10,
-                "type": "CallExpression"
-              },
-              "length": 3,
-              "start": 10,
-              "type": "ExpressionStatement"
-            },
-            {
-              "body": [],
-              "length": 2,
-              "start": 14,
-              "type": "BlockStatement"
-            },
-            {
-              "allowsChildren": false,
-              "body": {
-                "body": [],
-                "length": 2,
-                "start": 32,
-                "type": "BlockStatement"
-              },
-              "exported": false,
-              "length": 17,
-              "name": {
-                "length": 1,
-                "name": "B",
-                "start": 27,
-                "type": "Identifier"
-              },
-              "params": [
-                {
-                  "defaultValue": null,
-                  "length": 1,
-                  "name": {
-                    "length": 1,
-                    "name": "x",
-                    "start": 29,
-                    "type": "Identifier"
-                  },
-                  "optional": false,
-                  "start": 29,
-                  "type": "Parameter",
-                  "typeAnnotation": null
-                }
-              ],
-              "start": 17,
-              "type": "ComponentDeclaration"
-            },
             {
               "allowsChildren": false,
               "body": {
                 "body": [
                   {
+                    "exported": false,
+                    "immutable": true,
+                    "initializer": {
+                      "length": 1,
+                      "radix": 10,
+                      "raw": "1",
+                      "start": 127,
+                      "type": "IntegerLiteral",
+                      "value": 1
+                    },
+                    "kind": "let",
+                    "length": 14,
+                    "name": {
+                      "length": 5,
+                      "name": "after",
+                      "start": 119,
+                      "type": "Identifier"
+                    },
+                    "start": 115,
+                    "type": "VariableDeclaration",
+                    "typeAnnotation": null
+                  },
+                  {
                     "allowsChildren": false,
                     "body": {
                       "body": [
                         {
-                          "exported": false,
-                          "immutable": true,
-                          "initializer": {
-                            "length": 1,
-                            "radix": 10,
-                            "raw": "1",
-                            "start": 144,
-                            "type": "IntegerLiteral",
-                            "value": 1
-                          },
-                          "kind": "let",
-                          "length": 14,
-                          "name": {
-                            "length": 5,
-                            "name": "after",
-                            "start": 136,
-                            "type": "Identifier"
-                          },
-                          "start": 132,
-                          "type": "VariableDeclaration",
-                          "typeAnnotation": null
-                        },
-                        {
                           "allowsChildren": false,
                           "body": {
-                            "body": [],
-                            "length": 0,
-                            "start": 159,
+                            "body": [
+                              {
+                                "expression": {
+                                  "args": [],
+                                  "callee": {
+                                    "length": 1,
+                                    "radix": 10,
+                                    "raw": "5",
+                                    "start": 153,
+                                    "type": "IntegerLiteral",
+                                    "value": 5
+                                  },
+                                  "length": 3,
+                                  "start": 153,
+                                  "type": "CallExpression"
+                                },
+                                "length": 3,
+                                "start": 153,
+                                "type": "ExpressionStatement"
+                              },
+                              {
+                                "body": [],
+                                "length": 2,
+                                "start": 157,
+                                "type": "BlockStatement"
+                              }
+                            ],
+                            "length": 6,
+                            "start": 153,
                             "type": "BlockStatement"
                           },
                           "exported": false,
-                          "length": 12,
-                          "name": {
-                            "length": 1,
-                            "name": "A",
-                            "start": 157,
-                            "type": "Identifier"
-                          },
+                          "length": 16,
+                          "name": null,
                           "params": [],
-                          "start": 147,
+                          "start": 143,
                           "type": "ComponentDeclaration"
                         }
                       ],
-                      "length": 37,
-                      "start": 122,
+                      "length": 16,
+                      "start": 143,
                       "type": "BlockStatement"
                     },
-                    "exported": true,
-                    "length": 55,
+                    "exported": false,
+                    "length": 29,
                     "name": {
                       "length": 1,
-                      "name": "E",
-                      "start": 118,
+                      "name": "A",
+                      "start": 140,
                       "type": "Identifier"
                     },
                     "params": [],
-                    "start": 104,
+                    "start": 130,
                     "type": "ComponentDeclaration"
                   }
                 ],
-                "length": 63,
-                "start": 96,
+                "length": 54,
+                "start": 105,
                 "type": "BlockStatement"
               },
-              "exported": false,
-              "length": 82,
+              "exported": true,
+              "length": 72,
               "name": {
                 "length": 1,
-                "name": "C",
-                "start": 87,
+                "name": "E",
+                "start": 101,
                 "type": "Identifier"
               },
-              "params": [
-                {
-                  "defaultValue": null,
-                  "length": 5,
-                  "name": {
-                    "length": 1,
-                    "name": "x",
-                    "start": 89,
-                    "type": "Identifier"
-                  },
-                  "optional": false,
-                  "start": 89,
-                  "type": "Parameter",
-                  "typeAnnotation": {
-                    "length": 2,
-                    "name": "u8",
-                    "start": 92,
-                    "type": "TypeReference",
-                    "typeArguments": []
-                  }
-                }
-              ],
-              "start": 77,
+              "params": [],
+              "start": 87,
               "type": "ComponentDeclaration"
             }
           ],
-          "length": 149,
-          "start": 10,
+          "length": 80,
+          "start": 79,
           "type": "BlockStatement"
         },
         "exported": false,
-        "length": 159,
-        "name": null,
-        "params": [],
-        "start": 0,
+        "length": 99,
+        "name": {
+          "length": 1,
+          "name": "C",
+          "start": 70,
+          "type": "Identifier"
+        },
+        "params": [
+          {
+            "defaultValue": null,
+            "length": 5,
+            "name": {
+              "length": 1,
+              "name": "x",
+              "start": 72,
+              "type": "Identifier"
+            },
+            "optional": false,
+            "start": 72,
+            "type": "Parameter",
+            "typeAnnotation": {
+              "length": 2,
+              "name": "u8",
+              "start": 75,
+              "type": "TypeReference",
+              "typeArguments": []
+            }
+          }
+        ],
+        "start": 60,
         "type": "ComponentDeclaration"
       }
     ],
@@ -193,41 +194,9 @@
       "code": "8BS1101",
       "file": "t",
       "length": 1,
-      "message": "expected a component name, found '5'",
-      "severity": "error",
-      "start": 10
-    },
-    {
-      "code": "8BS1101",
-      "file": "t",
-      "length": 1,
-      "message": "expected '(', found '5'",
-      "severity": "error",
-      "start": 10
-    },
-    {
-      "code": "8BS1101",
-      "file": "t",
-      "length": 1,
-      "message": "expected '{', found '5'",
-      "severity": "error",
-      "start": 10
-    },
-    {
-      "code": "8BS1101",
-      "file": "t",
-      "length": 1,
-      "message": "expected ';', found '{'",
-      "severity": "error",
-      "start": 14
-    },
-    {
-      "code": "8BS1101",
-      "file": "t",
-      "length": 1,
       "message": "expected ':', found ')'",
       "severity": "error",
-      "start": 30
+      "start": 13
     },
     {
       "code": "8BS1101",
@@ -235,7 +204,7 @@
       "length": 3,
       "message": "expected a name, found 'mut'",
       "severity": "error",
-      "start": 41
+      "start": 24
     },
     {
       "code": "8BS1101",
@@ -243,7 +212,7 @@
       "length": 1,
       "message": "expected a name, found ';'",
       "severity": "error",
-      "start": 62
+      "start": 45
     },
     {
       "code": "8BS1101",
@@ -251,7 +220,7 @@
       "length": 1,
       "message": "expected a name, found '5'",
       "severity": "error",
-      "start": 70
+      "start": 53
     },
     {
       "code": "8BS1101",
@@ -259,7 +228,7 @@
       "length": 1,
       "message": "expected a parameter name, found '='",
       "severity": "error",
-      "start": 96
+      "start": 79
     },
     {
       "code": "8BS1101",
@@ -267,7 +236,7 @@
       "length": 1,
       "message": "expected ')', found '='",
       "severity": "error",
-      "start": 96
+      "start": 79
     },
     {
       "code": "8BS1101",
@@ -275,7 +244,7 @@
       "length": 1,
       "message": "expected '{', found '='",
       "severity": "error",
-      "start": 96
+      "start": 79
     },
     {
       "code": "8BS1101",
@@ -283,7 +252,7 @@
       "length": 1,
       "message": "expected an expression, found '='",
       "severity": "error",
-      "start": 96
+      "start": 79
     },
     {
       "code": "8BS1101",
@@ -291,23 +260,63 @@
       "length": 1,
       "message": "expected a name, found '}'",
       "severity": "error",
-      "start": 130
+      "start": 113
     },
     {
       "code": "8BS1101",
       "file": "t",
-      "length": 0,
-      "message": "expected ')', found end of file",
+      "length": 9,
+      "message": "expected a parameter name, found 'component'",
       "severity": "error",
-      "start": 159
+      "start": 143
     },
     {
       "code": "8BS1101",
       "file": "t",
-      "length": 0,
-      "message": "expected '{', found end of file",
+      "length": 9,
+      "message": "expected ')', found 'component'",
       "severity": "error",
-      "start": 159
+      "start": 143
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 9,
+      "message": "expected '{', found 'component'",
+      "severity": "error",
+      "start": 143
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "expected a component name, found '5'",
+      "severity": "error",
+      "start": 153
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "expected '(', found '5'",
+      "severity": "error",
+      "start": 153
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "expected '{', found '5'",
+      "severity": "error",
+      "start": 153
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "expected ';', found '{'",
+      "severity": "error",
+      "start": 157
     },
     {
       "code": "8BS1101",

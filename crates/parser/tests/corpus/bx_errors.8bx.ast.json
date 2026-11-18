@@ -1,0 +1,184 @@
+{
+  "ast": {
+    "body": [
+      {
+        "attributes": [
+          {
+            "length": 9,
+            "name": "label",
+            "start": 7,
+            "type": "BxAttribute",
+            "value": {
+              "length": 3,
+              "start": 13,
+              "type": "StringLiteral",
+              "value": "x"
+            }
+          }
+        ],
+        "children": [],
+        "length": 19,
+        "name": "Bad",
+        "selfClosing": true,
+        "start": 0,
+        "type": "BxElement"
+      },
+      {
+        "attributes": [
+          {
+            "length": 1,
+            "name": "b",
+            "start": 24,
+            "type": "BxAttribute",
+            "value": null
+          }
+        ],
+        "children": [],
+        "length": 9,
+        "name": "A",
+        "selfClosing": true,
+        "start": 21,
+        "type": "BxElement"
+      },
+      {
+        "attributes": [
+          {
+            "length": 4,
+            "name": "b",
+            "start": 35,
+            "type": "BxAttribute",
+            "value": {
+              "length": 1,
+              "radix": 10,
+              "raw": "1",
+              "start": 38,
+              "type": "IntegerLiteral",
+              "value": 1
+            }
+          },
+          {
+            "length": 1,
+            "name": "A",
+            "start": 45,
+            "type": "BxAttribute",
+            "value": {
+              "length": 1,
+              "start": 45,
+              "type": "BooleanLiteral",
+              "value": true
+            }
+          }
+        ],
+        "children": [],
+        "length": 19,
+        "name": "A",
+        "selfClosing": false,
+        "start": 32,
+        "type": "BxElement"
+      },
+      {
+        "attributes": [],
+        "children": [],
+        "length": 7,
+        "name": "A",
+        "selfClosing": false,
+        "start": 53,
+        "type": "BxElement"
+      },
+      {
+        "attributes": [],
+        "children": [],
+        "length": 4,
+        "name": "A",
+        "selfClosing": false,
+        "start": 69,
+        "type": "BxElement"
+      }
+    ],
+    "length": 73,
+    "start": 0,
+    "type": "Program"
+  },
+  "diagnostics": [
+    {
+      "code": "8BS1039",
+      "file": "t",
+      "length": 2,
+      "message": "expected a string or {expression} after b=, found '/>'",
+      "severity": "error",
+      "start": 28
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "expected an expression, found '>'",
+      "severity": "error",
+      "start": 41
+    },
+    {
+      "code": "8BS1039",
+      "file": "t",
+      "length": 1,
+      "message": "expected '}' to close the expression, found '>'",
+      "severity": "error",
+      "start": 41
+    },
+    {
+      "code": "8BS1039",
+      "file": "t",
+      "length": 1,
+      "message": "unexpected '>' in <A>",
+      "severity": "error",
+      "start": 41
+    },
+    {
+      "code": "8BS1039",
+      "file": "t",
+      "length": 1,
+      "message": "unexpected ';' in <A>",
+      "severity": "error",
+      "start": 42
+    },
+    {
+      "code": "8BS1039",
+      "file": "t",
+      "length": 1,
+      "message": "unexpected '<' in <A>",
+      "severity": "error",
+      "start": 44
+    },
+    {
+      "code": "8BS1039",
+      "file": "t",
+      "length": 1,
+      "message": "expected </A>, found </B>",
+      "severity": "error",
+      "start": 49
+    },
+    {
+      "code": "8BS1039",
+      "file": "t",
+      "length": 1,
+      "message": "expected </A>, found '>'",
+      "severity": "error",
+      "start": 59
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "expected an expression, found '<'",
+      "severity": "error",
+      "start": 62
+    },
+    {
+      "code": "8BS1039",
+      "file": "t",
+      "length": 0,
+      "message": "unclosed element <A>: expected </A>",
+      "severity": "error",
+      "start": 73
+    }
+  ]
+}

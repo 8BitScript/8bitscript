@@ -1,4 +1,3 @@
-component 5() {}
 component B(x) {}
 state mut x: u8 = 0;
 state ;
@@ -7,3 +6,4 @@ component C(x: u8, = 1) {}
 pub component E() { state }
 let after = 1;
 component A(
+component 5() {}

@@ -69,6 +69,11 @@ pub fn parse_text(text: &str) -> Parsed {
     parse_kind(text, SourceKind::Bs)
 }
 
+/// Lex and parse as `.8bx`.
+pub fn parse_bx_text(text: &str) -> Parsed {
+    parse_kind(text, SourceKind::Bx)
+}
+
 /// The messages of a `.8bx` file's parser diagnostics.
 pub fn messages_bx(text: &str) -> Vec<String> {
     parse_kind(text, SourceKind::Bx)

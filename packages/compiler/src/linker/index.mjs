@@ -70,11 +70,14 @@ function canonical(path) {
  * imported name means, so every module in the graph can be read to this
  * point before any of them is finished (see loadGraph).
  */
-function parseModule(file, text, diagnostics) {
+function parseModule(file, text, diagnostics, dump) {
   const sourceKind = sourceKindOf(file) ?? '.8bs';
   if (isMediaKind(sourceKind)) return parseMediaModule(file, text, diagnostics, sourceKind);
   const { tokens, diagnostics: lexical } = tokenize(text, file, { sourceKind });
+  if (dump) dump('tokens', tokens, canonical(file));
   const { ast, diagnostics: syntax } = parse(tokens, text, file, { sourceKind });
+  // Before bind: bind, fold and the linker mutate nodes in place.
+  if (dump) dump('ast', ast, canonical(file));
   diagnostics.push(...lexical, ...syntax);
   const bound = bind(ast, file);
   diagnostics.push(...bound.diagnostics);
@@ -86,7 +89,7 @@ function parseModule(file, text, diagnostics) {
  * are known: element checks, 8BX elaboration, folding, checking, and
  * lowering to this module's IR.
  */
-function finishModule(module, diagnostics, { frameRate, machine, tags, facts, bx, locale, i18n, checkout, mediaSlots, defines, defineSites }) {
+function finishModule(module, diagnostics, { frameRate, machine, tags, facts, bx, locale, i18n, checkout, mediaSlots, defines, defineSites, dump }) {
   if (module.media) {
     elaborateMedia(module, diagnostics, { machine, tags, facts, checkout, mediaSlots });
     return module;
@@ -111,6 +114,7 @@ function finishModule(module, diagnostics, { frameRate, machine, tags, facts, bx
   const seen = new Set(diagnostics.map((d) => `${d.code}@${d.start}+${d.length}`));
   diagnostics.push(...lowering.filter((d) => !seen.has(`${d.code}@${d.start}+${d.length}`)));
   module.ir = ir;
+  if (dump) dump('module-ir', ir, canonical(file));
   return module;
 }
 
@@ -137,7 +141,7 @@ function loadGraph(entryText, entryFile, diagnostics, sources, options) {
   // once each however many modules import the package — keyed by canonical
   // path for the same pnpm-symlink reason `byPath` is.
   const nativeSources = new Map();
-  const finishOptions = { frameRate: options.frameRate, machine: options.machine, tags: options.tags, facts: options.facts, bx: options.bx, locale: options.locale, i18n: options.i18n, checkout: options.checkout, mediaSlots: { graphics: 0, audio: 0, audioBytes: 0 }, defines: options.defines, defineSites: options.defineSites };
+  const finishOptions = { frameRate: options.frameRate, machine: options.machine, tags: options.tags, facts: options.facts, bx: options.bx, locale: options.locale, i18n: options.i18n, checkout: options.checkout, mediaSlots: { graphics: 0, audio: 0, audioBytes: 0 }, defines: options.defines, defineSites: options.defineSites, dump: options.dump };
 
   // Whether a module is the program's own: the entry, and whatever it
   // reaches by a relative path or a project alias — never through a bare
@@ -147,7 +151,7 @@ function loadGraph(entryText, entryFile, diagnostics, sources, options) {
   const ownRoute = (specifier) => specifier.startsWith('.') || specifier.startsWith('/')
     || aliases.some((prefix) => specifier === prefix || specifier.startsWith(`${prefix}/`));
   const enqueue = (file, text, own) => {
-    const module = parseModule(file, text, diagnostics);
+    const module = parseModule(file, text, diagnostics, options.dump);
     module.own = own;
     modules.push(module);
     byPath.set(canonical(file), module);
@@ -1215,7 +1219,7 @@ function checkEntryExports(module) {
  *
  * @param {string} entryText  The entry module's source.
  * @param {string} entryFile  Its absolute path, the root imports resolve from.
- * @param {{ machine?: string, tags?: string[], profile?: string, frameRate?: number, facts?: object, locale?: string, defines?: Record<string, number|boolean|string>, defineSites?: object[] }} [options]
+ * @param {{ machine?: string, tags?: string[], profile?: string, frameRate?: number, facts?: object, locale?: string, defines?: Record<string, number|boolean|string>, defineSites?: object[], dump?: (stage: string, value: unknown, key?: string) => void }} [options]
  *   `machine` is the target being built for; packages with target-
  *   conditional entries resolve to that machine's implementation, and any
  *   `.8bs` file with a `.<machine>.8bs` twin beside it resolves to the
@@ -1240,6 +1244,16 @@ function checkEntryExports(module) {
  *   source default.
  */
 export function link(entryText, entryFile, options = {}) {
+  const result = linkProgram(entryText, entryFile, options);
+  const { dump } = options;
+  if (dump) {
+    dump('diagnostics', result.diagnostics);
+    if (result.ir) dump('linked-ir', result.ir);
+  }
+  return result;
+}
+
+function linkProgram(entryText, entryFile, options) {
   const diagnostics = [];
   const sources = new Map();
 

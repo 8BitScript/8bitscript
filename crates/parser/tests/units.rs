@@ -423,3 +423,26 @@ fn a_component_token_in_an_8bs_parse_is_an_error() {
     let m: Vec<String> = parsed.diagnostics.into_iter().map(|d| d.message).collect();
     assert_eq!(m[0], "'component' is only allowed in .8bx files");
 }
+
+fn allows_children(text: &str) -> Vec<bool> {
+    let v = bx_tree(text);
+    v["body"]
+        .as_array()
+        .expect("body")
+        .iter()
+        .filter(|n| n["type"] == "ComponentDeclaration")
+        .map(|n| n["allowsChildren"].as_bool().expect("flag"))
+        .collect()
+}
+
+#[test]
+fn allows_children_needs_a_top_level_slot() {
+    assert_eq!(allows_children("component F() { <slot /> }"), [true]);
+    assert_eq!(allows_children("component F() { <A /> }"), [false]);
+    assert_eq!(allows_children("component F() {}"), [false]);
+    // only a direct child of the body counts, as in the JS parser
+    assert_eq!(
+        allows_children("component F() { if true { <slot /> } }"),
+        [false]
+    );
+}

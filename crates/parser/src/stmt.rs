@@ -106,6 +106,15 @@ impl Parser<'_> {
                 self.next();
                 None
             }
+            // An element as a statement (spec 95): the lexer already decided
+            // this `<` opens a tag. The `;` after it is optional.
+            (TokenKind::BxTagOpen, _) => {
+                let element = self.parse_bx_element();
+                if self.at_text(";") {
+                    self.next();
+                }
+                element
+            }
             (TokenKind::Identifier, word)
                 if OLD_SYNTAX_WORDS.contains(&word) && self.old_syntax_follows() =>
             {
@@ -310,7 +319,8 @@ impl Parser<'_> {
         ))
     }
 
-    /// E19: `pub` before anything but `fn`, `mod`, `let` or `const`.
+    /// `pub` before `fn`, `mod`, `let`, `const` or (`.8bx`) `component`; E19
+    /// for anything else.
     fn parse_pub(&mut self) -> Option<Node> {
         let start = self.next()?.start;
         let keyword = self
@@ -348,33 +358,27 @@ impl Parser<'_> {
     /// State is always mutable; `state mut x` is an error at `mut`.
     fn parse_state(&mut self) -> Option<Node> {
         let declaration = self.parse_variable_named(None, "a name")?;
-        let Node {
-            start,
-            length,
-            kind,
-            ..
-        } = declaration;
-        let NodeKind::VariableDeclaration {
-            name,
-            type_annotation,
-            initializer,
-            exported,
-            ..
-        } = kind
-        else {
-            return None;
-        };
-        Some(Node::new(
-            start,
-            start.saturating_add(length),
-            NodeKind::StateDeclaration {
-                kind: "state".to_string(),
+        let (start, end) = (declaration.start, declaration.start + declaration.length);
+        match declaration.kind {
+            NodeKind::VariableDeclaration {
                 name,
                 type_annotation,
                 initializer,
                 exported,
-            },
-        ))
+                ..
+            } => Some(Node::new(
+                start,
+                end,
+                NodeKind::StateDeclaration {
+                    kind: "state".to_string(),
+                    name,
+                    type_annotation,
+                    initializer,
+                    exported,
+                },
+            )),
+            kind => Some(Node::new(start, end, kind)),
+        }
     }
 
     fn parse_variable_named(&mut self, start_override: Option<u32>, what: &str) -> Option<Node> {
