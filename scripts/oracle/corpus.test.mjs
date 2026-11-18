@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import {
-  buildsOf, builtPath, clearDumps, dumpArgs, findGit, findProjects, formatSha, parseArgs, requireBuilds, selectProjects, sha256Of,
+  buildsOf, builtPath, childEnv, clearDumps, dumpArgs, findGit, findProjects, formatSha, parseArgs, requireBuilds, selectProjects, sha256Of,
 } from './corpus.mjs';
 
 function touch(file) {
@@ -99,4 +99,8 @@ test('clearing dumps removes the selected projects and, when asked, the front en
   } finally {
     rmSync(out, { recursive: true, force: true });
   }
+});
+
+test('build children do not inherit a dump directory from the environment', () => {
+  assert.deepEqual(childEnv({ A: '1', EIGHTBS_DUMP_STAGES: '/x' }), { A: '1' });
 });

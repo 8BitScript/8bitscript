@@ -109,6 +109,13 @@ function cliArgs(extra, checkout) {
   return checkout ? [CLI, ...extra, '--checkout', checkout] : [CLI, ...extra];
 }
 
+/** The environment of a build child: a dump directory set in the caller's environment must not leak in. */
+export function childEnv(env = process.env) {
+  const rest = { ...env };
+  delete rest.EIGHTBS_DUMP_STAGES;
+  return rest;
+}
+
 /** The `--dump-stages <dir>` arguments, or none when the run does not dump. */
 export function dumpArgs(dumpDir) {
   return dumpDir ? ['--dump-stages', dumpDir] : [];
@@ -116,7 +123,7 @@ export function dumpArgs(dumpDir) {
 
 async function projectInfo(project) {
   const { stdout } = await run(process.execPath, cliArgs(['project', '--json'], project.checkout), {
-    cwd: project.dir, maxBuffer: 64 * 1024 * 1024, timeout: BUILD_TIMEOUT_MS,
+    cwd: project.dir, env: childEnv(), maxBuffer: 64 * 1024 * 1024, timeout: BUILD_TIMEOUT_MS,
   });
   return JSON.parse(stdout);
 }
@@ -127,7 +134,7 @@ async function buildOne(project, { program, target }, out) {
   const args = cliArgs(['build', '--target', target, '--program', program, ...dumpArgs(dumpDir)], project.checkout);
   try {
     const { stdout } = await run(process.execPath, args, {
-      cwd: project.dir, maxBuffer: 64 * 1024 * 1024, timeout: BUILD_TIMEOUT_MS,
+      cwd: project.dir, env: childEnv(), maxBuffer: 64 * 1024 * 1024, timeout: BUILD_TIMEOUT_MS,
     });
     const file = builtPath(stdout);
     if (!file) return { id, error: 'no "built <path>" line in the output' };
@@ -143,7 +150,7 @@ async function releaseOne(project, out) {
   const id = `${project.id}/release`;
   const args = cliArgs(['build', '--release', ...dumpArgs(join(out, project.id, 'release'))], project.checkout);
   try {
-    await run(process.execPath, args, { cwd: project.dir, maxBuffer: 64 * 1024 * 1024, timeout: BUILD_TIMEOUT_MS });
+    await run(process.execPath, args, { cwd: project.dir, env: childEnv(), maxBuffer: 64 * 1024 * 1024, timeout: BUILD_TIMEOUT_MS });
     return { id };
   } catch (err) {
     const text = `${err.stderr ?? ''}${err.stdout ?? ''}`.trim().split('\n').slice(0, 5).join('\n');
@@ -184,7 +191,7 @@ function cloneGame(game, dest) {
 export function frontendGroups(projects) {
   const groups = [{ files: findSources(ROOT), roots: rootsFor(ROOT) }];
   for (const project of projects.filter((p) => p.checkout)) {
-    groups.push({ files: findSources(join(project.dir, 'src')), roots: rootsFor(ROOT, project.dir) });
+    groups.push({ files: findSources(join(project.dir, 'src')), roots: rootsFor(ROOT, project.dir), id: project.id });
   }
   return groups;
 }
