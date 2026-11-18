@@ -545,6 +545,9 @@ impl Parser<'_> {
         } else {
             self.parse_use_path()
         };
+        if std::mem::take(&mut self.use_skipped) {
+            return None;
+        }
         let mut specifiers = Vec::new();
         if brace_form {
             if self.expect("{").is_some() {
@@ -649,6 +652,7 @@ impl Parser<'_> {
                         next.text
                     ));
                     self.skip_item_tail();
+                    self.use_skipped = true;
                     return (None, None, false);
                 }
                 (TokenKind::Identifier, _) => {

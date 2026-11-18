@@ -224,7 +224,7 @@ fn super_and_self_only_start_a_path() {
         "use foo::self::x;",
         &["'self' is only allowed at the start of a path"],
     );
-    clean("use super::super::x;");
+    clean("use super::super::up::x;");
 }
 
 #[test]

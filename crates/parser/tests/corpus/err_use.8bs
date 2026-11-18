@@ -11,3 +11,5 @@ use 5;
 use self::geo::
 use a::b::{c, d as e}
 let z = 1;
+use foo::super::x;
+use foo::self::x;

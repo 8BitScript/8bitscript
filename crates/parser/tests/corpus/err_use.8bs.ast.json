@@ -220,7 +220,7 @@
         "typeAnnotation": null
       }
     ],
-    "length": 196,
+    "length": 233,
     "start": 0,
     "type": "Program"
   },
@@ -392,6 +392,22 @@
       "message": "expected ';', found 'let'",
       "severity": "error",
       "start": 185
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 5,
+      "message": "'super' is only allowed at the start of a path",
+      "severity": "error",
+      "start": 205
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 4,
+      "message": "'self' is only allowed at the start of a path",
+      "severity": "error",
+      "start": 224
     }
   ]
 }

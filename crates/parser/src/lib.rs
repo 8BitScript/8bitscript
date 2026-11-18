@@ -80,6 +80,8 @@ pub(crate) struct Parser<'a> {
     pub(crate) expr_depth: u32,
     /// Where an end-of-file error lands when there is no token at all.
     pub(crate) eof: u32,
+    /// Set when a `use` path was reported and its item skipped.
+    pub(crate) use_skipped: bool,
 }
 
 pub(crate) fn tok_end(t: &Token) -> u32 {
@@ -120,6 +122,7 @@ impl<'a> Parser<'a> {
             links: 0,
             expr_depth: 0,
             eof: 0,
+            use_skipped: false,
         }
     }
 

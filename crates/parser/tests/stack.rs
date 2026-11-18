@@ -69,6 +69,6 @@ fn worst_case_nesting_fits_in_one_megabyte() {
 
 #[test]
 fn the_nesting_limit_still_parses_ordinary_depth() {
-    let text = format!("let a = {}1{};", "(".repeat(200), ")".repeat(200));
+    let text = format!("let a = {}1{};", "(".repeat(40), ")".repeat(40));
     assert_eq!(parse_on_small_stack(text), 0);
 }

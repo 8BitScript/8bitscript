@@ -423,6 +423,14 @@
       "code": "8BS1101",
       "file": "t",
       "length": 1,
+      "message": "expected a declaration after the attribute, found '}'",
+      "severity": "error",
+      "start": 218
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
       "message": "expected an expression, found '}'",
       "severity": "error",
       "start": 218

@@ -48,9 +48,43 @@
         "length": 13,
         "start": 163,
         "type": "ExpressionStatement"
+      },
+      {
+        "exported": false,
+        "length": 66,
+        "members": [
+          {
+            "body": {
+              "body": [],
+              "length": 2,
+              "start": 239,
+              "type": "BlockStatement"
+            },
+            "exported": false,
+            "length": 10,
+            "name": {
+              "length": 2,
+              "name": "ok",
+              "start": 234,
+              "type": "Identifier"
+            },
+            "params": [],
+            "returnType": null,
+            "start": 231,
+            "type": "FunctionDeclaration"
+          }
+        ],
+        "name": {
+          "length": 1,
+          "name": "M",
+          "start": 181,
+          "type": "Identifier"
+        },
+        "start": 177,
+        "type": "NamespaceDeclaration"
       }
     ],
-    "length": 177,
+    "length": 254,
     "start": 0,
     "type": "Program"
   },
@@ -94,6 +128,38 @@
       "message": "this is the old 8BitScript syntax; run '8bs migrate' from 8BitScript <cut release> to convert it",
       "severity": "error",
       "start": 128
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 8,
+      "message": "this is the old 8BitScript syntax; run '8bs migrate' from 8BitScript <cut release> to convert it",
+      "severity": "error",
+      "start": 185
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 6,
+      "message": "this is the old 8BitScript syntax; run '8bs migrate' from 8BitScript <cut release> to convert it",
+      "severity": "error",
+      "start": 201
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "expected a function or const inside a mod, found 'a'",
+      "severity": "error",
+      "start": 224
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 0,
+      "message": "expected a declaration after the attribute, found end of file",
+      "severity": "error",
+      "start": 253
     }
   ]
 }
