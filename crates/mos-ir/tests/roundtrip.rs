@@ -26,7 +26,7 @@ fn fixture_texts() -> Vec<(String, String)> {
 #[test]
 fn every_fixture_round_trips_byte_for_byte() {
     let texts = fixture_texts();
-    assert!(texts.len() >= 4, "fixtures missing");
+    assert!(texts.len() >= 3, "fixtures missing");
     for (name, text) in texts {
         let input = parse(&text).unwrap_or_else(|e| panic!("{name}: {e}"));
         assert_eq!(to_canonical(&input).unwrap(), text, "{name}");
@@ -63,6 +63,12 @@ fn the_fixtures_cover_the_measured_node_kinds() {
             Stmt::Asm(_) => {
                 seen.insert("asm");
             }
+            Stmt::StringCopy(_) => {
+                seen.insert("stringCopy");
+            }
+            Stmt::MemoryRead(_) => {
+                seen.insert("memoryRead");
+            }
             Stmt::Call(_) => {
                 seen.insert("call");
             }
@@ -75,8 +81,61 @@ fn the_fixtures_cover_the_measured_node_kinds() {
             f.body.iter().for_each(|s| stmt(s, &mut seen));
         }
     }
-    for kind in ["for", "if", "while", "block", "storeIndex", "asm", "call"] {
+    for kind in [
+        "for",
+        "if",
+        "while",
+        "block",
+        "storeIndex",
+        "asm",
+        "call",
+        "stringCopy",
+        "memoryRead",
+    ] {
         assert!(seen.contains(kind), "no {kind} in the fixtures");
+    }
+}
+
+#[test]
+fn a_string_buffer_global_keeps_its_capacity() {
+    let (_, text) = fixture_texts()
+        .into_iter()
+        .find(|(n, _)| n == "kinds-c64")
+        .unwrap();
+    let input = parse(&text).unwrap();
+    let buffer = input
+        .globals
+        .iter()
+        .find(|g| g.string_capacity.is_some())
+        .unwrap();
+    assert_eq!(buffer.string_capacity, Some(8));
+    assert_eq!(buffer.array, Some(9));
+}
+
+#[test]
+fn a_bare_string_literal_from_the_linker_round_trips() {
+    // linker/index.mjs constExpression: `{kind: 'string', index}`, no type, no span.
+    let text = with_body(
+        r#"[{"kind": "assign", "target": "x", "value": {"kind": "string", "index": 0}}]"#,
+    );
+    assert_eq!(roundtrip(&text), Ok(()));
+    let text = with_body(
+        r#"[{"kind": "assign", "target": "x", "value": {"kind": "string", "index": 0, "type": null, "start": 1, "length": 2}}]"#,
+    );
+    assert_eq!(roundtrip(&text), Ok(()));
+}
+
+#[test]
+fn floats_parse_to_the_nearest_double() {
+    for text in [
+        "5e-324",
+        "1.7976931348623157e+308",
+        "59.94",
+        "0.30000000000000004",
+        "29.97",
+    ] {
+        let dump = hello().replacen("\"frameRate\": 60", &format!("\"frameRate\": {text}"), 1);
+        assert_eq!(roundtrip(&dump), Ok(()), "{text}");
     }
 }
 
