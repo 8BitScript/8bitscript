@@ -156,6 +156,21 @@ fn stale_entry_fails() {
 }
 
 #[test]
+fn subset_run_judges_only_entries_of_its_stages() {
+    let (a, b) = (scratch("subset-a"), scratch("subset-b"));
+    fixture(&a, 0xa9, 5);
+    fixture(&b, 0xa9, 5);
+    // GOOD names the link stage and matches nothing here.
+    let mut o = opts(GOOD);
+    o.stages = Some(vec!["tokens".into()]);
+    let r = compare(&a, &b, &o).unwrap();
+    assert_eq!((r.stale, r.exit_code()), (0, 0));
+    o.stages = Some(vec!["link".into()]);
+    let r = compare(&a, &b, &o).unwrap();
+    assert_eq!((r.stale, r.exit_code()), (1, 1));
+}
+
+#[test]
 fn filters_select_stages_and_corpus() {
     let (a, b) = (scratch("filter-a"), scratch("filter-b"));
     fixture(&a, 0xa9, 5);

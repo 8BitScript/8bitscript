@@ -1,11 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import {
-  buildsOf, builtPath, findGit, findProjects, formatSha, parseArgs, requireBuilds, selectProjects, sha256Of,
+  buildsOf, builtPath, childEnv, clearDumps, dumpArgs, findGit, findProjects, formatSha, parseArgs, requireBuilds, selectProjects, sha256Of,
 } from './corpus.mjs';
 
 function touch(file) {
@@ -75,4 +75,32 @@ test('a project with no builds, or an --only that matches nothing, is an error',
 test('git comes from a fixed list and a missing git is a clear error', () => {
   assert.equal(findGit(['/a/git', '/b/git'], (f) => f === '/b/git'), '/b/git');
   assert.throws(() => findGit(['/a/git'], () => false), /git not found in \/a\/git/);
+});
+
+test('--dump is a mode of its own: it is parsed, and it excludes --sha-only', () => {
+  assert.equal(parseArgs(['--out', 'x']).dump, false);
+  assert.equal(parseArgs(['--dump', '--out', 'x']).dump, true);
+  assert.throws(() => parseArgs(['--dump', '--sha-only', '--out', 'x']), /exclude each other/);
+});
+
+test('build arguments carry --dump-stages only when a directory is given', () => {
+  assert.deepEqual(dumpArgs('/o/p/main/pet'), ['--dump-stages', '/o/p/main/pet']);
+  assert.deepEqual(dumpArgs(null), []);
+});
+
+test('clearing dumps removes the selected projects and, when asked, the front end, and nothing else', () => {
+  const out = mkdtempSync(join(tmpdir(), 'corpus-test-'));
+  try {
+    for (const rel of ['a/one/old.txt', 'b/keep.txt', 'fe/x/tokens.json']) touch(join(out, rel));
+    clearDumps(out, [{ id: 'a/one' }], false);
+    assert.deepEqual([existsSync(join(out, 'a/one')), existsSync(join(out, 'fe'))], [false, true]);
+    clearDumps(out, [], true);
+    assert.deepEqual([existsSync(join(out, 'fe')), existsSync(join(out, 'b/keep.txt'))], [false, true]);
+  } finally {
+    rmSync(out, { recursive: true, force: true });
+  }
+});
+
+test('build children do not inherit a dump directory from the environment', () => {
+  assert.deepEqual(childEnv({ A: '1', EIGHTBS_DUMP_STAGES: '/x' }), { A: '1' });
 });
