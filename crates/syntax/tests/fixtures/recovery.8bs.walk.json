@@ -1,0 +1,17 @@
+[
+  "Program@0+93<",
+  "FunctionDeclaration@0+27<Program",
+  "Parameter@10+1<FunctionDeclaration",
+  "Identifier@10+1<Parameter",
+  "BlockStatement@15+12<FunctionDeclaration",
+  "NamespaceDeclaration@28+45<Program",
+  "Identifier@38+1<NamespaceDeclaration",
+  "FunctionDeclaration@48+21<NamespaceDeclaration",
+  "Identifier@57+1<FunctionDeclaration",
+  "TypeReference@62+4<FunctionDeclaration",
+  "BlockStatement@67+2<FunctionDeclaration",
+  "VariableDeclaration@74+13<Program",
+  "Identifier@78+1<VariableDeclaration",
+  "StringLiteral@82+5<VariableDeclaration",
+  "IfStatement@88+4<Program"
+]
