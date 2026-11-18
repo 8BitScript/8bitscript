@@ -334,3 +334,92 @@ fn e21_full_text_comes_from_the_release_constant() {
     );
     assert_eq!(one("function f() {}"), parser::old_syntax_message());
 }
+
+fn bx(text: &str) -> Vec<String> {
+    common::messages_bx(text)
+}
+
+fn bx_tree(text: &str) -> Value {
+    serde_json::to_value(common::parse_kind(text, syntax::SourceKind::Bx).ast).expect("serialize")
+}
+
+#[test]
+fn components_and_state_parse_in_8bx() {
+    assert_eq!(
+        bx("pub component Menu(a: u8, b: u8 = 3,) { state s: u8 = 0; }"),
+        Vec::<String>::new()
+    );
+    let v = bx_tree("pub component M(a: u8, b: u8 = 3) { state s: u8 = 0; }").to_string();
+    assert!(v.contains("\"type\":\"ComponentDeclaration\""));
+    assert!(v.contains("\"exported\":true"));
+    assert!(v.contains("\"allowsChildren\":false"));
+    assert!(v.contains("\"type\":\"StateDeclaration\""));
+    assert!(v.contains("\"kind\":\"state\""));
+    // a parameter with a default is optional, one without is not
+    assert!(v.contains("\"optional\":true"));
+    assert!(v.contains("\"optional\":false"));
+    // a function parameter has no such field
+    assert!(!tree("fn f(a: u8 = 1) {}").to_string().contains("optional"));
+}
+
+#[test]
+fn component_diagnostics_have_exact_text() {
+    // the cascade after a missing name is the JS parser's: each `expect`
+    // reports what it found and the body reads on
+    assert_eq!(
+        bx("component 5() {}"),
+        [
+            "expected a component name, found '5'",
+            "expected '(', found '5'",
+            "expected '{', found '5'",
+            "expected ';', found '{'",
+            "expected '}', found end of file",
+        ]
+    );
+    assert_eq!(bx("state mut x: u8 = 0;"), ["expected a name, found 'mut'"]);
+    assert_eq!(bx("state ;"), ["expected a name, found ';'"]);
+    assert_eq!(bx("component C(a: u8 {}"), ["expected ')', found '{'"]);
+    assert_eq!(bx("component C(a) {}"), ["expected ':', found ')'"]);
+    assert_eq!(
+        bx("component C() let"),
+        [
+            "expected '{', found 'let'",
+            "expected a variable name, found end of file",
+            "expected '}', found end of file"
+        ]
+    );
+    assert_eq!(
+        bx("component"),
+        [
+            "expected a component name, found end of file",
+            "expected '(', found end of file",
+            "expected '{', found end of file",
+            "expected '}', found end of file",
+        ]
+    );
+}
+
+#[test]
+fn component_is_a_name_in_8bs() {
+    // `component` and `state` are keywords of `.8bx` only
+    exact(
+        "pub component C() {}",
+        &["expected a declaration after 'pub', found 'component'"],
+    );
+    clean("let component = 1; let state = 2;");
+}
+
+#[test]
+fn a_component_token_in_an_8bs_parse_is_an_error() {
+    let text = "component C() {}";
+    let lexed = lexer::tokenize(
+        text,
+        "t",
+        &lexer::Options {
+            source_kind: Some(syntax::SourceKind::Bx),
+        },
+    );
+    let parsed = parser::parse(&lexed.tokens, text, "t", &parser::Options::default());
+    let m: Vec<String> = parsed.diagnostics.into_iter().map(|d| d.message).collect();
+    assert_eq!(m[0], "'component' is only allowed in .8bx files");
+}

@@ -7,11 +7,11 @@ mod common;
 
 use std::fs;
 
-use common::{corpus, dir, parse_text, read};
+use common::{corpus, dir, kind_of, parse_kind, read};
 use oracle::canonical_json;
 
 fn dump(name: &str) -> String {
-    let parsed = parse_text(&read(name));
+    let parsed = parse_kind(&read(name), kind_of(name));
     let value = serde_json::to_value(&parsed).expect("serialize");
     canonical_json(&value)
 }
@@ -20,7 +20,7 @@ fn dump(name: &str) -> String {
 fn every_corpus_file_matches_its_golden_dump() {
     let bless = std::env::var_os("BLESS").is_some();
     let files = corpus();
-    assert!(files.len() >= 12, "corpus shrank: {}", files.len());
+    assert!(files.len() >= 16, "corpus shrank: {}", files.len());
     for name in files {
         let actual = dump(&name);
         let golden = dir().join(format!("{name}.ast.json"));
@@ -40,5 +40,5 @@ fn fixtures_stay_small() {
         .filter_map(|e| e.ok()?.metadata().ok())
         .map(|m| m.len())
         .sum();
-    assert!(total < 200 * 1024, "corpus is {total} bytes");
+    assert!(total < 256 * 1024, "corpus is {total} bytes");
 }

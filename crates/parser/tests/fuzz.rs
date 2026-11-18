@@ -7,9 +7,9 @@
 
 mod common;
 
-use common::{corpus, read};
-use lexer::{Options, tokenize};
-use parser::parse;
+use common::{corpus, kind_of, read};
+use lexer::{Options as LexOptions, tokenize};
+use parser::{Options, parse};
 use syntax::{Node, SourceKind, utf16_len};
 
 fn big(f: impl FnOnce() + Send + 'static) {
@@ -22,14 +22,21 @@ fn big(f: impl FnOnce() + Send + 'static) {
 }
 
 fn check(text: &str) {
+    check_kind(text, SourceKind::Bs);
+}
+
+fn check_kind(text: &str, kind: SourceKind) {
     let lexed = tokenize(
         text,
         "t",
-        &Options {
-            source_kind: Some(SourceKind::Bs),
+        &LexOptions {
+            source_kind: Some(kind),
         },
     );
-    let parsed = parse(&lexed.tokens, text, "t");
+    let options = Options {
+        source_kind: Some(kind),
+    };
+    let parsed = parse(&lexed.tokens, text, "t", &options);
     let n = utf16_len(text);
     assert_eq!(parsed.ast.start, 0);
     assert_eq!(parsed.ast.length, n);
@@ -157,7 +164,7 @@ fn every_prefix_of_every_corpus_file() {
                 .char_indices()
                 .chain(std::iter::once((text.len(), ' ')))
             {
-                check(&text[..i]);
+                check_kind(&text[..i], kind_of(&name));
             }
         }
     });
@@ -175,7 +182,7 @@ fn every_single_character_deletion() {
                 let mut cut = String::with_capacity(text.len());
                 cut.push_str(&text[..i]);
                 cut.push_str(&text[i + c.len_utf8()..]);
-                check(&cut);
+                check_kind(&cut, kind_of(&name));
             }
         }
     });
@@ -185,8 +192,13 @@ fn every_single_character_deletion() {
 fn random_fragment_streams() {
     big(|| {
         let mut rng = Rng(0x9E37_79B9_7F4A_7C15);
-        for _ in 0..4000 {
-            check(&random_text(&mut rng));
+        for round in 0..4000 {
+            let kind = if round % 2 == 0 {
+                SourceKind::Bs
+            } else {
+                SourceKind::Bx
+            };
+            check_kind(&random_text(&mut rng), kind);
         }
     });
 }
@@ -219,5 +231,7 @@ fn degenerate_inputs() {
         check(&"`${".repeat(5_000));
         check(&"match x { 1 => ".repeat(5_000));
         check(&format!("let a = {};", "1 + ".repeat(20_000)));
+        check_kind(&"component C() { ".repeat(5_000), SourceKind::Bx);
+        check_kind(&"state a = ".repeat(5_000), SourceKind::Bx);
     });
 }

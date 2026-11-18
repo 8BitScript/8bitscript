@@ -1,0 +1,345 @@
+{
+  "ast": {
+    "body": [
+      {
+        "allowsChildren": false,
+        "body": {
+          "body": [
+            {
+              "expression": {
+                "args": [],
+                "callee": {
+                  "length": 1,
+                  "radix": 10,
+                  "raw": "5",
+                  "start": 10,
+                  "type": "IntegerLiteral",
+                  "value": 5
+                },
+                "length": 3,
+                "start": 10,
+                "type": "CallExpression"
+              },
+              "length": 3,
+              "start": 10,
+              "type": "ExpressionStatement"
+            },
+            {
+              "body": [],
+              "length": 2,
+              "start": 14,
+              "type": "BlockStatement"
+            },
+            {
+              "allowsChildren": false,
+              "body": {
+                "body": [],
+                "length": 2,
+                "start": 32,
+                "type": "BlockStatement"
+              },
+              "exported": false,
+              "length": 17,
+              "name": {
+                "length": 1,
+                "name": "B",
+                "start": 27,
+                "type": "Identifier"
+              },
+              "params": [
+                {
+                  "defaultValue": null,
+                  "length": 1,
+                  "name": {
+                    "length": 1,
+                    "name": "x",
+                    "start": 29,
+                    "type": "Identifier"
+                  },
+                  "optional": false,
+                  "start": 29,
+                  "type": "Parameter",
+                  "typeAnnotation": null
+                }
+              ],
+              "start": 17,
+              "type": "ComponentDeclaration"
+            },
+            {
+              "allowsChildren": false,
+              "body": {
+                "body": [
+                  {
+                    "allowsChildren": false,
+                    "body": {
+                      "body": [
+                        {
+                          "exported": false,
+                          "immutable": true,
+                          "initializer": {
+                            "length": 1,
+                            "radix": 10,
+                            "raw": "1",
+                            "start": 144,
+                            "type": "IntegerLiteral",
+                            "value": 1
+                          },
+                          "kind": "let",
+                          "length": 14,
+                          "name": {
+                            "length": 5,
+                            "name": "after",
+                            "start": 136,
+                            "type": "Identifier"
+                          },
+                          "start": 132,
+                          "type": "VariableDeclaration",
+                          "typeAnnotation": null
+                        },
+                        {
+                          "allowsChildren": false,
+                          "body": {
+                            "body": [],
+                            "length": 0,
+                            "start": 159,
+                            "type": "BlockStatement"
+                          },
+                          "exported": false,
+                          "length": 12,
+                          "name": {
+                            "length": 1,
+                            "name": "A",
+                            "start": 157,
+                            "type": "Identifier"
+                          },
+                          "params": [],
+                          "start": 147,
+                          "type": "ComponentDeclaration"
+                        }
+                      ],
+                      "length": 37,
+                      "start": 122,
+                      "type": "BlockStatement"
+                    },
+                    "exported": true,
+                    "length": 55,
+                    "name": {
+                      "length": 1,
+                      "name": "E",
+                      "start": 118,
+                      "type": "Identifier"
+                    },
+                    "params": [],
+                    "start": 104,
+                    "type": "ComponentDeclaration"
+                  }
+                ],
+                "length": 63,
+                "start": 96,
+                "type": "BlockStatement"
+              },
+              "exported": false,
+              "length": 82,
+              "name": {
+                "length": 1,
+                "name": "C",
+                "start": 87,
+                "type": "Identifier"
+              },
+              "params": [
+                {
+                  "defaultValue": null,
+                  "length": 5,
+                  "name": {
+                    "length": 1,
+                    "name": "x",
+                    "start": 89,
+                    "type": "Identifier"
+                  },
+                  "optional": false,
+                  "start": 89,
+                  "type": "Parameter",
+                  "typeAnnotation": {
+                    "length": 2,
+                    "name": "u8",
+                    "start": 92,
+                    "type": "TypeReference",
+                    "typeArguments": []
+                  }
+                }
+              ],
+              "start": 77,
+              "type": "ComponentDeclaration"
+            }
+          ],
+          "length": 149,
+          "start": 10,
+          "type": "BlockStatement"
+        },
+        "exported": false,
+        "length": 159,
+        "name": null,
+        "params": [],
+        "start": 0,
+        "type": "ComponentDeclaration"
+      }
+    ],
+    "length": 160,
+    "start": 0,
+    "type": "Program"
+  },
+  "diagnostics": [
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "expected a component name, found '5'",
+      "severity": "error",
+      "start": 10
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "expected '(', found '5'",
+      "severity": "error",
+      "start": 10
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "expected '{', found '5'",
+      "severity": "error",
+      "start": 10
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "expected ';', found '{'",
+      "severity": "error",
+      "start": 14
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "expected ':', found ')'",
+      "severity": "error",
+      "start": 30
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 3,
+      "message": "expected a name, found 'mut'",
+      "severity": "error",
+      "start": 41
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "expected a name, found ';'",
+      "severity": "error",
+      "start": 62
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "expected a name, found '5'",
+      "severity": "error",
+      "start": 70
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "expected a parameter name, found '='",
+      "severity": "error",
+      "start": 96
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "expected ')', found '='",
+      "severity": "error",
+      "start": 96
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "expected '{', found '='",
+      "severity": "error",
+      "start": 96
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "expected an expression, found '='",
+      "severity": "error",
+      "start": 96
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "expected a name, found '}'",
+      "severity": "error",
+      "start": 130
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 0,
+      "message": "expected ')', found end of file",
+      "severity": "error",
+      "start": 159
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 0,
+      "message": "expected '{', found end of file",
+      "severity": "error",
+      "start": 159
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 0,
+      "message": "expected '}', found end of file",
+      "severity": "error",
+      "start": 159
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 0,
+      "message": "expected '}', found end of file",
+      "severity": "error",
+      "start": 159
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 0,
+      "message": "expected '}', found end of file",
+      "severity": "error",
+      "start": 159
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 0,
+      "message": "expected '}', found end of file",
+      "severity": "error",
+      "start": 159
+    }
+  ]
+}

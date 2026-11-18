@@ -4,24 +4,31 @@
 //! `cargo test -p parser --release --test stack`.
 #![cfg(not(debug_assertions))]
 
-use lexer::{Options, tokenize};
-use parser::parse;
+use lexer::{Options as LexOptions, tokenize};
+use parser::{Options, parse};
 use syntax::SourceKind;
 
 const STACK: usize = 1024 * 1024;
 
 fn parse_on_small_stack(text: String) -> usize {
+    parse_kind_on_small_stack(text, SourceKind::Bs)
+}
+
+fn parse_kind_on_small_stack(text: String, kind: SourceKind) -> usize {
     std::thread::Builder::new()
         .stack_size(STACK)
         .spawn(move || {
             let lexed = tokenize(
                 &text,
                 "t",
-                &Options {
-                    source_kind: Some(SourceKind::Bs),
+                &LexOptions {
+                    source_kind: Some(kind),
                 },
             );
-            parse(&lexed.tokens, &text, "t").diagnostics.len()
+            let options = Options {
+                source_kind: Some(kind),
+            };
+            parse(&lexed.tokens, &text, "t", &options).diagnostics.len()
         })
         .expect("spawn")
         .join()
@@ -63,6 +70,20 @@ fn worst_case_nesting_fits_in_one_megabyte() {
     for text in inputs {
         let head = text.chars().take(24).collect::<String>();
         let diagnostics = parse_on_small_stack(text);
+        assert!(diagnostics > 0, "{head}: expected a diagnostic");
+    }
+}
+
+#[test]
+fn worst_case_component_nesting_fits_in_one_megabyte() {
+    let n = 20_000;
+    for text in [
+        format!("{}{}", "component C() { ".repeat(n), "}".repeat(n)),
+        format!("{}1;", "state a = ".repeat(n)),
+        format!("component C({}", "a: ptr<".repeat(n)),
+    ] {
+        let head: String = text.chars().take(24).collect();
+        let diagnostics = parse_kind_on_small_stack(text, SourceKind::Bx);
         assert!(diagnostics > 0, "{head}: expected a diagnostic");
     }
 }
