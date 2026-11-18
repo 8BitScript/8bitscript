@@ -163,3 +163,24 @@ Unlike `--size` and `--debug`, this exists on the `mos` backend (the
 6502-family targets `@unroll` and the automatic loop-unrolling work
 described in `docs/roadmap.md` are scoped to today) only — the
 WebAssembly backend does not yet return a `remarks` field.
+
+## Stage dumps: `--dump-stages`
+
+`8bs build --dump-stages <dir>` (or the `EIGHTBS_DUMP_STAGES` environment
+variable; the flag wins) writes what each compiler stage produced, as
+canonical text, into `<dir>`. It is for comparing two implementations of the
+compiler, and a build with it on produces the same output bytes as one
+without: the writer only reads the values it is handed.
+
+The tree is `modules/<module>.{tokens,ast,ir}.json` per module,
+`diagnostics.json`, `linked.json`, `backend-input.json`, `wasm-input.json`,
+`link.json`, `bytes.hex` (lowercase, 16 bytes a line), `size-report.json`,
+`error.txt` when the build failed, and `manifest.json` last. With
+`--release`, each output gets its own `<dir>/<output file>/`.
+
+The format is canonical: two-space JSON with a final newline, object keys
+sorted by UTF-16 code unit, `undefined` members dropped, a Set as an array.
+`NaN`, `Infinity`, `-0`, functions, bigints and cycles are refused with a
+JSON pointer to the value. Absolute paths under the toolchain or the
+project are written as `<toolchain>/...` and `<project>/...`, so the same
+project built from two directories gives identical trees.

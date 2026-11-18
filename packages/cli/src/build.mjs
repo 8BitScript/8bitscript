@@ -49,15 +49,17 @@
 // Only hardware that changes the *build* is in the name (a PET's model, a
 // VIC-20's RAM): a mouse or a REU makes the same program, so it is not.
 import { readFile } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
-import { basename, join, resolve } from 'node:path';
+import { existsSync, realpathSync } from 'node:fs';
+import { basename, dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import {
   MACHINES, RELEASE_MACHINES, isVariantPath, link, positionAt, resolveImportAliases, sourceKindOf, variantOf,
   shortOfBaseline, unmetRequirements, cpuFamily,
 } from '@8bitscript/compiler';
 
-import { applyCheckoutFromArgs, setActiveCheckout } from './checkout.mjs';
+import { applyCheckoutFromArgs, getActiveCheckout, setActiveCheckout } from './checkout.mjs';
+import { ENV_NAME, dumpStagesArg, openDump } from './stage-dump.mjs';
 
 import { loadConfig, localeArg, resolveFrameRate, resolveI18n, resolveLocale, retiredOptionWarnings } from './config.mjs';
 import { checkDefines, defineArgs, effectiveDefines } from './defines.mjs';
@@ -190,7 +192,26 @@ export function checkEntryKind(entry) {
  *   whoever runs it next. `memory` / `sizeReport` are what the last-run
  *   file and `--size` print; they are absent when the compile failed.
  */
-export async function compile(target, entryArg, { pal = false, profile, hardware: overrides = {}, report = false, debug = false, remarks = false, checkout = undefined, program: programName, locale: localeArgument, web = false, defines: handed = {} } = {}) {
+export async function compile(target, entryArg, options = {}) {
+  const spec = options.dumpStages ?? (process.env[ENV_NAME] || undefined);
+  if (!spec) return compileProgram(target, entryArg, options);
+  const session = openDump(spec, dumpRoots(options.checkout));
+  try {
+    return await compileProgram(target, entryArg, { ...options, dumpSession: session });
+  } finally {
+    session.finish(target);
+  }
+}
+
+/** The two roots a stage dump replaces with tokens: this toolchain and the project being built. */
+function dumpRoots(checkout) {
+  const own = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
+  const real = (path) => { try { return realpathSync(path); } catch { return path; } };
+  const toolchain = [getActiveCheckout() ?? checkout, own].filter(Boolean).flatMap((p) => [p, real(p)]);
+  return { toolchain, project: [process.cwd(), real(process.cwd())] };
+}
+
+async function compileProgram(target, entryArg, { pal = false, profile, hardware: overrides = {}, report = false, debug = false, remarks = false, checkout = undefined, program: programName, locale: localeArgument, web = false, defines: handed = {}, dumpSession = undefined } = {}) {
   if (checkout !== undefined) setActiveCheckout(checkout);
   const config = await loadConfig(process.cwd(), '8bs build');
 
@@ -397,8 +418,9 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
   const defines = effectiveDefines(program, handed);
   const { ir, diagnostics, sources, factsTested, defineSites } = link(text, entry, {
     machine: target, tags: [...hardware.tags, ...webTag], facts: hardware.facts, frameRate, checkout, bx: config?.bx, locale, i18n, importAliases,
-    defines,
+    defines, dump: dumpSession?.dump,
   });
+  dumpSession?.note({ program: program.name, locale });
   // A warning is printed and the build goes on; an error stops it.
   if (diagnostics.length > 0) printDiagnostics(diagnostics, sources);
   // A name handed to a program that never reads it is a typo until proven
@@ -466,7 +488,8 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
     // linear memory (see the wasm backend's own note on this). The
     // synthetic web/hifi target owns no hardware to map one to, so it
     // keeps refusing them, exactly as before this option existed.
-    const result = await build(ir, { outFile, frameRate, report, reserved: layout.reservedEnd, allowPinnedScalars: target !== 'web', reservedRanges: layout.reservedRanges });
+    dumpSession?.note({ output: outFile });
+    const result = await build(ir, { outFile, frameRate, report, reserved: layout.reservedEnd, allowPinnedScalars: target !== 'web', reservedRanges: layout.reservedRanges, dump: dumpSession?.dump });
     if (!result.ok) {
       process.stderr.write(`8bs build: ${result.error}\n`);
       return { ok: false };
@@ -519,7 +542,8 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
   const nameOk = checkArtifactName(artifactStem, target);
   if (!nameOk.ok) process.stderr.write(`8bs build: note: ${nameOk.error}\n`);
   const outFile = resolve('dist', `${artifactStem}.${ext}`);
-  const result = await build(ir, { machine: target, hardware, outFile, frameRate, report, debug, remarks, sources });
+  dumpSession?.note({ output: outFile });
+  const result = await build(ir, { machine: target, hardware, outFile, frameRate, report, debug, remarks, sources, dump: dumpSession?.dump });
   if (!result.ok) {
     process.stderr.write(`8bs build: ${result.error}\n`);
     return { ok: false };
@@ -662,7 +686,7 @@ function againstBaseline(baseline, target, facts, factsTested) {
  * @param {{ report?: boolean, checkout?: string }} [options]
  * @returns {Promise<number>} exit code
  */
-async function buildRelease({ report = false, checkout = undefined } = {}) {
+async function buildRelease({ report = false, checkout = undefined, dumpDir = undefined } = {}) {
   const config = await loadConfig(process.cwd(), '8bs build');
   const declared = resolvePrograms(config);
   if (!declared.ok) {
@@ -707,7 +731,10 @@ async function buildRelease({ report = false, checkout = undefined } = {}) {
         const profile = typeof variant === 'string' ? variant : variant?.profile;
         const hardware = (variant && typeof variant === 'object') ? (variant.hardware ?? {}) : {};
         const locale = (variant && typeof variant === 'object') ? variant.locale : undefined;
-        const result = await compile(target, undefined, { profile, hardware, report, program: program.name, locale, checkout });
+        const result = await compile(target, undefined, {
+          profile, hardware, report, program: program.name, locale, checkout,
+          dumpStages: dumpDir ? { dir: dumpDir, perOutput: true } : undefined,
+        });
         if (!result.ok) {
           ok = false;
           continue;
@@ -737,7 +764,14 @@ export async function build(args) {
   // `--checkout` reaches a release too: until it did, `--release
   // --checkout ../8bitscript` built every artifact from node_modules and
   // said nothing, which is the one thing a checkout flag must not do.
-  if (args.includes('--release')) return buildRelease({ report: args.includes('--size'), checkout: checkout.checkout });
+  const dumpOpt = dumpStagesArg(args);
+  if (!dumpOpt.ok) {
+    process.stderr.write(`8bs build: ${dumpOpt.error}\n`);
+    return 2;
+  }
+  if (args.includes('--release')) {
+    return buildRelease({ report: args.includes('--size'), checkout: checkout.checkout, dumpDir: dumpOpt.dir });
+  }
   const report = args.includes('--size');
   const debug = args.includes('--debug');
   const remarks = args.includes('--remarks');
@@ -768,7 +802,7 @@ export async function build(args) {
     process.stderr.write(`8bs build: ${launch.error}\n`);
     return 2;
   }
-  const consumed = new Set([...hw.consumed, ...checkout.consumed, ...programOpt.consumed, ...localeOpt.consumed, ...defineOpt.consumed]);
+  const consumed = new Set([...hw.consumed, ...checkout.consumed, ...programOpt.consumed, ...localeOpt.consumed, ...defineOpt.consumed, ...dumpOpt.consumed]);
   const positionals = args.filter((a, i) => {
     if (targetIndex >= 0 && (i === targetIndex || i === targetIndex + 1)) return false;
     if (consumed.has(i)) return false;
@@ -804,6 +838,7 @@ export async function build(args) {
       + releaseUsageNote()
       + '                  no --target builds the `baseline` 8bitscript.config.8bs names, when it names one)\n'
       + '                 [--pal] [--size] [--debug] [--remarks] [--program <name>] [--locale <name>]\n'
+      + '                 [--dump-stages <dir>]  write every compile stage under <dir> (or set EIGHTBS_DUMP_STAGES)\n'
       + '                 [--define NAME=VALUE]...  hand the program a value its #define("NAME", …) reads\n'
       + HARDWARE_USAGE
       + '                 [--web]  pet/vic20/c64/cx16: that machine\'s own package, through the\n'
@@ -816,6 +851,7 @@ export async function build(args) {
   const { ok } = await compile(target, entry, {
     pal, profile: launch.profile, hardware: launch.overrides, report, debug, remarks, checkout: checkout.checkout,
     program: programOpt.program, locale: localeOpt.locale, web, defines: defineOpt.defines,
+    dumpStages: dumpOpt.dir,
   });
   return ok ? 0 : 1;
 }
