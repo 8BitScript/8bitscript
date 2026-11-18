@@ -317,9 +317,13 @@ fn lower(subject: Node, arms: Vec<Arm>, start: u32, end: u32) -> Node {
     let mut tail: Option<Node> = None;
     let mut top = true;
     for arm in arms.into_iter().rev() {
-        let test = arm_test(&subject, arm.patterns);
+        // An arm with `_` anywhere is the catch-all: its body is the else.
+        let test = if arm.wildcard.is_some() {
+            None
+        } else {
+            arm_test(&subject, arm.patterns)
+        };
         let Some(test) = test else {
-            // A `_` arm (E14 keeps it last).
             tail = Some(arm.body);
             top = true;
             continue;

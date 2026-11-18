@@ -31,96 +31,219 @@ fn clean_programs_have_no_diagnostics() {
     clean("fn f(x: u8) { match x { 1 => g(), _ => h() } }");
 }
 
+fn exact(text: &str, expected: &[&str]) {
+    assert_eq!(messages(text), expected, "{text:?}");
+}
+
 #[test]
 fn e3_reserved_words() {
-    assert!(one("struct P;").contains("'struct' is not part of 8BitScript"));
-    assert!(one("enum E {}").contains("'enum'"));
-    assert!(one("let t = trait;").contains("'trait'"));
-    assert!(one("type A = u8;").contains("no type aliases"));
+    let group = "'struct' is not part of 8BitScript; group consts in a 'mod'";
+    exact("struct P;", &[group]);
+    exact(
+        "enum E {}",
+        &["'enum' is not part of 8BitScript; group consts in a 'mod'"],
+    );
+    exact(
+        "impl P {}",
+        &["'impl' is not part of 8BitScript; methods are functions in a 'mod'"],
+    );
+    exact(
+        "trait T;",
+        &["'trait' is not part of 8BitScript; methods are functions in a 'mod'"],
+    );
+    exact(
+        "static N: u8 = 1;",
+        &["'static' is not part of 8BitScript; a global is 'let mut' at the top level"],
+    );
+    exact("type A = u8;", &["8BitScript has no type aliases"]);
+    exact("let t = struct;", &[group]);
+    exact("mod m { struct Q; }", &[group]);
 }
 
 #[test]
 fn e4_crate_paths() {
-    assert!(one("use crate::a::{b};").contains("'crate::' paths are not supported"));
-    assert!(messages("let x = crate;")[0].contains("'crate::'"));
+    let text = "'crate::' paths are not supported; use 'self::' or 'super::'";
+    exact("use crate::a::{b};", &[text]);
+    assert_eq!(messages("let x = crate;")[0], text);
 }
 
 #[test]
 fn e6_e7_e8_expression_sugar() {
-    assert!(one("let a = x as u8;").contains("write 'u8(x)'"));
-    assert!(one("let a = &x;").contains("no references"));
-    assert!(one("let a = *p;").contains("memory::read"));
-    assert!(one("let a = [0; 4];").contains("an array literal lists its elements"));
+    exact("let a = x as u8;", &["write 'u8(x)' to convert a value"]);
+    let refs = "8BitScript has no references; use memory::read and memory::write";
+    exact("let a = &x;", &[refs]);
+    exact("let a = *p;", &[refs]);
+    exact(
+        "let a = [0; 4];",
+        &["an array literal lists its elements: [a, b, c]"],
+    );
 }
 
 #[test]
 fn e9_e10_operator_precedence() {
-    assert!(one("let a = x == y & z;").contains("'&' binds looser than '=='"));
-    assert!(one("let a = x | y < z;").contains("'|' binds looser than '<'"));
-    assert!(one("let a = x < y < z;").contains("comparisons do not chain"));
+    exact(
+        "let a = x == y & z;",
+        &["add parentheses: in 8BitScript '&' binds looser than '=='"],
+    );
+    exact(
+        "let a = x | y < z;",
+        &["add parentheses: in 8BitScript '|' binds looser than '<'"],
+    );
+    exact(
+        "let a = x ^ y < z;",
+        &["add parentheses: in 8BitScript '^' binds looser than '<'"],
+    );
+    let chain = "add parentheses: comparisons do not chain";
+    exact("let a = x < y < z;", &[chain]);
+    exact("let a = x == y == z;", &[chain]);
+    exact("let a = x == y < z;", &[chain]);
+    exact("let a = x < y == z;", &[chain]);
     clean("let a = (x == y) & z;");
     clean("let a = (x == y) | (y < z);");
+    clean("let a = x == (y < z);");
 }
 
 #[test]
 fn e11_match_in_expression() {
-    assert!(one("let a = match x { 1 => 2 };").contains("'match' is a statement"));
+    exact(
+        "let a = match x { 1 => 2 };",
+        &["'match' is a statement; assign inside each arm"],
+    );
 }
 
 #[test]
 fn e12_macros_and_tests() {
-    assert!(one("assert!(a);").contains("tests come with '8bs test'"));
-    assert!(one("#[test]\nfn t() {}").contains("tests come with '8bs test'"));
-    assert!(one("#[cfg(test)]\nfn t() {}").contains("tests come with '8bs test'"));
+    let text = "tests come with '8bs test'";
+    exact("assert!(a);", &[text]);
+    exact("#[test]\nfn t() {}", &[text]);
+    exact("#[cfg(test)]\nfn t() {}", &[text]);
 }
 
 #[test]
 fn e13_to_e15_match_shape() {
-    assert!(one("match f(x) { 1 => a() }").contains("match compares a name or path"));
-    assert!(one("match 5 { 1 => a() }").contains("match compares a name or path"));
-    assert!(one("match x { _ => a(), 1 => b() }").contains("'_' must be the last arm"));
-    assert!(one("match x { }").contains("a match needs at least one arm"));
-    assert!(one("match x { 1.5 => a() }").contains("expected a pattern"));
+    let subject = "match compares a name or path; bind the value first: let v = …;";
+    exact("match f(x) { 1 => a() }", &[subject]);
+    exact("match 5 { 1 => a() }", &[subject]);
+    exact(
+        "match x { _ => a(), 1 => b() }",
+        &["'_' must be the last arm"],
+    );
+    exact(
+        "match x { _ | 2 => a(), 1 => b() }",
+        &["'_' must be the last arm"],
+    );
+    exact("match x { }", &["a match needs at least one arm"]);
+    exact(
+        "match x { 1.5 => a() }",
+        &["expected a pattern, found '1.5'"],
+    );
 }
 
 #[test]
 fn e16_e17_semicolons_and_tail() {
-    assert!(one("fn f() -> u8 { 1 }").contains("write 'return …;'"));
-    assert!(messages("fn g() { 1 }")[0].contains("expected ';'"));
-    assert!(one("let x = 1").contains("expected ';'"));
+    exact(
+        "fn f() -> u8 { 1 }",
+        &["write 'return …;' to return a value"],
+    );
+    exact("fn g() { 1 }", &["expected ';', found '}'"]);
+    exact("let x = 1", &["expected ';', found end of file"]);
     clean("fn f() -> u8 { return 1; }");
 }
 
 #[test]
 fn e18_inner_attributes() {
-    assert!(one("#![no_std]").contains("inner attributes are not supported"));
+    exact("#![no_std]", &["inner attributes are not supported"]);
 }
 
 #[test]
 fn e19_pub_only_before_declarations() {
-    assert!(one("pub 5;").contains("expected a declaration after 'pub'"));
-    assert!(one("pub use a::{b};").contains("expected a declaration after 'pub'"));
+    exact("pub 5;", &["expected a declaration after 'pub', found '5'"]);
+    exact(
+        "pub use a::{b};",
+        &["expected a declaration after 'pub', found 'use'"],
+    );
 }
 
 #[test]
 fn e21_old_syntax() {
-    for text in [
+    let text = parser::old_syntax_message();
+    for source in [
         "function f() {}",
         "import { a } from \"./a.8bs\";",
         "export const X = 1;",
         "namespace N {}",
     ] {
-        assert!(
-            one(text).contains("this is the old 8BitScript syntax"),
-            "{text}"
-        );
+        exact(source, &[text.as_str()]);
     }
+    // inside a mod it is one error per old item, not one per token
+    exact("mod M { function f() {} }", &[text.as_str()]);
+    exact(
+        "mod M { function f() {} export function g() {} }",
+        &[text.as_str(), text.as_str()],
+    );
 }
 
 #[test]
 fn an_attribute_name_must_be_an_identifier() {
-    assert!(!messages("#[5]\nfn f() {}").is_empty());
+    exact(
+        "#[5]\nfn f() {}",
+        &["expected an attribute name, found '5'"],
+    );
     clean("#[inline]\nfn f() {}");
+    // no empty decorator list is left on the declaration
+    assert!(!tree("#[5]\nfn f() {}").to_string().contains("decorators"));
+}
+
+#[test]
+fn a_trailing_attribute_is_an_error() {
+    exact(
+        "#[unroll]",
+        &["expected a declaration after the attribute, found end of file"],
+    );
+    exact(
+        "fn f() { #[unroll] }",
+        &["expected a declaration after the attribute, found '}'"],
+    );
+}
+
+#[test]
+fn a_mod_member_error_is_reported_once() {
+    exact(
+        "mod M { a b c d; fn f() {} }",
+        &["expected a function or const inside a mod, found 'a'"],
+    );
+}
+
+#[test]
+fn super_and_self_only_start_a_path() {
+    exact(
+        "use foo::super::x;",
+        &["'super' is only allowed at the start of a path"],
+    );
+    exact(
+        "use foo::self::x;",
+        &["'self' is only allowed at the start of a path"],
+    );
+    clean("use super::super::x;");
+}
+
+#[test]
+fn a_wildcard_inside_an_arm_is_the_catch_all() {
+    // `_ | 2` is the else, never a missing one
+    let v = tree("fn f(x: u8) { match x { 1 => a(), _ | 2 => b() } }").to_string();
+    assert_eq!(v.matches("IfStatement").count(), 1);
+    assert!(v.contains("\"alternate\""));
+    let v = tree("fn f(x: u8) { match x { 1 => a(), 2 | _ => b() } }").to_string();
+    assert_eq!(v.matches("IfStatement").count(), 1);
+    assert!(v.contains("\"alternate\""));
+    // only a wildcard arm: its body alone
+    let v = tree("fn f(x: u8) { match x { _ | 1 => a() } }").to_string();
+    assert_eq!(v.matches("IfStatement").count(), 0);
+    // a wildcard arm in the middle is E14 and nothing is lowered
+    exact(
+        "fn f(x: u8) { match x { 1 => a(), _ | 2 => b(), 3 => c() } }",
+        &["'_' must be the last arm"],
+    );
 }
 
 #[test]
@@ -133,8 +256,14 @@ fn lexer_diagnostics_are_not_repeated() {
 
 #[test]
 fn template_fields_are_checked() {
-    assert!(one("let a = `${x:y}`;").contains("expected a field width"));
-    assert!(one("let a = `${}`;").contains("expected an expression"));
+    exact(
+        "let a = `${x:y}`;",
+        &["expected a field width after ':', found 'y'"],
+    );
+    exact(
+        "let a = `${}`;",
+        &["expected an expression, found end of file"],
+    );
     clean("let a = `HP ${hp:3} ${a + 1}`;");
 }
 

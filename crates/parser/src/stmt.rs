@@ -278,8 +278,14 @@ impl Parser<'_> {
 
     fn parse_decorated(&mut self) -> Option<Node> {
         let decorators = self.parse_attributes();
+        if !decorators.is_empty() && (self.at_end() || self.at("}")) {
+            self.error_found("a declaration after the attribute");
+            return None;
+        }
         let mut target = self.parse_statement(false);
-        if let Some(node) = &mut target {
+        if let Some(node) = &mut target
+            && !decorators.is_empty()
+        {
             node.decorators = Some(decorators);
         }
         target
@@ -460,11 +466,31 @@ impl Parser<'_> {
         ))
     }
 
+    /// Skip to the next member start or the `}` that closes the mod.
+    fn skip_to_member(&mut self) {
+        self.next();
+        while let Some(token) = self.peek() {
+            let starts = token.kind == TokenKind::Keyword
+                && matches!(token.text.as_str(), "fn" | "let" | "const" | "pub");
+            if starts || self.at("}") || self.at("#[") {
+                return;
+            }
+            self.next();
+        }
+    }
+
     fn parse_mod_member(&mut self, members: &mut Vec<Option<Node>>) {
         let decorators = self.parse_attributes();
         // A `pub` on a member is accepted and ignored.
         if self.at_kw("pub") {
             self.next();
+        }
+        if self.peek().is_some_and(|t| {
+            t.kind == TokenKind::Identifier && OLD_SYNTAX_WORDS.contains(&t.text.as_str())
+        }) && self.old_syntax_follows()
+        {
+            self.skip_old_syntax_item();
+            return;
         }
         let keyword = self
             .peek()
@@ -485,6 +511,8 @@ impl Parser<'_> {
                     Self::describe(self.peek())
                 );
                 self.error_here(message);
+                // One error for the run of tokens that is not a member.
+                self.skip_to_member();
                 return;
             }
         };
@@ -614,6 +642,15 @@ impl Parser<'_> {
             };
             let text = match (next.kind, next.text.as_str()) {
                 (TokenKind::Keyword, "super") if all_super => "..".to_string(),
+                (TokenKind::Keyword, "super" | "self") => {
+                    self.next();
+                    self.error_here(format!(
+                        "'{}' is only allowed at the start of a path",
+                        next.text
+                    ));
+                    self.skip_item_tail();
+                    return (None, None, false);
+                }
                 (TokenKind::Identifier, _) => {
                     all_super = false;
                     ident_name(&next.text)

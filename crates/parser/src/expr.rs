@@ -243,7 +243,9 @@ impl Parser<'_> {
                 );
                 self.error_on(message, operator);
             }
-        } else if COMPARISONS.contains(&operator.text.as_str()) && left_cmp.is_some() {
+        } else if COMPARISONS.contains(&operator.text.as_str())
+            && (left_cmp.is_some() || self.unparenthesized_comparison(right).is_some())
+        {
             self.error_on("add parentheses: comparisons do not chain", operator);
         }
     }
