@@ -13,7 +13,7 @@
 // directory and built against this checkout.
 import { execFile, execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir, availableParallelism } from 'node:os';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -24,6 +24,8 @@ const run = promisify(execFile);
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const CLI = join(ROOT, 'packages', 'cli', 'bin', '8bs.mjs');
 const CONFIG_NAMES = new Set(['8bitscript.config.8bs', '8bitscript.config.ts']);
+const BUILD_TIMEOUT_MS = 300000;
+const GIT_CANDIDATES = ['/usr/bin/git', '/usr/local/bin/git', '/opt/homebrew/bin/git'];
 const SKIPPED_DIRS = new Set(['node_modules', 'dist', '.git']);
 
 /** Ordinal string compare, the same on every machine and locale. */
@@ -47,6 +49,27 @@ export function findProjects(base) {
   };
   walk(base);
   return found.sort((a, b) => compare(a.id, b.id));
+}
+
+/** The first git binary in a fixed list of system directories; never found through PATH. */
+export function findGit(candidates = GIT_CANDIDATES, exists = existsSync) {
+  const found = candidates.find((file) => exists(file));
+  if (!found) throw new Error(`git not found in ${candidates.join(', ')}`);
+  return found;
+}
+
+/** The projects whose id contains `only` (all when null); none matching is an error. */
+export function selectProjects(projects, only) {
+  const selected = projects.filter((p) => !only || p.id.includes(only));
+  if (selected.length === 0) throw new Error(`--only ${only} matches no project`);
+  return selected;
+}
+
+/** The builds of a project; a project that lists none is an error, not a silent drop. */
+export function requireBuilds(project, info) {
+  const builds = buildsOf(info);
+  if (builds.length === 0) throw new Error(`${project.id}: the project lists no programs or targets`);
+  return builds;
 }
 
 /** The `<program>/<target>` pairs of an `8bs project --json` document. */
@@ -80,7 +103,7 @@ function cliArgs(extra, checkout) {
 
 async function projectInfo(project) {
   const { stdout } = await run(process.execPath, cliArgs(['project', '--json'], project.checkout), {
-    cwd: project.dir, maxBuffer: 64 * 1024 * 1024,
+    cwd: project.dir, maxBuffer: 64 * 1024 * 1024, timeout: BUILD_TIMEOUT_MS,
   });
   return JSON.parse(stdout);
 }
@@ -89,7 +112,9 @@ async function buildOne(project, { program, target }) {
   const id = `${project.id}/${program}/${target}`;
   const args = cliArgs(['build', '--target', target, '--program', program], project.checkout);
   try {
-    const { stdout } = await run(process.execPath, args, { cwd: project.dir, maxBuffer: 64 * 1024 * 1024 });
+    const { stdout } = await run(process.execPath, args, {
+      cwd: project.dir, maxBuffer: 64 * 1024 * 1024, timeout: BUILD_TIMEOUT_MS,
+    });
     const file = builtPath(stdout);
     if (!file) return { id, error: 'no "built <path>" line in the output' };
     return { id, sha: sha256Of(readFileSync(file)) };
@@ -115,7 +140,11 @@ async function pool(tasks, limit) {
 
 /** Clone a game repo at its pinned commit into `dest`; the commit must match. */
 function cloneGame(game, dest) {
-  const git = (...args) => execFileSync('git', args, { cwd: dest, stdio: 'pipe' }).toString().trim();
+  const gitBinary = findGit();
+  const env = { ...process.env, GIT_TERMINAL_PROMPT: '0' };
+  const git = (...args) => execFileSync(gitBinary, args, {
+    cwd: dest, env, stdio: 'pipe', timeout: BUILD_TIMEOUT_MS,
+  }).toString().trim();
   mkdirSync(dest, { recursive: true });
   git('init', '-q');
   git('fetch', '-q', '--depth', '1', `https://github.com/${game.repo}.git`, game.sha);
@@ -145,6 +174,7 @@ export function parseArgs(argv) {
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   const corpus = JSON.parse(readFileSync(join(ROOT, 'oracle', 'corpus.json'), 'utf8'));
+  rmSync(join(options.out, 'sha256.txt'), { force: true });
   const scratch = mkdtempSync(join(tmpdir(), 'oracle-corpus-'));
   try {
     const projects = findProjects(join(ROOT, 'packages')).map((p) => ({ ...p, checkout: null }));
@@ -153,13 +183,13 @@ async function main() {
       cloneGame(game, dir);
       projects.push({ id: game.name, dir, checkout: ROOT });
     }
-    const selected = projects.filter((p) => !options.only || p.id.includes(options.only));
+    const selected = selectProjects(projects, options.only);
 
     // Builds of one project and target share dist/.8bs-last-<target>.json, so
     // they run one after another; different targets and projects overlap.
     const queues = new Map();
     for (const project of selected) {
-      for (const build of buildsOf(await projectInfo(project))) {
+      for (const build of requireBuilds(project, await projectInfo(project))) {
         const key = `${project.id}\0${build.target}`;
         if (!queues.has(key)) queues.set(key, []);
         queues.get(key).push(() => buildOne(project, build));

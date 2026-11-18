@@ -4,7 +4,9 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { buildsOf, builtPath, findProjects, formatSha, parseArgs, sha256Of } from './corpus.mjs';
+import {
+  buildsOf, builtPath, findGit, findProjects, formatSha, parseArgs, requireBuilds, selectProjects, sha256Of,
+} from './corpus.mjs';
 
 function touch(file) {
   mkdirSync(join(file, '..'), { recursive: true });
@@ -59,4 +61,18 @@ test('arguments need --out and reject unknown flags', () => {
   assert.throws(() => parseArgs([]), /--out/);
   assert.throws(() => parseArgs(['--out', 'x', '--bogus']), /unknown argument/);
   assert.equal(parseArgs(['--sha-only', '--out', 'x', '--jobs', '2']).jobs, 2);
+});
+
+test('a project with no builds, or an --only that matches nothing, is an error', () => {
+  assert.throws(() => requireBuilds({ id: 'p' }, { programs: [{ name: 'main', targets: [] }] }), /p: .*no programs/);
+  assert.equal(requireBuilds({ id: 'p' }, { programs: [{ name: 'm', targets: ['c64'] }] }).length, 1);
+  const projects = [{ id: 'a/one' }, { id: 'b/two' }];
+  assert.deepEqual(selectProjects(projects, 'two'), [{ id: 'b/two' }]);
+  assert.equal(selectProjects(projects, null).length, 2);
+  assert.throws(() => selectProjects(projects, 'nope'), /matches no project/);
+});
+
+test('git comes from a fixed list and a missing git is a clear error', () => {
+  assert.equal(findGit(['/a/git', '/b/git'], (f) => f === '/b/git'), '/b/git');
+  assert.throws(() => findGit(['/a/git'], () => false), /git not found in \/a\/git/);
 });
