@@ -412,6 +412,11 @@ impl Parser<'_> {
             self.error_here("expected an expression, found end of file");
             return None;
         };
+        // An element where a value is expected (spec 48): parsed for its
+        // spans; what it may mean there is the checker's to say.
+        if token.kind == TokenKind::BxTagOpen {
+            return self.parse_bx_element();
+        }
         let end = tok_end(&token);
         match token.kind {
             TokenKind::Number => {

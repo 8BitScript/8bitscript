@@ -12,13 +12,15 @@
 //!
 //! The lexer already reports `++`, `--`, `?` and `'` strings (E1, E2, E5);
 //! the parser recovers from them without reporting them again. The `.8bx`
-//! tag grammar is P3-06.
+//! tag grammar is in `bx` (P3-06).
 
+mod bx;
 mod expr;
 mod matching;
 mod stmt;
 mod types;
 
+pub use bx::normalize_bx_text;
 pub use stmt::{MIGRATE_RELEASE, old_syntax_message};
 
 use std::collections::HashSet;

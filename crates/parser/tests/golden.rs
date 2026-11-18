@@ -7,7 +7,7 @@ mod common;
 
 use std::fs;
 
-use common::{corpus, dir, parse_text, read};
+use common::{corpus, corpus_bx, dir, parse_bx_text, parse_text, read};
 use oracle::canonical_json;
 
 fn dump(name: &str) -> String {
@@ -40,5 +40,28 @@ fn fixtures_stay_small() {
         .filter_map(|e| e.ok()?.metadata().ok())
         .map(|m| m.len())
         .sum();
-    assert!(total < 200 * 1024, "corpus is {total} bytes");
+    assert!(total < 256 * 1024, "corpus is {total} bytes");
+}
+
+/// The `.8bx` fixtures hold only tag grammar and statements both syntaxes
+/// share, so the JS parser reads them too: each golden was checked equal to
+/// the JS parser's `{ast, diagnostics}` (ids and key order aside) before it
+/// was committed.
+#[test]
+fn every_bx_file_matches_its_golden_dump() {
+    let bless = std::env::var_os("BLESS").is_some();
+    let files = corpus_bx();
+    assert!(files.len() >= 2, "bx corpus shrank: {}", files.len());
+    for name in files {
+        let parsed = parse_bx_text(&read(&name));
+        let value = serde_json::to_value(&parsed).expect("serialize");
+        let actual = canonical_json(&value);
+        let golden = dir().join(format!("{name}.ast.json"));
+        if bless {
+            fs::write(&golden, &actual).expect("write golden");
+        }
+        let expected = fs::read_to_string(&golden)
+            .unwrap_or_else(|e| panic!("{name}: missing golden ({e}); run with BLESS=1"));
+        assert!(actual == expected, "{name}: AST dump differs from golden");
+    }
 }
