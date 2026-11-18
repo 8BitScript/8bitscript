@@ -74,6 +74,14 @@ impl Parser<'_> {
             (TokenKind::Keyword, "fn") => self.parse_function(token.start, false),
             (TokenKind::Keyword, "mod") => self.parse_mod(token.start, false),
             (TokenKind::Keyword, "let" | "const") => self.parse_variable(None),
+            (TokenKind::Keyword, "state") => self.parse_state(),
+            (TokenKind::Keyword, "component") => {
+                if self.bx {
+                    return self.parse_component(token.start, false);
+                }
+                self.error_on("'component' is only allowed in .8bx files", &token);
+                None
+            }
             (TokenKind::Keyword, "if") => self.parse_if(),
             (TokenKind::Keyword, "while") => self.parse_while(),
             (TokenKind::Keyword, "loop") => self.parse_loop(),
@@ -97,6 +105,15 @@ impl Parser<'_> {
             (TokenKind::Punctuation, ";") => {
                 self.next();
                 None
+            }
+            // An element as a statement (spec 95): the lexer already decided
+            // this `<` opens a tag. The `;` after it is optional.
+            (TokenKind::BxTagOpen, _) => {
+                let element = self.parse_bx_element();
+                if self.at_text(";") {
+                    self.next();
+                }
+                element
             }
             (TokenKind::Identifier, word)
                 if OLD_SYNTAX_WORDS.contains(&word) && self.old_syntax_follows() =>
@@ -302,7 +319,8 @@ impl Parser<'_> {
         ))
     }
 
-    /// E19: `pub` before anything but `fn`, `mod`, `let` or `const`.
+    /// `pub` before `fn`, `mod`, `let`, `const` or (`.8bx`) `component`; E19
+    /// for anything else.
     fn parse_pub(&mut self) -> Option<Node> {
         let start = self.next()?.start;
         let keyword = self
@@ -313,6 +331,7 @@ impl Parser<'_> {
             Some("fn") => self.parse_function(start, true),
             Some("mod") => self.parse_mod(start, true),
             Some("let" | "const") => self.parse_variable(Some(start)),
+            Some("component") => self.parse_component(start, true),
             _ => {
                 let message = format!(
                     "expected a declaration after 'pub', found {}",
@@ -331,6 +350,38 @@ impl Parser<'_> {
 
     /// `let [mut] x: T = e;` and `const X: T = e;`.
     pub(crate) fn parse_variable(&mut self, start_override: Option<u32>) -> Option<Node> {
+        self.parse_variable_named(start_override, "a variable name")
+    }
+
+    /// `state x: T = v;` (`.8bx`): parsed like `let` and re-typed, so the
+    /// checker can hold it to a component body (`parser/index.mjs:187-194`).
+    /// State is always mutable; `state mut x` is an error at `mut`.
+    fn parse_state(&mut self) -> Option<Node> {
+        let declaration = self.parse_variable_named(None, "a name")?;
+        let (start, end) = (declaration.start, declaration.start + declaration.length);
+        match declaration.kind {
+            NodeKind::VariableDeclaration {
+                name,
+                type_annotation,
+                initializer,
+                exported,
+                ..
+            } => Some(Node::new(
+                start,
+                end,
+                NodeKind::StateDeclaration {
+                    kind: "state".to_string(),
+                    name,
+                    type_annotation,
+                    initializer,
+                    exported,
+                },
+            )),
+            kind => Some(Node::new(start, end, kind)),
+        }
+    }
+
+    fn parse_variable_named(&mut self, start_override: Option<u32>, what: &str) -> Option<Node> {
         let keyword = self.next()?;
         let start = start_override.unwrap_or(keyword.start);
         let is_let = keyword.text == "let";
@@ -338,7 +389,7 @@ impl Parser<'_> {
         if mutable {
             self.next();
         }
-        let Some(name) = self.expect_identifier("a variable name") else {
+        let Some(name) = self.expect_identifier(what) else {
             self.synchronize();
             return None;
         };
@@ -371,46 +422,83 @@ impl Parser<'_> {
         ))
     }
 
+    /// `"(" [ Param { "," Param } [ "," ] ] ")"`; a component parameter also
+    /// carries `optional` (`parser/index.mjs:598`).
+    fn parse_params(&mut self, component: bool) -> Vec<Node> {
+        let mut params = Vec::new();
+        if self.expect("(").is_none() {
+            return params;
+        }
+        while !self.at_end() && !self.at(")") {
+            let Some(param_name) = self.expect_identifier("a parameter name") else {
+                break;
+            };
+            let type_annotation = if self.expect(":").is_some() {
+                self.parse_type()
+            } else {
+                None
+            };
+            let default_value = if self.eat("=") {
+                self.parse_expression()
+            } else {
+                None
+            };
+            let last_end = default_value
+                .as_ref()
+                .or(type_annotation.as_ref())
+                .map_or_else(|| node_end(&param_name), node_end);
+            let optional = component.then_some(default_value.is_some());
+            params.push(Node::new(
+                param_name.start,
+                last_end,
+                NodeKind::Parameter {
+                    name: Box::new(param_name),
+                    type_annotation: type_annotation.map(Box::new),
+                    default_value: default_value.map(Box::new),
+                    optional,
+                },
+            ));
+            if !self.eat(",") {
+                break;
+            }
+        }
+        self.expect(")");
+        params
+    }
+
+    /// `[pub] component Name(params) { body }` (`.8bx`,
+    /// `parser/index.mjs:582`). Element children go where the body says
+    /// `<slot />`, which is what `allows_children` records.
+    fn parse_component(&mut self, start: u32, exported: bool) -> Option<Node> {
+        self.next()?; // 'component'
+        let name = self.expect_identifier("a component name");
+        let params = self.parse_params(true);
+        let body = self.parse_block(false);
+        let allows_children = match &body.kind {
+            NodeKind::BlockStatement { body } => body
+                .iter()
+                .any(|s| matches!(&s.kind, NodeKind::BxElement { name, .. } if name == "slot")),
+            _ => false,
+        };
+        let end = node_end(&body);
+        Some(Node::new(
+            start,
+            end,
+            NodeKind::ComponentDeclaration {
+                name: name.map(Box::new),
+                params,
+                body: Some(Box::new(body)),
+                exported,
+                allows_children,
+            },
+        ))
+    }
+
     /// `fn f(a: u8, b: u8 = 3) -> u8 { ... }`.
     pub(crate) fn parse_function(&mut self, start: u32, exported: bool) -> Option<Node> {
         self.next()?; // 'fn'
         let name = self.expect_identifier("a function name");
-        let mut params = Vec::new();
-        if self.expect("(").is_some() {
-            while !self.at_end() && !self.at(")") {
-                let Some(param_name) = self.expect_identifier("a parameter name") else {
-                    break;
-                };
-                let type_annotation = if self.expect(":").is_some() {
-                    self.parse_type()
-                } else {
-                    None
-                };
-                let default_value = if self.eat("=") {
-                    self.parse_expression()
-                } else {
-                    None
-                };
-                let last_end = default_value
-                    .as_ref()
-                    .or(type_annotation.as_ref())
-                    .map_or_else(|| node_end(&param_name), node_end);
-                params.push(Node::new(
-                    param_name.start,
-                    last_end,
-                    NodeKind::Parameter {
-                        name: Box::new(param_name),
-                        type_annotation: type_annotation.map(Box::new),
-                        default_value: default_value.map(Box::new),
-                        optional: None,
-                    },
-                ));
-                if !self.eat(",") {
-                    break;
-                }
-            }
-            self.expect(")");
-        }
+        let params = self.parse_params(false);
         let return_type = if self.eat("->") {
             self.parse_type()
         } else {
