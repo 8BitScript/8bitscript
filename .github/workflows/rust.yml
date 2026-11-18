@@ -1,0 +1,70 @@
+name: Rust
+
+# Always triggers and filters inside the workflow, so a required check
+# never hangs on a pull request that touches no Rust paths.
+on:
+  pull_request:
+  push:
+    branches: [trunk]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rust-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust:
+    name: Rust
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CARGO_TERM_COLOR: never
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Detect Rust changes
+        id: changes
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ "$EVENT" != "pull_request" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          elif git diff --name-only "$BASE...$HEAD" | grep -qE '^(crates/|xtask/|Cargo\.toml$|Cargo\.lock$|rust-toolchain|\.cargo/|\.github/workflows/rust\.yml$)'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "No Rust paths changed; nothing to check."
+          fi
+      # rust-toolchain.toml pins the channel and components; rustup installs
+      # them on first use, this step just makes that explicit and cached.
+      - name: Install toolchain
+        if: steps.changes.outputs.run == 'true'
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+        if: steps.changes.outputs.run == 'true'
+      - uses: taiki-e/install-action@v2
+        if: steps.changes.outputs.run == 'true'
+        with:
+          tool: nextest
+      - run: cargo fmt --all --check
+        if: steps.changes.outputs.run == 'true'
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+        if: steps.changes.outputs.run == 'true'
+      - run: scripts/t
+        if: steps.changes.outputs.run == 'true'
+      # The jsnum fixtures come from Node; they must match what the
+      # compiler sources produce. The generator needs no installed packages.
+      - uses: actions/setup-node@v5
+        if: steps.changes.outputs.run == 'true'
+        with:
+          node-version: 26
+      - name: Fixtures are fresh
+        if: steps.changes.outputs.run == 'true'
+        run: |
+          node crates/jsnum/tests/gen-fixtures.mjs
+          git diff --exit-code -- crates
