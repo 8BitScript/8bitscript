@@ -1,0 +1,13 @@
+[package]
+name = "oracle"
+description = "Stage dump format: canonical JSON writer, dump-dir reader and the compare engine"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+jsnum = { path = "../jsnum" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
