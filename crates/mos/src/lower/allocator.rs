@@ -3,12 +3,13 @@
 
 use crate::zp::{PlaceZp, ZpHole, place_zp};
 use jsnum::hex_upper;
+use serde::{Deserialize, Serialize};
 
 fn hex(value: i64) -> String {
     format!("${}", hex_upper(value, 4))
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LocalAllocator {
     origin: i64,
     ceiling: i64,

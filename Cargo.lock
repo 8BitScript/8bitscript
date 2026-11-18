@@ -72,6 +72,7 @@ version = "0.0.0"
 dependencies = [
  "indexmap",
  "jsnum",
+ "mos-ir",
  "oracle",
  "regex",
  "serde",
@@ -278,6 +279,7 @@ dependencies = [
 name = "xtask"
 version = "0.0.0"
 dependencies = [
+ "mos",
  "mos-ir",
  "oracle",
  "serde_json",
