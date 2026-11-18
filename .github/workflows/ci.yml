@@ -22,6 +22,32 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm run test:ci
 
+  # The Rust port's oracle: dump every stage of the whole corpus twice (the
+  # second time from a copy of the checkout at another path) and require
+  # identical trees with the Rust compare. Rust fmt, clippy and tests are not run here.
+  oracle:
+    name: Oracle
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 26
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@1.100.0
+      - run: pnpm install --frozen-lockfile
+      - name: Dump the corpus
+        run: node scripts/oracle/corpus.mjs --dump --out "$RUNNER_TEMP/a"
+      - name: Dump the corpus from a copy at another path
+        run: |
+          cp -a "$GITHUB_WORKSPACE" "$RUNNER_TEMP/copy"
+          cd "$RUNNER_TEMP/copy"
+          node scripts/oracle/corpus.mjs --dump --out "$RUNNER_TEMP/b"
+      - name: The two dumps are identical
+        run: cargo xtask compare "$RUNNER_TEMP/a" "$RUNNER_TEMP/b"
+
   # Fails the pull request when packages/ or editors/ changed and no
   # .changeset/*.md came with them. The version bot only opens a release
   # for changesets that actually merged. Docs and CI do not need one.
