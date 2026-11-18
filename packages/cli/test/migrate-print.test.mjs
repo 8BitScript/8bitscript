@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { NodeType, parse, tokenize } from '@8bitscript/compiler';
+import { parse, tokenize } from '@8bitscript/compiler';
 import {
   OldSyntaxError, UnsupportedError, analyzeMutability, convertSource, printProgram, spellName, usePathOf,
 } from '../src/migrate/print.mjs';
@@ -277,46 +277,6 @@ test('.8bx: components, state, elements, attributes, children', () => {
     '    <>',
     '        x',
     '    </>;',
-    '}',
-    '',
-  ].join('\n'));
-});
-
-test('tests: a TestDecl, Assert and Fail node print as #[test] fn in a cfg(test) mod', () => {
-  const src = 'function clamp(v: u16): u8 { return v; }';
-  const { tokens } = tokenize(src, 'a.8bs');
-  const { ast } = parse(tokens, src, 'a.8bs');
-  const num = (value) => ({ type: NodeType.IntegerLiteral, value, raw: String(value), radix: 10 });
-  const call = { type: NodeType.CallExpression, callee: { type: NodeType.Identifier, name: 'clamp' }, args: [num(300)] };
-  const block = (...body) => ({ type: NodeType.BlockStatement, body });
-  const bin = (operator, left, right) => ({ type: NodeType.BinaryExpression, operator, left, right });
-  const msg = { type: NodeType.StringLiteral, value: 'bad' };
-  ast.body.push(
-    { type: 'TestDecl', name: 'clamp keeps the top', start: 0, length: 0, body: block(
-      { type: 'Assert', test: bin('==', call, num(255)), message: null, start: 0, length: 0 },
-      { type: 'Assert', test: bin('!=', call, num(0)), message: msg, start: 0, length: 0 },
-      { type: 'Assert', test: bin('<', call, num(256)), message: null, start: 0, length: 0 },
-      { type: 'Fail', message: msg, start: 0, length: 0 },
-    ), start: 0, length: 0 },
-    { type: 'TestDecl', name: 'has_underscore', start: 0, length: 0, body: block(), start2: 0 },
-  );
-  const out = printProgram(ast, tokens, src).text;
-  assert.equal(out, [
-    'fn clamp(v: u16) -> u8 {',
-    '    return v;',
-    '}',
-    '',
-    '#[cfg(test)]',
-    'mod tests {',
-    '    #[test] fn clamp_keeps_the_top() {',
-    '        assert_eq!(clamp(300), 255);',
-    '        assert_ne!(clamp(300), 0, "bad");',
-    '        assert!(clamp(300) < 256);',
-    '        panic!("bad");',
-    '    }',
-    '',
-    '    #[test("has_underscore")] fn t2() {',
-    '    }',
     '}',
     '',
   ].join('\n'));

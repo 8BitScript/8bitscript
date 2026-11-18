@@ -3,6 +3,10 @@
 // notes/port/p3-frontend-spec.md section 5). Throwaway: it ships once as
 // `8bs migrate` and is deleted after the flip.
 //
+// `mut` is decided by a block-scoped assignment scan, and the new checker must
+// match that scan: a binding that this printer leaves plain must never be
+// stored to in the new checker's eyes.
+//
 // Mutability (`let` vs `let mut`) is decided by a scope-aware assignment scan
 // over the AST (`analyzeMutability` below), not by the binder: the binder
 // records declarations only and never resolves a use to its declaration. The
@@ -117,6 +121,50 @@ export function usePathOf(specifier, aliasHeads = []) {
 
 // ---- mutability --------------------------------------------------------
 
+// ---- scopes for the scan ----
+
+const newScope = (parent) => ({ parent, names: new Map() });
+const lookup = (scope, name) => {
+  for (let s = scope; s; s = s.parent) {
+    const hit = s.names.get(name);
+    if (hit) return hit;
+  }
+  return null;
+};
+const declareVariable = (scope, decl) => {
+  if (decl.name) scope.names.set(decl.name.name, { kind: decl.kind, decl });
+};
+// Module-level names are visible everywhere in the file, in any order.
+const hoist = (scope, body) => {
+  for (const s of body ?? []) {
+    if (s?.type === NodeType.VariableDeclaration) declareVariable(scope, s);
+    else if (s?.type === NodeType.NamespaceDeclaration && s.name) {
+      const members = newScope(scope);
+      hoist(members, s.members);
+      scope.names.set(s.name.name, { kind: 'namespace', members, node: s });
+    } else if (s?.name) scope.names.set(s.name.name, { kind: 'other' });
+    else if (s?.type === NodeType.ImportDeclaration) {
+      for (const spec of s.specifiers) scope.names.set(spec.name, { kind: 'other' });
+    }
+  }
+};
+
+/** The declared `let` a store target writes to, or null. */
+const targetOf = (scope, target) => {
+  let n = target;
+  while (n?.type === NodeType.IndexExpression) n = n.object;
+  if (n?.type === NodeType.MemberExpression && n.object.type === NodeType.Identifier) {
+    const ns = lookup(scope, n.object.name);
+    const member = ns?.kind === 'namespace' ? ns.members.names.get(n.property.name) : null;
+    return member?.kind === 'let' ? member.decl : null;
+  }
+  if (n?.type === NodeType.Identifier) {
+    const hit = lookup(scope, n.name);
+    return hit?.kind === 'let' ? hit.decl : null;
+  }
+  return null;
+};
+
 /**
  * Which `let` declarations need `mut`. Returns a map from the declaration
  * node to the reason: `assigned` (a proven store) or an ambiguous reason
@@ -136,59 +184,12 @@ export function analyzeMutability(ast) {
     if (n.type === NodeType.VariableDeclaration && n.kind === 'let') letDecls.push(n);
   });
 
-  const newScope = (parent) => ({ parent, names: new Map() });
-  const lookup = (scope, name) => {
-    for (let s = scope; s; s = s.parent) {
-      const hit = s.names.get(name);
-      if (hit) return hit;
-    }
-    return null;
-  };
-  const declareVariable = (scope, decl) => {
-    if (decl.name) scope.names.set(decl.name.name, { kind: decl.kind, decl });
-  };
-  // Module-level names are visible everywhere in the file, in any order.
-  const hoist = (scope, body) => {
-    for (const s of body ?? []) {
-      if (s?.type === NodeType.VariableDeclaration) declareVariable(scope, s);
-      else if (s?.type === NodeType.NamespaceDeclaration && s.name) {
-        const members = newScope(scope);
-        hoist(members, s.members);
-        scope.names.set(s.name.name, { kind: 'namespace', members, node: s });
-      } else if (s?.name) scope.names.set(s.name.name, { kind: 'other' });
-      else if (s?.type === NodeType.ImportDeclaration) {
-        for (const spec of s.specifiers) scope.names.set(spec.name, { kind: 'other' });
-      }
-    }
-  };
-
-  /** The declared `let` a store target writes to, or null. */
-  const targetOf = (scope, target) => {
-    let n = target;
-    while (n?.type === NodeType.IndexExpression) n = n.object;
-    if (n?.type === NodeType.MemberExpression && n.object.type === NodeType.Identifier) {
-      const ns = lookup(scope, n.object.name);
-      const member = ns?.kind === 'namespace' ? ns.members.names.get(n.property.name) : null;
-      return member?.kind === 'let' ? member.decl : null;
-    }
-    if (n?.type === NodeType.Identifier) {
-      const hit = lookup(scope, n.name);
-      return hit?.kind === 'let' ? hit.decl : null;
-    }
-    return null;
-  };
-
   const visitExpression = (scope, root) => {
     if (!root) return;
     walk(root, (n, parent) => {
-      if (n.type === NodeType.AssignmentExpression) mark(targetOf(scope, n.left), 'assigned');
-      else if (n.type === NodeType.UpdateExpression) mark(targetOf(scope, n.argument), 'assigned');
-      else if (n.type === NodeType.Identifier && !n.compileTime) {
-        const isObject = (parent?.type === NodeType.IndexExpression || parent?.type === NodeType.MemberExpression)
-          && parent.object === n;
-        const isStoreTarget = parent?.type === NodeType.AssignmentExpression && parent.left === n;
-        const isProperty = parent?.type === NodeType.MemberExpression && parent.property === n;
-        if (isObject || isStoreTarget || isProperty) return;
+      const target = storeTarget(n);
+      if (target) mark(targetOf(scope, target), 'assigned');
+      else if (n.type === NodeType.Identifier && !n.compileTime && isBareValue(n, parent)) {
         const hit = lookup(scope, n.name);
         if (hit?.kind === 'let' && ARRAYISH_TYPES.has(hit.decl.typeAnnotation?.name)) mark(hit.decl, 'value');
       }
@@ -198,6 +199,20 @@ export function analyzeMutability(ast) {
   const visitStatements = (scope, body) => {
     for (const s of body ?? []) visitStatement(scope, s);
   };
+  function visitFunction(scope, s) {
+    const fnScope = newScope(scope);
+    for (const p of s.params) fnScope.names.set(p.name.name, { kind: 'param' });
+    for (const p of s.params) visitExpression(fnScope, p.defaultValue);
+    visitStatement(fnScope, s.body);
+  }
+  function visitFor(scope, s) {
+    const forScope = newScope(scope);
+    if (s.init?.type === NodeType.VariableDeclaration) visitStatement(forScope, s.init);
+    else visitExpression(forScope, s.init);
+    visitExpression(forScope, s.test);
+    visitExpression(forScope, s.update);
+    visitStatement(newScope(forScope), s.body);
+  }
   function visitStatement(scope, s) {
     if (!s) return;
     switch (s.type) {
@@ -207,13 +222,9 @@ export function analyzeMutability(ast) {
         declareVariable(scope, s);
         break;
       case NodeType.FunctionDeclaration:
-      case NodeType.ComponentDeclaration: {
-        const fnScope = newScope(scope);
-        for (const p of s.params) fnScope.names.set(p.name.name, { kind: 'param' });
-        for (const p of s.params) visitExpression(fnScope, p.defaultValue);
-        visitStatement(fnScope, s.body);
+      case NodeType.ComponentDeclaration:
+        visitFunction(scope, s);
         break;
-      }
       case NodeType.NamespaceDeclaration: {
         const ns = lookup(scope, s.name?.name);
         const members = ns?.members ?? scope;
@@ -232,15 +243,9 @@ export function analyzeMutability(ast) {
         visitExpression(scope, s.test);
         visitStatement(newScope(scope), s.body);
         break;
-      case NodeType.ForStatement: {
-        const forScope = newScope(scope);
-        if (s.init?.type === NodeType.VariableDeclaration) visitStatement(forScope, s.init);
-        else visitExpression(forScope, s.init);
-        visitExpression(forScope, s.test);
-        visitExpression(forScope, s.update);
-        visitStatement(newScope(forScope), s.body);
+      case NodeType.ForStatement:
+        visitFor(scope, s);
         break;
-      }
       case NodeType.ReturnStatement:
         visitExpression(scope, s.argument);
         break;
@@ -267,13 +272,27 @@ export function analyzeMutability(ast) {
   return reasons;
 }
 
+/** Whether an identifier is used as a value: not an indexed or member object, a store target or a property. */
+function isBareValue(n, parent) {
+  const isObject = (parent?.type === NodeType.IndexExpression || parent?.type === NodeType.MemberExpression)
+    && parent.object === n;
+  const isStoreTarget = parent?.type === NodeType.AssignmentExpression && parent.left === n;
+  const isProperty = parent?.type === NodeType.MemberExpression && parent.property === n;
+  return !(isObject || isStoreTarget || isProperty);
+}
+
+/** The expression a node stores to, or null when it is not a store. */
+function storeTarget(n) {
+  if (n.type === NodeType.AssignmentExpression) return n.left;
+  if (n.type === NodeType.UpdateExpression) return n.argument;
+  return null;
+}
+
 /** Whether `body` stores to `name` (assignment or update, directly or through an index). */
 function storesTo(root, name) {
   let found = false;
   walk(root, (n) => {
-    const target = n.type === NodeType.AssignmentExpression ? n.left
-      : n.type === NodeType.UpdateExpression ? n.argument : null;
-    let t = target;
+    let t = storeTarget(n);
     while (t?.type === NodeType.IndexExpression) t = t.object;
     if (t?.type === NodeType.Identifier && t.name === name) found = true;
   });
@@ -392,10 +411,20 @@ class Printer {
   openBlock(header, body) {
     this.emit(header ? `${header} {` : "{");
     const isBlock = body?.type === NodeType.BlockStatement;
-    const statements = isBlock ? body.body : (body ? [body] : []);
+    let statements = [];
+    let closeAt = 0;
+    let openEnd = null;
+    if (isBlock) {
+      statements = body.body;
+      closeAt = endOf(body) - 1;
+      openEnd = body.start + 1;
+    } else if (body) {
+      statements = [body];
+      closeAt = endOf(body);
+    }
     this.level += 1;
     const saved = this.prevEnd;
-    this.printList(statements, isBlock ? endOf(body) - 1 : (body ? endOf(body) : 0), isBlock ? body.start + 1 : null);
+    this.printList(statements, closeAt, openEnd);
     this.prevEnd = saved;
     this.level -= 1;
   }
@@ -464,12 +493,6 @@ class Printer {
       case NodeType.BxFragment:
         this.emit(`${this.bx(s, true)};`);
         break;
-      case 'Assert':
-        this.emit(`${this.assertion(s)};`);
-        break;
-      case 'Fail':
-        this.emit(`panic!(${s.message ? this.ex(s.message) : ''});`);
-        break;
       default:
         this.fail('statement', `no new-syntax spelling for statement '${s.type}'`, s);
     }
@@ -523,10 +546,11 @@ class Printer {
       this.block(`${decorators}for ${spellName(init.name.name)}${type} in ${from}${rangeEnd === '<' ? '..' : '..='}${to}`, s.body);
       return;
     }
-    const initText = !init ? '' : init.type === NodeType.VariableDeclaration ? this.variable(init) : this.ex(init);
+    let initText = '';
+    if (init) initText = init.type === NodeType.VariableDeclaration ? this.variable(init) : this.ex(init);
     const testText = s.test ? this.ex(s.test) : '';
-    const updateText = !s.update ? '' : s.update.type === NodeType.UpdateExpression
-      ? this.updateAsAssignment(s.update) : this.ex(s.update);
+    let updateText = '';
+    if (s.update) updateText = s.update.type === NodeType.UpdateExpression ? this.updateAsAssignment(s.update) : this.ex(s.update);
     this.block(`${decorators}for (${initText}; ${testText}; ${updateText})`, s.body);
   }
 
@@ -583,26 +607,6 @@ class Printer {
     return `use ${base}::{${names.join(', ')}};`;
   }
 
-  // ---- tests (nodes the old parser never builds; spec 8bs-test-spec.md 2) ----
-
-  testFunction(t, index) {
-    const words = t.name.split(' ');
-    const plain = !t.name.includes('_') && words.every((w) => /^[A-Za-z0-9]+$/.test(w)) && /^[A-Za-z]/.test(t.name);
-    const fn = plain ? words.join('_') : `t${index + 1}`;
-    const attr = plain ? '#[test]' : `#[test(${JSON.stringify(t.name)})]`;
-    this.block(`${attr} fn ${fn}()`, t.body);
-  }
-
-  assertion(s) {
-    const test = s.test;
-    const message = s.message ? `, ${this.ex(s.message)}` : '';
-    if (test.type === NodeType.BinaryExpression && (test.operator === '==' || test.operator === '!=')) {
-      const macro = test.operator === '==' ? 'assert_eq' : 'assert_ne';
-      return `${macro}!(${this.ex(test.left)}, ${this.ex(test.right)}${message})`;
-    }
-    return `assert!(${this.ex(test)}${message})`;
-  }
-
   // ---- expressions ----
 
   /** An expression in a position where a bare `{` would start the body: parenthesised when it holds braces. */
@@ -657,28 +661,19 @@ class Printer {
       case NodeType.StringLiteral:
         return this.string(n);
       case NodeType.TemplateLiteral:
-        return `\`${n.parts.map((p) => (p.type === NodeType.TemplateText ? p.value
-          : `\${${this.ex(p.expression)}${p.width ? `:${this.number(p.width)}` : ''}}`)).join('')}\``;
+        return this.template(n);
       case NodeType.ArrayLiteral:
         return this.array(n);
       case NodeType.RecordLiteral:
-        return n.properties.length === 0 ? '{}'
-          : `{ ${n.properties.map((p) => `${spellName(p.key)}: ${this.ex(p.value)}`).join(', ')} }`;
+        return this.record(n);
       case NodeType.AssignmentExpression:
         return `${this.ex(n.left, POSTFIX_LEVEL)} ${n.operator} ${this.ex(n.right)}`;
       case NodeType.BinaryExpression:
         return this.binary(n);
-      case NodeType.ConditionalExpression: {
-        const alternate = n.alternate.type === NodeType.ConditionalExpression
-          ? this.ex(n.alternate) : `{ ${this.ex(n.alternate)} }`;
-        return `if ${this.noBrace(n.test, 1)} { ${this.ex(n.consequent)} } else ${alternate}`;
-      }
-      case NodeType.UnaryExpression: {
-        const arg = this.ex(n.argument, UNARY_LEVEL);
-        // `- -x` would read as `--`, `+ +x` as `++`: both are errors in the new syntax.
-        return (n.operator === '-' || n.operator === '+') && arg.startsWith(n.operator)
-          ? `${n.operator}(${arg})` : `${n.operator}${arg}`;
-      }
+      case NodeType.ConditionalExpression:
+        return this.conditional(n);
+      case NodeType.UnaryExpression:
+        return this.unary(n);
       case NodeType.UpdateExpression:
         return this.fail('update-in-expression', `'${n.operator}' inside an expression has no new spelling`, n);
       case NodeType.CallExpression:
@@ -693,6 +688,33 @@ class Printer {
       default:
         return this.fail('expression', `no new-syntax spelling for expression '${n.type}'`, n);
     }
+  }
+
+  template(n) {
+    const part = (p) => {
+      if (p.type === NodeType.TemplateText) return p.value;
+      const width = p.width ? `:${this.number(p.width)}` : '';
+      return `\${${this.ex(p.expression)}${width}}`;
+    };
+    return `\`${n.parts.map(part).join('')}\``;
+  }
+
+  record(n) {
+    if (n.properties.length === 0) return '{}';
+    return `{ ${n.properties.map((p) => `${spellName(p.key)}: ${this.ex(p.value)}`).join(', ')} }`;
+  }
+
+  conditional(n) {
+    let alternate = `{ ${this.ex(n.alternate)} }`;
+    if (n.alternate.type === NodeType.ConditionalExpression) alternate = this.ex(n.alternate);
+    return `if ${this.noBrace(n.test, 1)} { ${this.ex(n.consequent)} } else ${alternate}`;
+  }
+
+  unary(n) {
+    const arg = this.ex(n.argument, UNARY_LEVEL);
+    // `- -x` would read as `--`, `+ +x` as `++`: both are errors in the new syntax.
+    const clash = (n.operator === '-' || n.operator === '+') && arg.startsWith(n.operator);
+    return clash ? `${n.operator}(${arg})` : `${n.operator}${arg}`;
   }
 
   binary(n) {
@@ -776,21 +798,7 @@ class Printer {
   // ---- program ----
 
   program() {
-    const tests = this.ast.body.filter((s) => s.type === 'TestDecl');
-    const body = this.ast.body.filter((s) => s.type !== 'TestDecl');
-    this.printList(body, Infinity, null);
-    if (tests.length > 0) {
-      if (this.out.length) this.out.push('');
-      this.emit('#[cfg(test)]');
-      this.emit('mod tests {');
-      this.level += 1;
-      tests.forEach((t, i) => {
-        if (i > 0) this.out.push('');
-        this.testFunction(t, i);
-      });
-      this.level -= 1;
-      this.emit('}');
-    }
+    this.printList(this.ast.body, Infinity, null);
     return this.out.length ? `${this.out.join('\n')}\n` : '';
   }
 }
