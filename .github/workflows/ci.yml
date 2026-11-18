@@ -53,6 +53,7 @@ jobs:
         with:
           name: oracle-dump-${{ matrix.where }}
           path: ${{ runner.temp }}/dump
+          include-hidden-files: true
           retention-days: 1
           compression-level: 1
 
