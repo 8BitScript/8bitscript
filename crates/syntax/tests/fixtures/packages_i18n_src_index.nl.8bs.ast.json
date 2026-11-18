@@ -1,0 +1,137 @@
+{
+  "body": [
+    {
+      "exported": true,
+      "length": 109,
+      "members": [
+        {
+          "exported": false,
+          "initializer": {
+            "length": 2,
+            "radix": 10,
+            "raw": "44",
+            "start": 149,
+            "type": "IntegerLiteral",
+            "value": 44
+          },
+          "kind": "const",
+          "length": 29,
+          "name": {
+            "length": 7,
+            "name": "DECIMAL",
+            "start": 129,
+            "type": "Identifier"
+          },
+          "start": 123,
+          "type": "VariableDeclaration",
+          "typeAnnotation": {
+            "length": 8,
+            "name": "utinyint",
+            "start": 138,
+            "type": "TypeReference",
+            "typeArguments": []
+          }
+        },
+        {
+          "exported": false,
+          "initializer": {
+            "length": 2,
+            "radix": 10,
+            "raw": "46",
+            "start": 188,
+            "type": "IntegerLiteral",
+            "value": 46
+          },
+          "kind": "const",
+          "length": 27,
+          "name": {
+            "length": 5,
+            "name": "GROUP",
+            "start": 170,
+            "type": "Identifier"
+          },
+          "start": 164,
+          "type": "VariableDeclaration",
+          "typeAnnotation": {
+            "length": 8,
+            "name": "utinyint",
+            "start": 177,
+            "type": "TypeReference",
+            "typeArguments": []
+          }
+        }
+      ],
+      "name": {
+        "length": 6,
+        "name": "Locale",
+        "start": 110,
+        "type": "Identifier"
+      },
+      "start": 93,
+      "type": "NamespaceDeclaration"
+    },
+    {
+      "exported": true,
+      "length": 207,
+      "members": [
+        {
+          "body": {
+            "body": [],
+            "length": 7,
+            "start": 402,
+            "type": "BlockStatement"
+          },
+          "exported": false,
+          "length": 47,
+          "name": {
+            "length": 6,
+            "name": "format",
+            "start": 371,
+            "type": "Identifier"
+          },
+          "params": [
+            {
+              "defaultValue": null,
+              "length": 16,
+              "name": {
+                "length": 8,
+                "name": "template",
+                "start": 378,
+                "type": "Identifier"
+              },
+              "start": 378,
+              "type": "Parameter",
+              "typeAnnotation": {
+                "length": 6,
+                "name": "string",
+                "start": 388,
+                "type": "TypeReference",
+                "typeArguments": []
+              }
+            }
+          ],
+          "returnType": {
+            "length": 4,
+            "name": "void",
+            "start": 397,
+            "type": "TypeReference",
+            "typeArguments": []
+          },
+          "start": 362,
+          "type": "FunctionDeclaration"
+        }
+      ],
+      "name": {
+        "length": 4,
+        "name": "i18n",
+        "start": 221,
+        "type": "Identifier"
+      },
+      "start": 204,
+      "type": "NamespaceDeclaration"
+    }
+  ],
+  "length": 412,
+  "start": 0,
+  "type": "Program"
+}

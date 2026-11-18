@@ -1,0 +1,225 @@
+{
+  "body": [
+    {
+      "body": {
+        "body": [
+          {
+            "expression": {
+              "args": [
+                {
+                  "length": 1,
+                  "radix": 10,
+                  "raw": "0",
+                  "start": 34,
+                  "type": "IntegerLiteral",
+                  "value": 0
+                },
+                {
+                  "length": 33,
+                  "parts": [
+                    {
+                      "length": 5,
+                      "start": 38,
+                      "type": "TemplateText",
+                      "value": "TICK "
+                    },
+                    {
+                      "expression": {
+                        "left": {
+                          "length": 5,
+                          "name": "ticks",
+                          "start": 45,
+                          "type": "Identifier"
+                        },
+                        "length": 10,
+                        "operator": "%",
+                        "right": {
+                          "length": 2,
+                          "radix": 10,
+                          "raw": "10",
+                          "start": 53,
+                          "type": "IntegerLiteral",
+                          "value": 10
+                        },
+                        "start": 45,
+                        "type": "BinaryExpression"
+                      },
+                      "length": 15,
+                      "start": 43,
+                      "type": "TemplateField",
+                      "width": {
+                        "length": 1,
+                        "radix": 10,
+                        "raw": "1",
+                        "start": 56,
+                        "type": "IntegerLiteral",
+                        "value": 1
+                      }
+                    },
+                    {
+                      "length": 5,
+                      "start": 58,
+                      "type": "TemplateText",
+                      "value": " OPT "
+                    },
+                    {
+                      "expression": {
+                        "length": 3,
+                        "name": "opt",
+                        "start": 65,
+                        "type": "Identifier"
+                      },
+                      "length": 6,
+                      "start": 63,
+                      "type": "TemplateField",
+                      "width": null
+                    }
+                  ],
+                  "start": 37,
+                  "type": "TemplateLiteral"
+                }
+              ],
+              "callee": {
+                "length": 10,
+                "object": {
+                  "length": 4,
+                  "name": "text",
+                  "start": 23,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 5,
+                  "name": "print",
+                  "start": 28,
+                  "type": "Identifier"
+                },
+                "start": 23,
+                "type": "MemberExpression"
+              },
+              "length": 48,
+              "start": 23,
+              "type": "CallExpression"
+            },
+            "length": 49,
+            "start": 23,
+            "type": "ExpressionStatement"
+          },
+          {
+            "expression": {
+              "args": [
+                {
+                  "length": 3,
+                  "object": {
+                    "length": 1,
+                    "name": "M",
+                    "start": 87,
+                    "type": "Identifier"
+                  },
+                  "property": {
+                    "length": 1,
+                    "name": "X",
+                    "start": 89,
+                    "type": "Identifier"
+                  },
+                  "start": 87,
+                  "type": "MemberExpression"
+                },
+                {
+                  "length": 27,
+                  "properties": [
+                    {
+                      "key": "control",
+                      "length": 17,
+                      "start": 94,
+                      "type": "RecordProperty",
+                      "value": {
+                        "length": 8,
+                        "object": {
+                          "length": 5,
+                          "name": "Input",
+                          "start": 103,
+                          "type": "Identifier"
+                        },
+                        "property": {
+                          "length": 2,
+                          "name": "OK",
+                          "start": 109,
+                          "type": "Identifier"
+                        },
+                        "start": 103,
+                        "type": "MemberExpression"
+                      }
+                    },
+                    {
+                      "key": "n",
+                      "length": 4,
+                      "start": 113,
+                      "type": "RecordProperty",
+                      "value": {
+                        "length": 1,
+                        "radix": 10,
+                        "raw": "2",
+                        "start": 116,
+                        "type": "IntegerLiteral",
+                        "value": 2
+                      }
+                    }
+                  ],
+                  "start": 92,
+                  "type": "RecordLiteral"
+                }
+              ],
+              "callee": {
+                "length": 11,
+                "object": {
+                  "length": 4,
+                  "name": "i18n",
+                  "start": 75,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 6,
+                  "name": "format",
+                  "start": 80,
+                  "type": "Identifier"
+                },
+                "start": 75,
+                "type": "MemberExpression"
+              },
+              "length": 45,
+              "start": 75,
+              "type": "CallExpression"
+            },
+            "length": 46,
+            "start": 75,
+            "type": "ExpressionStatement"
+          }
+        ],
+        "length": 104,
+        "start": 19,
+        "type": "BlockStatement"
+      },
+      "exported": false,
+      "length": 123,
+      "name": {
+        "length": 1,
+        "name": "f",
+        "start": 9,
+        "type": "Identifier"
+      },
+      "params": [],
+      "returnType": {
+        "length": 4,
+        "name": "void",
+        "start": 14,
+        "type": "TypeReference",
+        "typeArguments": []
+      },
+      "start": 0,
+      "type": "FunctionDeclaration"
+    }
+  ],
+  "length": 124,
+  "start": 0,
+  "type": "Program"
+}

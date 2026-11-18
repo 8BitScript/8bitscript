@@ -1,0 +1,252 @@
+[
+  {
+    "kind": "comment",
+    "length": 68,
+    "start": 0,
+    "text": "// Dutch — index.8bs's twin for `--locale nl`. CLDR nl: decimal \",\","
+  },
+  {
+    "kind": "comment",
+    "length": 23,
+    "start": 69,
+    "text": "// group \".\" (1.234,5)."
+  },
+  {
+    "kind": "keyword",
+    "length": 6,
+    "start": 93,
+    "text": "export"
+  },
+  {
+    "kind": "keyword",
+    "length": 9,
+    "start": 100,
+    "text": "namespace"
+  },
+  {
+    "kind": "identifier",
+    "length": 6,
+    "start": 110,
+    "text": "Locale"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 117,
+    "text": "{"
+  },
+  {
+    "kind": "keyword",
+    "length": 5,
+    "start": 123,
+    "text": "const"
+  },
+  {
+    "kind": "identifier",
+    "length": 7,
+    "start": 129,
+    "text": "DECIMAL"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 136,
+    "text": ":"
+  },
+  {
+    "kind": "type",
+    "length": 8,
+    "start": 138,
+    "text": "utinyint"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 147,
+    "text": "="
+  },
+  {
+    "kind": "number",
+    "length": 2,
+    "radix": 10,
+    "start": 149,
+    "text": "44",
+    "value": 44
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 151,
+    "text": ";"
+  },
+  {
+    "kind": "comment",
+    "length": 6,
+    "start": 153,
+    "text": "// ','"
+  },
+  {
+    "kind": "keyword",
+    "length": 5,
+    "start": 164,
+    "text": "const"
+  },
+  {
+    "kind": "identifier",
+    "length": 5,
+    "start": 170,
+    "text": "GROUP"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 175,
+    "text": ":"
+  },
+  {
+    "kind": "type",
+    "length": 8,
+    "start": 177,
+    "text": "utinyint"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 186,
+    "text": "="
+  },
+  {
+    "kind": "number",
+    "length": 2,
+    "radix": 10,
+    "start": 188,
+    "text": "46",
+    "value": 46
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 190,
+    "text": ";"
+  },
+  {
+    "kind": "comment",
+    "length": 6,
+    "start": 194,
+    "text": "// '.'"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 201,
+    "text": "}"
+  },
+  {
+    "kind": "keyword",
+    "length": 6,
+    "start": 204,
+    "text": "export"
+  },
+  {
+    "kind": "keyword",
+    "length": 9,
+    "start": 211,
+    "text": "namespace"
+  },
+  {
+    "kind": "identifier",
+    "length": 4,
+    "start": 221,
+    "text": "i18n"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 226,
+    "text": "{"
+  },
+  {
+    "kind": "comment",
+    "length": 64,
+    "start": 232,
+    "text": "// Interpolate {name} slots in a catalog string. Folded at every"
+  },
+  {
+    "kind": "comment",
+    "length": 56,
+    "start": 301,
+    "text": "// call site; the body is never linked on a retro build."
+  },
+  {
+    "kind": "keyword",
+    "length": 8,
+    "start": 362,
+    "text": "function"
+  },
+  {
+    "kind": "identifier",
+    "length": 6,
+    "start": 371,
+    "text": "format"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 377,
+    "text": "("
+  },
+  {
+    "kind": "identifier",
+    "length": 8,
+    "start": 378,
+    "text": "template"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 386,
+    "text": ":"
+  },
+  {
+    "kind": "type",
+    "length": 6,
+    "start": 388,
+    "text": "string"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 394,
+    "text": ")"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 395,
+    "text": ":"
+  },
+  {
+    "kind": "type",
+    "length": 4,
+    "start": 397,
+    "text": "void"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 402,
+    "text": "{"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 408,
+    "text": "}"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 410,
+    "text": "}"
+  }
+]

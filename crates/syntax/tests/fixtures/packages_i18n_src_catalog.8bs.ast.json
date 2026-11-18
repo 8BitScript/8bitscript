@@ -1,0 +1,47 @@
+{
+  "body": [
+    {
+      "exported": true,
+      "length": 58,
+      "members": [
+        {
+          "exported": false,
+          "initializer": {
+            "length": 2,
+            "start": 333,
+            "type": "StringLiteral",
+            "value": ""
+          },
+          "kind": "const",
+          "length": 25,
+          "name": {
+            "length": 5,
+            "name": "EMPTY",
+            "start": 317,
+            "type": "Identifier"
+          },
+          "start": 311,
+          "type": "VariableDeclaration",
+          "typeAnnotation": {
+            "length": 6,
+            "name": "string",
+            "start": 324,
+            "type": "TypeReference",
+            "typeArguments": []
+          }
+        }
+      ],
+      "name": {
+        "length": 7,
+        "name": "Catalog",
+        "start": 297,
+        "type": "Identifier"
+      },
+      "start": 280,
+      "type": "NamespaceDeclaration"
+    }
+  ],
+  "length": 339,
+  "start": 0,
+  "type": "Program"
+}

@@ -1,0 +1,293 @@
+{
+  "body": [
+    {
+      "allowsChildren": true,
+      "body": {
+        "body": [
+          {
+            "exported": false,
+            "initializer": {
+              "length": 1,
+              "radix": 10,
+              "raw": "1",
+              "start": 64,
+              "type": "IntegerLiteral",
+              "value": 1
+            },
+            "kind": "state",
+            "length": 20,
+            "name": {
+              "length": 5,
+              "name": "shown",
+              "start": 52,
+              "type": "Identifier"
+            },
+            "start": 46,
+            "type": "StateDeclaration",
+            "typeAnnotation": {
+              "length": 2,
+              "name": "u8",
+              "start": 59,
+              "type": "TypeReference",
+              "typeArguments": []
+            }
+          },
+          {
+            "attributes": [],
+            "children": [],
+            "length": 8,
+            "name": "slot",
+            "selfClosing": true,
+            "start": 69,
+            "type": "BxElement"
+          },
+          {
+            "children": [
+              {
+                "expression": {
+                  "alternate": {
+                    "attributes": [
+                      {
+                        "length": 2,
+                        "name": "on",
+                        "start": 108,
+                        "type": "BxAttribute",
+                        "value": {
+                          "length": 2,
+                          "start": 108,
+                          "type": "BooleanLiteral",
+                          "value": true
+                        }
+                      },
+                      {
+                        "expression": null,
+                        "length": 1,
+                        "start": 111,
+                        "type": "BxSpreadAttribute"
+                      },
+                      {
+                        "length": 1,
+                        "name": "p",
+                        "start": 115,
+                        "type": "BxAttribute",
+                        "value": {
+                          "length": 1,
+                          "start": 115,
+                          "type": "BooleanLiteral",
+                          "value": true
+                        }
+                      },
+                      {
+                        "length": 5,
+                        "name": "k",
+                        "start": 118,
+                        "type": "BxAttribute",
+                        "value": {
+                          "length": 1,
+                          "radix": 10,
+                          "raw": "1",
+                          "start": 121,
+                          "type": "IntegerLiteral",
+                          "value": 1
+                        }
+                      },
+                      {
+                        "length": 5,
+                        "name": "t",
+                        "start": 124,
+                        "type": "BxAttribute",
+                        "value": {
+                          "length": 3,
+                          "start": 126,
+                          "type": "StringLiteral",
+                          "value": "s"
+                        }
+                      }
+                    ],
+                    "children": [],
+                    "length": 30,
+                    "name": "Mark",
+                    "selfClosing": true,
+                    "start": 102,
+                    "type": "BxElement"
+                  },
+                  "consequent": {
+                    "attributes": [],
+                    "children": [],
+                    "length": 8,
+                    "name": "Mark",
+                    "selfClosing": true,
+                    "start": 91,
+                    "type": "BxElement"
+                  },
+                  "length": 49,
+                  "start": 83,
+                  "test": {
+                    "length": 5,
+                    "name": "shown",
+                    "start": 83,
+                    "type": "Identifier"
+                  },
+                  "type": "ConditionalExpression"
+                },
+                "length": 51,
+                "start": 82,
+                "type": "BxExpressionChild"
+              }
+            ],
+            "length": 56,
+            "start": 80,
+            "type": "BxFragment"
+          },
+          {
+            "expression": {
+              "length": 4,
+              "name": "text",
+              "start": 139,
+              "type": "Identifier"
+            },
+            "length": 4,
+            "start": 139,
+            "type": "ExpressionStatement"
+          },
+          {
+            "expression": {
+              "length": 4,
+              "name": "here",
+              "start": 144,
+              "type": "Identifier"
+            },
+            "length": 4,
+            "start": 144,
+            "type": "ExpressionStatement"
+          }
+        ],
+        "length": 108,
+        "start": 42,
+        "type": "BlockStatement"
+      },
+      "exported": false,
+      "length": 150,
+      "name": {
+        "length": 3,
+        "name": "Box",
+        "start": 10,
+        "type": "Identifier"
+      },
+      "params": [
+        {
+          "defaultValue": {
+            "length": 3,
+            "start": 30,
+            "type": "StringLiteral",
+            "value": "x"
+          },
+          "length": 19,
+          "name": {
+            "length": 5,
+            "name": "label",
+            "start": 14,
+            "type": "Identifier"
+          },
+          "optional": true,
+          "start": 14,
+          "type": "Parameter",
+          "typeAnnotation": {
+            "length": 6,
+            "name": "string",
+            "start": 21,
+            "type": "TypeReference",
+            "typeArguments": []
+          }
+        },
+        {
+          "defaultValue": null,
+          "length": 5,
+          "name": {
+            "length": 1,
+            "name": "n",
+            "start": 35,
+            "type": "Identifier"
+          },
+          "optional": false,
+          "start": 35,
+          "type": "Parameter",
+          "typeAnnotation": {
+            "length": 2,
+            "name": "u8",
+            "start": 38,
+            "type": "TypeReference",
+            "typeArguments": []
+          }
+        }
+      ],
+      "start": 0,
+      "type": "ComponentDeclaration"
+    },
+    {
+      "allowsChildren": false,
+      "body": {
+        "body": [
+          {
+            "attributes": [
+              {
+                "length": 9,
+                "name": "label",
+                "start": 181,
+                "type": "BxAttribute",
+                "value": {
+                  "length": 3,
+                  "start": 187,
+                  "type": "StringLiteral",
+                  "value": "a"
+                }
+              }
+            ],
+            "children": [
+              {
+                "length": 3,
+                "raw": "hi ",
+                "start": 191,
+                "type": "BxText",
+                "value": "hi"
+              },
+              {
+                "expression": {
+                  "length": 1,
+                  "name": "n",
+                  "start": 195,
+                  "type": "Identifier"
+                },
+                "length": 3,
+                "start": 194,
+                "type": "BxExpressionChild"
+              }
+            ],
+            "length": 27,
+            "name": "Box",
+            "selfClosing": false,
+            "start": 176,
+            "type": "BxElement"
+          }
+        ],
+        "length": 31,
+        "start": 174,
+        "type": "BlockStatement"
+      },
+      "exported": true,
+      "length": 54,
+      "name": {
+        "length": 3,
+        "name": "Top",
+        "start": 168,
+        "type": "Identifier"
+      },
+      "params": [],
+      "start": 151,
+      "type": "ComponentDeclaration"
+    }
+  ],
+  "length": 206,
+  "start": 0,
+  "type": "Program"
+}
