@@ -8,16 +8,12 @@ pub struct Divergence {
     pub id: String,
     pub corpus: String,
     pub stage: String,
-    #[serde(default = "any")]
-    pub pointer: String,
+    #[serde(default)]
+    pub pointer: Option<String>,
     #[serde(default)]
     pub reason: String,
     #[serde(default)]
     pub issue: Option<u32>,
-}
-
-fn any() -> String {
-    "*".to_string()
 }
 
 #[derive(Deserialize)]
@@ -35,7 +31,12 @@ pub(crate) fn parse(text: &str) -> Result<Vec<Divergence>, String> {
 
 impl Divergence {
     pub(crate) fn matches(&self, id: &str, stage: &str, locator: &str) -> bool {
-        glob_match(&self.corpus, id) && glob_match(&self.stage, stage) && glob_match(&self.pointer, locator)
+        glob_match(&self.corpus, id)
+            && glob_match(&self.stage, stage)
+            && self
+                .pointer
+                .as_deref()
+                .is_some_and(|p| glob_match(p, locator))
     }
 }
 

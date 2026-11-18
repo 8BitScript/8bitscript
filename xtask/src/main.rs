@@ -32,7 +32,11 @@ fn compare(args: &[String]) -> Result<u8, String> {
     let mut divergences: Option<PathBuf> = None;
     let mut it = args.iter();
     while let Some(arg) = it.next() {
-        let mut value = |name: &str| it.next().cloned().ok_or_else(|| format!("{name} needs a value"));
+        let mut value = |name: &str| {
+            it.next()
+                .cloned()
+                .ok_or_else(|| format!("{name} needs a value"))
+        };
         match arg.as_str() {
             "--stages" => {
                 let v = value("--stages")?;
@@ -40,15 +44,20 @@ fn compare(args: &[String]) -> Result<u8, String> {
             }
             "--corpus" => opts.corpus = Some(value("--corpus")?),
             "--divergences" => divergences = Some(PathBuf::from(value("--divergences")?)),
-            flag if flag.starts_with("--") => return Err(format!("unknown option `{flag}`\n{USAGE}")),
+            flag if flag.starts_with("--") => {
+                return Err(format!("unknown option `{flag}`\n{USAGE}"));
+            }
             dir => dirs.push(PathBuf::from(dir)),
         }
     }
     let [js, other] = dirs.as_slice() else {
         return Err(USAGE.to_string());
     };
-    let file = divergences.unwrap_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("../oracle/divergences.toml"));
-    opts.divergences = std::fs::read_to_string(&file).map_err(|e| format!("{}: {e}", file.display()))?;
+    let file = divergences.unwrap_or_else(|| {
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../oracle/divergences.toml")
+    });
+    opts.divergences =
+        std::fs::read_to_string(&file).map_err(|e| format!("{}: {e}", file.display()))?;
     let report = oracle::compare(js, other, &opts)?;
     for line in &report.lines {
         println!("{line}");

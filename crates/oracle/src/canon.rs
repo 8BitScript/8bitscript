@@ -92,7 +92,10 @@ pub struct Roots<'a> {
 /// Replaces an absolute root prefix with `<toolchain>` or `<project>`.
 #[must_use]
 pub fn tokenize_path(path: &str, roots: &Roots) -> String {
-    for (root, token) in [(roots.toolchain, "<toolchain>"), (roots.project, "<project>")] {
+    for (root, token) in [
+        (roots.toolchain, "<toolchain>"),
+        (roots.project, "<project>"),
+    ] {
         if root.is_empty() {
             continue;
         }

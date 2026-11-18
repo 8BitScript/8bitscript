@@ -31,7 +31,11 @@ fn walk(dir: &Path, rel: &str, out: &mut BTreeMap<String, DumpFile>) -> Result<(
     for entry in entries {
         let entry = entry.map_err(|e| format!("{}: {e}", dir.display()))?;
         let name = entry.file_name().to_string_lossy().into_owned();
-        let child = if rel.is_empty() { name.clone() } else { format!("{rel}/{name}") };
+        let child = if rel.is_empty() {
+            name.clone()
+        } else {
+            format!("{rel}/{name}")
+        };
         let path = entry.path();
         if path.is_dir() {
             walk(&path, &child, out)?;
@@ -56,12 +60,23 @@ fn file_stage(name: &str) -> String {
 fn classify(rel: &str, path: PathBuf) -> DumpFile {
     let parts: Vec<&str> = rel.split('/').collect();
     let name = parts[parts.len() - 1];
-    if let Some(i) = parts[..parts.len() - 1].iter().position(|p| *p == "modules") {
+    if let Some(i) = parts[..parts.len() - 1]
+        .iter()
+        .position(|p| *p == "modules")
+    {
         let module = parts[i + 1..].join("/");
-        let (tokpath, stage) = [(".tokens.json", "tokens"), (".ast.json", "ast"), (".ir.json", "module-ir")]
-            .iter()
-            .find_map(|(suffix, stage)| module.strip_suffix(suffix).map(|t| (t.to_string(), (*stage).to_string())))
-            .unwrap_or_else(|| (module.clone(), file_stage(name)));
+        let (tokpath, stage) = [
+            (".tokens.json", "tokens"),
+            (".ast.json", "ast"),
+            (".ir.json", "module-ir"),
+        ]
+        .iter()
+        .find_map(|(suffix, stage)| {
+            module
+                .strip_suffix(suffix)
+                .map(|t| (t.to_string(), (*stage).to_string()))
+        })
+        .unwrap_or_else(|| (module.clone(), file_stage(name)));
         return DumpFile {
             id: parts[..i].join("/"),
             label: format!("{stage}({tokpath})"),
