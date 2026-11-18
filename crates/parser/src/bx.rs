@@ -14,8 +14,9 @@ use crate::{Parser, node_end, tok_end};
 /// Raw text between tags, the way spec 35 reads it: each line trimmed, blank
 /// lines dropped, the rest joined with one space. Empty when nothing is
 /// left; the caller makes no node of that (`normalizeBxText`,
-/// `parser/index.mjs:50`). The trim is JS `String.prototype.trim`, which
-/// strips what `char::is_whitespace` does plus the byte order mark.
+/// `parser/index.mjs:50`). The trim is JS `String.prototype.trim`: the
+/// characters `char::is_whitespace` strips, except U+0085 (NEL), which JS
+/// keeps, plus the byte order mark.
 #[must_use]
 pub fn normalize_bx_text(raw: &str) -> String {
     raw.split('\n')
@@ -26,7 +27,7 @@ pub fn normalize_bx_text(raw: &str) -> String {
 }
 
 fn js_trim(line: &str) -> &str {
-    line.trim_matches(|c: char| c.is_whitespace() || c == '\u{feff}')
+    line.trim_matches(|c: char| (c.is_whitespace() && c != '\u{85}') || c == '\u{feff}')
 }
 
 /// A dotted name and the span of its tokens (`parseBxName`).
@@ -56,14 +57,17 @@ impl Parser<'_> {
     }
 
     /// The JS `at`: the token's text alone decides, whatever its kind.
-    fn at_text(&self, text: &str) -> bool {
+    pub(crate) fn at_text(&self, text: &str) -> bool {
         self.peek().is_some_and(|t| t.text == text)
     }
 
     /// An error on `token`, or a zero-length one at the end of the file.
-    /// Unlike `error_at` this is not muted after the nesting limit trips,
-    /// as in the JS (`bxError`).
+    /// Like `error_at`, it is muted once the shared nesting bound trips
+    /// (`MAX_NEST`); the JS (`bxError`) has no such bound.
     fn bx_error(&mut self, message: impl Into<String>, token: Option<&Token>) {
+        if self.too_deep {
+            return;
+        }
         let (start, length) = token.map_or((self.end_offset(), 0), |t| (t.start, t.length));
         self.diagnostics.push(diagnostic(
             codes::BX_SYNTAX,
@@ -144,8 +148,8 @@ impl Parser<'_> {
     /// One element or fragment, from its `BxTagOpen` to its `/>` or closing
     /// tag. Text children are normalized here, once (spec 35).
     ///
-    /// The JS recurses without a limit; here the shared nesting limit
-    /// applies (R6.5), and past it the tag is skipped so the loop in
+    /// The shared nesting bound (`MAX_NEST`) applies here (R6.5); the JS has
+    /// no limit, and past it the tag is skipped so the loop in
     /// `parse_bx_children` still makes progress.
     pub(crate) fn parse_bx_element(&mut self) -> Option<Node> {
         if !self.enter() {

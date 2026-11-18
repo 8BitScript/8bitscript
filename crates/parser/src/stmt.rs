@@ -102,7 +102,9 @@ impl Parser<'_> {
             // this `<` opens a tag. The `;` after it is optional.
             (TokenKind::BxTagOpen, _) => {
                 let element = self.parse_bx_element();
-                self.eat(";");
+                if self.at_text(";") {
+                    self.next();
+                }
                 element
             }
             (TokenKind::Identifier, word)

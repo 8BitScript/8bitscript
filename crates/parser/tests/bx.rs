@@ -103,6 +103,9 @@ fn bx_text_is_normalized() {
     assert_eq!(normalize_bx_text("\n   \n"), "");
     assert_eq!(normalize_bx_text(""), "");
     assert_eq!(normalize_bx_text("\u{feff} x \u{a0}"), "x");
+    // JS `trim` keeps NEL (U+0085): it is not whitespace there.
+    assert_eq!(normalize_bx_text("x\u{85}"), "x\u{85}");
+    assert_eq!(normalize_bx_text("\u{85}\n a"), "\u{85} a");
 }
 
 #[test]
@@ -174,9 +177,57 @@ fn e_closing_tag() {
 fn deep_nesting_stops_with_one_diagnostic() {
     let text = format!("{}{}", "<A>".repeat(2000), "</A>".repeat(2000));
     let m = messages(&text);
-    assert!(
-        m.iter().any(|x| x == "this is nested too deeply to parse"),
-        "{:?}",
-        m.first()
+    assert_eq!(m, ["this is nested too deeply to parse"]);
+}
+
+#[test]
+fn e_name_after_open_hand_built() {
+    // The lexer opens a tag only before a name or `>`, so the name error is
+    // reached with a token stream edited after lexing.
+    let text = "<A />";
+    let mut lexed = lexer::tokenize(
+        text,
+        "t",
+        &lexer::Options {
+            source_kind: Some(syntax::SourceKind::Bx),
+        },
+    );
+    let name = lexed
+        .tokens
+        .iter_mut()
+        .find(|t| t.kind == syntax::TokenKind::Identifier)
+        .expect("name token");
+    name.kind = syntax::TokenKind::Number;
+    let messages: Vec<String> = parser::parse(&lexed.tokens, text, "t")
+        .diagnostics
+        .into_iter()
+        .map(|d| d.message)
+        .collect();
+    assert_eq!(
+        messages.first().map(String::as_str),
+        Some("expected a component name after <, found 'A'")
+    );
+}
+
+#[test]
+fn e_between_tags() {
+    exact(
+        "<A>{1 2}</A>;",
+        &[
+            "expected '}' to close the expression, found '2'",
+            "unexpected '2' between tags",
+            "unexpected '}' between tags",
+        ],
+    );
+}
+
+#[test]
+fn e_fragment_closing() {
+    exact(
+        "<>x</",
+        &[
+            "expected </> to close the fragment, found end of file",
+            "expected '>' after </",
+        ],
     );
 }
