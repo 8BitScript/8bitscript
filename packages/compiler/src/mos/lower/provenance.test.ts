@@ -167,8 +167,8 @@ test('determinism: lowering the same statements twice produces byte-identical pr
   assert.equal(a.ok, true);
   assert.equal(b.ok, true);
   if (!a.ok || !b.ok) return;
-  // Not a.program itself: freshLabel() (lower/index.ts) counts across the
-  // whole process, so two lower() calls never mint the same internal
+  // Not a.program itself: freshLabel() (lower/index.ts) counts within one
+  // build, so two lower() calls in it never mint the same internal
   // label name even for identical input — same as any other compiler
   // that gensyms. What has to be deterministic is the actually observable
   // output: the assembled bytes, addresses, mnemonics, and provenance.

@@ -162,7 +162,10 @@ function variantsPresent(path) {
   const stem = basename(stripSourceExtension(path));
   let entries;
   try {
-    entries = readdirSync(dirname(path));
+    // Ordinal (UTF-16 code unit) order on purpose, not localeCompare: the
+    // variant names a diagnostic lists must not depend on the filesystem's
+    // entry order or on the locale.
+    entries = readdirSync(dirname(path)).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
   } catch {
     return [];
   }
