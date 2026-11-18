@@ -1,0 +1,40 @@
+{
+  "body": [
+    {
+      "body": {
+        "body": [
+          {
+            "body": "{\n        ldx #1\n        ldy #0\n        clc\n        jsr $FFF0\n    }",
+            "length": 75,
+            "start": 1583,
+            "type": "AsmBlock"
+          }
+        ],
+        "length": 83,
+        "start": 1577,
+        "type": "BlockStatement"
+      },
+      "exported": true,
+      "length": 121,
+      "name": {
+        "length": 13,
+        "name": "releaseCursor",
+        "start": 1555,
+        "type": "Identifier"
+      },
+      "params": [],
+      "returnType": {
+        "length": 4,
+        "name": "void",
+        "start": 1572,
+        "type": "TypeReference",
+        "typeArguments": []
+      },
+      "start": 1539,
+      "type": "FunctionDeclaration"
+    }
+  ],
+  "length": 1661,
+  "start": 0,
+  "type": "Program"
+}

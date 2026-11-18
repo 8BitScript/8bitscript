@@ -1,0 +1,9 @@
+[
+  "Program@0+339<",
+  "NamespaceDeclaration@280+58<Program",
+  "Identifier@297+7<NamespaceDeclaration",
+  "VariableDeclaration@311+25<NamespaceDeclaration",
+  "Identifier@317+5<VariableDeclaration",
+  "TypeReference@324+6<VariableDeclaration",
+  "StringLiteral@333+2<VariableDeclaration"
+]

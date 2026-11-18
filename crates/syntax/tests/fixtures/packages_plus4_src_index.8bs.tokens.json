@@ -1,0 +1,352 @@
+[
+  {
+    "kind": "comment",
+    "length": 67,
+    "start": 0,
+    "text": "// @8bitscript/plus4 — Commodore Plus/4: TED registers, not VIC-II."
+  },
+  {
+    "kind": "comment",
+    "length": 71,
+    "start": 68,
+    "text": "// TED is video, sound, timers, keyboard latch and ROM banking at once."
+  },
+  {
+    "kind": "comment",
+    "length": 66,
+    "start": 140,
+    "text": "// Screen is a 2K block: attributes at $0800, characters at $0C00."
+  },
+  {
+    "kind": "comment",
+    "length": 62,
+    "start": 207,
+    "text": "// Color byte: bits 0-3 chroma, 4-6 luma, 7 blink. 121 colors."
+  },
+  {
+    "kind": "comment",
+    "length": 59,
+    "start": 270,
+    "text": "// Raster: $FF1C bit 0 + $FF1D. ROM in $FF3E, RAM in $FF3F."
+  },
+  {
+    "kind": "decorator",
+    "length": 8,
+    "start": 330,
+    "text": "@address"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 338,
+    "text": "("
+  },
+  {
+    "kind": "number",
+    "length": 6,
+    "radix": 16,
+    "start": 339,
+    "text": "0xFF15",
+    "value": 65301
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 345,
+    "text": ")"
+  },
+  {
+    "kind": "keyword",
+    "length": 6,
+    "start": 347,
+    "text": "export"
+  },
+  {
+    "kind": "keyword",
+    "length": 3,
+    "start": 354,
+    "text": "let"
+  },
+  {
+    "kind": "identifier",
+    "length": 13,
+    "start": 358,
+    "text": "tedBackground"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 371,
+    "text": ":"
+  },
+  {
+    "kind": "type",
+    "length": 8,
+    "start": 373,
+    "text": "volatile"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 381,
+    "text": "<"
+  },
+  {
+    "kind": "type",
+    "length": 2,
+    "start": 382,
+    "text": "u8"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 384,
+    "text": ">"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 385,
+    "text": ";"
+  },
+  {
+    "kind": "decorator",
+    "length": 8,
+    "start": 388,
+    "text": "@address"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 396,
+    "text": "("
+  },
+  {
+    "kind": "number",
+    "length": 6,
+    "radix": 16,
+    "start": 397,
+    "text": "0xFF19",
+    "value": 65305
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 403,
+    "text": ")"
+  },
+  {
+    "kind": "keyword",
+    "length": 6,
+    "start": 405,
+    "text": "export"
+  },
+  {
+    "kind": "keyword",
+    "length": 3,
+    "start": 412,
+    "text": "let"
+  },
+  {
+    "kind": "identifier",
+    "length": 9,
+    "start": 416,
+    "text": "tedBorder"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 425,
+    "text": ":"
+  },
+  {
+    "kind": "type",
+    "length": 8,
+    "start": 427,
+    "text": "volatile"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 435,
+    "text": "<"
+  },
+  {
+    "kind": "type",
+    "length": 2,
+    "start": 436,
+    "text": "u8"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 438,
+    "text": ">"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 439,
+    "text": ";"
+  },
+  {
+    "kind": "decorator",
+    "length": 8,
+    "start": 442,
+    "text": "@address"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 450,
+    "text": "("
+  },
+  {
+    "kind": "number",
+    "length": 6,
+    "radix": 16,
+    "start": 451,
+    "text": "0xFF1C",
+    "value": 65308
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 457,
+    "text": ")"
+  },
+  {
+    "kind": "keyword",
+    "length": 6,
+    "start": 459,
+    "text": "export"
+  },
+  {
+    "kind": "keyword",
+    "length": 3,
+    "start": 466,
+    "text": "let"
+  },
+  {
+    "kind": "identifier",
+    "length": 11,
+    "start": 470,
+    "text": "tedRasterHi"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 481,
+    "text": ":"
+  },
+  {
+    "kind": "type",
+    "length": 8,
+    "start": 483,
+    "text": "volatile"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 491,
+    "text": "<"
+  },
+  {
+    "kind": "type",
+    "length": 2,
+    "start": 492,
+    "text": "u8"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 494,
+    "text": ">"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 495,
+    "text": ";"
+  },
+  {
+    "kind": "decorator",
+    "length": 8,
+    "start": 498,
+    "text": "@address"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 506,
+    "text": "("
+  },
+  {
+    "kind": "number",
+    "length": 6,
+    "radix": 16,
+    "start": 507,
+    "text": "0xFF1D",
+    "value": 65309
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 513,
+    "text": ")"
+  },
+  {
+    "kind": "keyword",
+    "length": 6,
+    "start": 515,
+    "text": "export"
+  },
+  {
+    "kind": "keyword",
+    "length": 3,
+    "start": 522,
+    "text": "let"
+  },
+  {
+    "kind": "identifier",
+    "length": 11,
+    "start": 526,
+    "text": "tedRasterLo"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 537,
+    "text": ":"
+  },
+  {
+    "kind": "type",
+    "length": 8,
+    "start": 539,
+    "text": "volatile"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 547,
+    "text": "<"
+  },
+  {
+    "kind": "type",
+    "length": 2,
+    "start": 548,
+    "text": "u8"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 550,
+    "text": ">"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 551,
+    "text": ";"
+  }
+]

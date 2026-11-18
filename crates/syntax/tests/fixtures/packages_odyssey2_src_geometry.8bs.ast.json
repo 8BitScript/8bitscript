@@ -1,0 +1,105 @@
+{
+  "body": [
+    {
+      "exported": true,
+      "length": 128,
+      "members": [
+        {
+          "exported": false,
+          "initializer": {
+            "length": 2,
+            "radix": 10,
+            "raw": "12",
+            "start": 55,
+            "type": "IntegerLiteral",
+            "value": 12
+          },
+          "kind": "const",
+          "length": 29,
+          "name": {
+            "length": 7,
+            "name": "COLUMNS",
+            "start": 35,
+            "type": "Identifier"
+          },
+          "start": 29,
+          "type": "VariableDeclaration",
+          "typeAnnotation": {
+            "length": 8,
+            "name": "utinyint",
+            "start": 44,
+            "type": "TypeReference",
+            "typeArguments": []
+          }
+        },
+        {
+          "exported": false,
+          "initializer": {
+            "length": 1,
+            "radix": 10,
+            "raw": "8",
+            "start": 86,
+            "type": "IntegerLiteral",
+            "value": 8
+          },
+          "kind": "const",
+          "length": 25,
+          "name": {
+            "length": 4,
+            "name": "ROWS",
+            "start": 69,
+            "type": "Identifier"
+          },
+          "start": 63,
+          "type": "VariableDeclaration",
+          "typeAnnotation": {
+            "length": 8,
+            "name": "utinyint",
+            "start": 75,
+            "type": "TypeReference",
+            "typeArguments": []
+          }
+        },
+        {
+          "exported": false,
+          "initializer": {
+            "length": 2,
+            "radix": 10,
+            "raw": "96",
+            "start": 123,
+            "type": "IntegerLiteral",
+            "value": 96
+          },
+          "kind": "const",
+          "length": 33,
+          "name": {
+            "length": 10,
+            "name": "CELL_COUNT",
+            "start": 99,
+            "type": "Identifier"
+          },
+          "start": 93,
+          "type": "VariableDeclaration",
+          "typeAnnotation": {
+            "length": 9,
+            "name": "usmallint",
+            "start": 111,
+            "type": "TypeReference",
+            "typeArguments": []
+          }
+        }
+      ],
+      "name": {
+        "length": 5,
+        "name": "Video",
+        "start": 17,
+        "type": "Identifier"
+      },
+      "start": 0,
+      "type": "NamespaceDeclaration"
+    }
+  ],
+  "length": 129,
+  "start": 0,
+  "type": "Program"
+}

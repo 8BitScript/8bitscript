@@ -1,0 +1,453 @@
+[
+  {
+    "kind": "comment",
+    "length": 76,
+    "start": 0,
+    "text": "// The probe's sprite shape on the C64: the first sprite shape block, filled"
+  },
+  {
+    "kind": "comment",
+    "length": 68,
+    "start": 77,
+    "text": "// solid so the screenshot test can read its 24 x 21 rectangle back."
+  },
+  {
+    "kind": "keyword",
+    "length": 6,
+    "start": 146,
+    "text": "import"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 153,
+    "text": "{"
+  },
+  {
+    "kind": "identifier",
+    "length": 7,
+    "start": 155,
+    "text": "sprites"
+  },
+  {
+    "kind": "keyword",
+    "length": 2,
+    "start": 163,
+    "text": "as"
+  },
+  {
+    "kind": "identifier",
+    "length": 8,
+    "start": 166,
+    "text": "hardware"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 175,
+    "text": "}"
+  },
+  {
+    "kind": "keyword",
+    "length": 4,
+    "start": 177,
+    "text": "from"
+  },
+  {
+    "kind": "string",
+    "length": 25,
+    "start": 182,
+    "text": "\"@8bitscript/c64/sprites\""
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 207,
+    "text": ";"
+  },
+  {
+    "kind": "keyword",
+    "length": 6,
+    "start": 209,
+    "text": "import"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 216,
+    "text": "{"
+  },
+  {
+    "kind": "identifier",
+    "length": 12,
+    "start": 218,
+    "text": "spriteShapes"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 231,
+    "text": "}"
+  },
+  {
+    "kind": "keyword",
+    "length": 4,
+    "start": 233,
+    "text": "from"
+  },
+  {
+    "kind": "string",
+    "length": 23,
+    "start": 238,
+    "text": "\"@8bitscript/c64/video\""
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 261,
+    "text": ";"
+  },
+  {
+    "kind": "keyword",
+    "length": 6,
+    "start": 264,
+    "text": "export"
+  },
+  {
+    "kind": "keyword",
+    "length": 9,
+    "start": 271,
+    "text": "namespace"
+  },
+  {
+    "kind": "identifier",
+    "length": 6,
+    "start": 281,
+    "text": "shapes"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 288,
+    "text": "{"
+  },
+  {
+    "kind": "keyword",
+    "length": 5,
+    "start": 294,
+    "text": "const"
+  },
+  {
+    "kind": "identifier",
+    "length": 5,
+    "start": 300,
+    "text": "BLOCK"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 305,
+    "text": ":"
+  },
+  {
+    "kind": "type",
+    "length": 8,
+    "start": 307,
+    "text": "utinyint"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 316,
+    "text": "="
+  },
+  {
+    "kind": "identifier",
+    "length": 8,
+    "start": 318,
+    "text": "hardware"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 326,
+    "text": "."
+  },
+  {
+    "kind": "identifier",
+    "length": 11,
+    "start": 327,
+    "text": "FIRST_BLOCK"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 338,
+    "text": ";"
+  },
+  {
+    "kind": "keyword",
+    "length": 8,
+    "start": 345,
+    "text": "function"
+  },
+  {
+    "kind": "identifier",
+    "length": 5,
+    "start": 354,
+    "text": "begin"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 359,
+    "text": "("
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 360,
+    "text": ")"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 361,
+    "text": ":"
+  },
+  {
+    "kind": "type",
+    "length": 4,
+    "start": 363,
+    "text": "void"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 368,
+    "text": "{"
+  },
+  {
+    "kind": "keyword",
+    "length": 3,
+    "start": 378,
+    "text": "for"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 382,
+    "text": "("
+  },
+  {
+    "kind": "keyword",
+    "length": 3,
+    "start": 383,
+    "text": "let"
+  },
+  {
+    "kind": "identifier",
+    "length": 1,
+    "start": 387,
+    "text": "i"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 388,
+    "text": ":"
+  },
+  {
+    "kind": "type",
+    "length": 8,
+    "start": 390,
+    "text": "utinyint"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 399,
+    "text": "="
+  },
+  {
+    "kind": "number",
+    "length": 1,
+    "radix": 10,
+    "start": 401,
+    "text": "0",
+    "value": 0
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 402,
+    "text": ";"
+  },
+  {
+    "kind": "identifier",
+    "length": 1,
+    "start": 404,
+    "text": "i"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 406,
+    "text": "<"
+  },
+  {
+    "kind": "number",
+    "length": 2,
+    "radix": 10,
+    "start": 408,
+    "text": "63",
+    "value": 63
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 410,
+    "text": ";"
+  },
+  {
+    "kind": "identifier",
+    "length": 1,
+    "start": 412,
+    "text": "i"
+  },
+  {
+    "kind": "operator",
+    "length": 2,
+    "start": 413,
+    "text": "++"
+  },
+  {
+    "controlHeader": true,
+    "kind": "punctuation",
+    "length": 1,
+    "start": 415,
+    "text": ")"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 417,
+    "text": "{"
+  },
+  {
+    "kind": "identifier",
+    "length": 12,
+    "start": 431,
+    "text": "spriteShapes"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 443,
+    "text": "["
+  },
+  {
+    "kind": "identifier",
+    "length": 8,
+    "start": 444,
+    "text": "hardware"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 452,
+    "text": "."
+  },
+  {
+    "kind": "identifier",
+    "length": 11,
+    "start": 453,
+    "text": "blockOffset"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 464,
+    "text": "("
+  },
+  {
+    "kind": "identifier",
+    "length": 6,
+    "start": 465,
+    "text": "shapes"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 471,
+    "text": "."
+  },
+  {
+    "kind": "identifier",
+    "length": 5,
+    "start": 472,
+    "text": "BLOCK"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 477,
+    "text": ")"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 479,
+    "text": "+"
+  },
+  {
+    "kind": "identifier",
+    "length": 1,
+    "start": 481,
+    "text": "i"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 482,
+    "text": "]"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 484,
+    "text": "="
+  },
+  {
+    "kind": "number",
+    "length": 4,
+    "radix": 16,
+    "start": 486,
+    "text": "0xFF",
+    "value": 255
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 490,
+    "text": ";"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 500,
+    "text": "}"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 506,
+    "text": "}"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 508,
+    "text": "}"
+  }
+]

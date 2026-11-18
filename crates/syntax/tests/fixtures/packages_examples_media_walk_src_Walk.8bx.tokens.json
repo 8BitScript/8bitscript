@@ -1,0 +1,476 @@
+[
+  {
+    "kind": "keyword",
+    "length": 6,
+    "start": 0,
+    "text": "import"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 7,
+    "text": "{"
+  },
+  {
+    "kind": "identifier",
+    "length": 6,
+    "start": 9,
+    "text": "player"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 16,
+    "text": "}"
+  },
+  {
+    "kind": "keyword",
+    "length": 4,
+    "start": 18,
+    "text": "from"
+  },
+  {
+    "kind": "string",
+    "length": 14,
+    "start": 23,
+    "text": "\"./player.8bg\""
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 37,
+    "text": ";"
+  },
+  {
+    "kind": "keyword",
+    "length": 6,
+    "start": 39,
+    "text": "import"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 46,
+    "text": "{"
+  },
+  {
+    "kind": "identifier",
+    "length": 4,
+    "start": 48,
+    "text": "blip"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 52,
+    "text": ","
+  },
+  {
+    "kind": "identifier",
+    "length": 5,
+    "start": 54,
+    "text": "theme"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 60,
+    "text": "}"
+  },
+  {
+    "kind": "keyword",
+    "length": 4,
+    "start": 62,
+    "text": "from"
+  },
+  {
+    "kind": "string",
+    "length": 13,
+    "start": 67,
+    "text": "\"./theme.8ba\""
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 80,
+    "text": ";"
+  },
+  {
+    "kind": "keyword",
+    "length": 6,
+    "start": 82,
+    "text": "import"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 89,
+    "text": "{"
+  },
+  {
+    "kind": "identifier",
+    "length": 8,
+    "start": 91,
+    "text": "graphics"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 100,
+    "text": "}"
+  },
+  {
+    "kind": "keyword",
+    "length": 4,
+    "start": 102,
+    "text": "from"
+  },
+  {
+    "kind": "string",
+    "length": 22,
+    "start": 107,
+    "text": "\"@8bitscript/graphics\""
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 129,
+    "text": ";"
+  },
+  {
+    "kind": "keyword",
+    "length": 6,
+    "start": 131,
+    "text": "import"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 138,
+    "text": "{"
+  },
+  {
+    "kind": "identifier",
+    "length": 5,
+    "start": 140,
+    "text": "audio"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 146,
+    "text": "}"
+  },
+  {
+    "kind": "keyword",
+    "length": 4,
+    "start": 148,
+    "text": "from"
+  },
+  {
+    "kind": "string",
+    "length": 19,
+    "start": 153,
+    "text": "\"@8bitscript/audio\""
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 172,
+    "text": ";"
+  },
+  {
+    "kind": "keyword",
+    "length": 6,
+    "start": 174,
+    "text": "import"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 181,
+    "text": "{"
+  },
+  {
+    "kind": "identifier",
+    "length": 4,
+    "start": 183,
+    "text": "text"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 188,
+    "text": "}"
+  },
+  {
+    "kind": "keyword",
+    "length": 4,
+    "start": 190,
+    "text": "from"
+  },
+  {
+    "kind": "string",
+    "length": 18,
+    "start": 195,
+    "text": "\"@8bitscript/text\""
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 213,
+    "text": ";"
+  },
+  {
+    "kind": "keyword",
+    "length": 6,
+    "start": 216,
+    "text": "export"
+  },
+  {
+    "kind": "keyword",
+    "length": 9,
+    "start": 223,
+    "text": "component"
+  },
+  {
+    "kind": "identifier",
+    "length": 4,
+    "start": 233,
+    "text": "Walk"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 237,
+    "text": "("
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 238,
+    "text": ")"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 240,
+    "text": "{"
+  },
+  {
+    "kind": "identifier",
+    "length": 4,
+    "start": 246,
+    "text": "text"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 250,
+    "text": "."
+  },
+  {
+    "kind": "identifier",
+    "length": 5,
+    "start": 251,
+    "text": "print"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 256,
+    "text": "("
+  },
+  {
+    "kind": "number",
+    "length": 1,
+    "radix": 10,
+    "start": 257,
+    "text": "0",
+    "value": 0
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 258,
+    "text": ","
+  },
+  {
+    "kind": "string",
+    "length": 6,
+    "start": 260,
+    "text": "\"WALK\""
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 266,
+    "text": ")"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 267,
+    "text": ";"
+  },
+  {
+    "kind": "identifier",
+    "length": 8,
+    "start": 273,
+    "text": "graphics"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 281,
+    "text": "."
+  },
+  {
+    "kind": "identifier",
+    "length": 5,
+    "start": 282,
+    "text": "place"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 287,
+    "text": "("
+  },
+  {
+    "kind": "identifier",
+    "length": 6,
+    "start": 288,
+    "text": "player"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 294,
+    "text": ","
+  },
+  {
+    "kind": "number",
+    "length": 2,
+    "radix": 10,
+    "start": 296,
+    "text": "40",
+    "value": 40
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 298,
+    "text": ","
+  },
+  {
+    "kind": "number",
+    "length": 2,
+    "radix": 10,
+    "start": 300,
+    "text": "40",
+    "value": 40
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 302,
+    "text": ")"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 303,
+    "text": ";"
+  },
+  {
+    "kind": "identifier",
+    "length": 5,
+    "start": 309,
+    "text": "audio"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 314,
+    "text": "."
+  },
+  {
+    "kind": "identifier",
+    "length": 4,
+    "start": 315,
+    "text": "play"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 319,
+    "text": "("
+  },
+  {
+    "kind": "identifier",
+    "length": 4,
+    "start": 320,
+    "text": "blip"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 324,
+    "text": ")"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 325,
+    "text": ";"
+  },
+  {
+    "kind": "identifier",
+    "length": 5,
+    "start": 331,
+    "text": "audio"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 336,
+    "text": "."
+  },
+  {
+    "kind": "identifier",
+    "length": 5,
+    "start": 337,
+    "text": "music"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 342,
+    "text": "("
+  },
+  {
+    "kind": "identifier",
+    "length": 5,
+    "start": 343,
+    "text": "theme"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 348,
+    "text": ")"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 349,
+    "text": ";"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 351,
+    "text": "}"
+  }
+]

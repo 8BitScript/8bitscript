@@ -1,0 +1,199 @@
+[
+  {
+    "kind": "keyword",
+    "length": 8,
+    "start": 0,
+    "text": "function"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 9,
+    "text": "("
+  },
+  {
+    "kind": "identifier",
+    "length": 1,
+    "start": 10,
+    "text": "a"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 11,
+    "text": ":"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 13,
+    "text": ")"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 15,
+    "text": "{"
+  },
+  {
+    "kind": "keyword",
+    "length": 3,
+    "start": 17,
+    "text": "let"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 21,
+    "text": "="
+  },
+  {
+    "kind": "number",
+    "length": 1,
+    "radix": 10,
+    "start": 23,
+    "text": "3",
+    "value": 3
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 24,
+    "text": ";"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 26,
+    "text": "}"
+  },
+  {
+    "kind": "keyword",
+    "length": 9,
+    "start": 28,
+    "text": "namespace"
+  },
+  {
+    "kind": "identifier",
+    "length": 1,
+    "start": 38,
+    "text": "N"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 40,
+    "text": "{"
+  },
+  {
+    "kind": "keyword",
+    "length": 3,
+    "start": 42,
+    "text": "let"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 46,
+    "text": ";"
+  },
+  {
+    "kind": "keyword",
+    "length": 8,
+    "start": 48,
+    "text": "function"
+  },
+  {
+    "kind": "identifier",
+    "length": 1,
+    "start": 57,
+    "text": "f"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 58,
+    "text": "("
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 59,
+    "text": ")"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 60,
+    "text": ":"
+  },
+  {
+    "kind": "type",
+    "length": 4,
+    "start": 62,
+    "text": "void"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 67,
+    "text": "{"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 68,
+    "text": "}"
+  },
+  {
+    "kind": "number",
+    "length": 1,
+    "radix": 10,
+    "start": 70,
+    "text": "5",
+    "value": 5
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 72,
+    "text": "}"
+  },
+  {
+    "kind": "keyword",
+    "length": 3,
+    "start": 74,
+    "text": "let"
+  },
+  {
+    "kind": "identifier",
+    "length": 1,
+    "start": 78,
+    "text": "s"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 80,
+    "text": "="
+  },
+  {
+    "kind": "string",
+    "length": 5,
+    "start": 82,
+    "text": "\"open",
+    "unterminated": true
+  },
+  {
+    "kind": "keyword",
+    "length": 2,
+    "start": 88,
+    "text": "if"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 91,
+    "text": "("
+  }
+]
