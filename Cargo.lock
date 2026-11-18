@@ -72,6 +72,7 @@ version = "0.0.0"
 dependencies = [
  "indexmap",
  "jsnum",
+ "mos-ir",
  "oracle",
  "regex",
  "serde",
