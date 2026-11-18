@@ -261,6 +261,7 @@ version = "0.0.0"
 dependencies = [
  "mos-ir",
  "oracle",
+ "serde_json",
 ]
 
 [[package]]

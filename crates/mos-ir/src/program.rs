@@ -142,7 +142,7 @@ pub enum GlobalInit {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Global {
     pub name: String,
     #[serde(rename = "type")]
@@ -157,4 +157,7 @@ pub struct Global {
     pub array: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub constant: Option<bool>,
+    /// A `string<N>` buffer's capacity N (`ir/index.mjs`, next to `array: N + 1`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub string_capacity: Option<i64>,
 }

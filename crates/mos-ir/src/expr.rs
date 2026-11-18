@@ -91,15 +91,19 @@ pub struct Ref {
     pub length: Option<i64>,
 }
 
-/// A string literal: `index` is the slot in `strings`.
+/// A string literal: `index` is the slot in `strings`. Lowering also stamps a
+/// type and a span; the linker's `constExpression` (an inlined string const)
+/// writes the bare `{kind, index}`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct StringLiteral {
     pub index: i64,
-    #[serde(rename = "type")]
-    pub ty: Option<String>,
-    pub start: i64,
-    pub length: i64,
+    #[serde(rename = "type", default, skip_serializing_if = "Nullable::is_absent")]
+    pub ty: Nullable<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub start: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub length: Option<i64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
