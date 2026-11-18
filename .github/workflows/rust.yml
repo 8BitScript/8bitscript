@@ -57,6 +57,11 @@ jobs:
         if: steps.changes.outputs.run == 'true'
       - run: scripts/t
         if: steps.changes.outputs.run == 'true'
+      # The 1 MB stack test only compiles in release (debug frames are far
+      # larger), so nextest above skips it.
+      - name: Parser stack test (release)
+        if: steps.changes.outputs.run == 'true'
+        run: cargo test -p parser --release --locked --test stack
       # The jsnum fixtures come from Node; they must match what the
       # compiler sources produce. The generator needs no installed packages.
       - uses: actions/setup-node@v5
