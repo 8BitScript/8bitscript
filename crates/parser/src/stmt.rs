@@ -98,6 +98,13 @@ impl Parser<'_> {
                 self.next();
                 None
             }
+            // An element as a statement (spec 95): the lexer already decided
+            // this `<` opens a tag. The `;` after it is optional.
+            (TokenKind::BxTagOpen, _) => {
+                let element = self.parse_bx_element();
+                self.eat(";");
+                element
+            }
             (TokenKind::Identifier, word)
                 if OLD_SYNTAX_WORDS.contains(&word) && self.old_syntax_follows() =>
             {
