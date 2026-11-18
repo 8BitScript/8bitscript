@@ -23,6 +23,18 @@ pub(crate) fn reserved_message(word: &str) -> Option<String> {
     }
 }
 
+/// The release that ships `8bs migrate`; the flip change sets the real
+/// version here (syntax spec E21).
+pub const MIGRATE_RELEASE: &str = "<cut release>";
+
+/// E21: the full text, built from [`MIGRATE_RELEASE`].
+#[must_use]
+pub fn old_syntax_message() -> String {
+    format!(
+        "this is the old 8BitScript syntax; run '8bs migrate' from 8BitScript {MIGRATE_RELEASE} to convert it"
+    )
+}
+
 const OLD_SYNTAX_WORDS: [&str; 4] = ["function", "import", "export", "namespace"];
 
 fn set_exported(node: &mut Node) {
@@ -120,10 +132,7 @@ impl Parser<'_> {
 
     fn skip_old_syntax_item(&mut self) {
         let Some(token) = self.next() else { return };
-        self.error_on(
-            "this is the old 8BitScript syntax; run '8bs migrate' to convert it",
-            &token,
-        );
+        self.error_on(old_syntax_message(), &token);
         self.skip_item_tail();
     }
 

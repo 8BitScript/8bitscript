@@ -59,7 +59,7 @@
       "code": "8BS1101",
       "file": "t",
       "length": 8,
-      "message": "this is the old 8BitScript syntax; run '8bs migrate' to convert it",
+      "message": "this is the old 8BitScript syntax; run '8bs migrate' from 8BitScript <cut release> to convert it",
       "severity": "error",
       "start": 0
     },
@@ -67,7 +67,7 @@
       "code": "8BS1101",
       "file": "t",
       "length": 6,
-      "message": "this is the old 8BitScript syntax; run '8bs migrate' to convert it",
+      "message": "this is the old 8BitScript syntax; run '8bs migrate' from 8BitScript <cut release> to convert it",
       "severity": "error",
       "start": 37
     },
@@ -75,7 +75,7 @@
       "code": "8BS1101",
       "file": "t",
       "length": 6,
-      "message": "this is the old 8BitScript syntax; run '8bs migrate' to convert it",
+      "message": "this is the old 8BitScript syntax; run '8bs migrate' from 8BitScript <cut release> to convert it",
       "severity": "error",
       "start": 71
     },
@@ -83,7 +83,7 @@
       "code": "8BS1101",
       "file": "t",
       "length": 9,
-      "message": "this is the old 8BitScript syntax; run '8bs migrate' to convert it",
+      "message": "this is the old 8BitScript syntax; run '8bs migrate' from 8BitScript <cut release> to convert it",
       "severity": "error",
       "start": 93
     },
@@ -91,7 +91,7 @@
       "code": "8BS1101",
       "file": "t",
       "length": 6,
-      "message": "this is the old 8BitScript syntax; run '8bs migrate' to convert it",
+      "message": "this is the old 8BitScript syntax; run '8bs migrate' from 8BitScript <cut release> to convert it",
       "severity": "error",
       "start": 128
     }

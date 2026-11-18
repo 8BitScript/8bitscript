@@ -195,3 +195,13 @@ fn ids_are_assigned_in_pre_order() {
     let expected: Vec<u32> = (0..ids.len() as u32).collect();
     assert_eq!(ids, expected);
 }
+
+#[test]
+fn e21_full_text_comes_from_the_release_constant() {
+    assert_eq!(parser::MIGRATE_RELEASE, "<cut release>");
+    assert_eq!(
+        one("function f() {}"),
+        "this is the old 8BitScript syntax; run '8bs migrate' from 8BitScript <cut release> to convert it"
+    );
+    assert_eq!(one("function f() {}"), parser::old_syntax_message());
+}

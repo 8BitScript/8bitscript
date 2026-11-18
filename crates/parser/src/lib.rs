@@ -19,6 +19,8 @@ mod matching;
 mod stmt;
 mod types;
 
+pub use stmt::{MIGRATE_RELEASE, old_syntax_message};
+
 use std::collections::HashSet;
 
 use diagnostics::{Diagnostic, Severity, codes, diagnostic};
