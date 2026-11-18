@@ -1,6 +1,6 @@
 //! Port of mos/image-atari8.ts: a DOS `.xex`, a `$FFFF` marker followed by
 //! (start, end, bytes) segments. The RUN segment (two bytes at `$02E0`) comes
-//! first, the artifact that was measured to boot.
+//! first, the layout that was measured to boot.
 
 use super::{ImageKind, MachineImage};
 
