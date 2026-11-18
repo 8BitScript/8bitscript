@@ -1,0 +1,160 @@
+[
+  {
+    "kind": "comment",
+    "length": 74,
+    "start": 0,
+    "text": "// The greeting as a component. This file declares composition and nothing"
+  },
+  {
+    "kind": "comment",
+    "length": 74,
+    "start": 75,
+    "text": "// else: no main(), no program — the .8bs beside it is the program, and it"
+  },
+  {
+    "kind": "comment",
+    "length": 64,
+    "start": 150,
+    "text": "// reaches this component by importing it (8BX spec §4.3, §4.5)."
+  },
+  {
+    "kind": "keyword",
+    "length": 6,
+    "start": 215,
+    "text": "import"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 222,
+    "text": "{"
+  },
+  {
+    "kind": "identifier",
+    "length": 4,
+    "start": 224,
+    "text": "text"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 229,
+    "text": "}"
+  },
+  {
+    "kind": "keyword",
+    "length": 4,
+    "start": 231,
+    "text": "from"
+  },
+  {
+    "kind": "string",
+    "length": 18,
+    "start": 236,
+    "text": "\"@8bitscript/text\""
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 254,
+    "text": ";"
+  },
+  {
+    "kind": "keyword",
+    "length": 6,
+    "start": 257,
+    "text": "export"
+  },
+  {
+    "kind": "keyword",
+    "length": 9,
+    "start": 264,
+    "text": "component"
+  },
+  {
+    "kind": "identifier",
+    "length": 5,
+    "start": 274,
+    "text": "Hello"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 279,
+    "text": "("
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 280,
+    "text": ")"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 282,
+    "text": "{"
+  },
+  {
+    "kind": "identifier",
+    "length": 4,
+    "start": 288,
+    "text": "text"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 292,
+    "text": "."
+  },
+  {
+    "kind": "identifier",
+    "length": 5,
+    "start": 293,
+    "text": "print"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 298,
+    "text": "("
+  },
+  {
+    "kind": "number",
+    "length": 1,
+    "radix": 10,
+    "start": 299,
+    "text": "0",
+    "value": 0
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 300,
+    "text": ","
+  },
+  {
+    "kind": "string",
+    "length": 14,
+    "start": 302,
+    "text": "\"Hello World!\""
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 316,
+    "text": ")"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 317,
+    "text": ";"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 319,
+    "text": "}"
+  }
+]

@@ -1,0 +1,52 @@
+{
+  "diagnostics": [
+    {
+      "code": "8BS1006",
+      "file": "t",
+      "length": 27,
+      "message": "unterminated block comment",
+      "severity": "error",
+      "start": 11
+    }
+  ],
+  "tokens": [
+    {
+      "kind": "keyword",
+      "length": 3,
+      "start": 0,
+      "text": "let"
+    },
+    {
+      "kind": "identifier",
+      "length": 1,
+      "start": 4,
+      "text": "a"
+    },
+    {
+      "kind": "operator",
+      "length": 1,
+      "start": 6,
+      "text": "="
+    },
+    {
+      "kind": "number",
+      "length": 1,
+      "radix": 10,
+      "start": 8,
+      "text": "1",
+      "value": 1
+    },
+    {
+      "kind": "punctuation",
+      "length": 1,
+      "start": 9,
+      "text": ";"
+    },
+    {
+      "kind": "comment",
+      "length": 27,
+      "start": 11,
+      "text": "/* never closed\nlet b = 2;\n"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+let a = x++;
+let b = y--;
+let c = p ? q : r;
+let d = 'A';
+let e = 'ab\'c' + 1;
+let f = "never closed
+let g = `never closed
+let h = `field ${open
+let i = 0x;
+let j = 0b;
+let k = $;
+let l = 5 \ 2;
+let m = a @ b;
+#!ok
+let n = #;
+let o = é + 1;
+let p = 😀;
+#![inner]
+use @scope::a;
+x = (1 + 2));
+y = a ] b;
+}
+a = 1 ?? 2;
+asm6502 let z;
