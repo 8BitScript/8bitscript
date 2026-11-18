@@ -60,9 +60,6 @@ pub enum NodeKind {
         specifiers: Vec<Node>,
         #[serde(default)]
         source: Option<Box<Node>>,
-        /// New syntax only: the source is a path form the resolver searches.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        use_path: Option<bool>,
     },
     VariableDeclaration {
         kind: String,
@@ -73,9 +70,6 @@ pub enum NodeKind {
         #[serde(default)]
         initializer: Option<Box<Node>>,
         exported: bool,
-        /// New syntax only: a `let` that is not `let mut`.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        immutable: Option<bool>,
     },
     FunctionDeclaration {
         #[serde(default)]
@@ -107,8 +101,6 @@ pub enum NodeKind {
         #[serde(default)]
         initializer: Option<Box<Node>>,
         exported: bool,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        immutable: Option<bool>,
     },
     NamespaceDeclaration {
         #[serde(default)]

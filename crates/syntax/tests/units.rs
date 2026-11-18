@@ -84,24 +84,3 @@ fn source_kinds() {
     }
     assert_eq!(SourceKind::from_extension(".js"), None);
 }
-
-#[test]
-fn rs_only_fields_are_optional_and_absent_by_default() {
-    let decl = Node::new(
-        0,
-        3,
-        NodeKind::VariableDeclaration {
-            kind: "let".into(),
-            name: None,
-            type_annotation: None,
-            initializer: None,
-            exported: false,
-            immutable: None,
-        },
-    );
-    let json = serde_json::to_string(&decl).expect("json");
-    assert!(!json.contains("immutable"));
-    assert!(json.contains("\"name\":null"));
-    let back: Node = serde_json::from_str(&json).expect("parse");
-    assert_eq!(back, decl);
-}
