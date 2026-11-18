@@ -3,12 +3,19 @@
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-const USAGE: &str = "usage: cargo xtask compare <js-dir> <other-dir> [--stages a,b] [--corpus <glob>] [--divergences <file>]";
+const USAGE: &str = "usage: cargo xtask compare <js-dir> <other-dir> [--stages a,b] [--corpus <glob>] [--divergences <file>]\n       cargo xtask tap <dir> [--fn <name>]";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.first().map(String::as_str) {
         Some("compare") => match compare(&args[1..]) {
+            Ok(code) => ExitCode::from(code),
+            Err(message) => {
+                eprintln!("xtask: {message}");
+                ExitCode::from(2)
+            }
+        },
+        Some("tap") => match xtask::tap::command(&args[1..]) {
             Ok(code) => ExitCode::from(code),
             Err(message) => {
                 eprintln!("xtask: {message}");

@@ -7,4 +7,6 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+mos = { path = "../crates/mos" }
 oracle = { path = "../crates/oracle" }
+serde_json = "1"

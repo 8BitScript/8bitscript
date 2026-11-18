@@ -1,1 +1,12 @@
-//! Tap replay for `assemble_native`, filled in by the unit that ports it.
+//! Tap replay for `assembleNative`, filled in by the unit that ports it.
+
+use serde_json::Value;
+
+use super::Replay;
+use crate::build::Counters;
+
+/// Replays one `assembleNative` record. The unit that ports it replaces this body.
+#[must_use]
+pub fn replay(_record: &Value, _counters: &mut Counters) -> Replay {
+    Replay::Skip
+}
