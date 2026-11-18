@@ -1,0 +1,3554 @@
+{
+  "chrPatches": [],
+  "debug": false,
+  "entry": "main",
+  "frameHook": {
+    "name": "nesVerticalBlank",
+    "used": true
+  },
+  "frameRate": 60,
+  "functions": [
+    {
+      "body": [
+        {
+          "body": [
+            {
+              "init": {
+                "kind": "ref",
+                "length": 16,
+                "name": "renderingEnabled",
+                "start": 6546,
+                "type": "utinyint"
+              },
+              "inlined": true,
+              "kind": "local",
+              "length": 10,
+              "name": "wasShowing_2",
+              "start": 6523,
+              "type": "utinyint"
+            },
+            {
+              "else": null,
+              "kind": "if",
+              "length": 156,
+              "start": 6572,
+              "test": {
+                "kind": "binop",
+                "left": {
+                  "kind": "ref",
+                  "length": 10,
+                  "name": "wasShowing_2",
+                  "start": 6576,
+                  "type": "utinyint"
+                },
+                "operator": "==",
+                "right": {
+                  "kind": "const",
+                  "type": "utinyint",
+                  "value": 1
+                },
+                "type": "bool"
+              },
+              "then": [
+                {
+                  "address": {
+                    "kind": "const",
+                    "type": "usmallint",
+                    "value": 8193
+                  },
+                  "kind": "memoryWrite",
+                  "length": 26,
+                  "start": 6607,
+                  "value": {
+                    "kind": "const",
+                    "type": "utinyint",
+                    "value": 0
+                  }
+                },
+                {
+                  "kind": "assign",
+                  "length": 16,
+                  "start": 6647,
+                  "target": "renderingEnabled",
+                  "value": {
+                    "kind": "const",
+                    "type": "utinyint",
+                    "value": 0
+                  }
+                }
+              ]
+            },
+            {
+              "args": [],
+              "kind": "call",
+              "length": 16,
+              "name": "nesVerticalBlank",
+              "start": 6737,
+              "type": null
+            },
+            {
+              "args": [
+                {
+                  "kind": "const",
+                  "type": "usmallint",
+                  "value": 16130
+                },
+                {
+                  "kind": "const",
+                  "value": 15
+                }
+              ],
+              "kind": "call",
+              "length": 10,
+              "name": "setPalette",
+              "start": 6866,
+              "type": "void"
+            },
+            {
+              "args": [
+                {
+                  "kind": "const",
+                  "type": "usmallint",
+                  "value": 16128
+                },
+                {
+                  "kind": "const",
+                  "value": 15
+                }
+              ],
+              "kind": "call",
+              "length": 10,
+              "name": "setPalette",
+              "start": 6966,
+              "type": "void"
+            },
+            {
+              "body": [
+                {
+                  "args": [
+                    {
+                      "kind": "binop",
+                      "left": {
+                        "kind": "binop",
+                        "left": {
+                          "kind": "const",
+                          "type": "usmallint",
+                          "value": 8192
+                        },
+                        "operator": "+",
+                        "right": {
+                          "kind": "binop",
+                          "left": {
+                            "kind": "ref",
+                            "length": 3,
+                            "name": "row_2",
+                            "start": 7093,
+                            "type": "usmallint"
+                          },
+                          "operator": "<<",
+                          "right": {
+                            "kind": "const",
+                            "type": "utinyint",
+                            "value": 5
+                          },
+                          "type": "usmallint"
+                        },
+                        "type": "usmallint"
+                      },
+                      "operator": "+",
+                      "right": {
+                        "kind": "const",
+                        "type": "utinyint",
+                        "value": 2
+                      },
+                      "type": "usmallint"
+                    },
+                    {
+                      "kind": "const",
+                      "type": "utinyint",
+                      "value": 28
+                    },
+                    {
+                      "kind": "const",
+                      "type": "utinyint",
+                      "value": 32
+                    }
+                  ],
+                  "kind": "call",
+                  "length": 7,
+                  "name": "fillRun",
+                  "start": 7076,
+                  "type": "void"
+                }
+              ],
+              "init": {
+                "init": {
+                  "kind": "const",
+                  "type": "utinyint",
+                  "value": 2
+                },
+                "inlined": true,
+                "kind": "local",
+                "length": 3,
+                "name": "row_2",
+                "start": 7025,
+                "type": "usmallint"
+              },
+              "kind": "for",
+              "length": 109,
+              "start": 7016,
+              "test": {
+                "kind": "binop",
+                "left": {
+                  "kind": "ref",
+                  "length": 3,
+                  "name": "row_2",
+                  "start": 7045,
+                  "type": "usmallint"
+                },
+                "operator": "<",
+                "right": {
+                  "kind": "const",
+                  "type": "utinyint",
+                  "value": 28
+                },
+                "type": "bool"
+              },
+              "unroll": false,
+              "update": {
+                "kind": "assign",
+                "length": 3,
+                "start": 7055,
+                "target": "row_2",
+                "value": {
+                  "kind": "binop",
+                  "left": {
+                    "kind": "ref",
+                    "length": 3,
+                    "name": "row_2",
+                    "start": 7055,
+                    "type": "usmallint"
+                  },
+                  "operator": "+",
+                  "right": {
+                    "kind": "const",
+                    "type": "utinyint",
+                    "value": 1
+                  },
+                  "type": "usmallint"
+                }
+              }
+            },
+            {
+              "args": [],
+              "kind": "call",
+              "length": 11,
+              "name": "resetScroll",
+              "start": 7134,
+              "type": null
+            },
+            {
+              "else": [
+                {
+                  "args": [],
+                  "kind": "call",
+                  "length": 11,
+                  "name": "showPicture",
+                  "start": 7345,
+                  "type": "void"
+                }
+              ],
+              "kind": "if",
+              "length": 212,
+              "start": 7157,
+              "test": {
+                "kind": "binop",
+                "left": {
+                  "kind": "ref",
+                  "length": 10,
+                  "name": "wasShowing_2",
+                  "start": 7161,
+                  "type": "utinyint"
+                },
+                "operator": "==",
+                "right": {
+                  "kind": "const",
+                  "type": "utinyint",
+                  "value": 1
+                },
+                "type": "bool"
+              },
+              "then": [
+                {
+                  "body": [],
+                  "kind": "while",
+                  "length": 49,
+                  "start": 7192,
+                  "test": {
+                    "kind": "binop",
+                    "left": {
+                      "address": {
+                        "kind": "const",
+                        "type": "usmallint",
+                        "value": 8194
+                      },
+                      "kind": "memoryRead",
+                      "length": 19,
+                      "start": 7199,
+                      "type": "utinyint"
+                    },
+                    "operator": "<",
+                    "right": {
+                      "kind": "const",
+                      "type": "utinyint",
+                      "value": 128
+                    },
+                    "type": "bool"
+                  }
+                },
+                {
+                  "kind": "assign",
+                  "length": 16,
+                  "start": 7254,
+                  "target": "renderingEnabled",
+                  "value": {
+                    "kind": "const",
+                    "type": "utinyint",
+                    "value": 1
+                  }
+                },
+                {
+                  "address": {
+                    "kind": "const",
+                    "type": "usmallint",
+                    "value": 8193
+                  },
+                  "kind": "memoryWrite",
+                  "length": 26,
+                  "start": 7288,
+                  "value": {
+                    "kind": "const",
+                    "type": "utinyint",
+                    "value": 10
+                  }
+                }
+              ]
+            }
+          ],
+          "kind": "block",
+          "origin": "screen_blank"
+        },
+        {
+          "body": [
+            {
+              "init": {
+                "args": [
+                  {
+                    "kind": "const",
+                    "type": "utinyint",
+                    "value": 0
+                  }
+                ],
+                "kind": "call",
+                "length": 6,
+                "name": "locate",
+                "start": 9272,
+                "type": "utinyint"
+              },
+              "kind": "local",
+              "length": 3,
+              "name": "col",
+              "start": 9256,
+              "type": "utinyint"
+            },
+            {
+              "body": [
+                {
+                  "args": [
+                    {
+                      "kind": "const",
+                      "type": "utinyint",
+                      "value": 72
+                    }
+                  ],
+                  "kind": "call",
+                  "length": 9,
+                  "name": "queueByte",
+                  "start": 9353,
+                  "type": null
+                }
+              ],
+              "kind": "block",
+              "origin": "toTile"
+            },
+            {
+              "kind": "assign",
+              "length": 3,
+              "start": 9390,
+              "target": "col",
+              "value": {
+                "kind": "binop",
+                "left": {
+                  "kind": "ref",
+                  "length": 3,
+                  "name": "col",
+                  "start": 9390,
+                  "type": "utinyint"
+                },
+                "operator": "+",
+                "right": {
+                  "kind": "const",
+                  "type": "utinyint",
+                  "value": 1
+                },
+                "type": "utinyint"
+              }
+            },
+            {
+              "else": null,
+              "kind": "if",
+              "length": 124,
+              "start": 9409,
+              "test": {
+                "kind": "binop",
+                "left": {
+                  "kind": "ref",
+                  "length": 3,
+                  "name": "col",
+                  "start": 9413,
+                  "type": "utinyint"
+                },
+                "operator": "==",
+                "right": {
+                  "kind": "const",
+                  "type": "utinyint",
+                  "value": 28
+                },
+                "type": "bool"
+              },
+              "then": [
+                {
+                  "kind": "assign",
+                  "length": 3,
+                  "start": 9452,
+                  "target": "col",
+                  "value": {
+                    "args": [
+                      {
+                        "kind": "const",
+                        "type": "usmallint",
+                        "value": 1
+                      }
+                    ],
+                    "kind": "call",
+                    "length": 6,
+                    "name": "locate",
+                    "start": 9458,
+                    "type": "utinyint"
+                  }
+                }
+              ]
+            },
+            {
+              "body": [
+                {
+                  "args": [
+                    {
+                      "kind": "const",
+                      "type": "utinyint",
+                      "value": 101
+                    }
+                  ],
+                  "kind": "call",
+                  "length": 9,
+                  "name": "queueByte",
+                  "start": 9353,
+                  "type": null
+                }
+              ],
+              "kind": "block",
+              "origin": "toTile"
+            },
+            {
+              "kind": "assign",
+              "length": 3,
+              "start": 9390,
+              "target": "col",
+              "value": {
+                "kind": "binop",
+                "left": {
+                  "kind": "ref",
+                  "length": 3,
+                  "name": "col",
+                  "start": 9390,
+                  "type": "utinyint"
+                },
+                "operator": "+",
+                "right": {
+                  "kind": "const",
+                  "type": "utinyint",
+                  "value": 1
+                },
+                "type": "utinyint"
+              }
+            },
+            {
+              "else": null,
+              "kind": "if",
+              "length": 124,
+              "start": 9409,
+              "test": {
+                "kind": "binop",
+                "left": {
+                  "kind": "ref",
+                  "length": 3,
+                  "name": "col",
+                  "start": 9413,
+                  "type": "utinyint"
+                },
+                "operator": "==",
+                "right": {
+                  "kind": "const",
+                  "type": "utinyint",
+                  "value": 28
+                },
+                "type": "bool"
+              },
+              "then": [
+                {
+                  "kind": "assign",
+                  "length": 3,
+                  "start": 9452,
+                  "target": "col",
+                  "value": {
+                    "args": [
+                      {
+                        "kind": "const",
+                        "type": "usmallint",
+                        "value": 2
+                      }
+                    ],
+                    "kind": "call",
+                    "length": 6,
+                    "name": "locate",
+                    "start": 9458,
+                    "type": "utinyint"
+                  }
+                }
+              ]
+            },
+            {
+              "body": [
+                {
+                  "args": [
+                    {
+                      "kind": "const",
+                      "type": "utinyint",
+                      "value": 108
+                    }
+                  ],
+                  "kind": "call",
+                  "length": 9,
+                  "name": "queueByte",
+                  "start": 9353,
+                  "type": null
+                }
+              ],
+              "kind": "block",
+              "origin": "toTile"
+            },
+            {
+              "kind": "assign",
+              "length": 3,
+              "start": 9390,
+              "target": "col",
+              "value": {
+                "kind": "binop",
+                "left": {
+                  "kind": "ref",
+                  "length": 3,
+                  "name": "col",
+                  "start": 9390,
+                  "type": "utinyint"
+                },
+                "operator": "+",
+                "right": {
+                  "kind": "const",
+                  "type": "utinyint",
+                  "value": 1
+                },
+                "type": "utinyint"
+              }
+            },
+            {
+              "else": null,
+              "kind": "if",
+              "length": 124,
+              "start": 9409,
+              "test": {
+                "kind": "binop",
+                "left": {
+                  "kind": "ref",
+                  "length": 3,
+                  "name": "col",
+                  "start": 9413,
+                  "type": "utinyint"
+                },
+                "operator": "==",
+                "right": {
+                  "kind": "const",
+                  "type": "utinyint",
+                  "value": 28
+                },
+                "type": "bool"
+              },
+              "then": [
+                {
+                  "kind": "assign",
+                  "length": 3,
+                  "start": 9452,
+                  "target": "col",
+                  "value": {
+                    "args": [
+                      {
+                        "kind": "const",
+                        "type": "usmallint",
+                        "value": 3
+                      }
+                    ],
+                    "kind": "call",
+                    "length": 6,
+                    "name": "locate",
+                    "start": 9458,
+                    "type": "utinyint"
+                  }
+                }
+              ]
+            },
+            {
+              "body": [
+                {
+                  "args": [
+                    {
+                      "kind": "const",
+                      "type": "utinyint",
+                      "value": 108
+                    }
+                  ],
+                  "kind": "call",
+                  "length": 9,
+                  "name": "queueByte",
+                  "start": 9353,
+                  "type": null
+                }
+              ],
+              "kind": "block",
+              "origin": "toTile"
+            },
+            {
+              "kind": "assign",
+              "length": 3,
+              "start": 9390,
+              "target": "col",
+              "value": {
+                "kind": "binop",
+                "left": {
+                  "kind": "ref",
+                  "length": 3,
+                  "name": "col",
+                  "start": 9390,
+                  "type": "utinyint"
+                },
+                "operator": "+",
+                "right": {
+                  "kind": "const",
+                  "type": "utinyint",
+                  "value": 1
+                },
+                "type": "utinyint"
+              }
+            },
+            {
+              "else": null,
+              "kind": "if",
+              "length": 124,
+              "start": 9409,
+              "test": {
+                "kind": "binop",
+                "left": {
+                  "kind": "ref",
+                  "length": 3,
+                  "name": "col",
+                  "start": 9413,
+                  "type": "utinyint"
+                },
+                "operator": "==",
+                "right": {
+                  "kind": "const",
+                  "type": "utinyint",
+                  "value": 28
+                },
+                "type": "bool"
+              },
+              "then": [
+                {
+                  "kind": "assign",
+                  "length": 3,
+                  "start": 9452,
+                  "target": "col",
+                  "value": {
+                    "args": [
+                      {
+                        "kind": "const",
+                        "type": "usmallint",
+                        "value": 4
+                      }
+                    ],
+                    "kind": "call",
+                    "length": 6,
+                    "name": "locate",
+                    "start": 9458,
+                    "type": "utinyint"
+                  }
+                }
+              ]
+            },
+            {
+              "body": [
+                {
+                  "args": [
+                    {
+                      "kind": "const",
+                      "type": "utinyint",
+                      "value": 111
+                    }
+                  ],
+                  "kind": "call",
+                  "length": 9,
+                  "name": "queueByte",
+                  "start": 9353,
+                  "type": null
+                }
+              ],
+              "kind": "block",
+              "origin": "toTile"
+            },
+            {
+              "kind": "assign",
+              "length": 3,
+              "start": 9390,
+              "target": "col",
+              "value": {
+                "kind": "binop",
+                "left": {
+                  "kind": "ref",
+                  "length": 3,
+                  "name": "col",
+                  "start": 9390,
+                  "type": "utinyint"
+                },
+                "operator": "+",
+                "right": {
+                  "kind": "const",
+                  "type": "utinyint",
+                  "value": 1
+                },
+                "type": "utinyint"
+              }
+            },
+            {
+              "else": null,
+              "kind": "if",
+              "length": 124,
+              "start": 9409,
+              "test": {
+                "kind": "binop",
+                "left": {
+                  "kind": "ref",
+                  "length": 3,
+                  "name": "col",
+                  "start": 9413,
+                  "type": "utinyint"
+                },
+                "operator": "==",
+                "right": {
+                  "kind": "const",
+                  "type": "utinyint",
+                  "value": 28
+                },
+                "type": "bool"
+              },
+              "then": [
+                {
+                  "kind": "assign",
+                  "length": 3,
+                  "start": 9452,
+                  "target": "col",
+                  "value": {
+                    "args": [
+                      {
+                        "kind": "const",
+                        "type": "usmallint",
+                        "value": 5
+                      }
+                    ],
+                    "kind": "call",
+                    "length": 6,
+                    "name": "locate",
+                    "start": 9458,
+                    "type": "utinyint"
+                  }
+                }
+              ]
+            },
+            {
+              "body": [
+                {
+                  "args": [
+                    {
+                      "kind": "const",
+                      "type": "utinyint",
+                      "value": 32
+                    }
+                  ],
+                  "kind": "call",
+                  "length": 9,
+                  "name": "queueByte",
+                  "start": 9353,
+                  "type": null
+                }
+              ],
+              "kind": "block",
+              "origin": "toTile"
+            },
+            {
+              "kind": "assign",
+              "length": 3,
+              "start": 9390,
+              "target": "col",
+              "value": {
+                "kind": "binop",
+                "left": {
+                  "kind": "ref",
+                  "length": 3,
+                  "name": "col",
+                  "start": 9390,
+                  "type": "utinyint"
+                },
+                "operator": "+",
+                "right": {
+                  "kind": "const",
+                  "type": "utinyint",
+                  "value": 1
+                },
+                "type": "utinyint"
+              }
+            },
+            {
+              "else": null,
+              "kind": "if",
+              "length": 124,
+              "start": 9409,
+              "test": {
+                "kind": "binop",
+                "left": {
+                  "kind": "ref",
+                  "length": 3,
+                  "name": "col",
+                  "start": 9413,
+                  "type": "utinyint"
+                },
+                "operator": "==",
+                "right": {
+                  "kind": "const",
+                  "type": "utinyint",
+                  "value": 28
+                },
+                "type": "bool"
+              },
+              "then": [
+                {
+                  "kind": "assign",
+                  "length": 3,
+                  "start": 9452,
+                  "target": "col",
+                  "value": {
+                    "args": [
+                      {
+                        "kind": "const",
+                        "type": "usmallint",
+                        "value": 6
+                      }
+                    ],
+                    "kind": "call",
+                    "length": 6,
+                    "name": "locate",
+                    "start": 9458,
+                    "type": "utinyint"
+                  }
+                }
+              ]
+            },
+            {
+              "body": [
+                {
+                  "args": [
+                    {
+                      "kind": "const",
+                      "type": "utinyint",
+                      "value": 87
+                    }
+                  ],
+                  "kind": "call",
+                  "length": 9,
+                  "name": "queueByte",
+                  "start": 9353,
+                  "type": null
+                }
+              ],
+              "kind": "block",
+              "origin": "toTile"
+            },
+            {
+              "kind": "assign",
+              "length": 3,
+              "start": 9390,
+              "target": "col",
+              "value": {
+                "kind": "binop",
+                "left": {
+                  "kind": "ref",
+                  "length": 3,
+                  "name": "col",
+                  "start": 9390,
+                  "type": "utinyint"
+                },
+                "operator": "+",
+                "right": {
+                  "kind": "const",
+                  "type": "utinyint",
+                  "value": 1
+                },
+                "type": "utinyint"
+              }
+            },
+            {
+              "else": null,
+              "kind": "if",
+              "length": 124,
+              "start": 9409,
+              "test": {
+                "kind": "binop",
+                "left": {
+                  "kind": "ref",
+                  "length": 3,
+                  "name": "col",
+                  "start": 9413,
+                  "type": "utinyint"
+                },
+                "operator": "==",
+                "right": {
+                  "kind": "const",
+                  "type": "utinyint",
+                  "value": 28
+                },
+                "type": "bool"
+              },
+              "then": [
+                {
+                  "kind": "assign",
+                  "length": 3,
+                  "start": 9452,
+                  "target": "col",
+                  "value": {
+                    "args": [
+                      {
+                        "kind": "const",
+                        "type": "usmallint",
+                        "value": 7
+                      }
+                    ],
+                    "kind": "call",
+                    "length": 6,
+                    "name": "locate",
+                    "start": 9458,
+                    "type": "utinyint"
+                  }
+                }
+              ]
+            },
+            {
+              "body": [
+                {
+                  "args": [
+                    {
+                      "kind": "const",
+                      "type": "utinyint",
+                      "value": 111
+                    }
+                  ],
+                  "kind": "call",
+                  "length": 9,
+                  "name": "queueByte",
+                  "start": 9353,
+                  "type": null
+                }
+              ],
+              "kind": "block",
+              "origin": "toTile"
+            },
+            {
+              "kind": "assign",
+              "length": 3,
+              "start": 9390,
+              "target": "col",
+              "value": {
+                "kind": "binop",
+                "left": {
+                  "kind": "ref",
+                  "length": 3,
+                  "name": "col",
+                  "start": 9390,
+                  "type": "utinyint"
+                },
+                "operator": "+",
+                "right": {
+                  "kind": "const",
+                  "type": "utinyint",
+                  "value": 1
+                },
+                "type": "utinyint"
+              }
+            },
+            {
+              "else": null,
+              "kind": "if",
+              "length": 124,
+              "start": 9409,
+              "test": {
+                "kind": "binop",
+                "left": {
+                  "kind": "ref",
+                  "length": 3,
+                  "name": "col",
+                  "start": 9413,
+                  "type": "utinyint"
+                },
+                "operator": "==",
+                "right": {
+                  "kind": "const",
+                  "type": "utinyint",
+                  "value": 28
+                },
+                "type": "bool"
+              },
+              "then": [
+                {
+                  "kind": "assign",
+                  "length": 3,
+                  "start": 9452,
+                  "target": "col",
+                  "value": {
+                    "args": [
+                      {
+                        "kind": "const",
+                        "type": "usmallint",
+                        "value": 8
+                      }
+                    ],
+                    "kind": "call",
+                    "length": 6,
+                    "name": "locate",
+                    "start": 9458,
+                    "type": "utinyint"
+                  }
+                }
+              ]
+            },
+            {
+              "body": [
+                {
+                  "args": [
+                    {
+                      "kind": "const",
+                      "type": "utinyint",
+                      "value": 114
+                    }
+                  ],
+                  "kind": "call",
+                  "length": 9,
+                  "name": "queueByte",
+                  "start": 9353,
+                  "type": null
+                }
+              ],
+              "kind": "block",
+              "origin": "toTile"
+            },
+            {
+              "kind": "assign",
+              "length": 3,
+              "start": 9390,
+              "target": "col",
+              "value": {
+                "kind": "binop",
+                "left": {
+                  "kind": "ref",
+                  "length": 3,
+                  "name": "col",
+                  "start": 9390,
+                  "type": "utinyint"
+                },
+                "operator": "+",
+                "right": {
+                  "kind": "const",
+                  "type": "utinyint",
+                  "value": 1
+                },
+                "type": "utinyint"
+              }
+            },
+            {
+              "else": null,
+              "kind": "if",
+              "length": 124,
+              "start": 9409,
+              "test": {
+                "kind": "binop",
+                "left": {
+                  "kind": "ref",
+                  "length": 3,
+                  "name": "col",
+                  "start": 9413,
+                  "type": "utinyint"
+                },
+                "operator": "==",
+                "right": {
+                  "kind": "const",
+                  "type": "utinyint",
+                  "value": 28
+                },
+                "type": "bool"
+              },
+              "then": [
+                {
+                  "kind": "assign",
+                  "length": 3,
+                  "start": 9452,
+                  "target": "col",
+                  "value": {
+                    "args": [
+                      {
+                        "kind": "const",
+                        "type": "usmallint",
+                        "value": 9
+                      }
+                    ],
+                    "kind": "call",
+                    "length": 6,
+                    "name": "locate",
+                    "start": 9458,
+                    "type": "utinyint"
+                  }
+                }
+              ]
+            },
+            {
+              "body": [
+                {
+                  "args": [
+                    {
+                      "kind": "const",
+                      "type": "utinyint",
+                      "value": 108
+                    }
+                  ],
+                  "kind": "call",
+                  "length": 9,
+                  "name": "queueByte",
+                  "start": 9353,
+                  "type": null
+                }
+              ],
+              "kind": "block",
+              "origin": "toTile"
+            },
+            {
+              "kind": "assign",
+              "length": 3,
+              "start": 9390,
+              "target": "col",
+              "value": {
+                "kind": "binop",
+                "left": {
+                  "kind": "ref",
+                  "length": 3,
+                  "name": "col",
+                  "start": 9390,
+                  "type": "utinyint"
+                },
+                "operator": "+",
+                "right": {
+                  "kind": "const",
+                  "type": "utinyint",
+                  "value": 1
+                },
+                "type": "utinyint"
+              }
+            },
+            {
+              "else": null,
+              "kind": "if",
+              "length": 124,
+              "start": 9409,
+              "test": {
+                "kind": "binop",
+                "left": {
+                  "kind": "ref",
+                  "length": 3,
+                  "name": "col",
+                  "start": 9413,
+                  "type": "utinyint"
+                },
+                "operator": "==",
+                "right": {
+                  "kind": "const",
+                  "type": "utinyint",
+                  "value": 28
+                },
+                "type": "bool"
+              },
+              "then": [
+                {
+                  "kind": "assign",
+                  "length": 3,
+                  "start": 9452,
+                  "target": "col",
+                  "value": {
+                    "args": [
+                      {
+                        "kind": "const",
+                        "type": "usmallint",
+                        "value": 10
+                      }
+                    ],
+                    "kind": "call",
+                    "length": 6,
+                    "name": "locate",
+                    "start": 9458,
+                    "type": "utinyint"
+                  }
+                }
+              ]
+            },
+            {
+              "body": [
+                {
+                  "args": [
+                    {
+                      "kind": "const",
+                      "type": "utinyint",
+                      "value": 100
+                    }
+                  ],
+                  "kind": "call",
+                  "length": 9,
+                  "name": "queueByte",
+                  "start": 9353,
+                  "type": null
+                }
+              ],
+              "kind": "block",
+              "origin": "toTile"
+            },
+            {
+              "kind": "assign",
+              "length": 3,
+              "start": 9390,
+              "target": "col",
+              "value": {
+                "kind": "binop",
+                "left": {
+                  "kind": "ref",
+                  "length": 3,
+                  "name": "col",
+                  "start": 9390,
+                  "type": "utinyint"
+                },
+                "operator": "+",
+                "right": {
+                  "kind": "const",
+                  "type": "utinyint",
+                  "value": 1
+                },
+                "type": "utinyint"
+              }
+            },
+            {
+              "else": null,
+              "kind": "if",
+              "length": 124,
+              "start": 9409,
+              "test": {
+                "kind": "binop",
+                "left": {
+                  "kind": "ref",
+                  "length": 3,
+                  "name": "col",
+                  "start": 9413,
+                  "type": "utinyint"
+                },
+                "operator": "==",
+                "right": {
+                  "kind": "const",
+                  "type": "utinyint",
+                  "value": 28
+                },
+                "type": "bool"
+              },
+              "then": [
+                {
+                  "kind": "assign",
+                  "length": 3,
+                  "start": 9452,
+                  "target": "col",
+                  "value": {
+                    "args": [
+                      {
+                        "kind": "const",
+                        "type": "usmallint",
+                        "value": 11
+                      }
+                    ],
+                    "kind": "call",
+                    "length": 6,
+                    "name": "locate",
+                    "start": 9458,
+                    "type": "utinyint"
+                  }
+                }
+              ]
+            },
+            {
+              "body": [
+                {
+                  "args": [
+                    {
+                      "kind": "const",
+                      "type": "utinyint",
+                      "value": 33
+                    }
+                  ],
+                  "kind": "call",
+                  "length": 9,
+                  "name": "queueByte",
+                  "start": 9353,
+                  "type": null
+                }
+              ],
+              "kind": "block",
+              "origin": "toTile"
+            },
+            {
+              "kind": "assign",
+              "length": 3,
+              "start": 9390,
+              "target": "col",
+              "value": {
+                "kind": "binop",
+                "left": {
+                  "kind": "ref",
+                  "length": 3,
+                  "name": "col",
+                  "start": 9390,
+                  "type": "utinyint"
+                },
+                "operator": "+",
+                "right": {
+                  "kind": "const",
+                  "type": "utinyint",
+                  "value": 1
+                },
+                "type": "utinyint"
+              }
+            },
+            {
+              "else": null,
+              "kind": "if",
+              "length": 124,
+              "start": 9409,
+              "test": {
+                "kind": "binop",
+                "left": {
+                  "kind": "ref",
+                  "length": 3,
+                  "name": "col",
+                  "start": 9413,
+                  "type": "utinyint"
+                },
+                "operator": "==",
+                "right": {
+                  "kind": "const",
+                  "type": "utinyint",
+                  "value": 28
+                },
+                "type": "bool"
+              },
+              "then": [
+                {
+                  "kind": "assign",
+                  "length": 3,
+                  "start": 9452,
+                  "target": "col",
+                  "value": {
+                    "args": [
+                      {
+                        "kind": "const",
+                        "type": "usmallint",
+                        "value": 12
+                      }
+                    ],
+                    "kind": "call",
+                    "length": 6,
+                    "name": "locate",
+                    "start": 9458,
+                    "type": "utinyint"
+                  }
+                }
+              ]
+            }
+          ],
+          "kind": "block",
+          "origin": "text_print"
+        }
+      ],
+      "component": false,
+      "exported": true,
+      "file": "<toolchain>/packages/examples/hello-world/src/hello-world.8bs",
+      "length": 4,
+      "method": false,
+      "name": "main",
+      "owner": null,
+      "params": [],
+      "returnType": "void",
+      "start": 1354
+    },
+    {
+      "body": [
+        {
+          "args": [
+            {
+              "kind": "ref",
+              "length": 7,
+              "name": "address",
+              "start": 3417,
+              "type": "usmallint"
+            }
+          ],
+          "kind": "call",
+          "length": 14,
+          "name": "setVramAddress",
+          "start": 3402,
+          "type": null
+        },
+        {
+          "body": [
+            {
+              "address": {
+                "kind": "const",
+                "type": "usmallint",
+                "value": 8199
+              },
+              "kind": "memoryWrite",
+              "length": 27,
+              "start": 3484,
+              "value": {
+                "kind": "ref",
+                "length": 5,
+                "name": "value",
+                "start": 3505,
+                "type": "utinyint"
+              }
+            }
+          ],
+          "init": {
+            "init": {
+              "kind": "const",
+              "type": "utinyint",
+              "value": 0
+            },
+            "kind": "local",
+            "length": 1,
+            "name": "i",
+            "start": 3440,
+            "type": "usmallint"
+          },
+          "kind": "for",
+          "length": 87,
+          "start": 3431,
+          "test": {
+            "kind": "binop",
+            "left": {
+              "kind": "ref",
+              "length": 1,
+              "name": "i",
+              "start": 3458,
+              "type": "usmallint"
+            },
+            "operator": "<",
+            "right": {
+              "kind": "ref",
+              "length": 5,
+              "name": "count",
+              "start": 3462,
+              "type": "usmallint"
+            },
+            "type": "bool"
+          },
+          "unroll": false,
+          "update": {
+            "kind": "assign",
+            "length": 1,
+            "start": 3469,
+            "target": "i",
+            "value": {
+              "kind": "binop",
+              "left": {
+                "kind": "ref",
+                "length": 1,
+                "name": "i",
+                "start": 3469,
+                "type": "usmallint"
+              },
+              "operator": "+",
+              "right": {
+                "kind": "const",
+                "type": "utinyint",
+                "value": 1
+              },
+              "type": "usmallint"
+            }
+          }
+        }
+      ],
+      "component": false,
+      "exported": false,
+      "file": "<toolchain>/packages/screen/node_modules/@8bitscript/nes/src/screen.8bs",
+      "length": 7,
+      "method": false,
+      "name": "fillRun",
+      "owner": null,
+      "params": [
+        {
+          "name": "address",
+          "type": "usmallint"
+        },
+        {
+          "name": "count",
+          "type": "usmallint"
+        },
+        {
+          "name": "value",
+          "type": "utinyint"
+        }
+      ],
+      "returnType": "void",
+      "start": 3327
+    },
+    {
+      "body": [
+        {
+          "else": null,
+          "kind": "if",
+          "length": 50,
+          "start": 4465,
+          "test": {
+            "kind": "binop",
+            "left": {
+              "kind": "ref",
+              "length": 16,
+              "name": "renderingEnabled",
+              "start": 4469,
+              "type": "utinyint"
+            },
+            "operator": "==",
+            "right": {
+              "kind": "const",
+              "type": "utinyint",
+              "value": 1
+            },
+            "type": "bool"
+          },
+          "then": [
+            {
+              "kind": "return",
+              "length": 7,
+              "start": 4502,
+              "value": null
+            }
+          ]
+        },
+        {
+          "body": [
+            {
+              "args": [
+                {
+                  "kind": "const",
+                  "type": "usmallint",
+                  "value": 8192
+                },
+                {
+                  "kind": "const",
+                  "type": "utinyint",
+                  "value": 64
+                },
+                {
+                  "kind": "const",
+                  "type": "utinyint",
+                  "value": 128
+                }
+              ],
+              "kind": "call",
+              "length": 7,
+              "name": "fillRun",
+              "start": 3775,
+              "type": "void"
+            },
+            {
+              "args": [
+                {
+                  "kind": "const",
+                  "type": "usmallint",
+                  "value": 9088
+                },
+                {
+                  "kind": "const",
+                  "type": "utinyint",
+                  "value": 64
+                },
+                {
+                  "kind": "const",
+                  "type": "utinyint",
+                  "value": 128
+                }
+              ],
+              "kind": "call",
+              "length": 7,
+              "name": "fillRun",
+              "start": 3806,
+              "type": "void"
+            },
+            {
+              "body": [
+                {
+                  "args": [
+                    {
+                      "kind": "binop",
+                      "left": {
+                        "kind": "const",
+                        "type": "usmallint",
+                        "value": 8192
+                      },
+                      "operator": "+",
+                      "right": {
+                        "kind": "binop",
+                        "left": {
+                          "kind": "ref",
+                          "length": 3,
+                          "name": "row",
+                          "start": 3910,
+                          "type": "usmallint"
+                        },
+                        "operator": "<<",
+                        "right": {
+                          "kind": "const",
+                          "type": "utinyint",
+                          "value": 5
+                        },
+                        "type": "usmallint"
+                      },
+                      "type": "usmallint"
+                    },
+                    {
+                      "kind": "const",
+                      "type": "utinyint",
+                      "value": 2
+                    },
+                    {
+                      "kind": "const",
+                      "type": "utinyint",
+                      "value": 128
+                    }
+                  ],
+                  "kind": "call",
+                  "length": 7,
+                  "name": "fillRun",
+                  "start": 3893,
+                  "type": "void"
+                },
+                {
+                  "args": [
+                    {
+                      "kind": "binop",
+                      "left": {
+                        "kind": "binop",
+                        "left": {
+                          "kind": "const",
+                          "type": "usmallint",
+                          "value": 8192
+                        },
+                        "operator": "+",
+                        "right": {
+                          "kind": "binop",
+                          "left": {
+                            "kind": "ref",
+                            "length": 3,
+                            "name": "row",
+                            "start": 3955,
+                            "type": "usmallint"
+                          },
+                          "operator": "<<",
+                          "right": {
+                            "kind": "const",
+                            "type": "utinyint",
+                            "value": 5
+                          },
+                          "type": "usmallint"
+                        },
+                        "type": "usmallint"
+                      },
+                      "operator": "+",
+                      "right": {
+                        "kind": "const",
+                        "type": "utinyint",
+                        "value": 30
+                      },
+                      "type": "usmallint"
+                    },
+                    {
+                      "kind": "const",
+                      "type": "utinyint",
+                      "value": 2
+                    },
+                    {
+                      "kind": "const",
+                      "type": "utinyint",
+                      "value": 128
+                    }
+                  ],
+                  "kind": "call",
+                  "length": 7,
+                  "name": "fillRun",
+                  "start": 3938,
+                  "type": "void"
+                }
+              ],
+              "init": {
+                "init": {
+                  "kind": "const",
+                  "type": "utinyint",
+                  "value": 2
+                },
+                "kind": "local",
+                "length": 3,
+                "name": "row",
+                "start": 3846,
+                "type": "usmallint"
+              },
+              "kind": "for",
+              "length": 148,
+              "start": 3837,
+              "test": {
+                "kind": "binop",
+                "left": {
+                  "kind": "ref",
+                  "length": 3,
+                  "name": "row",
+                  "start": 3866,
+                  "type": "usmallint"
+                },
+                "operator": "<",
+                "right": {
+                  "kind": "const",
+                  "type": "utinyint",
+                  "value": 28
+                },
+                "type": "bool"
+              },
+              "unroll": false,
+              "update": {
+                "kind": "assign",
+                "length": 3,
+                "start": 3876,
+                "target": "row",
+                "value": {
+                  "kind": "binop",
+                  "left": {
+                    "kind": "ref",
+                    "length": 3,
+                    "name": "row",
+                    "start": 3876,
+                    "type": "usmallint"
+                  },
+                  "operator": "+",
+                  "right": {
+                    "kind": "const",
+                    "type": "utinyint",
+                    "value": 1
+                  },
+                  "type": "usmallint"
+                }
+              }
+            },
+            {
+              "args": [
+                {
+                  "kind": "const",
+                  "type": "usmallint",
+                  "value": 9152
+                },
+                {
+                  "kind": "const",
+                  "type": "utinyint",
+                  "value": 64
+                },
+                {
+                  "kind": "const",
+                  "type": "utinyint",
+                  "value": 0
+                }
+              ],
+              "kind": "call",
+              "length": 7,
+              "name": "fillRun",
+              "start": 3990,
+              "type": "void"
+            }
+          ],
+          "kind": "block",
+          "origin": "layFrame"
+        },
+        {
+          "args": [
+            {
+              "kind": "const",
+              "type": "usmallint",
+              "value": 16129
+            }
+          ],
+          "kind": "call",
+          "length": 14,
+          "name": "setVramAddress",
+          "start": 4536,
+          "type": null
+        },
+        {
+          "address": {
+            "kind": "const",
+            "type": "usmallint",
+            "value": 8199
+          },
+          "kind": "memoryWrite",
+          "length": 26,
+          "start": 4564,
+          "value": {
+            "kind": "const",
+            "type": "utinyint",
+            "value": 48
+          }
+        },
+        {
+          "args": [],
+          "kind": "call",
+          "length": 11,
+          "name": "resetScroll",
+          "start": 4619,
+          "type": null
+        },
+        {
+          "body": [],
+          "kind": "while",
+          "length": 41,
+          "start": 4638,
+          "test": {
+            "kind": "binop",
+            "left": {
+              "address": {
+                "kind": "const",
+                "type": "usmallint",
+                "value": 8194
+              },
+              "kind": "memoryRead",
+              "length": 19,
+              "start": 4645,
+              "type": "utinyint"
+            },
+            "operator": "<",
+            "right": {
+              "kind": "const",
+              "type": "utinyint",
+              "value": 128
+            },
+            "type": "bool"
+          }
+        },
+        {
+          "kind": "assign",
+          "length": 16,
+          "start": 4684,
+          "target": "renderingEnabled",
+          "value": {
+            "kind": "const",
+            "type": "utinyint",
+            "value": 1
+          }
+        },
+        {
+          "address": {
+            "kind": "const",
+            "type": "usmallint",
+            "value": 8193
+          },
+          "kind": "memoryWrite",
+          "length": 26,
+          "start": 4921,
+          "value": {
+            "kind": "const",
+            "type": "utinyint",
+            "value": 10
+          }
+        }
+      ],
+      "component": false,
+      "exported": false,
+      "file": "<toolchain>/packages/screen/node_modules/@8bitscript/nes/src/screen.8bs",
+      "length": 11,
+      "method": false,
+      "name": "showPicture",
+      "owner": null,
+      "params": [],
+      "returnType": "void",
+      "start": 4439
+    },
+    {
+      "body": [
+        {
+          "else": null,
+          "kind": "if",
+          "length": 101,
+          "start": 5224,
+          "test": {
+            "kind": "binop",
+            "left": {
+              "kind": "ref",
+              "length": 16,
+              "name": "renderingEnabled",
+              "start": 5228,
+              "type": "utinyint"
+            },
+            "operator": "==",
+            "right": {
+              "kind": "const",
+              "type": "utinyint",
+              "value": 1
+            },
+            "type": "bool"
+          },
+          "then": [
+            {
+              "args": [
+                {
+                  "kind": "ref",
+                  "length": 5,
+                  "name": "entry",
+                  "start": 5270,
+                  "type": "usmallint"
+                }
+              ],
+              "kind": "call",
+              "length": 8,
+              "name": "queueRun",
+              "start": 5261,
+              "type": null
+            },
+            {
+              "args": [
+                {
+                  "kind": "ref",
+                  "length": 5,
+                  "name": "color",
+                  "start": 5296,
+                  "type": "utinyint"
+                }
+              ],
+              "kind": "call",
+              "length": 9,
+              "name": "queueByte",
+              "start": 5286,
+              "type": null
+            },
+            {
+              "kind": "return",
+              "length": 7,
+              "start": 5312,
+              "value": null
+            }
+          ]
+        },
+        {
+          "args": [
+            {
+              "kind": "ref",
+              "length": 5,
+              "name": "entry",
+              "start": 5345,
+              "type": "usmallint"
+            }
+          ],
+          "kind": "call",
+          "length": 14,
+          "name": "setVramAddress",
+          "start": 5330,
+          "type": null
+        },
+        {
+          "address": {
+            "kind": "const",
+            "type": "usmallint",
+            "value": 8199
+          },
+          "kind": "memoryWrite",
+          "length": 27,
+          "start": 5357,
+          "value": {
+            "kind": "ref",
+            "length": 5,
+            "name": "color",
+            "start": 5378,
+            "type": "utinyint"
+          }
+        },
+        {
+          "args": [],
+          "kind": "call",
+          "length": 11,
+          "name": "resetScroll",
+          "start": 5390,
+          "type": null
+        }
+      ],
+      "component": false,
+      "exported": false,
+      "file": "<toolchain>/packages/screen/node_modules/@8bitscript/nes/src/screen.8bs",
+      "length": 10,
+      "method": false,
+      "name": "setPalette",
+      "owner": null,
+      "params": [
+        {
+          "name": "entry",
+          "type": "usmallint"
+        },
+        {
+          "name": "color",
+          "type": "utinyint"
+        }
+      ],
+      "returnType": "void",
+      "start": 5166
+    },
+    {
+      "body": [
+        {
+          "init": {
+            "kind": "binop",
+            "left": {
+              "kind": "ref",
+              "length": 4,
+              "name": "cell",
+              "start": 5982,
+              "type": "usmallint"
+            },
+            "operator": ">>",
+            "right": {
+              "kind": "const",
+              "type": "utinyint",
+              "value": 2
+            },
+            "type": "usmallint"
+          },
+          "kind": "local",
+          "length": 1,
+          "name": "q",
+          "start": 5968,
+          "type": "utinyint"
+        },
+        {
+          "init": {
+            "kind": "binop",
+            "left": {
+              "kind": "binop",
+              "left": {
+                "kind": "ref",
+                "length": 1,
+                "name": "q",
+                "start": 6016,
+                "type": "utinyint"
+              },
+              "operator": ">>",
+              "right": {
+                "kind": "const",
+                "type": "utinyint",
+                "value": 3
+              },
+              "type": "utinyint"
+            },
+            "operator": "+",
+            "right": {
+              "kind": "binop",
+              "left": {
+                "kind": "ref",
+                "length": 1,
+                "name": "q",
+                "start": 6024,
+                "type": "utinyint"
+              },
+              "operator": ">>",
+              "right": {
+                "kind": "const",
+                "type": "utinyint",
+                "value": 6
+              },
+              "type": "utinyint"
+            },
+            "type": "utinyint"
+          },
+          "kind": "local",
+          "length": 3,
+          "name": "row",
+          "start": 6000,
+          "type": "utinyint"
+        },
+        {
+          "init": {
+            "kind": "binop",
+            "left": {
+              "kind": "binop",
+              "left": {
+                "kind": "ref",
+                "length": 1,
+                "name": "q",
+                "start": 6057,
+                "type": "utinyint"
+              },
+              "operator": "-",
+              "right": {
+                "kind": "binop",
+                "left": {
+                  "kind": "ref",
+                  "length": 3,
+                  "name": "row",
+                  "start": 6061,
+                  "type": "utinyint"
+                },
+                "operator": "<<",
+                "right": {
+                  "kind": "const",
+                  "type": "utinyint",
+                  "value": 3
+                },
+                "type": "utinyint"
+              },
+              "type": "utinyint"
+            },
+            "operator": "+",
+            "right": {
+              "kind": "ref",
+              "length": 3,
+              "name": "row",
+              "start": 6071,
+              "type": "utinyint"
+            },
+            "type": "utinyint"
+          },
+          "kind": "local",
+          "length": 4,
+          "name": "rest",
+          "start": 6040,
+          "type": "utinyint"
+        },
+        {
+          "else": null,
+          "kind": "if",
+          "length": 62,
+          "start": 6117,
+          "test": {
+            "kind": "binop",
+            "left": {
+              "kind": "ref",
+              "length": 4,
+              "name": "rest",
+              "start": 6121,
+              "type": "utinyint"
+            },
+            "operator": ">=",
+            "right": {
+              "kind": "const",
+              "type": "utinyint",
+              "value": 7
+            },
+            "type": "bool"
+          },
+          "then": [
+            {
+              "kind": "assign",
+              "length": 4,
+              "start": 6142,
+              "target": "rest",
+              "value": {
+                "kind": "binop",
+                "left": {
+                  "kind": "ref",
+                  "length": 4,
+                  "name": "rest",
+                  "start": 6149,
+                  "type": "utinyint"
+                },
+                "operator": "-",
+                "right": {
+                  "kind": "const",
+                  "type": "utinyint",
+                  "value": 7
+                },
+                "type": "utinyint"
+              }
+            },
+            {
+              "kind": "assign",
+              "length": 3,
+              "start": 6167,
+              "target": "row",
+              "value": {
+                "kind": "binop",
+                "left": {
+                  "kind": "ref",
+                  "length": 3,
+                  "name": "row",
+                  "start": 6167,
+                  "type": "utinyint"
+                },
+                "operator": "+",
+                "right": {
+                  "kind": "const",
+                  "type": "utinyint",
+                  "value": 1
+                },
+                "type": "utinyint"
+              }
+            }
+          ]
+        },
+        {
+          "else": null,
+          "kind": "if",
+          "length": 62,
+          "start": 6184,
+          "test": {
+            "kind": "binop",
+            "left": {
+              "kind": "ref",
+              "length": 4,
+              "name": "rest",
+              "start": 6188,
+              "type": "utinyint"
+            },
+            "operator": ">=",
+            "right": {
+              "kind": "const",
+              "type": "utinyint",
+              "value": 7
+            },
+            "type": "bool"
+          },
+          "then": [
+            {
+              "kind": "assign",
+              "length": 4,
+              "start": 6209,
+              "target": "rest",
+              "value": {
+                "kind": "binop",
+                "left": {
+                  "kind": "ref",
+                  "length": 4,
+                  "name": "rest",
+                  "start": 6216,
+                  "type": "utinyint"
+                },
+                "operator": "-",
+                "right": {
+                  "kind": "const",
+                  "type": "utinyint",
+                  "value": 7
+                },
+                "type": "utinyint"
+              }
+            },
+            {
+              "kind": "assign",
+              "length": 3,
+              "start": 6234,
+              "target": "row",
+              "value": {
+                "kind": "binop",
+                "left": {
+                  "kind": "ref",
+                  "length": 3,
+                  "name": "row",
+                  "start": 6234,
+                  "type": "utinyint"
+                },
+                "operator": "+",
+                "right": {
+                  "kind": "const",
+                  "type": "utinyint",
+                  "value": 1
+                },
+                "type": "utinyint"
+              }
+            }
+          ]
+        },
+        {
+          "init": {
+            "kind": "binop",
+            "left": {
+              "kind": "binop",
+              "left": {
+                "kind": "ref",
+                "length": 4,
+                "name": "rest",
+                "start": 6271,
+                "type": "utinyint"
+              },
+              "operator": "<<",
+              "right": {
+                "kind": "const",
+                "type": "utinyint",
+                "value": 2
+              },
+              "type": "utinyint"
+            },
+            "operator": "+",
+            "right": {
+              "kind": "binop",
+              "left": {
+                "kind": "ref",
+                "length": 4,
+                "name": "cell",
+                "start": 6282,
+                "type": "usmallint"
+              },
+              "operator": "&",
+              "right": {
+                "kind": "const",
+                "type": "usmallint",
+                "value": 3
+              },
+              "type": "usmallint"
+            },
+            "type": "usmallint"
+          },
+          "kind": "local",
+          "length": 3,
+          "name": "col",
+          "start": 6255,
+          "type": "utinyint"
+        },
+        {
+          "init": {
+            "kind": "ref",
+            "length": 3,
+            "name": "row",
+            "start": 7198,
+            "type": "utinyint"
+          },
+          "kind": "local",
+          "length": 7,
+          "name": "rowBase",
+          "start": 7177,
+          "type": "usmallint"
+        },
+        {
+          "args": [
+            {
+              "kind": "binop",
+              "left": {
+                "kind": "binop",
+                "left": {
+                  "kind": "const",
+                  "type": "usmallint",
+                  "value": 8258
+                },
+                "operator": "+",
+                "right": {
+                  "kind": "binop",
+                  "left": {
+                    "kind": "ref",
+                    "length": 7,
+                    "name": "rowBase",
+                    "start": 7225,
+                    "type": "usmallint"
+                  },
+                  "operator": "<<",
+                  "right": {
+                    "kind": "const",
+                    "type": "utinyint",
+                    "value": 5
+                  },
+                  "type": "usmallint"
+                },
+                "type": "usmallint"
+              },
+              "operator": "+",
+              "right": {
+                "kind": "ref",
+                "length": 3,
+                "name": "col",
+                "start": 7240,
+                "type": "utinyint"
+              },
+              "type": "usmallint"
+            }
+          ],
+          "kind": "call",
+          "length": 8,
+          "name": "queueRun",
+          "start": 7207,
+          "type": null
+        },
+        {
+          "kind": "return",
+          "length": 11,
+          "start": 7250,
+          "value": {
+            "kind": "ref",
+            "length": 3,
+            "name": "col",
+            "start": 7257,
+            "type": "utinyint"
+          }
+        }
+      ],
+      "component": false,
+      "exported": false,
+      "file": "<toolchain>/packages/text/node_modules/@8bitscript/nes/src/text.8bs",
+      "length": 6,
+      "method": false,
+      "name": "locate",
+      "owner": null,
+      "params": [
+        {
+          "name": "cell",
+          "type": "usmallint"
+        }
+      ],
+      "returnType": "utinyint",
+      "start": 5924
+    },
+    {
+      "body": [
+        {
+          "address": {
+            "kind": "const",
+            "type": "usmallint",
+            "value": 8194
+          },
+          "kind": "memoryRead",
+          "length": 19,
+          "start": 7384,
+          "type": "utinyint"
+        },
+        {
+          "address": {
+            "kind": "const",
+            "type": "usmallint",
+            "value": 8198
+          },
+          "kind": "memoryWrite",
+          "length": 35,
+          "start": 7409,
+          "value": {
+            "kind": "binop",
+            "left": {
+              "kind": "ref",
+              "length": 7,
+              "name": "address",
+              "start": 7430,
+              "type": "usmallint"
+            },
+            "operator": ">>",
+            "right": {
+              "kind": "const",
+              "type": "utinyint",
+              "value": 8
+            },
+            "type": "usmallint"
+          }
+        },
+        {
+          "address": {
+            "kind": "const",
+            "type": "usmallint",
+            "value": 8198
+          },
+          "kind": "memoryWrite",
+          "length": 35,
+          "start": 7450,
+          "value": {
+            "kind": "binop",
+            "left": {
+              "kind": "ref",
+              "length": 7,
+              "name": "address",
+              "start": 7471,
+              "type": "usmallint"
+            },
+            "operator": "&",
+            "right": {
+              "kind": "const",
+              "type": "usmallint",
+              "value": 255
+            },
+            "type": "usmallint"
+          }
+        }
+      ],
+      "component": false,
+      "exported": true,
+      "file": "<toolchain>/packages/screen/node_modules/@8bitscript/nes/src/index.8bs",
+      "length": 14,
+      "method": false,
+      "name": "setVramAddress",
+      "owner": null,
+      "params": [
+        {
+          "name": "address",
+          "type": "usmallint"
+        }
+      ],
+      "returnType": "void",
+      "start": 7337
+    },
+    {
+      "body": [
+        {
+          "address": {
+            "kind": "const",
+            "type": "usmallint",
+            "value": 8192
+          },
+          "kind": "memoryWrite",
+          "length": 26,
+          "start": 7749,
+          "value": {
+            "kind": "const",
+            "type": "utinyint",
+            "value": 0
+          }
+        },
+        {
+          "address": {
+            "kind": "const",
+            "type": "usmallint",
+            "value": 8197
+          },
+          "kind": "memoryWrite",
+          "length": 26,
+          "start": 7781,
+          "value": {
+            "kind": "const",
+            "type": "utinyint",
+            "value": 0
+          }
+        },
+        {
+          "address": {
+            "kind": "const",
+            "type": "usmallint",
+            "value": 8197
+          },
+          "kind": "memoryWrite",
+          "length": 26,
+          "start": 7813,
+          "value": {
+            "kind": "const",
+            "type": "utinyint",
+            "value": 0
+          }
+        }
+      ],
+      "component": false,
+      "exported": true,
+      "file": "<toolchain>/packages/screen/node_modules/@8bitscript/nes/src/index.8bs",
+      "length": 11,
+      "method": false,
+      "name": "resetScroll",
+      "owner": null,
+      "params": [],
+      "returnType": "void",
+      "start": 7723
+    },
+    {
+      "body": [
+        {
+          "else": null,
+          "kind": "if",
+          "length": 107,
+          "start": 8481,
+          "test": {
+            "kind": "binop",
+            "left": {
+              "kind": "ref",
+              "length": 8,
+              "name": "queueEnd",
+              "start": 8485,
+              "type": "utinyint"
+            },
+            "operator": ">",
+            "right": {
+              "kind": "const",
+              "type": "utinyint",
+              "value": 44
+            },
+            "type": "bool"
+          },
+          "then": [
+            {
+              "body": [
+                {
+                  "address": {
+                    "kind": "const",
+                    "type": "usmallint",
+                    "value": 8194
+                  },
+                  "kind": "memoryRead",
+                  "length": 19,
+                  "start": 9608,
+                  "type": "utinyint"
+                },
+                {
+                  "body": [],
+                  "kind": "while",
+                  "length": 41,
+                  "start": 9633,
+                  "test": {
+                    "kind": "binop",
+                    "left": {
+                      "address": {
+                        "kind": "const",
+                        "type": "usmallint",
+                        "value": 8194
+                      },
+                      "kind": "memoryRead",
+                      "length": 19,
+                      "start": 9640,
+                      "type": "utinyint"
+                    },
+                    "operator": "<",
+                    "right": {
+                      "kind": "const",
+                      "type": "utinyint",
+                      "value": 128
+                    },
+                    "type": "bool"
+                  }
+                },
+                {
+                  "args": [],
+                  "kind": "call",
+                  "length": 16,
+                  "name": "nesVerticalBlank",
+                  "start": 9679,
+                  "type": "void"
+                }
+              ],
+              "kind": "block",
+              "origin": "deliverAtVerticalBlank"
+            }
+          ]
+        },
+        {
+          "array": {
+            "kind": "ref",
+            "length": 5,
+            "name": "queue",
+            "start": 8593
+          },
+          "elementType": "utinyint",
+          "index": {
+            "kind": "ref",
+            "length": 8,
+            "name": "queueEnd",
+            "start": 8599,
+            "type": "utinyint"
+          },
+          "kind": "storeIndex",
+          "length": 5,
+          "start": 8593,
+          "value": {
+            "kind": "binop",
+            "left": {
+              "kind": "ref",
+              "length": 7,
+              "name": "address",
+              "start": 8611,
+              "type": "usmallint"
+            },
+            "operator": ">>",
+            "right": {
+              "kind": "const",
+              "type": "utinyint",
+              "value": 8
+            },
+            "type": "usmallint"
+          }
+        },
+        {
+          "array": {
+            "kind": "ref",
+            "length": 5,
+            "name": "queue",
+            "start": 8630
+          },
+          "elementType": "utinyint",
+          "index": {
+            "kind": "binop",
+            "left": {
+              "kind": "ref",
+              "length": 8,
+              "name": "queueEnd",
+              "start": 8636,
+              "type": "utinyint"
+            },
+            "operator": "+",
+            "right": {
+              "kind": "const",
+              "type": "utinyint",
+              "value": 1
+            },
+            "type": "utinyint"
+          },
+          "kind": "storeIndex",
+          "length": 5,
+          "start": 8630,
+          "value": {
+            "kind": "binop",
+            "left": {
+              "kind": "ref",
+              "length": 7,
+              "name": "address",
+              "start": 8652,
+              "type": "usmallint"
+            },
+            "operator": "&",
+            "right": {
+              "kind": "const",
+              "type": "usmallint",
+              "value": 255
+            },
+            "type": "usmallint"
+          }
+        },
+        {
+          "kind": "assign",
+          "length": 8,
+          "start": 8671,
+          "target": "runCount",
+          "value": {
+            "kind": "binop",
+            "left": {
+              "kind": "ref",
+              "length": 8,
+              "name": "queueEnd",
+              "start": 8682,
+              "type": "utinyint"
+            },
+            "operator": "+",
+            "right": {
+              "kind": "const",
+              "type": "utinyint",
+              "value": 2
+            },
+            "type": "utinyint"
+          }
+        },
+        {
+          "array": {
+            "kind": "ref",
+            "length": 5,
+            "name": "queue",
+            "start": 8700
+          },
+          "elementType": "utinyint",
+          "index": {
+            "kind": "ref",
+            "length": 8,
+            "name": "runCount",
+            "start": 8706,
+            "type": "utinyint"
+          },
+          "kind": "storeIndex",
+          "length": 5,
+          "start": 8700,
+          "value": {
+            "kind": "const",
+            "type": "utinyint",
+            "value": 0
+          }
+        },
+        {
+          "kind": "assign",
+          "length": 8,
+          "start": 8725,
+          "target": "queueEnd",
+          "value": {
+            "kind": "binop",
+            "left": {
+              "kind": "ref",
+              "length": 8,
+              "name": "queueEnd",
+              "start": 8736,
+              "type": "utinyint"
+            },
+            "operator": "+",
+            "right": {
+              "kind": "const",
+              "type": "utinyint",
+              "value": 3
+            },
+            "type": "utinyint"
+          }
+        },
+        {
+          "kind": "assign",
+          "length": 10,
+          "start": 8754,
+          "target": "runAddress",
+          "value": {
+            "kind": "ref",
+            "length": 7,
+            "name": "address",
+            "start": 8767,
+            "type": "usmallint"
+          }
+        }
+      ],
+      "component": false,
+      "exported": true,
+      "file": "<toolchain>/packages/screen/node_modules/@8bitscript/nes/src/index.8bs",
+      "length": 8,
+      "method": false,
+      "name": "queueRun",
+      "owner": null,
+      "params": [
+        {
+          "name": "address",
+          "type": "usmallint"
+        }
+      ],
+      "returnType": "void",
+      "start": 8440
+    },
+    {
+      "body": [
+        {
+          "else": null,
+          "kind": "if",
+          "length": 160,
+          "start": 8834,
+          "test": {
+            "kind": "binop",
+            "left": {
+              "kind": "ref",
+              "length": 8,
+              "name": "queueEnd",
+              "start": 8838,
+              "type": "utinyint"
+            },
+            "operator": "==",
+            "right": {
+              "kind": "const",
+              "type": "utinyint",
+              "value": 48
+            },
+            "type": "bool"
+          },
+          "then": [
+            {
+              "args": [
+                {
+                  "kind": "binop",
+                  "left": {
+                    "kind": "ref",
+                    "length": 10,
+                    "name": "runAddress",
+                    "start": 8958,
+                    "type": "usmallint"
+                  },
+                  "operator": "+",
+                  "right": {
+                    "array": {
+                      "kind": "ref",
+                      "length": 5,
+                      "name": "queue",
+                      "start": 8971
+                    },
+                    "elementType": "utinyint",
+                    "index": {
+                      "kind": "ref",
+                      "length": 8,
+                      "name": "runCount",
+                      "start": 8977,
+                      "type": "utinyint"
+                    },
+                    "kind": "index",
+                    "type": "utinyint"
+                  },
+                  "type": "usmallint"
+                }
+              ],
+              "kind": "call",
+              "length": 8,
+              "name": "queueRun",
+              "start": 8949,
+              "type": "void"
+            }
+          ]
+        },
+        {
+          "array": {
+            "kind": "ref",
+            "length": 5,
+            "name": "queue",
+            "start": 8999
+          },
+          "elementType": "utinyint",
+          "index": {
+            "kind": "ref",
+            "length": 8,
+            "name": "queueEnd",
+            "start": 9005,
+            "type": "utinyint"
+          },
+          "kind": "storeIndex",
+          "length": 5,
+          "start": 8999,
+          "value": {
+            "kind": "ref",
+            "length": 5,
+            "name": "value",
+            "start": 9017,
+            "type": "utinyint"
+          }
+        },
+        {
+          "kind": "assign",
+          "length": 8,
+          "start": 9028,
+          "target": "queueEnd",
+          "value": {
+            "kind": "binop",
+            "left": {
+              "kind": "ref",
+              "length": 8,
+              "name": "queueEnd",
+              "start": 9028,
+              "type": "utinyint"
+            },
+            "operator": "+",
+            "right": {
+              "kind": "const",
+              "type": "utinyint",
+              "value": 1
+            },
+            "type": "utinyint"
+          }
+        },
+        {
+          "array": {
+            "kind": "ref",
+            "length": 5,
+            "name": "queue",
+            "start": 9044
+          },
+          "elementType": "utinyint",
+          "index": {
+            "kind": "ref",
+            "length": 8,
+            "name": "runCount",
+            "start": 9050,
+            "type": "utinyint"
+          },
+          "kind": "storeIndex",
+          "length": 5,
+          "start": 9044,
+          "value": {
+            "kind": "binop",
+            "left": {
+              "array": {
+                "kind": "ref",
+                "length": 5,
+                "name": "queue",
+                "start": 9044
+              },
+              "elementType": "utinyint",
+              "index": {
+                "kind": "ref",
+                "length": 8,
+                "name": "runCount",
+                "start": 9050,
+                "type": "utinyint"
+              },
+              "kind": "index",
+              "type": "utinyint"
+            },
+            "operator": "+",
+            "right": {
+              "kind": "const",
+              "type": "utinyint",
+              "value": 1
+            },
+            "type": "utinyint"
+          }
+        }
+      ],
+      "component": false,
+      "exported": true,
+      "file": "<toolchain>/packages/screen/node_modules/@8bitscript/nes/src/index.8bs",
+      "length": 9,
+      "method": false,
+      "name": "queueByte",
+      "owner": null,
+      "params": [
+        {
+          "name": "value",
+          "type": "utinyint"
+        }
+      ],
+      "returnType": "void",
+      "start": 8795
+    },
+    {
+      "body": [
+        {
+          "init": {
+            "kind": "const",
+            "type": "utinyint",
+            "value": 0
+          },
+          "kind": "local",
+          "length": 1,
+          "name": "i",
+          "start": 10018,
+          "type": "utinyint"
+        },
+        {
+          "body": [
+            {
+              "args": [
+                {
+                  "kind": "binop",
+                  "left": {
+                    "kind": "binop",
+                    "left": {
+                      "array": {
+                        "kind": "ref",
+                        "length": 5,
+                        "name": "queue",
+                        "start": 10085
+                      },
+                      "elementType": "utinyint",
+                      "index": {
+                        "kind": "ref",
+                        "length": 1,
+                        "name": "i",
+                        "start": 10091,
+                        "type": "utinyint"
+                      },
+                      "kind": "index",
+                      "type": "utinyint"
+                    },
+                    "operator": "<<",
+                    "right": {
+                      "kind": "const",
+                      "type": "utinyint",
+                      "value": 8
+                    },
+                    "type": "usmallint"
+                  },
+                  "operator": "+",
+                  "right": {
+                    "array": {
+                      "kind": "ref",
+                      "length": 5,
+                      "name": "queue",
+                      "start": 10102
+                    },
+                    "elementType": "utinyint",
+                    "index": {
+                      "kind": "binop",
+                      "left": {
+                        "kind": "ref",
+                        "length": 1,
+                        "name": "i",
+                        "start": 10108,
+                        "type": "utinyint"
+                      },
+                      "operator": "+",
+                      "right": {
+                        "kind": "const",
+                        "type": "utinyint",
+                        "value": 1
+                      },
+                      "type": "utinyint"
+                    },
+                    "kind": "index",
+                    "type": "utinyint"
+                  },
+                  "type": "usmallint"
+                }
+              ],
+              "kind": "call",
+              "length": 14,
+              "name": "setVramAddress",
+              "start": 10070,
+              "type": "void"
+            },
+            {
+              "init": {
+                "array": {
+                  "kind": "ref",
+                  "length": 5,
+                  "name": "queue",
+                  "start": 10143
+                },
+                "elementType": "utinyint",
+                "index": {
+                  "kind": "binop",
+                  "left": {
+                    "kind": "ref",
+                    "length": 1,
+                    "name": "i",
+                    "start": 10149,
+                    "type": "utinyint"
+                  },
+                  "operator": "+",
+                  "right": {
+                    "kind": "const",
+                    "type": "utinyint",
+                    "value": 2
+                  },
+                  "type": "utinyint"
+                },
+                "kind": "index",
+                "type": "utinyint"
+              },
+              "kind": "local",
+              "length": 1,
+              "name": "n",
+              "start": 10129,
+              "type": "utinyint"
+            },
+            {
+              "kind": "assign",
+              "length": 1,
+              "start": 10165,
+              "target": "i",
+              "value": {
+                "kind": "binop",
+                "left": {
+                  "kind": "ref",
+                  "length": 1,
+                  "name": "i",
+                  "start": 10169,
+                  "type": "utinyint"
+                },
+                "operator": "+",
+                "right": {
+                  "kind": "const",
+                  "type": "utinyint",
+                  "value": 3
+                },
+                "type": "utinyint"
+              }
+            },
+            {
+              "body": [
+                {
+                  "address": {
+                    "kind": "const",
+                    "type": "usmallint",
+                    "value": 8199
+                  },
+                  "kind": "memoryWrite",
+                  "length": 30,
+                  "start": 10379,
+                  "value": {
+                    "array": {
+                      "kind": "ref",
+                      "length": 5,
+                      "name": "queue",
+                      "start": 10400
+                    },
+                    "elementType": "utinyint",
+                    "index": {
+                      "kind": "ref",
+                      "length": 1,
+                      "name": "i",
+                      "start": 10406,
+                      "type": "utinyint"
+                    },
+                    "kind": "index",
+                    "type": "utinyint"
+                  }
+                },
+                {
+                  "kind": "assign",
+                  "length": 1,
+                  "start": 10423,
+                  "target": "i",
+                  "value": {
+                    "kind": "binop",
+                    "left": {
+                      "kind": "ref",
+                      "length": 1,
+                      "name": "i",
+                      "start": 10423,
+                      "type": "utinyint"
+                    },
+                    "operator": "+",
+                    "right": {
+                      "kind": "const",
+                      "type": "utinyint",
+                      "value": 1
+                    },
+                    "type": "utinyint"
+                  }
+                },
+                {
+                  "kind": "assign",
+                  "length": 1,
+                  "start": 10440,
+                  "target": "n",
+                  "value": {
+                    "kind": "binop",
+                    "left": {
+                      "kind": "ref",
+                      "length": 1,
+                      "name": "n",
+                      "start": 10440,
+                      "type": "utinyint"
+                    },
+                    "operator": "-",
+                    "right": {
+                      "kind": "const",
+                      "type": "utinyint",
+                      "value": 1
+                    },
+                    "type": "utinyint"
+                  }
+                }
+              ],
+              "kind": "while",
+              "length": 103,
+              "start": 10351,
+              "test": {
+                "kind": "binop",
+                "left": {
+                  "kind": "ref",
+                  "length": 1,
+                  "name": "n",
+                  "start": 10358,
+                  "type": "utinyint"
+                },
+                "operator": ">",
+                "right": {
+                  "kind": "const",
+                  "type": "utinyint",
+                  "value": 0
+                },
+                "type": "bool"
+              }
+            }
+          ],
+          "kind": "while",
+          "length": 421,
+          "start": 10039,
+          "test": {
+            "kind": "binop",
+            "left": {
+              "kind": "ref",
+              "length": 1,
+              "name": "i",
+              "start": 10046,
+              "type": "utinyint"
+            },
+            "operator": "<",
+            "right": {
+              "kind": "ref",
+              "length": 8,
+              "name": "queueEnd",
+              "start": 10050,
+              "type": "utinyint"
+            },
+            "type": "bool"
+          }
+        },
+        {
+          "else": null,
+          "kind": "if",
+          "length": 70,
+          "start": 10465,
+          "test": {
+            "kind": "binop",
+            "left": {
+              "kind": "ref",
+              "length": 8,
+              "name": "queueEnd",
+              "start": 10469,
+              "type": "utinyint"
+            },
+            "operator": ">",
+            "right": {
+              "kind": "const",
+              "type": "utinyint",
+              "value": 0
+            },
+            "type": "bool"
+          },
+          "then": [
+            {
+              "kind": "assign",
+              "length": 8,
+              "start": 10493,
+              "target": "queueEnd",
+              "value": {
+                "kind": "const",
+                "type": "utinyint",
+                "value": 0
+              }
+            },
+            {
+              "args": [],
+              "kind": "call",
+              "length": 11,
+              "name": "resetScroll",
+              "start": 10515,
+              "type": "void"
+            }
+          ]
+        },
+        {
+          "kind": "return",
+          "length": 7,
+          "start": 11484,
+          "value": null
+        }
+      ],
+      "component": false,
+      "exported": true,
+      "file": "<toolchain>/packages/screen/node_modules/@8bitscript/nes/src/index.8bs",
+      "length": 16,
+      "method": false,
+      "name": "nesVerticalBlank",
+      "owner": null,
+      "params": [],
+      "returnType": "void",
+      "start": 9983
+    }
+  ],
+  "globals": [
+    {
+      "address": null,
+      "exported": false,
+      "init": 0,
+      "length": 16,
+      "name": "renderingEnabled",
+      "start": 3151,
+      "type": "utinyint",
+      "volatile": false
+    },
+    {
+      "address": null,
+      "array": 48,
+      "constant": false,
+      "exported": false,
+      "init": null,
+      "length": 5,
+      "name": "queue",
+      "start": 8231,
+      "type": "utinyint",
+      "volatile": false
+    },
+    {
+      "address": null,
+      "exported": false,
+      "init": 0,
+      "length": 8,
+      "name": "queueEnd",
+      "start": 8271,
+      "type": "utinyint",
+      "volatile": false
+    },
+    {
+      "address": null,
+      "exported": false,
+      "init": 0,
+      "length": 8,
+      "name": "runCount",
+      "start": 8299,
+      "type": "utinyint",
+      "volatile": false
+    },
+    {
+      "address": null,
+      "exported": false,
+      "init": 0,
+      "length": 10,
+      "name": "runAddress",
+      "start": 8365,
+      "type": "usmallint",
+      "volatile": false
+    }
+  ],
+  "hardware": {
+    "build": {
+      "defsym": {
+        "__bss_ceiling": 2048,
+        "__bss_origin": 512,
+        "__load_address": 32768,
+        "__ram_ceiling": 65529
+      },
+      "output": "nes",
+      "startup": "nrom"
+    },
+    "buildValues": [],
+    "facts": {
+      "audio.entropy": false,
+      "audio.envelope": true,
+      "audio.filter": false,
+      "audio.noise": true,
+      "audio.pcm": true,
+      "audio.voices": 5,
+      "audio.volume": true,
+      "input.controls": [
+        "up",
+        "down",
+        "left",
+        "right",
+        "a",
+        "b",
+        "select",
+        "start"
+      ],
+      "input.joysticks": 0,
+      "input.keyboard": false,
+      "input.mouse": false,
+      "input.paddles": false,
+      "input.pads": 2,
+      "memory.banked": false,
+      "memory.bankedKib": 0,
+      "memory.ram": 1536,
+      "storage.kib": 0,
+      "storage.save": false,
+      "video.bitmap": false,
+      "video.blockHeight": 0,
+      "video.blockWidth": 0,
+      "video.cellColors": 3,
+      "video.cellHeight": 8,
+      "video.cellWidth": 8,
+      "video.colorBlend": false,
+      "video.colorPerCell": false,
+      "video.columns": 28,
+      "video.frameRate": 60,
+      "video.glyphs": 0,
+      "video.layers": 1,
+      "video.palette": 25,
+      "video.raster": false,
+      "video.rows": 26,
+      "video.scroll": true,
+      "video.spriteColors": 3,
+      "video.spriteHeight": 16,
+      "video.spriteWidth": 8,
+      "video.sprites": 64,
+      "video.spritesPerLine": 8
+    },
+    "label": "stock",
+    "load": {},
+    "machine": "nes",
+    "options": {
+      "expansion": "none",
+      "mapper": "nrom"
+    },
+    "profile": null,
+    "run": {},
+    "tags": []
+  },
+  "machine": "nes",
+  "nativeSources": [
+    "<toolchain>/packages/text/node_modules/@8bitscript/nes/native/6502/font.s"
+  ],
+  "optRemarks": [],
+  "originFiles": {
+    "deliverAtVerticalBlank": "<toolchain>/packages/screen/node_modules/@8bitscript/nes/src/index.8bs",
+    "fillRun": "<toolchain>/packages/screen/node_modules/@8bitscript/nes/src/screen.8bs",
+    "layFrame": "<toolchain>/packages/screen/node_modules/@8bitscript/nes/src/screen.8bs",
+    "locate": "<toolchain>/packages/text/node_modules/@8bitscript/nes/src/text.8bs",
+    "main": "<toolchain>/packages/examples/hello-world/src/hello-world.8bs",
+    "nesVerticalBlank": "<toolchain>/packages/screen/node_modules/@8bitscript/nes/src/index.8bs",
+    "queueByte": "<toolchain>/packages/screen/node_modules/@8bitscript/nes/src/index.8bs",
+    "queueRun": "<toolchain>/packages/screen/node_modules/@8bitscript/nes/src/index.8bs",
+    "resetScroll": "<toolchain>/packages/screen/node_modules/@8bitscript/nes/src/index.8bs",
+    "screen_blank": "<toolchain>/packages/screen/node_modules/@8bitscript/nes/src/screen.8bs",
+    "screen_resized": "<toolchain>/packages/screen/node_modules/@8bitscript/nes/src/screen.8bs",
+    "screen_setBackground": "<toolchain>/packages/screen/node_modules/@8bitscript/nes/src/screen.8bs",
+    "screen_setBorder": "<toolchain>/packages/screen/node_modules/@8bitscript/nes/src/screen.8bs",
+    "screen_setColors": "<toolchain>/packages/screen/node_modules/@8bitscript/nes/src/screen.8bs",
+    "setPalette": "<toolchain>/packages/screen/node_modules/@8bitscript/nes/src/screen.8bs",
+    "setVramAddress": "<toolchain>/packages/screen/node_modules/@8bitscript/nes/src/index.8bs",
+    "showPicture": "<toolchain>/packages/screen/node_modules/@8bitscript/nes/src/screen.8bs",
+    "text_columns": "<toolchain>/packages/text/node_modules/@8bitscript/nes/src/text.8bs",
+    "text_fill": "<toolchain>/packages/text/node_modules/@8bitscript/nes/src/text.8bs",
+    "text_print": "<toolchain>/packages/text/node_modules/@8bitscript/nes/src/text.8bs",
+    "text_printNumber": "<toolchain>/packages/text/node_modules/@8bitscript/nes/src/text.8bs",
+    "text_putChar": "<toolchain>/packages/text/node_modules/@8bitscript/nes/src/text.8bs",
+    "text_putColor": "<toolchain>/packages/text/node_modules/@8bitscript/nes/src/text.8bs",
+    "text_releaseCursor": "<toolchain>/packages/text/node_modules/@8bitscript/nes/src/text.8bs",
+    "text_rows": "<toolchain>/packages/text/node_modules/@8bitscript/nes/src/text.8bs",
+    "text_setColor": "<toolchain>/packages/text/node_modules/@8bitscript/nes/src/text.8bs",
+    "text_setReverse": "<toolchain>/packages/text/node_modules/@8bitscript/nes/src/text.8bs",
+    "toTile": "<toolchain>/packages/text/node_modules/@8bitscript/nes/src/text.8bs"
+  },
+  "remarks": false,
+  "report": false,
+  "strings": [
+    {
+      "bytes": [
+        72,
+        101,
+        108,
+        108,
+        111,
+        32,
+        87,
+        111,
+        114,
+        108,
+        100,
+        33
+      ],
+      "text": "Hello World!"
+    }
+  ]
+}
