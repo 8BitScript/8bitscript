@@ -1,0 +1,22 @@
+[
+  "Program@0+142<",
+  "FunctionDeclaration@0+141<Program",
+  "Identifier@16+4<FunctionDeclaration",
+  "TypeReference@24+4<FunctionDeclaration",
+  "BlockStatement@29+112<FunctionDeclaration",
+  "VariableDeclaration@33+40<BlockStatement",
+  "Identifier@37+1<VariableDeclaration",
+  "TypeReference@40+8<VariableDeclaration",
+  "CallExpression@51+21<VariableDeclaration",
+  "Identifier@51+7<CallExpression",
+  "DecimalLiteral@59+3<CallExpression",
+  "Identifier@64+7<CallExpression",
+  "VariableDeclaration@76+31<BlockStatement",
+  "Identifier@80+3<VariableDeclaration",
+  "TypeReference@85+8<VariableDeclaration",
+  "IntegerLiteral@96+10<VariableDeclaration",
+  "VariableDeclaration@110+29<BlockStatement",
+  "Identifier@114+1<VariableDeclaration",
+  "TypeReference@117+8<VariableDeclaration",
+  "IntegerLiteral@128+10<VariableDeclaration"
+]

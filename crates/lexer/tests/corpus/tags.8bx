@@ -1,0 +1,18 @@
+pub component Menu(title: string, count: u8) {
+    state selected: u8 = 0;
+    let ok = a < b;
+    let big = 1 << 2;
+    let arr: array<u8, 4>;
+    if selected < 3 { <Item label="one" n={1} />; }
+    <MenuBar title='single' on.press={handler(1)}>
+        some raw text, don't lex // this or "that"
+        {title}
+        <Item label="a">nested {count + 1} text</Item>
+        < Spaced
+        a > b
+    </MenuBar>;
+    return <>fragment</>;
+    let x = (a) < b;
+    let y = c ? <A /> : <B />;
+}
+<Bad # label="x" 

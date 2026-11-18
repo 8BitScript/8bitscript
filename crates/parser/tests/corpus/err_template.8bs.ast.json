@@ -1,0 +1,445 @@
+{
+  "ast": {
+    "body": [
+      {
+        "exported": false,
+        "immutable": true,
+        "initializer": {
+          "length": 5,
+          "parts": [],
+          "start": 8,
+          "type": "TemplateLiteral"
+        },
+        "kind": "let",
+        "length": 14,
+        "name": {
+          "length": 1,
+          "name": "a",
+          "start": 4,
+          "type": "Identifier"
+        },
+        "start": 0,
+        "type": "VariableDeclaration",
+        "typeAnnotation": null
+      },
+      {
+        "exported": false,
+        "immutable": true,
+        "initializer": {
+          "length": 7,
+          "parts": [
+            {
+              "expression": {
+                "length": 1,
+                "name": "x",
+                "start": 26,
+                "type": "Identifier"
+              },
+              "length": 5,
+              "start": 24,
+              "type": "TemplateField",
+              "width": null
+            }
+          ],
+          "start": 23,
+          "type": "TemplateLiteral"
+        },
+        "kind": "let",
+        "length": 16,
+        "name": {
+          "length": 1,
+          "name": "b",
+          "start": 19,
+          "type": "Identifier"
+        },
+        "start": 15,
+        "type": "VariableDeclaration",
+        "typeAnnotation": null
+      },
+      {
+        "exported": false,
+        "immutable": true,
+        "initializer": {
+          "length": 8,
+          "parts": [
+            {
+              "expression": {
+                "length": 1,
+                "name": "x",
+                "start": 43,
+                "type": "Identifier"
+              },
+              "length": 6,
+              "start": 41,
+              "type": "TemplateField",
+              "width": null
+            }
+          ],
+          "start": 40,
+          "type": "TemplateLiteral"
+        },
+        "kind": "let",
+        "length": 17,
+        "name": {
+          "length": 1,
+          "name": "c",
+          "start": 36,
+          "type": "Identifier"
+        },
+        "start": 32,
+        "type": "VariableDeclaration",
+        "typeAnnotation": null
+      },
+      {
+        "exported": false,
+        "immutable": true,
+        "initializer": {
+          "length": 8,
+          "parts": [
+            {
+              "expression": {
+                "length": 1,
+                "name": "x",
+                "start": 61,
+                "type": "Identifier"
+              },
+              "length": 6,
+              "start": 59,
+              "type": "TemplateField",
+              "width": null
+            }
+          ],
+          "start": 58,
+          "type": "TemplateLiteral"
+        },
+        "kind": "let",
+        "length": 17,
+        "name": {
+          "length": 1,
+          "name": "d",
+          "start": 54,
+          "type": "Identifier"
+        },
+        "start": 50,
+        "type": "VariableDeclaration",
+        "typeAnnotation": null
+      },
+      {
+        "exported": false,
+        "immutable": true,
+        "initializer": {
+          "length": 8,
+          "parts": [
+            {
+              "expression": {
+                "length": 1,
+                "radix": 10,
+                "raw": "1",
+                "start": 79,
+                "type": "IntegerLiteral",
+                "value": 1
+              },
+              "length": 6,
+              "start": 77,
+              "type": "TemplateField",
+              "width": null
+            }
+          ],
+          "start": 76,
+          "type": "TemplateLiteral"
+        },
+        "kind": "let",
+        "length": 17,
+        "name": {
+          "length": 1,
+          "name": "e",
+          "start": 72,
+          "type": "Identifier"
+        },
+        "start": 68,
+        "type": "VariableDeclaration",
+        "typeAnnotation": null
+      },
+      {
+        "exported": false,
+        "immutable": true,
+        "initializer": {
+          "length": 30,
+          "parts": [
+            {
+              "length": 2,
+              "start": 95,
+              "type": "TemplateText",
+              "value": "a "
+            },
+            {
+              "expression": {
+                "argument": {
+                  "length": 1,
+                  "name": "x",
+                  "start": 99,
+                  "type": "Identifier"
+                },
+                "length": 3,
+                "operator": "++",
+                "prefix": false,
+                "start": 99,
+                "type": "UpdateExpression"
+              },
+              "length": 6,
+              "start": 97,
+              "type": "TemplateField",
+              "width": null
+            },
+            {
+              "length": 1,
+              "start": 103,
+              "type": "TemplateText",
+              "value": " "
+            },
+            {
+              "expression": {
+                "alternate": {
+                  "length": 1,
+                  "radix": 10,
+                  "raw": "2",
+                  "start": 114,
+                  "type": "IntegerLiteral",
+                  "value": 2
+                },
+                "consequent": {
+                  "length": 1,
+                  "radix": 10,
+                  "raw": "1",
+                  "start": 110,
+                  "type": "IntegerLiteral",
+                  "value": 1
+                },
+                "length": 9,
+                "start": 106,
+                "test": {
+                  "length": 1,
+                  "name": "c",
+                  "start": 106,
+                  "type": "Identifier"
+                },
+                "type": "ConditionalExpression"
+              },
+              "length": 12,
+              "start": 104,
+              "type": "TemplateField",
+              "width": null
+            },
+            {
+              "length": 1,
+              "start": 116,
+              "type": "TemplateText",
+              "value": " "
+            },
+            {
+              "expression": {
+                "length": 3,
+                "start": 119,
+                "type": "StringLiteral",
+                "value": "q"
+              },
+              "length": 6,
+              "start": 117,
+              "type": "TemplateField",
+              "width": null
+            }
+          ],
+          "start": 94,
+          "type": "TemplateLiteral"
+        },
+        "kind": "let",
+        "length": 39,
+        "name": {
+          "length": 1,
+          "name": "f",
+          "start": 90,
+          "type": "Identifier"
+        },
+        "start": 86,
+        "type": "VariableDeclaration",
+        "typeAnnotation": null
+      },
+      {
+        "exported": false,
+        "immutable": true,
+        "initializer": {
+          "length": 11,
+          "parts": [
+            {
+              "expression": {
+                "length": 6,
+                "parts": [
+                  {
+                    "expression": {
+                      "length": 1,
+                      "name": "y",
+                      "start": 140,
+                      "type": "Identifier"
+                    },
+                    "length": 4,
+                    "start": 138,
+                    "type": "TemplateField",
+                    "width": null
+                  }
+                ],
+                "start": 137,
+                "type": "TemplateLiteral"
+              },
+              "length": 9,
+              "start": 135,
+              "type": "TemplateField",
+              "width": null
+            }
+          ],
+          "start": 134,
+          "type": "TemplateLiteral"
+        },
+        "kind": "let",
+        "length": 20,
+        "name": {
+          "length": 1,
+          "name": "g",
+          "start": 130,
+          "type": "Identifier"
+        },
+        "start": 126,
+        "type": "VariableDeclaration",
+        "typeAnnotation": null
+      },
+      {
+        "exported": false,
+        "immutable": true,
+        "initializer": {
+          "length": 14,
+          "parts": [
+            {
+              "length": 1,
+              "start": 160,
+              "type": "TemplateText",
+              "value": " "
+            }
+          ],
+          "start": 155,
+          "type": "TemplateLiteral"
+        },
+        "kind": "let",
+        "length": 23,
+        "name": {
+          "length": 1,
+          "name": "h",
+          "start": 151,
+          "type": "Identifier"
+        },
+        "start": 147,
+        "type": "VariableDeclaration",
+        "typeAnnotation": null
+      }
+    ],
+    "length": 171,
+    "start": 0,
+    "type": "Program"
+  },
+  "diagnostics": [
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 0,
+      "message": "expected an expression, found end of file",
+      "severity": "error",
+      "start": 11
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 0,
+      "message": "expected a field width after ':', found end of file",
+      "severity": "error",
+      "start": 28
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "expected a field width after ':', found 'y'",
+      "severity": "error",
+      "start": 45
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "unexpected 'y' in template field",
+      "severity": "error",
+      "start": 63
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 0,
+      "message": "expected an expression, found end of file",
+      "severity": "error",
+      "start": 82
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 2,
+      "message": "8BitScript has no '++'; write 'x += 1'",
+      "severity": "error",
+      "start": 100
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "write 'if c { a } else { b }' for a choice between two values",
+      "severity": "error",
+      "start": 108
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 3,
+      "message": "8BitScript has no char type; write \"A\" for text or 65 for a number",
+      "severity": "error",
+      "start": 119
+    },
+    {
+      "code": "8BS1003",
+      "file": "t",
+      "length": 1,
+      "message": "unexpected character 'é'",
+      "severity": "error",
+      "start": 158
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 0,
+      "message": "expected an expression, found end of file",
+      "severity": "error",
+      "start": 159
+    },
+    {
+      "code": "8BS1003",
+      "file": "t",
+      "length": 2,
+      "message": "unexpected character '😀'",
+      "severity": "error",
+      "start": 164
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 0,
+      "message": "expected an expression, found end of file",
+      "severity": "error",
+      "start": 167
+    }
+  ]
+}

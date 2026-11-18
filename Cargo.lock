@@ -12,6 +12,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "diagnostics"
+version = "0.0.0"
+dependencies = [
+ "oracle",
+ "serde",
+ "serde_json",
+ "syntax",
+]
+
+[[package]]
 name = "equivalent"
 version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -51,6 +61,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "lexer"
+version = "0.0.0"
+dependencies = [
+ "diagnostics",
+ "oracle",
+ "serde",
+ "serde_json",
+ "syntax",
+]
+
+[[package]]
 name = "memchr"
 version = "2.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -69,6 +90,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "mos-ir"
+version = "0.0.0"
+dependencies = [
+ "indexmap",
+ "jsnum",
+ "oracle",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "oracle"
 version = "0.0.0"
 dependencies = [
@@ -76,6 +108,18 @@ dependencies = [
  "serde",
  "serde_json",
  "toml",
+]
+
+[[package]]
+name = "parser"
+version = "0.0.0"
+dependencies = [
+ "diagnostics",
+ "lexer",
+ "oracle",
+ "serde",
+ "serde_json",
+ "syntax",
 ]
 
 [[package]]
@@ -189,6 +233,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "syntax"
+version = "0.0.0"
+dependencies = [
+ "oracle",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "toml"
 version = "0.8.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -248,7 +301,9 @@ dependencies = [
 name = "xtask"
 version = "0.0.0"
 dependencies = [
+ "mos-ir",
  "oracle",
+ "serde_json",
 ]
 
 [[package]]

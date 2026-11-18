@@ -1,0 +1,106 @@
+{
+  "body": [
+    {
+      "body": {
+        "body": [],
+        "length": 12,
+        "start": 15,
+        "type": "BlockStatement"
+      },
+      "exported": false,
+      "length": 27,
+      "name": null,
+      "params": [
+        {
+          "defaultValue": null,
+          "length": 1,
+          "name": {
+            "length": 1,
+            "name": "a",
+            "start": 10,
+            "type": "Identifier"
+          },
+          "start": 10,
+          "type": "Parameter",
+          "typeAnnotation": null
+        }
+      ],
+      "returnType": null,
+      "start": 0,
+      "type": "FunctionDeclaration"
+    },
+    {
+      "exported": false,
+      "length": 45,
+      "members": [
+        null,
+        {
+          "body": {
+            "body": [],
+            "length": 2,
+            "start": 67,
+            "type": "BlockStatement"
+          },
+          "exported": false,
+          "length": 21,
+          "name": {
+            "length": 1,
+            "name": "f",
+            "start": 57,
+            "type": "Identifier"
+          },
+          "params": [],
+          "returnType": {
+            "length": 4,
+            "name": "void",
+            "start": 62,
+            "type": "TypeReference",
+            "typeArguments": []
+          },
+          "start": 48,
+          "type": "FunctionDeclaration"
+        }
+      ],
+      "name": {
+        "length": 1,
+        "name": "N",
+        "start": 38,
+        "type": "Identifier"
+      },
+      "start": 28,
+      "type": "NamespaceDeclaration"
+    },
+    {
+      "exported": false,
+      "initializer": {
+        "length": 5,
+        "start": 82,
+        "type": "StringLiteral",
+        "unterminated": true,
+        "value": "ope"
+      },
+      "kind": "let",
+      "length": 13,
+      "name": {
+        "length": 1,
+        "name": "s",
+        "start": 78,
+        "type": "Identifier"
+      },
+      "start": 74,
+      "type": "VariableDeclaration",
+      "typeAnnotation": null
+    },
+    {
+      "alternate": null,
+      "consequent": null,
+      "length": 4,
+      "start": 88,
+      "test": null,
+      "type": "IfStatement"
+    }
+  ],
+  "length": 93,
+  "start": 0,
+  "type": "Program"
+}

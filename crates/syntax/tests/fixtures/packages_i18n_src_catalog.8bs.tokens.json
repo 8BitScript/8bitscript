@@ -1,0 +1,98 @@
+[
+  {
+    "kind": "comment",
+    "length": 74,
+    "start": 0,
+    "text": "// `@8bitscript/i18n/catalog` is resolved by the compiler to the project's"
+  },
+  {
+    "kind": "comment",
+    "length": 72,
+    "start": 75,
+    "text": "// merged message catalog (`src/i18n/<locale>.8bs`, selected locale with"
+  },
+  {
+    "kind": "comment",
+    "length": 73,
+    "start": 148,
+    "text": "// missing keys from the fallback). This file is the package's export-map"
+  },
+  {
+    "kind": "comment",
+    "length": 57,
+    "start": 222,
+    "text": "// entry so the subpath exists; a program never links it."
+  },
+  {
+    "kind": "keyword",
+    "length": 6,
+    "start": 280,
+    "text": "export"
+  },
+  {
+    "kind": "keyword",
+    "length": 9,
+    "start": 287,
+    "text": "namespace"
+  },
+  {
+    "kind": "identifier",
+    "length": 7,
+    "start": 297,
+    "text": "Catalog"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 305,
+    "text": "{"
+  },
+  {
+    "kind": "keyword",
+    "length": 5,
+    "start": 311,
+    "text": "const"
+  },
+  {
+    "kind": "identifier",
+    "length": 5,
+    "start": 317,
+    "text": "EMPTY"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 322,
+    "text": ":"
+  },
+  {
+    "kind": "type",
+    "length": 6,
+    "start": 324,
+    "text": "string"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 331,
+    "text": "="
+  },
+  {
+    "kind": "string",
+    "length": 2,
+    "start": 333,
+    "text": "\"\""
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 335,
+    "text": ";"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 337,
+    "text": "}"
+  }
+]
