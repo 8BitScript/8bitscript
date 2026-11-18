@@ -1,0 +1,584 @@
+[
+  {
+    "kind": "keyword",
+    "length": 8,
+    "start": 0,
+    "text": "function"
+  },
+  {
+    "kind": "identifier",
+    "length": 1,
+    "start": 9,
+    "text": "g"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 10,
+    "text": "("
+  },
+  {
+    "kind": "identifier",
+    "length": 1,
+    "start": 11,
+    "text": "x"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 12,
+    "text": ":"
+  },
+  {
+    "kind": "type",
+    "length": 2,
+    "start": 14,
+    "text": "u8"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 17,
+    "text": "="
+  },
+  {
+    "kind": "number",
+    "length": 1,
+    "radix": 10,
+    "start": 19,
+    "text": "3",
+    "value": 3
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 20,
+    "text": ")"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 21,
+    "text": ":"
+  },
+  {
+    "kind": "type",
+    "length": 2,
+    "start": 23,
+    "text": "u8"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 26,
+    "text": "{"
+  },
+  {
+    "kind": "keyword",
+    "length": 2,
+    "start": 30,
+    "text": "if"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 33,
+    "text": "("
+  },
+  {
+    "kind": "identifier",
+    "length": 1,
+    "start": 34,
+    "text": "x"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 36,
+    "text": ">"
+  },
+  {
+    "kind": "number",
+    "length": 1,
+    "radix": 10,
+    "start": 38,
+    "text": "1",
+    "value": 1
+  },
+  {
+    "controlHeader": true,
+    "kind": "punctuation",
+    "length": 1,
+    "start": 39,
+    "text": ")"
+  },
+  {
+    "kind": "keyword",
+    "length": 6,
+    "start": 41,
+    "text": "return"
+  },
+  {
+    "kind": "number",
+    "length": 1,
+    "radix": 10,
+    "start": 48,
+    "text": "1",
+    "value": 1
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 49,
+    "text": ";"
+  },
+  {
+    "kind": "keyword",
+    "length": 4,
+    "start": 51,
+    "text": "else"
+  },
+  {
+    "kind": "keyword",
+    "length": 2,
+    "start": 56,
+    "text": "if"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 59,
+    "text": "("
+  },
+  {
+    "kind": "identifier",
+    "length": 1,
+    "start": 60,
+    "text": "x"
+  },
+  {
+    "controlHeader": true,
+    "kind": "punctuation",
+    "length": 1,
+    "start": 61,
+    "text": ")"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 63,
+    "text": "{"
+  },
+  {
+    "kind": "identifier",
+    "length": 1,
+    "start": 65,
+    "text": "x"
+  },
+  {
+    "kind": "operator",
+    "length": 2,
+    "start": 67,
+    "text": "+="
+  },
+  {
+    "kind": "number",
+    "length": 1,
+    "radix": 10,
+    "start": 70,
+    "text": "2",
+    "value": 2
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 71,
+    "text": ";"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 73,
+    "text": "}"
+  },
+  {
+    "kind": "keyword",
+    "length": 4,
+    "start": 75,
+    "text": "else"
+  },
+  {
+    "kind": "identifier",
+    "length": 1,
+    "start": 80,
+    "text": "x"
+  },
+  {
+    "kind": "operator",
+    "length": 2,
+    "start": 81,
+    "text": "--"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 83,
+    "text": ";"
+  },
+  {
+    "kind": "keyword",
+    "length": 5,
+    "start": 87,
+    "text": "while"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 93,
+    "text": "("
+  },
+  {
+    "kind": "keyword",
+    "length": 4,
+    "start": 94,
+    "text": "true"
+  },
+  {
+    "controlHeader": true,
+    "kind": "punctuation",
+    "length": 1,
+    "start": 98,
+    "text": ")"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 100,
+    "text": "{"
+  },
+  {
+    "kind": "keyword",
+    "length": 5,
+    "start": 102,
+    "text": "break"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 107,
+    "text": ";"
+  },
+  {
+    "kind": "keyword",
+    "length": 8,
+    "start": 109,
+    "text": "continue"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 117,
+    "text": ";"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 119,
+    "text": "}"
+  },
+  {
+    "kind": "keyword",
+    "length": 3,
+    "start": 123,
+    "text": "for"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 127,
+    "text": "("
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 128,
+    "text": ";"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 129,
+    "text": ";"
+  },
+  {
+    "controlHeader": true,
+    "kind": "punctuation",
+    "length": 1,
+    "start": 130,
+    "text": ")"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 132,
+    "text": "{"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 133,
+    "text": "}"
+  },
+  {
+    "kind": "keyword",
+    "length": 6,
+    "start": 137,
+    "text": "return"
+  },
+  {
+    "kind": "identifier",
+    "length": 1,
+    "start": 144,
+    "text": "x"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 146,
+    "text": "?"
+  },
+  {
+    "kind": "operator",
+    "length": 2,
+    "start": 148,
+    "text": "--"
+  },
+  {
+    "kind": "identifier",
+    "length": 1,
+    "start": 150,
+    "text": "x"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 152,
+    "text": ":"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 154,
+    "text": "~"
+  },
+  {
+    "kind": "identifier",
+    "length": 1,
+    "start": 155,
+    "text": "x"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 156,
+    "text": ";"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 158,
+    "text": "}"
+  },
+  {
+    "kind": "keyword",
+    "length": 7,
+    "start": 160,
+    "text": "asm6502"
+  },
+  {
+    "kind": "asm",
+    "length": 10,
+    "start": 168,
+    "text": "{ lda #1 }"
+  },
+  {
+    "kind": "keyword",
+    "length": 3,
+    "start": 179,
+    "text": "let"
+  },
+  {
+    "kind": "identifier",
+    "length": 3,
+    "start": 183,
+    "text": "arr"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 186,
+    "text": ":"
+  },
+  {
+    "kind": "type",
+    "length": 5,
+    "start": 188,
+    "text": "array"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 193,
+    "text": "<"
+  },
+  {
+    "kind": "type",
+    "length": 2,
+    "start": 194,
+    "text": "u8"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 196,
+    "text": ","
+  },
+  {
+    "kind": "number",
+    "length": 1,
+    "radix": 10,
+    "start": 198,
+    "text": "4",
+    "value": 4
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 199,
+    "text": ">"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 201,
+    "text": "="
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 203,
+    "text": "["
+  },
+  {
+    "kind": "number",
+    "length": 1,
+    "radix": 10,
+    "start": 204,
+    "text": "1",
+    "value": 1
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 205,
+    "text": ","
+  },
+  {
+    "kind": "number",
+    "length": 1,
+    "radix": 10,
+    "start": 207,
+    "text": "2",
+    "value": 2
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 208,
+    "text": ","
+  },
+  {
+    "kind": "number",
+    "length": 1,
+    "radix": 10,
+    "start": 210,
+    "text": "3",
+    "value": 3
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 211,
+    "text": ","
+  },
+  {
+    "kind": "number",
+    "length": 1,
+    "radix": 10,
+    "start": 213,
+    "text": "4",
+    "value": 4
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 214,
+    "text": ","
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 215,
+    "text": "]"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 216,
+    "text": ";"
+  },
+  {
+    "kind": "keyword",
+    "length": 5,
+    "start": 218,
+    "text": "const"
+  },
+  {
+    "kind": "identifier",
+    "length": 1,
+    "start": 224,
+    "text": "K"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 225,
+    "text": ":"
+  },
+  {
+    "kind": "type",
+    "length": 2,
+    "start": 227,
+    "text": "u8"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 230,
+    "text": "="
+  },
+  {
+    "kind": "number",
+    "length": 4,
+    "radix": 16,
+    "start": 232,
+    "text": "0x10",
+    "value": 16
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 236,
+    "text": ";"
+  }
+]

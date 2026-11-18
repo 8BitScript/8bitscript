@@ -1,0 +1,152 @@
+{
+  "body": [
+    {
+      "decorators": [
+        {
+          "args": [
+            {
+              "length": 6,
+              "radix": 16,
+              "raw": "0x06C0",
+              "start": 9,
+              "type": "IntegerLiteral",
+              "value": 1728
+            }
+          ],
+          "length": 16,
+          "name": "address",
+          "start": 0,
+          "type": "Decorator"
+        }
+      ],
+      "exported": false,
+      "initializer": {
+        "length": 1,
+        "radix": 10,
+        "raw": "2",
+        "start": 40,
+        "type": "IntegerLiteral",
+        "value": 2
+      },
+      "kind": "let",
+      "length": 25,
+      "name": {
+        "length": 6,
+        "name": "shared",
+        "start": 21,
+        "type": "Identifier"
+      },
+      "start": 17,
+      "type": "VariableDeclaration",
+      "typeAnnotation": {
+        "length": 8,
+        "name": "utinyint",
+        "start": 29,
+        "type": "TypeReference",
+        "typeArguments": []
+      }
+    },
+    {
+      "body": {
+        "body": [
+          {
+            "expression": {
+              "left": {
+                "length": 6,
+                "name": "shared",
+                "start": 78,
+                "type": "Identifier"
+              },
+              "length": 19,
+              "operator": "=",
+              "right": {
+                "left": {
+                  "length": 6,
+                  "name": "shared",
+                  "start": 87,
+                  "type": "Identifier"
+                },
+                "length": 10,
+                "operator": "+",
+                "right": {
+                  "length": 1,
+                  "radix": 10,
+                  "raw": "1",
+                  "start": 96,
+                  "type": "IntegerLiteral",
+                  "value": 1
+                },
+                "start": 87,
+                "type": "BinaryExpression"
+              },
+              "start": 78,
+              "type": "AssignmentExpression"
+            },
+            "length": 20,
+            "start": 78,
+            "type": "ExpressionStatement"
+          },
+          {
+            "body": {
+              "body": [
+                {
+                  "expression": {
+                    "args": [],
+                    "callee": {
+                      "length": 9,
+                      "name": "waitFrame",
+                      "start": 126,
+                      "type": "Identifier"
+                    },
+                    "length": 11,
+                    "start": 126,
+                    "type": "CallExpression"
+                  },
+                  "length": 12,
+                  "start": 126,
+                  "type": "ExpressionStatement"
+                }
+              ],
+              "length": 28,
+              "start": 116,
+              "type": "BlockStatement"
+            },
+            "length": 41,
+            "start": 103,
+            "test": {
+              "length": 4,
+              "start": 110,
+              "type": "BooleanLiteral",
+              "value": true
+            },
+            "type": "WhileStatement"
+          }
+        ],
+        "length": 74,
+        "start": 72,
+        "type": "BlockStatement"
+      },
+      "exported": true,
+      "length": 103,
+      "name": {
+        "length": 4,
+        "name": "main",
+        "start": 59,
+        "type": "Identifier"
+      },
+      "params": [],
+      "returnType": {
+        "length": 4,
+        "name": "void",
+        "start": 67,
+        "type": "TypeReference",
+        "typeArguments": []
+      },
+      "start": 43,
+      "type": "FunctionDeclaration"
+    }
+  ],
+  "length": 147,
+  "start": 0,
+  "type": "Program"
+}

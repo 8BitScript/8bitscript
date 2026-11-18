@@ -1,0 +1,260 @@
+[
+  {
+    "kind": "keyword",
+    "length": 8,
+    "start": 0,
+    "text": "function"
+  },
+  {
+    "kind": "identifier",
+    "length": 1,
+    "start": 9,
+    "text": "f"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 10,
+    "text": "("
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 11,
+    "text": ")"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 12,
+    "text": ":"
+  },
+  {
+    "kind": "type",
+    "length": 4,
+    "start": 14,
+    "text": "void"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 19,
+    "text": "{"
+  },
+  {
+    "kind": "identifier",
+    "length": 4,
+    "start": 23,
+    "text": "text"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 27,
+    "text": "."
+  },
+  {
+    "kind": "identifier",
+    "length": 5,
+    "start": 28,
+    "text": "print"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 33,
+    "text": "("
+  },
+  {
+    "kind": "number",
+    "length": 1,
+    "radix": 10,
+    "start": 34,
+    "text": "0",
+    "value": 0
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 35,
+    "text": ","
+  },
+  {
+    "kind": "template",
+    "length": 33,
+    "parts": [
+      {
+        "end": 43,
+        "kind": "text",
+        "start": 38
+      },
+      {
+        "end": 58,
+        "kind": "field",
+        "sourceEnd": 57,
+        "sourceStart": 45,
+        "start": 43
+      },
+      {
+        "end": 63,
+        "kind": "text",
+        "start": 58
+      },
+      {
+        "end": 69,
+        "kind": "field",
+        "sourceEnd": 68,
+        "sourceStart": 65,
+        "start": 63
+      }
+    ],
+    "start": 37,
+    "text": "`TICK ${ticks % 10:1} OPT ${opt}`"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 70,
+    "text": ")"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 71,
+    "text": ";"
+  },
+  {
+    "kind": "identifier",
+    "length": 4,
+    "start": 75,
+    "text": "i18n"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 79,
+    "text": "."
+  },
+  {
+    "kind": "identifier",
+    "length": 6,
+    "start": 80,
+    "text": "format"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 86,
+    "text": "("
+  },
+  {
+    "kind": "identifier",
+    "length": 1,
+    "start": 87,
+    "text": "M"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 88,
+    "text": "."
+  },
+  {
+    "kind": "identifier",
+    "length": 1,
+    "start": 89,
+    "text": "X"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 90,
+    "text": ","
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 92,
+    "text": "{"
+  },
+  {
+    "kind": "identifier",
+    "length": 7,
+    "start": 94,
+    "text": "control"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 101,
+    "text": ":"
+  },
+  {
+    "kind": "identifier",
+    "length": 5,
+    "start": 103,
+    "text": "Input"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 108,
+    "text": "."
+  },
+  {
+    "kind": "identifier",
+    "length": 2,
+    "start": 109,
+    "text": "OK"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 111,
+    "text": ","
+  },
+  {
+    "kind": "identifier",
+    "length": 1,
+    "start": 113,
+    "text": "n"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 114,
+    "text": ":"
+  },
+  {
+    "kind": "number",
+    "length": 1,
+    "radix": 10,
+    "start": 116,
+    "text": "2",
+    "value": 2
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 118,
+    "text": "}"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 119,
+    "text": ")"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 120,
+    "text": ";"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 122,
+    "text": "}"
+  }
+]

@@ -1,0 +1,347 @@
+[
+  {
+    "kind": "keyword",
+    "length": 6,
+    "start": 0,
+    "text": "import"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 7,
+    "text": "{"
+  },
+  {
+    "kind": "identifier",
+    "length": 1,
+    "start": 9,
+    "text": "a"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 10,
+    "text": ","
+  },
+  {
+    "kind": "identifier",
+    "length": 1,
+    "start": 12,
+    "text": "b"
+  },
+  {
+    "kind": "keyword",
+    "length": 2,
+    "start": 14,
+    "text": "as"
+  },
+  {
+    "kind": "identifier",
+    "length": 1,
+    "start": 17,
+    "text": "c"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 19,
+    "text": "}"
+  },
+  {
+    "kind": "keyword",
+    "length": 4,
+    "start": 21,
+    "text": "from"
+  },
+  {
+    "kind": "string",
+    "length": 11,
+    "start": 26,
+    "text": "\"./geo.8bs\""
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 37,
+    "text": ";"
+  },
+  {
+    "kind": "keyword",
+    "length": 6,
+    "start": 39,
+    "text": "import"
+  },
+  {
+    "kind": "string",
+    "length": 3,
+    "start": 46,
+    "text": "\"x\""
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 49,
+    "text": ";"
+  },
+  {
+    "kind": "decorator",
+    "length": 8,
+    "start": 51,
+    "text": "@address"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 59,
+    "text": "("
+  },
+  {
+    "kind": "number",
+    "length": 5,
+    "radix": 16,
+    "start": 60,
+    "text": "$D020",
+    "value": 53280
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 65,
+    "text": ")"
+  },
+  {
+    "kind": "keyword",
+    "length": 3,
+    "start": 67,
+    "text": "let"
+  },
+  {
+    "kind": "identifier",
+    "length": 6,
+    "start": 71,
+    "text": "border"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 77,
+    "text": ":"
+  },
+  {
+    "kind": "type",
+    "length": 8,
+    "start": 79,
+    "text": "volatile"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 87,
+    "text": "<"
+  },
+  {
+    "kind": "type",
+    "length": 2,
+    "start": 88,
+    "text": "u8"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 90,
+    "text": ">"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 91,
+    "text": ";"
+  },
+  {
+    "kind": "decorator",
+    "length": 7,
+    "start": 93,
+    "text": "@unroll"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 100,
+    "text": "("
+  },
+  {
+    "kind": "number",
+    "length": 1,
+    "radix": 10,
+    "start": 101,
+    "text": "4",
+    "value": 4
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 102,
+    "text": ")"
+  },
+  {
+    "kind": "keyword",
+    "length": 3,
+    "start": 104,
+    "text": "for"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 108,
+    "text": "("
+  },
+  {
+    "kind": "keyword",
+    "length": 3,
+    "start": 109,
+    "text": "let"
+  },
+  {
+    "kind": "identifier",
+    "length": 1,
+    "start": 113,
+    "text": "i"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 114,
+    "text": ":"
+  },
+  {
+    "kind": "type",
+    "length": 2,
+    "start": 116,
+    "text": "u8"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 119,
+    "text": "="
+  },
+  {
+    "kind": "number",
+    "length": 1,
+    "radix": 10,
+    "start": 121,
+    "text": "0",
+    "value": 0
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 122,
+    "text": ";"
+  },
+  {
+    "kind": "identifier",
+    "length": 1,
+    "start": 124,
+    "text": "i"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 126,
+    "text": "<"
+  },
+  {
+    "kind": "number",
+    "length": 1,
+    "radix": 10,
+    "start": 128,
+    "text": "8",
+    "value": 8
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 129,
+    "text": ";"
+  },
+  {
+    "kind": "identifier",
+    "length": 1,
+    "start": 131,
+    "text": "i"
+  },
+  {
+    "kind": "operator",
+    "length": 2,
+    "start": 132,
+    "text": "++"
+  },
+  {
+    "controlHeader": true,
+    "kind": "punctuation",
+    "length": 1,
+    "start": 134,
+    "text": ")"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 136,
+    "text": "{"
+  },
+  {
+    "kind": "identifier",
+    "length": 1,
+    "start": 138,
+    "text": "a"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 139,
+    "text": "["
+  },
+  {
+    "kind": "identifier",
+    "length": 1,
+    "start": 140,
+    "text": "i"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 141,
+    "text": "]"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 143,
+    "text": "="
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 145,
+    "text": "-"
+  },
+  {
+    "kind": "identifier",
+    "length": 1,
+    "start": 146,
+    "text": "i"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 147,
+    "text": ";"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 149,
+    "text": "}"
+  }
+]
