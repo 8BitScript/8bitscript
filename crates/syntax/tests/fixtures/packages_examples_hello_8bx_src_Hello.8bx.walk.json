@@ -1,0 +1,16 @@
+[
+  "Program@0+321<",
+  "ImportDeclaration@215+40<Program",
+  "Identifier@224+4<ImportDeclaration",
+  "StringLiteral@236+18<ImportDeclaration",
+  "ComponentDeclaration@257+63<Program",
+  "Identifier@274+5<ComponentDeclaration",
+  "BlockStatement@282+38<ComponentDeclaration",
+  "ExpressionStatement@288+30<BlockStatement",
+  "CallExpression@288+29<ExpressionStatement",
+  "MemberExpression@288+10<CallExpression",
+  "Identifier@288+4<MemberExpression",
+  "Identifier@293+5<MemberExpression",
+  "IntegerLiteral@299+1<CallExpression",
+  "StringLiteral@302+14<CallExpression"
+]

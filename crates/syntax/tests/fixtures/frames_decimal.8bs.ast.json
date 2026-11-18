@@ -1,0 +1,138 @@
+{
+  "body": [
+    {
+      "body": {
+        "body": [
+          {
+            "exported": false,
+            "initializer": {
+              "args": [
+                {
+                  "denominator": 10,
+                  "length": 3,
+                  "numerator": 5,
+                  "raw": "0.5",
+                  "start": 59,
+                  "type": "DecimalLiteral"
+                },
+                {
+                  "length": 7,
+                  "name": "seconds",
+                  "start": 64,
+                  "type": "Identifier"
+                }
+              ],
+              "callee": {
+                "compileTime": true,
+                "length": 7,
+                "name": "frames",
+                "start": 51,
+                "type": "Identifier"
+              },
+              "length": 21,
+              "start": 51,
+              "type": "CallExpression"
+            },
+            "kind": "let",
+            "length": 40,
+            "name": {
+              "length": 1,
+              "name": "t",
+              "start": 37,
+              "type": "Identifier"
+            },
+            "start": 33,
+            "type": "VariableDeclaration",
+            "typeAnnotation": {
+              "length": 8,
+              "name": "utinyint",
+              "start": 40,
+              "type": "TypeReference",
+              "typeArguments": []
+            }
+          },
+          {
+            "exported": false,
+            "initializer": {
+              "length": 10,
+              "radix": 16,
+              "raw": "0xFFFFFFFF",
+              "start": 96,
+              "type": "IntegerLiteral",
+              "value": 4294967295
+            },
+            "kind": "let",
+            "length": 31,
+            "name": {
+              "length": 3,
+              "name": "big",
+              "start": 80,
+              "type": "Identifier"
+            },
+            "start": 76,
+            "type": "VariableDeclaration",
+            "typeAnnotation": {
+              "length": 8,
+              "name": "smallint",
+              "start": 85,
+              "type": "TypeReference",
+              "typeArguments": []
+            }
+          },
+          {
+            "exported": false,
+            "initializer": {
+              "length": 10,
+              "radix": 2,
+              "raw": "%1010_1010",
+              "start": 128,
+              "type": "IntegerLiteral",
+              "value": 170
+            },
+            "kind": "let",
+            "length": 29,
+            "name": {
+              "length": 1,
+              "name": "b",
+              "start": 114,
+              "type": "Identifier"
+            },
+            "start": 110,
+            "type": "VariableDeclaration",
+            "typeAnnotation": {
+              "length": 8,
+              "name": "utinyint",
+              "start": 117,
+              "type": "TypeReference",
+              "typeArguments": []
+            }
+          }
+        ],
+        "length": 112,
+        "start": 29,
+        "type": "BlockStatement"
+      },
+      "exported": true,
+      "length": 141,
+      "name": {
+        "length": 4,
+        "name": "main",
+        "start": 16,
+        "type": "Identifier"
+      },
+      "params": [],
+      "returnType": {
+        "length": 4,
+        "name": "void",
+        "start": 24,
+        "type": "TypeReference",
+        "typeArguments": []
+      },
+      "start": 0,
+      "type": "FunctionDeclaration"
+    }
+  ],
+  "length": 142,
+  "start": 0,
+  "type": "Program"
+}

@@ -1,0 +1,70 @@
+{
+  "body": [
+    {
+      "exported": false,
+      "initializer": {
+        "length": 10,
+        "start": 57,
+        "type": "StringLiteral",
+        "value": "héllo 😀"
+      },
+      "kind": "let",
+      "length": 30,
+      "name": {
+        "length": 1,
+        "name": "s",
+        "start": 42,
+        "type": "Identifier"
+      },
+      "start": 38,
+      "type": "VariableDeclaration",
+      "typeAnnotation": {
+        "length": 9,
+        "name": "string",
+        "start": 45,
+        "type": "TypeReference",
+        "typeArguments": [
+          {
+            "length": 1,
+            "radix": 10,
+            "raw": "8",
+            "start": 52,
+            "type": "IntegerLiteral",
+            "value": 8
+          }
+        ]
+      }
+    },
+    {
+      "exported": false,
+      "initializer": {
+        "length": 1,
+        "radix": 10,
+        "raw": "7",
+        "start": 87,
+        "type": "IntegerLiteral",
+        "value": 7
+      },
+      "kind": "let",
+      "length": 20,
+      "name": {
+        "length": 1,
+        "name": "n",
+        "start": 73,
+        "type": "Identifier"
+      },
+      "start": 69,
+      "type": "VariableDeclaration",
+      "typeAnnotation": {
+        "length": 8,
+        "name": "utinyint",
+        "start": 76,
+        "type": "TypeReference",
+        "typeArguments": []
+      }
+    }
+  ],
+  "length": 90,
+  "start": 0,
+  "type": "Program"
+}
