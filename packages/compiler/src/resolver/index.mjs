@@ -162,7 +162,9 @@ function variantsPresent(path) {
   const stem = basename(stripSourceExtension(path));
   let entries;
   try {
-    entries = readdirSync(dirname(path));
+    // Ordinal (UTF-16) order, so the variant names a diagnostic lists do not
+    // depend on the order the filesystem returns entries in.
+    entries = readdirSync(dirname(path)).sort();
   } catch {
     return [];
   }

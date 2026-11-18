@@ -349,6 +349,10 @@ const EQUALITY_OPERATORS = new Set(['==', '!=']);
 const COMPARISON_OPERATORS = new Set([...ORDERING_OPERATORS, ...EQUALITY_OPERATORS]);
 
 let labelCounter = 0;
+/** Restarts label numbering; the backend calls it at the top of each build so a second build in one process names labels as the first did. */
+export function resetLabels(): void {
+  labelCounter = 0;
+}
 function freshLabel(tag: string): string {
   return `__8bs_${tag}_${labelCounter++}`;
 }

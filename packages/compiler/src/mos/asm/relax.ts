@@ -42,6 +42,11 @@ function directiveBytes(directive: Directive): number {
 
 let relaxCounter = 0;
 
+/** Restarts the relaxation label numbering; the backend calls it at the top of each build. */
+export function resetLabels(): void {
+  relaxCounter = 0;
+}
+
 /** Rewrites the one relative-mode instruction at `targetAddress` into an inverted branch over a JMP, or returns null if none sits there (a bug in the caller, not a program to fix). */
 function relaxOne(program: Directive[], origin: number, targetAddress: number, inverse: string): Directive[] | null {
   const out: Directive[] = [];

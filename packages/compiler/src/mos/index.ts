@@ -21,9 +21,10 @@ import type { DataArrayGlobal, IrString } from './data.ts';
 import { link } from './link/index.ts';
 import { optimizeReachable } from '../linker/optimize.mjs';
 import { frameHookWanted, pruneUnreachable } from '../linker/reachability.mjs';
-import { lower } from './lower/index.ts';
+import { lower, resetLabels as resetLowerLabels } from './lower/index.ts';
 import type { Directive, FunctionSite, IrFunction } from './lower/index.ts';
 import { instructionBytes } from './asm/encode.ts';
+import { resetLabels as resetRelaxLabels } from './asm/relax.ts';
 import type { ListingLine } from './asm/assemble.ts';
 import { buildDebugMap, renderListing } from './debug.ts';
 import type { DebugMap, DebugSymbol } from './debug.ts';
@@ -646,6 +647,8 @@ function collectStringIndexes(node: unknown, out: Set<number>): void {
 
 /** Lowers `ir` to machine code, writes `outFile`, and returns the bytes and a size report. */
 export async function build(ir: IrProgram, options: BuildOptions): Promise<BuildResult> {
+  resetLowerLabels();
+  resetRelaxLabels();
   const budgets = ZP_BUDGETS[options.machine];
   if (!budgets) {
     return {
