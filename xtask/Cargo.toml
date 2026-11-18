@@ -1,0 +1,9 @@
+[package]
+name = "xtask"
+description = "Repo automation: oracle compare and roundtrip (later units)"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
