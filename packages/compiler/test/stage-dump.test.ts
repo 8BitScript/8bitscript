@@ -128,14 +128,14 @@ const hookFn = (touchGlobal: boolean) => ({
 const mainFn = (body: unknown[]) => ({ name: 'main', body: [{ kind: 'waitFrame' }, ...body] });
 const setG = { kind: 'assign', target: 'g', value: { kind: 'const', value: 1, type: u8 } };
 
-const hookPrograms: Record<string, { ir: unknown; used: boolean; present: boolean }> = {
-  'no hook function in the program': { ir: { entry: 'main', functions: [mainFn([])], globals: [] }, used: false, present: false },
-  'a hook nothing calls or feeds': { ir: { entry: 'main', functions: [mainFn([]), hookFn(false)], globals: [] }, used: false, present: true },
-  'a hook main calls and the optimizer inlines away': { ir: { entry: 'main', functions: [mainFn([{ kind: 'call', name: HOOK, args: [] }]), hookFn(false)], globals: [] }, used: true, present: true },
-  'a hook fed through a shared global': { ir: { entry: 'main', functions: [mainFn([setG]), hookFn(true)], globals: [{ name: 'g', type: u8, address: null }] }, used: true, present: true },
+const hookPrograms: Record<string, { ir: unknown; used: boolean }> = {
+  'no hook function in the program': { ir: { entry: 'main', functions: [mainFn([])], globals: [] }, used: false },
+  'a hook nothing calls or feeds': { ir: { entry: 'main', functions: [mainFn([]), hookFn(false)], globals: [] }, used: false },
+  'a hook main calls and the optimizer inlines away': { ir: { entry: 'main', functions: [mainFn([{ kind: 'call', name: HOOK, args: [] }]), hookFn(false)], globals: [] }, used: true },
+  'a hook fed through a shared global': { ir: { entry: 'main', functions: [mainFn([setG]), hookFn(true)], globals: [{ name: 'g', type: u8, address: null }] }, used: true },
 };
 
-for (const [name, { ir, used, present }] of Object.entries(hookPrograms)) {
+for (const [name, { ir, used }] of Object.entries(hookPrograms)) {
   test(`vic20 frame hook with ${name}: backend-input says used=${used}, bytes equal with and without dump`, async () => {
     const scratch = await mkdtemp(join(tmpdir(), '8bs-stage-dump-'));
     try {
@@ -145,7 +145,6 @@ for (const [name, { ir, used, present }] of Object.entries(hookPrograms)) {
       const dumped = await buildMos(ir as IrProgram, { ...options, outFile: join(scratch, 'b.prg'), dump: rec.dump });
       const input = rec.events[0].value as { frameHook: { name: string | null; used: boolean } };
       assert.deepEqual(input.frameHook, { name: HOOK, used });
-      assert.equal(present, (ir as IrProgram).functions.some((f) => f.name === HOOK));
       if (name.includes('inlines away')) {
         // Used, but no longer a callable function: the backend refuses it by name.
         assert.ok(!plain.ok && !dumped.ok);
@@ -188,7 +187,7 @@ test('a refused mos build is the same with and without dump', async () => {
   const ir = { entry: 'nope', functions: [{ name: 'main', body: [] }], globals: [] } as IrProgram;
   const scratch = await mkdtemp(join(tmpdir(), '8bs-stage-dump-'));
   try {
-    const options = { machine: 'c64', hardware: vic20Hardware, frameRate: 60, outFile: join(scratch, 'x.prg') } as const;
+    const options = { machine: 'vic20', hardware: vic20Hardware, frameRate: 60, outFile: join(scratch, 'x.prg') } as const;
     const plain = await buildMos(ir, options);
     const rec = recorder();
     const dumped = await buildMos(ir, { ...options, dump: rec.dump });
@@ -230,6 +229,7 @@ test('link() gives the same result with and without dump, for good and failing p
     const rec = recorder();
     const dumped = link(text, file, { machine: 'web', dump: rec.dump });
     assert.deepEqual(dumped.diagnostics, plain.diagnostics);
+    if (file === '/virtual/bad.8bs') assert.ok(plain.diagnostics.length > 0);
     assert.equal(dumped.ir === null, plain.ir === null);
   }
 });
