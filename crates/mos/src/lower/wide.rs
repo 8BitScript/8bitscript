@@ -1319,7 +1319,10 @@ mod tests {
         );
         // '*' goes through the control-flow methods, still stubs here.
         let (r, _, _) = run(|l| l.binop16(&bin("*", a(), a(), "usmallint")));
-        assert_eq!(r.unwrap_err(), "unported: multiplyInto");
+        assert!(
+            r.unwrap_err()
+                .starts_with("a '*' reached instruction selection with no multiply routine placed")
+        );
     }
 
     #[test]
@@ -1614,10 +1617,16 @@ mod tests {
     fn store_index_temp_form_for_a_computed_index() {
         // An index the direct shapes can't take: parks in a temp while the value evaluates.
         let idx = bin("+", var("n", "utinyint"), var("n", "utinyint"), "utinyint");
-        let (r, _, _) =
+        let (r, p, next) =
             run(|l| l.store_index(&store("bytes", idx, konst(1, "utinyint"), "utinyint")));
-        // `n + n` is a binop on 8-bit values, which belongs to the control-flow side.
-        assert_eq!(r.unwrap_err(), "unported: binop");
+        ok(r);
+        assert_eq!(next, 0x80);
+        // The index lands in a temp, the value follows, then Y reads the temp back.
+        let n = p.len();
+        assert_eq!(p[n - 3], lda_imm(1));
+        assert_eq!(p[n - 2], zp("LDY", 0x80));
+        assert_eq!(p[n - 1], indexed("STA", "__8bs_arr_bytes", 0));
+        assert_eq!(p[n - 4], sz(0x80));
     }
 
     #[test]
