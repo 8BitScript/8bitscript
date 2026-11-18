@@ -1,0 +1,14 @@
+#!/bin/sh
+# Quiet workspace check: the first 20 errors and a count.
+cd "$(dirname "$0")/.." || exit 2
+out=$(cargo check --workspace --all-targets --message-format short 2>&1)
+status=$?
+errors=$(printf '%s\n' "$out" | grep -E '^[^ ].*: (error|warning)(\[|:)|^error' )
+count=$(printf '%s' "$errors" | grep -c . )
+if [ "$status" -ne 0 ] && [ "$count" -eq 0 ]; then
+  printf '%s\n' "$out" | tail -n 20
+  exit "$status"
+fi
+printf '%s\n' "$errors" | head -n 20 | grep .
+echo "ck: $count problem line(s)"
+[ "$status" -eq 0 ] && [ "$count" -eq 0 ]
