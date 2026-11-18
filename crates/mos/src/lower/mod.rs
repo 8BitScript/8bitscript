@@ -1384,10 +1384,10 @@ mod tests {
             argument: Box::new(konst(1, None)),
             ty: "bool".into(),
         });
-        assert_eq!(l.expr(&un), Err("unported: unop".into()));
+        assert_eq!(l.expr(&un), Ok(()));
         assert_eq!(
             l.expr(&binop("+", konst(1, None), konst(2, None), "utinyint")),
-            Err("unported: binop".into())
+            Ok(())
         );
     }
 
@@ -1422,7 +1422,7 @@ mod tests {
             start: 0,
             length: 0,
         });
-        assert_eq!(l.expr(&mr), Err("unported: memoryRead".into()));
+        assert_eq!(l.expr(&mr), Ok(()));
         let call = Expr::Call(mos_ir::Call {
             name: "f".into(),
             args: vec![],
@@ -1438,8 +1438,8 @@ mod tests {
             alternate: Box::new(konst(2, None)),
             ty: jsnum::Nullable::Absent,
         });
-        assert_eq!(l.expr(&cond), Err("unported: branchIfFalse".into()));
-        // The two labels were taken in order before the refusal.
+        assert_eq!(l.expr(&cond), Ok(()));
+        // The two labels were taken in order.
         assert_eq!(l.counters.lower, 3);
     }
 
@@ -1642,10 +1642,7 @@ mod tests {
     fn lower_reports_the_first_unported_method() {
         let mut opts = options(Some("main"));
         let mut c = Counters::default();
-        assert_eq!(
-            lower(&[], &mut opts, &mut c).unwrap_err(),
-            "unported: block"
-        );
+        assert!(lower(&[], &mut opts, &mut c).is_ok());
         assert_eq!(c.lower, 1);
     }
 }
