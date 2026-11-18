@@ -153,3 +153,84 @@ fn nullable_round_trip() {
         assert_eq!(serde_json::to_string(&probe).unwrap(), text);
     }
 }
+
+fn parse_f(s: &str) -> f64 {
+    match s {
+        "-0" => -0.0,
+        other => other.parse().expect("f64"),
+    }
+}
+
+#[test]
+fn js_trim_and_whitespace() {
+    for row in rows("trim") {
+        let s = row[0].as_str().unwrap();
+        assert_eq!(jsnum::js_trim(s), row[1].as_str().unwrap(), "trim {s:?}");
+    }
+    let expected: Vec<u32> = rows("ws")
+        .iter()
+        .map(|v| v.as_u64().unwrap() as u32)
+        .collect();
+    let got: Vec<u32> = (0..0x10000u32)
+        .filter(|c| char::from_u32(*c).is_some_and(jsnum::is_js_whitespace))
+        .collect();
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn js_ws_class_matches() {
+    let re = regex::Regex::new(&format!("^{}$", jsnum::JS_WS)).unwrap();
+    for c in rows("ws") {
+        let ch = char::from_u32(c.as_u64().unwrap() as u32).unwrap();
+        assert!(re.is_match(&ch.to_string()), "{ch:?}");
+    }
+    assert!(!re.is_match("\u{85}"));
+}
+
+#[test]
+fn utf16_len_rows() {
+    for row in rows("utf16") {
+        let s = row[0].as_str().unwrap();
+        assert_eq!(
+            jsnum::utf16_len(s) as u64,
+            row[1].as_u64().unwrap(),
+            "{s:?}"
+        );
+    }
+}
+
+#[test]
+fn hex_upper_rows() {
+    for row in rows("hex") {
+        let (v, w) = (row[0].as_i64().unwrap(), row[1].as_u64().unwrap() as usize);
+        assert_eq!(jsnum::hex_upper(v, w), row[2].as_str().unwrap(), "{v} {w}");
+    }
+    assert_eq!(jsnum::hex_upper(-5, 4), "00-5");
+}
+
+#[test]
+fn parse_int_rows() {
+    for row in rows("parseInt") {
+        let d = row[0].as_str().unwrap();
+        let r = row[1].as_u64().unwrap() as u32;
+        let got = jsnum::parse_int(d, r);
+        assert_eq!(
+            number_to_string(got),
+            number_to_string(parse_f(row[2].as_str().unwrap())),
+            "{d} {r}"
+        );
+    }
+}
+
+#[test]
+fn math_round_rows() {
+    for row in rows("round") {
+        let x = parse_f(row[0].as_str().unwrap());
+        let want = parse_f(row[1].as_str().unwrap());
+        let got = jsnum::math_round(x);
+        assert!(
+            got.to_bits() == want.to_bits() || (got.is_nan() && want.is_nan()),
+            "round {x}: {got} vs {want}"
+        );
+    }
+}

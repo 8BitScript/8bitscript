@@ -1,0 +1,19 @@
+[package]
+name = "mos"
+description = "The 6502 back end, ported from packages/compiler/src/mos"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+indexmap = { version = "2", features = ["serde"] }
+jsnum = { path = "../jsnum" }
+oracle = { path = "../oracle" }
+regex = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# The unit PRs fill the modules that use oracle, regex and serde_json.
+[lints.cargo]
+unused_dependencies = "allow"
