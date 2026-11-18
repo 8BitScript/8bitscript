@@ -1,0 +1,9 @@
+# Accepted differences between the JS oracle and the Rust port, one entry each:
+#
+# [[divergence]]
+# id = "D001"                   # unique, never reused
+# corpus = "vegas-nights/*/c64" # glob on the corpus id
+# stage = "link"                # stage id
+# pointer = "/symbols/*"        # glob on the locator of the ERROR line (default "*")
+# reason = "..."                # required, at least 20 characters: why the difference is correct
+# issue = 123                   # optional GitHub issue number
