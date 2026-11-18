@@ -1402,20 +1402,24 @@ mod tests {
             start: None,
             length: None,
         });
-        assert_eq!(l.expr(&sl), Err("unported: stringLength".into()));
+        assert_eq!(l.expr(&sl), Ok(()));
         let sb = Expr::StringByte(mos_ir::StringByte {
             string: Box::new(konst(0, None)),
             index: Box::new(konst(0, None)),
             ty: "utinyint".into(),
         });
-        assert_eq!(l.expr(&sb), Err("unported: stringByte".into()));
+        assert_eq!(l.expr(&sb), Ok(()));
         let ix = Expr::Index(mos_ir::Index {
             array: Box::new(reference("a", None)),
             index: Box::new(konst(0, None)),
             element_type: "utinyint".into(),
             ty: "utinyint".into(),
         });
-        assert_eq!(l.expr(&ix), Err("unported: indexRead".into()));
+        assert!(
+            l.expr(&ix)
+                .unwrap_err()
+                .starts_with("'a' resolves to no array this backend placed")
+        );
         let mr = Expr::MemoryRead(mos_ir::MemoryRead {
             address: Box::new(konst(0, None)),
             ty: "utinyint".into(),
@@ -1431,7 +1435,11 @@ mod tests {
             length: None,
             instance: None,
         });
-        assert_eq!(l.expr(&call), Err("unported: callSite".into()));
+        assert!(
+            l.expr(&call)
+                .unwrap_err()
+                .starts_with("call to 'f' resolves to nothing")
+        );
         let cond = Expr::Cond(mos_ir::Cond {
             test: Box::new(konst(1, None)),
             consequent: Box::new(konst(1, None)),
@@ -1455,18 +1463,15 @@ mod tests {
         l.expr8(&binop(">>", wide.clone(), konst(16, None), "usmallint"))
             .unwrap();
         assert_eq!(l.program.last(), Some(&lda_imm(0)));
-        // `wide >> 9` goes through exprTo16 (a stub) and leaves the mark alone.
-        assert_eq!(
-            l.expr8(&binop(">>", wide.clone(), konst(9, None), "usmallint")),
-            Err("unported: exprTo16".into())
-        );
-        // `wide & 0xff00` masks the low byte of the left side (here a stub).
-        assert_eq!(
-            l.expr8(&binop("&", wide.clone(), konst(0xff00, None), "usmallint")),
-            Err("unported: expr16".into())
-        );
+        // `wide >> 9` goes through exprTo16 and refuses the unbound name.
+        let unbound = |r: Result<(), String>| {
+            assert!(r.unwrap_err().starts_with("'w' resolves to nothing"));
+        };
+        unbound(l.expr8(&binop(">>", wide.clone(), konst(9, None), "usmallint")));
+        // `wide & 0xff00` masks the low byte of the left side.
+        unbound(l.expr8(&binop("&", wide.clone(), konst(0xff00, None), "usmallint")));
         // Anything else: the wide value is evaluated and its low byte loaded.
-        assert_eq!(l.expr8(&wide), Err("unported: expr16".into()));
+        unbound(l.expr8(&wide));
     }
 
     #[test]
