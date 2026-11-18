@@ -196,11 +196,16 @@ export async function compile(target, entryArg, options = {}) {
   const spec = options.dumpStages ?? (process.env[ENV_NAME] || undefined);
   if (!spec) return compileProgram(target, entryArg, options);
   const session = openDump(spec, dumpRoots(options.checkout));
+  let result;
   try {
-    return await compileProgram(target, entryArg, { ...options, dumpSession: session });
-  } finally {
-    session.finish(target);
+    result = await compileProgram(target, entryArg, { ...options, dumpSession: session });
+  } catch (err) {
+    // The build's own error is the one to report; a failed dump write must not replace it.
+    try { session.finish(target); } catch { /* keep err */ }
+    throw err;
   }
+  session.finish(target);
+  return result;
 }
 
 /** The two roots a stage dump replaces with tokens: this toolchain and the project being built. */

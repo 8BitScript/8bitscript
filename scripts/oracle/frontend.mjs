@@ -67,8 +67,10 @@ export function frontendOf(file, text, roots) {
 }
 
 /** The directory (relative to the output) of one file's dump, from its tokenized path. */
-export function dumpDirOf(file, roots) {
-  const stem = tokenStem(file, roots);
+export function dumpDirOf(file, roots, id) {
+  const tokenized = tokenStem(file, roots);
+  // A project's files sit under its own id, so two projects never share a path.
+  const stem = id && tokenized.startsWith('project/') ? `project/${id}/${tokenized.slice('project/'.length)}` : tokenized;
   if (stem.split('/').includes('modules')) {
     throw new Error(`${stem}: a directory named "modules" would be read as a build's module directory`);
   }
@@ -79,14 +81,17 @@ export function dumpDirOf(file, roots) {
  * Dumps every file of each `{ base, roots }` under `<out>/fe/`. Returns the
  * number of files written.
  *
- * @param {{ files: string[], roots: { toolchain?: string|string[], project?: string|string[] } }[]} groups
+ * @param {{ files: string[], id?: string, roots: { toolchain?: string|string[], project?: string|string[] } }[]} groups
  * @param {string} out
  */
 export function dumpFrontend(groups, out) {
   let written = 0;
-  for (const { files, roots } of groups) {
+  const seen = new Set();
+  for (const { files, roots, id } of groups) {
     for (const file of files) {
-      const dir = join(out, dumpDirOf(file, roots));
+      const dir = join(out, dumpDirOf(file, roots, id));
+      if (seen.has(dir)) throw new Error(`${file}: another source file already dumps to ${dir}`);
+      seen.add(dir);
       const stages = frontendOf(file, readFileSync(file, 'utf8'), roots);
       mkdirSync(dir, { recursive: true });
       for (const [name, text] of Object.entries(stages)) {

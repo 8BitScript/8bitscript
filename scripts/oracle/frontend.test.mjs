@@ -19,7 +19,7 @@ function put(file, text) {
 function treeOf(root) {
   const out = {};
   const walk = (dir, rel) => {
-    for (const name of readdirSync(dir).sort()) {
+    for (const name of readdirSync(dir).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))) {
       const path = join(dir, name);
       const next = rel ? `${rel}/${name}` : name;
       if (statSync(path).isDirectory()) walk(path, next);
@@ -93,6 +93,24 @@ test('the same sources at two paths give identical front-end trees, and two runs
       'fe/project/src/main.8bs/tokens.json',
     ]);
     assert.ok(!JSON.stringify(trees[0]).includes(base));
+  } finally {
+    rmSync(base, { recursive: true, force: true });
+  }
+});
+
+test('two projects with the same file path dump to separate directories, and a repeat is refused', () => {
+  const base = mkdtempSync(join(tmpdir(), 'frontend-test-'));
+  try {
+    const groups = ['one', 'two'].map((id) => {
+      const project = join(base, id);
+      put(join(project, 'src', 'main.8bs'), SOURCE);
+      mkdirSync(join(base, 'tc'), { recursive: true });
+      return { files: findSources(join(project, 'src')), roots: rootsFor(join(base, 'tc'), project), id };
+    });
+    const out = join(base, 'out');
+    assert.equal(dumpFrontend(groups, out), 6);
+    assert.ok(Object.keys(treeOf(out)).includes('fe/project/two/src/main.8bs/tokens.json'));
+    assert.throws(() => dumpFrontend([groups[0], groups[0]], join(base, 'out2')), /already dumps/);
   } finally {
     rmSync(base, { recursive: true, force: true });
   }
