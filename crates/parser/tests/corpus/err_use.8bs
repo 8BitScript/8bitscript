@@ -1,0 +1,13 @@
+use foo;
+use self::a;
+use self::{a};
+use super::{a};
+use ::{a};
+use self::geo::{;
+use self::geo::{a as};
+use self::geo::{a, b}
+use "x" {a};
+use 5;
+use self::geo::
+use a::b::{c, d as e}
+let z = 1;

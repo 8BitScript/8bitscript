@@ -1,0 +1,447 @@
+{
+  "ast": {
+    "body": [
+      {
+        "length": 20,
+        "source": {
+          "length": 3,
+          "start": 11,
+          "type": "StringLiteral",
+          "value": "geo"
+        },
+        "specifiers": [
+          {
+            "length": 1,
+            "name": "a",
+            "start": 17,
+            "type": "Identifier"
+          }
+        ],
+        "start": 0,
+        "type": "ImportDeclaration",
+        "usePath": true
+      },
+      {
+        "body": {
+          "body": [],
+          "length": 2,
+          "start": 36,
+          "type": "BlockStatement"
+        },
+        "decorators": [
+          {
+            "args": [],
+            "length": 7,
+            "name": "test",
+            "start": 21,
+            "type": "Decorator"
+          }
+        ],
+        "exported": false,
+        "length": 9,
+        "name": {
+          "length": 1,
+          "name": "t",
+          "start": 32,
+          "type": "Identifier"
+        },
+        "params": [],
+        "returnType": null,
+        "start": 29,
+        "type": "FunctionDeclaration"
+      },
+      {
+        "body": {
+          "body": [],
+          "length": 2,
+          "start": 59,
+          "type": "BlockStatement"
+        },
+        "decorators": [
+          {
+            "args": [
+              {
+                "length": 4,
+                "name": "test",
+                "start": 45,
+                "type": "Identifier"
+              }
+            ],
+            "length": 12,
+            "name": "cfg",
+            "start": 39,
+            "type": "Decorator"
+          }
+        ],
+        "exported": false,
+        "length": 9,
+        "name": {
+          "length": 1,
+          "name": "u",
+          "start": 55,
+          "type": "Identifier"
+        },
+        "params": [],
+        "returnType": null,
+        "start": 52,
+        "type": "FunctionDeclaration"
+      },
+      {
+        "body": {
+          "body": [
+            {
+              "expression": {
+                "length": 1,
+                "radix": 10,
+                "raw": "1",
+                "start": 114,
+                "type": "IntegerLiteral",
+                "value": 1
+              },
+              "length": 1,
+              "start": 114,
+              "type": "ExpressionStatement"
+            }
+          ],
+          "length": 5,
+          "start": 112,
+          "type": "BlockStatement"
+        },
+        "exported": false,
+        "length": 21,
+        "name": {
+          "length": 4,
+          "name": "tail",
+          "start": 99,
+          "type": "Identifier"
+        },
+        "params": [],
+        "returnType": {
+          "length": 2,
+          "name": "u8",
+          "start": 109,
+          "type": "TypeReference",
+          "typeArguments": []
+        },
+        "start": 96,
+        "type": "FunctionDeclaration"
+      },
+      {
+        "body": {
+          "body": [
+            {
+              "expression": {
+                "length": 1,
+                "radix": 10,
+                "raw": "1",
+                "start": 131,
+                "type": "IntegerLiteral",
+                "value": 1
+              },
+              "length": 1,
+              "start": 131,
+              "type": "ExpressionStatement"
+            }
+          ],
+          "length": 5,
+          "start": 129,
+          "type": "BlockStatement"
+        },
+        "exported": false,
+        "length": 16,
+        "name": {
+          "length": 5,
+          "name": "quiet",
+          "start": 121,
+          "type": "Identifier"
+        },
+        "params": [],
+        "returnType": null,
+        "start": 118,
+        "type": "FunctionDeclaration"
+      },
+      {
+        "body": null,
+        "exported": false,
+        "length": 11,
+        "name": {
+          "length": 6,
+          "name": "nobody",
+          "start": 138,
+          "type": "Identifier"
+        },
+        "params": [],
+        "returnType": null,
+        "start": 135,
+        "type": "FunctionDeclaration"
+      },
+      {
+        "exported": false,
+        "immutable": true,
+        "initializer": {
+          "length": 1,
+          "radix": 10,
+          "raw": "1",
+          "start": 155,
+          "type": "IntegerLiteral",
+          "value": 1
+        },
+        "kind": "let",
+        "length": 9,
+        "name": {
+          "length": 1,
+          "name": "x",
+          "start": 151,
+          "type": "Identifier"
+        },
+        "start": 147,
+        "type": "VariableDeclaration",
+        "typeAnnotation": null
+      },
+      {
+        "exported": false,
+        "immutable": true,
+        "initializer": {
+          "length": 1,
+          "radix": 10,
+          "raw": "2",
+          "start": 165,
+          "type": "IntegerLiteral",
+          "value": 2
+        },
+        "kind": "let",
+        "length": 10,
+        "name": {
+          "length": 1,
+          "name": "y",
+          "start": 161,
+          "type": "Identifier"
+        },
+        "start": 157,
+        "type": "VariableDeclaration",
+        "typeAnnotation": null
+      },
+      {
+        "alternate": null,
+        "consequent": {
+          "body": [],
+          "length": 3,
+          "start": 173,
+          "type": "BlockStatement"
+        },
+        "length": 8,
+        "start": 168,
+        "test": {
+          "length": 1,
+          "name": "x",
+          "start": 171,
+          "type": "Identifier"
+        },
+        "type": "IfStatement"
+      },
+      {
+        "expression": {
+          "length": 1,
+          "name": "y",
+          "start": 182,
+          "type": "Identifier"
+        },
+        "length": 2,
+        "start": 182,
+        "type": "ExpressionStatement"
+      },
+      {
+        "body": null,
+        "length": 7,
+        "start": 185,
+        "test": {
+          "length": 1,
+          "name": "x",
+          "start": 191,
+          "type": "Identifier"
+        },
+        "type": "WhileStatement"
+      },
+      {
+        "body": {
+          "body": [],
+          "length": 2,
+          "start": 204,
+          "type": "BlockStatement"
+        },
+        "exported": false,
+        "length": 13,
+        "name": {
+          "length": 5,
+          "name": "after",
+          "start": 196,
+          "type": "Identifier"
+        },
+        "params": [],
+        "returnType": null,
+        "start": 193,
+        "type": "FunctionDeclaration"
+      },
+      {
+        "expression": {
+          "length": 1,
+          "name": "x",
+          "start": 228,
+          "type": "Identifier"
+        },
+        "length": 2,
+        "start": 228,
+        "type": "ExpressionStatement"
+      }
+    ],
+    "length": 237,
+    "start": 0,
+    "type": "Program"
+  },
+  "diagnostics": [
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 5,
+      "message": "'crate::' paths are not supported; use 'self::' or 'super::'",
+      "severity": "error",
+      "start": 4
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 7,
+      "message": "tests come with '8bs test'",
+      "severity": "error",
+      "start": 21
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 12,
+      "message": "tests come with '8bs test'",
+      "severity": "error",
+      "start": 39
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 3,
+      "message": "inner attributes are not supported",
+      "severity": "error",
+      "start": 62
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 3,
+      "message": "expected a declaration after 'pub', found 'use'",
+      "severity": "error",
+      "start": 77
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "expected a declaration after 'pub', found '5'",
+      "severity": "error",
+      "start": 93
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "write 'return …;' to return a value",
+      "severity": "error",
+      "start": 114
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "expected ';', found '}'",
+      "severity": "error",
+      "start": 133
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 3,
+      "message": "expected a function body",
+      "severity": "error",
+      "start": 147
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 3,
+      "message": "expected ';', found 'let'",
+      "severity": "error",
+      "start": 157
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "expected '{', found 'y'",
+      "severity": "error",
+      "start": 182
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 2,
+      "message": "expected '{', found 'fn'",
+      "severity": "error",
+      "start": 193
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "expected an expression, found '}'",
+      "severity": "error",
+      "start": 218
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "expected ')', found '}'",
+      "severity": "error",
+      "start": 218
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "expected ']', found '}'",
+      "severity": "error",
+      "start": 218
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "expected an expression, found '}'",
+      "severity": "error",
+      "start": 218
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "expected '{' after 'asm6502'",
+      "severity": "error",
+      "start": 228
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 4,
+      "message": "expected an expression, found 'else'",
+      "severity": "error",
+      "start": 231
+    }
+  ]
+}
