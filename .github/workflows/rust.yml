@@ -63,6 +63,7 @@ jobs:
         if: steps.changes.outputs.run == 'true'
         with:
           node-version: 26
+          package-manager-cache: false
       - name: Fixtures are fresh
         if: steps.changes.outputs.run == 'true'
         run: |
