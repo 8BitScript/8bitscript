@@ -1,0 +1,433 @@
+{
+  "body": [
+    {
+      "length": 40,
+      "source": {
+        "length": 18,
+        "start": 627,
+        "type": "StringLiteral",
+        "value": "@8bitscript/text"
+      },
+      "specifiers": [
+        {
+          "length": 4,
+          "name": "text",
+          "start": 615,
+          "type": "Identifier"
+        }
+      ],
+      "start": 606,
+      "type": "ImportDeclaration"
+    },
+    {
+      "length": 42,
+      "source": {
+        "length": 19,
+        "start": 669,
+        "type": "StringLiteral",
+        "value": "@8bitscript/input"
+      },
+      "specifiers": [
+        {
+          "length": 5,
+          "name": "input",
+          "start": 656,
+          "type": "Identifier"
+        }
+      ],
+      "start": 647,
+      "type": "ImportDeclaration"
+    },
+    {
+      "decorators": [
+        {
+          "args": [
+            {
+              "length": 6,
+              "radix": 16,
+              "raw": "0x900F",
+              "start": 700,
+              "type": "IntegerLiteral",
+              "value": 36879
+            }
+          ],
+          "length": 16,
+          "name": "address",
+          "start": 691,
+          "type": "Decorator"
+        }
+      ],
+      "exported": false,
+      "initializer": null,
+      "kind": "let",
+      "length": 33,
+      "name": {
+        "length": 8,
+        "name": "vicColor",
+        "start": 712,
+        "type": "Identifier"
+      },
+      "start": 708,
+      "type": "VariableDeclaration",
+      "typeAnnotation": {
+        "length": 18,
+        "name": "volatile",
+        "start": 722,
+        "type": "TypeReference",
+        "typeArguments": [
+          {
+            "length": 8,
+            "name": "utinyint",
+            "start": 731,
+            "type": "TypeReference",
+            "typeArguments": []
+          }
+        ]
+      }
+    },
+    {
+      "exported": false,
+      "initializer": null,
+      "kind": "let",
+      "length": 32,
+      "name": {
+        "length": 6,
+        "name": "buffer",
+        "start": 747,
+        "type": "Identifier"
+      },
+      "start": 743,
+      "type": "VariableDeclaration",
+      "typeAnnotation": {
+        "length": 19,
+        "name": "array",
+        "start": 755,
+        "type": "TypeReference",
+        "typeArguments": [
+          {
+            "length": 8,
+            "name": "utinyint",
+            "start": 761,
+            "type": "TypeReference",
+            "typeArguments": []
+          },
+          {
+            "length": 2,
+            "radix": 10,
+            "raw": "16",
+            "start": 771,
+            "type": "IntegerLiteral",
+            "value": 16
+          }
+        ]
+      }
+    },
+    {
+      "exported": false,
+      "initializer": null,
+      "kind": "let",
+      "length": 26,
+      "name": {
+        "length": 6,
+        "name": "cursor",
+        "start": 780,
+        "type": "Identifier"
+      },
+      "start": 776,
+      "type": "VariableDeclaration",
+      "typeAnnotation": {
+        "length": 13,
+        "name": "ptr",
+        "start": 788,
+        "type": "TypeReference",
+        "typeArguments": [
+          {
+            "length": 8,
+            "name": "utinyint",
+            "start": 792,
+            "type": "TypeReference",
+            "typeArguments": []
+          }
+        ]
+      }
+    },
+    {
+      "body": {
+        "body": [
+          {
+            "alternate": {
+              "body": [
+                {
+                  "expression": {
+                    "argument": {
+                      "length": 6,
+                      "name": "cursor",
+                      "start": 900,
+                      "type": "Identifier"
+                    },
+                    "length": 8,
+                    "operator": "++",
+                    "prefix": false,
+                    "start": 900,
+                    "type": "UpdateExpression"
+                  },
+                  "length": 9,
+                  "start": 900,
+                  "type": "ExpressionStatement"
+                }
+              ],
+              "length": 25,
+              "start": 890,
+              "type": "BlockStatement"
+            },
+            "consequent": {
+              "body": [
+                {
+                  "expression": {
+                    "argument": {
+                      "length": 6,
+                      "name": "cursor",
+                      "start": 869,
+                      "type": "Identifier"
+                    },
+                    "length": 8,
+                    "operator": "--",
+                    "prefix": false,
+                    "start": 869,
+                    "type": "UpdateExpression"
+                  },
+                  "length": 9,
+                  "start": 869,
+                  "type": "ExpressionStatement"
+                }
+              ],
+              "length": 25,
+              "start": 859,
+              "type": "BlockStatement"
+            },
+            "length": 74,
+            "start": 841,
+            "test": {
+              "args": [],
+              "callee": {
+                "length": 10,
+                "object": {
+                  "length": 5,
+                  "name": "input",
+                  "start": 845,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 4,
+                  "name": "left",
+                  "start": 851,
+                  "type": "Identifier"
+                },
+                "start": 845,
+                "type": "MemberExpression"
+              },
+              "length": 12,
+              "start": 845,
+              "type": "CallExpression"
+            },
+            "type": "IfStatement"
+          },
+          {
+            "body": {
+              "body": [
+                {
+                  "expression": {
+                    "args": [
+                      {
+                        "length": 1,
+                        "name": "i",
+                        "start": 983,
+                        "type": "Identifier"
+                      },
+                      {
+                        "length": 2,
+                        "radix": 10,
+                        "raw": "10",
+                        "start": 986,
+                        "type": "IntegerLiteral",
+                        "value": 10
+                      },
+                      {
+                        "index": {
+                          "length": 1,
+                          "radix": 10,
+                          "raw": "0",
+                          "start": 997,
+                          "type": "IntegerLiteral",
+                          "value": 0
+                        },
+                        "length": 9,
+                        "object": {
+                          "length": 6,
+                          "name": "buffer",
+                          "start": 990,
+                          "type": "Identifier"
+                        },
+                        "start": 990,
+                        "type": "IndexExpression"
+                      }
+                    ],
+                    "callee": {
+                      "length": 12,
+                      "object": {
+                        "length": 4,
+                        "name": "text",
+                        "start": 970,
+                        "type": "Identifier"
+                      },
+                      "property": {
+                        "length": 7,
+                        "name": "putChar",
+                        "start": 975,
+                        "type": "Identifier"
+                      },
+                      "start": 970,
+                      "type": "MemberExpression"
+                    },
+                    "length": 30,
+                    "start": 970,
+                    "type": "CallExpression"
+                  },
+                  "length": 31,
+                  "start": 970,
+                  "type": "ExpressionStatement"
+                }
+              ],
+              "length": 47,
+              "start": 960,
+              "type": "BlockStatement"
+            },
+            "init": {
+              "exported": false,
+              "initializer": {
+                "length": 1,
+                "radix": 10,
+                "raw": "0",
+                "start": 944,
+                "type": "IntegerLiteral",
+                "value": 0
+              },
+              "kind": "let",
+              "length": 19,
+              "name": {
+                "length": 1,
+                "name": "i",
+                "start": 930,
+                "type": "Identifier"
+              },
+              "start": 926,
+              "type": "VariableDeclaration",
+              "typeAnnotation": {
+                "length": 8,
+                "name": "utinyint",
+                "start": 933,
+                "type": "TypeReference",
+                "typeArguments": []
+              }
+            },
+            "length": 86,
+            "start": 921,
+            "test": {
+              "left": {
+                "length": 1,
+                "name": "i",
+                "start": 947,
+                "type": "Identifier"
+              },
+              "length": 6,
+              "operator": "<",
+              "right": {
+                "length": 2,
+                "radix": 10,
+                "raw": "16",
+                "start": 951,
+                "type": "IntegerLiteral",
+                "value": 16
+              },
+              "start": 947,
+              "type": "BinaryExpression"
+            },
+            "type": "ForStatement",
+            "update": {
+              "argument": {
+                "length": 1,
+                "name": "i",
+                "start": 955,
+                "type": "Identifier"
+              },
+              "length": 3,
+              "operator": "++",
+              "prefix": false,
+              "start": 955,
+              "type": "UpdateExpression"
+            }
+          },
+          {
+            "body": {
+              "body": [
+                {
+                  "length": 6,
+                  "start": 1036,
+                  "type": "BreakStatement"
+                }
+              ],
+              "length": 22,
+              "start": 1026,
+              "type": "BlockStatement"
+            },
+            "length": 35,
+            "start": 1013,
+            "test": {
+              "length": 4,
+              "start": 1020,
+              "type": "BooleanLiteral",
+              "value": true
+            },
+            "type": "WhileStatement"
+          },
+          {
+            "body": "{\n        lda #$06\n        sta $900f\n    }",
+            "length": 50,
+            "start": 1054,
+            "type": "AsmBlock"
+          },
+          {
+            "argument": null,
+            "length": 7,
+            "start": 1110,
+            "type": "ReturnStatement"
+          }
+        ],
+        "length": 284,
+        "start": 835,
+        "type": "BlockStatement"
+      },
+      "exported": true,
+      "length": 315,
+      "name": {
+        "length": 6,
+        "name": "update",
+        "start": 820,
+        "type": "Identifier"
+      },
+      "params": [],
+      "returnType": {
+        "length": 4,
+        "name": "void",
+        "start": 830,
+        "type": "TypeReference",
+        "typeArguments": []
+      },
+      "start": 804,
+      "type": "FunctionDeclaration"
+    }
+  ],
+  "length": 1120,
+  "start": 0,
+  "type": "Program"
+}

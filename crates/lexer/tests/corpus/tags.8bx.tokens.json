@@ -1,0 +1,880 @@
+{
+  "diagnostics": [
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "write 'if c { a } else { b }' for a choice between two values",
+      "severity": "error",
+      "start": 477
+    },
+    {
+      "code": "8BS1039",
+      "file": "t",
+      "length": 1,
+      "message": "unexpected '#' inside a tag",
+      "severity": "error",
+      "start": 501
+    },
+    {
+      "code": "8BS1039",
+      "file": "t",
+      "length": 1,
+      "message": "unterminated tag",
+      "severity": "error",
+      "start": 496
+    }
+  ],
+  "tokens": [
+    {
+      "kind": "keyword",
+      "length": 3,
+      "start": 0,
+      "text": "pub"
+    },
+    {
+      "kind": "keyword",
+      "length": 9,
+      "start": 4,
+      "text": "component"
+    },
+    {
+      "kind": "identifier",
+      "length": 4,
+      "start": 14,
+      "text": "Menu"
+    },
+    {
+      "kind": "punctuation",
+      "length": 1,
+      "start": 18,
+      "text": "("
+    },
+    {
+      "kind": "identifier",
+      "length": 5,
+      "start": 19,
+      "text": "title"
+    },
+    {
+      "kind": "punctuation",
+      "length": 1,
+      "start": 24,
+      "text": ":"
+    },
+    {
+      "kind": "type",
+      "length": 6,
+      "start": 26,
+      "text": "string"
+    },
+    {
+      "kind": "punctuation",
+      "length": 1,
+      "start": 32,
+      "text": ","
+    },
+    {
+      "kind": "identifier",
+      "length": 5,
+      "start": 34,
+      "text": "count"
+    },
+    {
+      "kind": "punctuation",
+      "length": 1,
+      "start": 39,
+      "text": ":"
+    },
+    {
+      "kind": "type",
+      "length": 2,
+      "start": 41,
+      "text": "u8"
+    },
+    {
+      "kind": "punctuation",
+      "length": 1,
+      "start": 43,
+      "text": ")"
+    },
+    {
+      "kind": "punctuation",
+      "length": 1,
+      "start": 45,
+      "text": "{"
+    },
+    {
+      "kind": "keyword",
+      "length": 5,
+      "start": 51,
+      "text": "state"
+    },
+    {
+      "kind": "identifier",
+      "length": 8,
+      "start": 57,
+      "text": "selected"
+    },
+    {
+      "kind": "punctuation",
+      "length": 1,
+      "start": 65,
+      "text": ":"
+    },
+    {
+      "kind": "type",
+      "length": 2,
+      "start": 67,
+      "text": "u8"
+    },
+    {
+      "kind": "operator",
+      "length": 1,
+      "start": 70,
+      "text": "="
+    },
+    {
+      "kind": "number",
+      "length": 1,
+      "radix": 10,
+      "start": 72,
+      "text": "0",
+      "value": 0
+    },
+    {
+      "kind": "punctuation",
+      "length": 1,
+      "start": 73,
+      "text": ";"
+    },
+    {
+      "kind": "keyword",
+      "length": 3,
+      "start": 79,
+      "text": "let"
+    },
+    {
+      "kind": "identifier",
+      "length": 2,
+      "start": 83,
+      "text": "ok"
+    },
+    {
+      "kind": "operator",
+      "length": 1,
+      "start": 86,
+      "text": "="
+    },
+    {
+      "kind": "identifier",
+      "length": 1,
+      "start": 88,
+      "text": "a"
+    },
+    {
+      "kind": "operator",
+      "length": 1,
+      "start": 90,
+      "text": "<"
+    },
+    {
+      "kind": "identifier",
+      "length": 1,
+      "start": 92,
+      "text": "b"
+    },
+    {
+      "kind": "punctuation",
+      "length": 1,
+      "start": 93,
+      "text": ";"
+    },
+    {
+      "kind": "keyword",
+      "length": 3,
+      "start": 99,
+      "text": "let"
+    },
+    {
+      "kind": "identifier",
+      "length": 3,
+      "start": 103,
+      "text": "big"
+    },
+    {
+      "kind": "operator",
+      "length": 1,
+      "start": 107,
+      "text": "="
+    },
+    {
+      "kind": "number",
+      "length": 1,
+      "radix": 10,
+      "start": 109,
+      "text": "1",
+      "value": 1
+    },
+    {
+      "kind": "operator",
+      "length": 2,
+      "start": 111,
+      "text": "<<"
+    },
+    {
+      "kind": "number",
+      "length": 1,
+      "radix": 10,
+      "start": 114,
+      "text": "2",
+      "value": 2
+    },
+    {
+      "kind": "punctuation",
+      "length": 1,
+      "start": 115,
+      "text": ";"
+    },
+    {
+      "kind": "keyword",
+      "length": 3,
+      "start": 121,
+      "text": "let"
+    },
+    {
+      "kind": "identifier",
+      "length": 3,
+      "start": 125,
+      "text": "arr"
+    },
+    {
+      "kind": "punctuation",
+      "length": 1,
+      "start": 128,
+      "text": ":"
+    },
+    {
+      "kind": "type",
+      "length": 5,
+      "start": 130,
+      "text": "array"
+    },
+    {
+      "kind": "operator",
+      "length": 1,
+      "start": 135,
+      "text": "<"
+    },
+    {
+      "kind": "type",
+      "length": 2,
+      "start": 136,
+      "text": "u8"
+    },
+    {
+      "kind": "punctuation",
+      "length": 1,
+      "start": 138,
+      "text": ","
+    },
+    {
+      "kind": "number",
+      "length": 1,
+      "radix": 10,
+      "start": 140,
+      "text": "4",
+      "value": 4
+    },
+    {
+      "kind": "operator",
+      "length": 1,
+      "start": 141,
+      "text": ">"
+    },
+    {
+      "kind": "punctuation",
+      "length": 1,
+      "start": 142,
+      "text": ";"
+    },
+    {
+      "kind": "keyword",
+      "length": 2,
+      "start": 148,
+      "text": "if"
+    },
+    {
+      "kind": "identifier",
+      "length": 8,
+      "start": 151,
+      "text": "selected"
+    },
+    {
+      "kind": "operator",
+      "length": 1,
+      "start": 160,
+      "text": "<"
+    },
+    {
+      "kind": "number",
+      "length": 1,
+      "radix": 10,
+      "start": 162,
+      "text": "3",
+      "value": 3
+    },
+    {
+      "kind": "punctuation",
+      "length": 1,
+      "start": 164,
+      "text": "{"
+    },
+    {
+      "kind": "bxTagOpen",
+      "length": 1,
+      "start": 166,
+      "text": "<"
+    },
+    {
+      "kind": "identifier",
+      "length": 4,
+      "start": 167,
+      "text": "Item"
+    },
+    {
+      "kind": "identifier",
+      "length": 5,
+      "start": 172,
+      "text": "label"
+    },
+    {
+      "kind": "operator",
+      "length": 1,
+      "start": 177,
+      "text": "="
+    },
+    {
+      "kind": "string",
+      "length": 5,
+      "start": 178,
+      "text": "\"one\""
+    },
+    {
+      "kind": "identifier",
+      "length": 1,
+      "start": 184,
+      "text": "n"
+    },
+    {
+      "kind": "operator",
+      "length": 1,
+      "start": 185,
+      "text": "="
+    },
+    {
+      "kind": "punctuation",
+      "length": 1,
+      "start": 186,
+      "text": "{"
+    },
+    {
+      "kind": "number",
+      "length": 1,
+      "radix": 10,
+      "start": 187,
+      "text": "1",
+      "value": 1
+    },
+    {
+      "kind": "punctuation",
+      "length": 1,
+      "start": 188,
+      "text": "}"
+    },
+    {
+      "kind": "bxSelfClose",
+      "length": 2,
+      "start": 190,
+      "text": "/>"
+    },
+    {
+      "kind": "punctuation",
+      "length": 1,
+      "start": 192,
+      "text": ";"
+    },
+    {
+      "kind": "punctuation",
+      "length": 1,
+      "start": 194,
+      "text": "}"
+    },
+    {
+      "kind": "bxTagOpen",
+      "length": 1,
+      "start": 200,
+      "text": "<"
+    },
+    {
+      "kind": "identifier",
+      "length": 7,
+      "start": 201,
+      "text": "MenuBar"
+    },
+    {
+      "kind": "identifier",
+      "length": 5,
+      "start": 209,
+      "text": "title"
+    },
+    {
+      "kind": "operator",
+      "length": 1,
+      "start": 214,
+      "text": "="
+    },
+    {
+      "kind": "string",
+      "length": 8,
+      "start": 215,
+      "text": "'single'"
+    },
+    {
+      "kind": "identifier",
+      "length": 2,
+      "start": 224,
+      "text": "on"
+    },
+    {
+      "kind": "punctuation",
+      "length": 1,
+      "start": 226,
+      "text": "."
+    },
+    {
+      "kind": "identifier",
+      "length": 5,
+      "start": 227,
+      "text": "press"
+    },
+    {
+      "kind": "operator",
+      "length": 1,
+      "start": 232,
+      "text": "="
+    },
+    {
+      "kind": "punctuation",
+      "length": 1,
+      "start": 233,
+      "text": "{"
+    },
+    {
+      "kind": "identifier",
+      "length": 7,
+      "start": 234,
+      "text": "handler"
+    },
+    {
+      "kind": "punctuation",
+      "length": 1,
+      "start": 241,
+      "text": "("
+    },
+    {
+      "kind": "number",
+      "length": 1,
+      "radix": 10,
+      "start": 242,
+      "text": "1",
+      "value": 1
+    },
+    {
+      "kind": "punctuation",
+      "length": 1,
+      "start": 243,
+      "text": ")"
+    },
+    {
+      "kind": "punctuation",
+      "length": 1,
+      "start": 244,
+      "text": "}"
+    },
+    {
+      "kind": "bxTagEnd",
+      "length": 1,
+      "start": 245,
+      "text": ">"
+    },
+    {
+      "kind": "bxText",
+      "length": 60,
+      "start": 246,
+      "text": "\n        some raw text, don't lex // this or \"that\"\n        "
+    },
+    {
+      "kind": "punctuation",
+      "length": 1,
+      "start": 306,
+      "text": "{"
+    },
+    {
+      "kind": "identifier",
+      "length": 5,
+      "start": 307,
+      "text": "title"
+    },
+    {
+      "kind": "punctuation",
+      "length": 1,
+      "start": 312,
+      "text": "}"
+    },
+    {
+      "kind": "bxText",
+      "length": 9,
+      "start": 313,
+      "text": "\n        "
+    },
+    {
+      "kind": "bxTagOpen",
+      "length": 1,
+      "start": 322,
+      "text": "<"
+    },
+    {
+      "kind": "identifier",
+      "length": 4,
+      "start": 323,
+      "text": "Item"
+    },
+    {
+      "kind": "identifier",
+      "length": 5,
+      "start": 328,
+      "text": "label"
+    },
+    {
+      "kind": "operator",
+      "length": 1,
+      "start": 333,
+      "text": "="
+    },
+    {
+      "kind": "string",
+      "length": 3,
+      "start": 334,
+      "text": "\"a\""
+    },
+    {
+      "kind": "bxTagEnd",
+      "length": 1,
+      "start": 337,
+      "text": ">"
+    },
+    {
+      "kind": "bxText",
+      "length": 7,
+      "start": 338,
+      "text": "nested "
+    },
+    {
+      "kind": "punctuation",
+      "length": 1,
+      "start": 345,
+      "text": "{"
+    },
+    {
+      "kind": "identifier",
+      "length": 5,
+      "start": 346,
+      "text": "count"
+    },
+    {
+      "kind": "operator",
+      "length": 1,
+      "start": 352,
+      "text": "+"
+    },
+    {
+      "kind": "number",
+      "length": 1,
+      "radix": 10,
+      "start": 354,
+      "text": "1",
+      "value": 1
+    },
+    {
+      "kind": "punctuation",
+      "length": 1,
+      "start": 355,
+      "text": "}"
+    },
+    {
+      "kind": "bxText",
+      "length": 5,
+      "start": 356,
+      "text": " text"
+    },
+    {
+      "kind": "bxClosingTagOpen",
+      "length": 2,
+      "start": 361,
+      "text": "</"
+    },
+    {
+      "kind": "identifier",
+      "length": 4,
+      "start": 363,
+      "text": "Item"
+    },
+    {
+      "kind": "bxTagEnd",
+      "length": 1,
+      "start": 367,
+      "text": ">"
+    },
+    {
+      "kind": "bxText",
+      "length": 36,
+      "start": 368,
+      "text": "\n        < Spaced\n        a > b\n    "
+    },
+    {
+      "kind": "bxClosingTagOpen",
+      "length": 2,
+      "start": 404,
+      "text": "</"
+    },
+    {
+      "kind": "identifier",
+      "length": 7,
+      "start": 406,
+      "text": "MenuBar"
+    },
+    {
+      "kind": "bxTagEnd",
+      "length": 1,
+      "start": 413,
+      "text": ">"
+    },
+    {
+      "kind": "punctuation",
+      "length": 1,
+      "start": 414,
+      "text": ";"
+    },
+    {
+      "kind": "keyword",
+      "length": 6,
+      "start": 420,
+      "text": "return"
+    },
+    {
+      "kind": "bxTagOpen",
+      "length": 1,
+      "start": 427,
+      "text": "<"
+    },
+    {
+      "kind": "bxTagEnd",
+      "length": 1,
+      "start": 428,
+      "text": ">"
+    },
+    {
+      "kind": "bxText",
+      "length": 8,
+      "start": 429,
+      "text": "fragment"
+    },
+    {
+      "kind": "bxClosingTagOpen",
+      "length": 2,
+      "start": 437,
+      "text": "</"
+    },
+    {
+      "kind": "bxTagEnd",
+      "length": 1,
+      "start": 439,
+      "text": ">"
+    },
+    {
+      "kind": "punctuation",
+      "length": 1,
+      "start": 440,
+      "text": ";"
+    },
+    {
+      "kind": "keyword",
+      "length": 3,
+      "start": 446,
+      "text": "let"
+    },
+    {
+      "kind": "identifier",
+      "length": 1,
+      "start": 450,
+      "text": "x"
+    },
+    {
+      "kind": "operator",
+      "length": 1,
+      "start": 452,
+      "text": "="
+    },
+    {
+      "kind": "punctuation",
+      "length": 1,
+      "start": 454,
+      "text": "("
+    },
+    {
+      "kind": "identifier",
+      "length": 1,
+      "start": 455,
+      "text": "a"
+    },
+    {
+      "kind": "punctuation",
+      "length": 1,
+      "start": 456,
+      "text": ")"
+    },
+    {
+      "kind": "operator",
+      "length": 1,
+      "start": 458,
+      "text": "<"
+    },
+    {
+      "kind": "identifier",
+      "length": 1,
+      "start": 460,
+      "text": "b"
+    },
+    {
+      "kind": "punctuation",
+      "length": 1,
+      "start": 461,
+      "text": ";"
+    },
+    {
+      "kind": "keyword",
+      "length": 3,
+      "start": 467,
+      "text": "let"
+    },
+    {
+      "kind": "identifier",
+      "length": 1,
+      "start": 471,
+      "text": "y"
+    },
+    {
+      "kind": "operator",
+      "length": 1,
+      "start": 473,
+      "text": "="
+    },
+    {
+      "kind": "identifier",
+      "length": 1,
+      "start": 475,
+      "text": "c"
+    },
+    {
+      "kind": "operator",
+      "length": 1,
+      "start": 477,
+      "text": "?"
+    },
+    {
+      "kind": "bxTagOpen",
+      "length": 1,
+      "start": 479,
+      "text": "<"
+    },
+    {
+      "kind": "identifier",
+      "length": 1,
+      "start": 480,
+      "text": "A"
+    },
+    {
+      "kind": "bxSelfClose",
+      "length": 2,
+      "start": 482,
+      "text": "/>"
+    },
+    {
+      "kind": "punctuation",
+      "length": 1,
+      "start": 485,
+      "text": ":"
+    },
+    {
+      "kind": "bxTagOpen",
+      "length": 1,
+      "start": 487,
+      "text": "<"
+    },
+    {
+      "kind": "identifier",
+      "length": 1,
+      "start": 488,
+      "text": "B"
+    },
+    {
+      "kind": "bxSelfClose",
+      "length": 2,
+      "start": 490,
+      "text": "/>"
+    },
+    {
+      "kind": "punctuation",
+      "length": 1,
+      "start": 492,
+      "text": ";"
+    },
+    {
+      "kind": "punctuation",
+      "length": 1,
+      "start": 494,
+      "text": "}"
+    },
+    {
+      "kind": "bxTagOpen",
+      "length": 1,
+      "start": 496,
+      "text": "<"
+    },
+    {
+      "kind": "identifier",
+      "length": 3,
+      "start": 497,
+      "text": "Bad"
+    },
+    {
+      "kind": "identifier",
+      "length": 5,
+      "start": 503,
+      "text": "label"
+    },
+    {
+      "kind": "operator",
+      "length": 1,
+      "start": 508,
+      "text": "="
+    },
+    {
+      "kind": "string",
+      "length": 3,
+      "start": 509,
+      "text": "\"x\""
+    }
+  ]
+}

@@ -1,0 +1,239 @@
+{
+  "diagnostics": [
+    {
+      "code": "8BS1003",
+      "file": "t",
+      "length": 2,
+      "message": "unexpected character '😀'",
+      "severity": "error",
+      "start": 139
+    },
+    {
+      "code": "8BS1003",
+      "file": "t",
+      "length": 1,
+      "message": "unexpected character 'é'",
+      "severity": "error",
+      "start": 148
+    }
+  ],
+  "tokens": [
+    {
+      "kind": "comment",
+      "length": 22,
+      "start": 0,
+      "text": "// title — 😀 comment\r"
+    },
+    {
+      "kind": "keyword",
+      "length": 3,
+      "start": 23,
+      "text": "let"
+    },
+    {
+      "kind": "identifier",
+      "length": 1,
+      "start": 27,
+      "text": "s"
+    },
+    {
+      "kind": "operator",
+      "length": 1,
+      "start": 29,
+      "text": "="
+    },
+    {
+      "kind": "string",
+      "length": 9,
+      "start": 31,
+      "text": "\"café 😀\""
+    },
+    {
+      "kind": "punctuation",
+      "length": 1,
+      "start": 40,
+      "text": ";"
+    },
+    {
+      "kind": "keyword",
+      "length": 3,
+      "start": 43,
+      "text": "let"
+    },
+    {
+      "kind": "identifier",
+      "length": 1,
+      "start": 47,
+      "text": "t"
+    },
+    {
+      "kind": "operator",
+      "length": 1,
+      "start": 49,
+      "text": "="
+    },
+    {
+      "kind": "template",
+      "length": 11,
+      "parts": [
+        {
+          "end": 55,
+          "kind": "text",
+          "start": 52
+        },
+        {
+          "end": 59,
+          "kind": "field",
+          "sourceEnd": 58,
+          "sourceStart": 57,
+          "start": 55
+        },
+        {
+          "end": 61,
+          "kind": "text",
+          "start": 59
+        }
+      ],
+      "start": 51,
+      "text": "`😀 ${x} é`"
+    },
+    {
+      "kind": "punctuation",
+      "length": 1,
+      "start": 62,
+      "text": ";"
+    },
+    {
+      "kind": "keyword",
+      "length": 3,
+      "start": 65,
+      "text": "let"
+    },
+    {
+      "kind": "identifier",
+      "length": 1,
+      "start": 69,
+      "text": "n"
+    },
+    {
+      "kind": "operator",
+      "length": 1,
+      "start": 71,
+      "text": "="
+    },
+    {
+      "kind": "number",
+      "length": 3,
+      "radix": 16,
+      "start": 73,
+      "text": "$FF",
+      "value": 255
+    },
+    {
+      "kind": "punctuation",
+      "length": 1,
+      "start": 76,
+      "text": ";"
+    },
+    {
+      "kind": "comment",
+      "length": 10,
+      "start": 78,
+      "text": "/* 😀\r\n */"
+    },
+    {
+      "kind": "keyword",
+      "length": 3,
+      "start": 89,
+      "text": "let"
+    },
+    {
+      "kind": "identifier",
+      "length": 1,
+      "start": 93,
+      "text": "m"
+    },
+    {
+      "kind": "operator",
+      "length": 1,
+      "start": 95,
+      "text": "="
+    },
+    {
+      "kind": "number",
+      "length": 1,
+      "radix": 10,
+      "start": 97,
+      "text": "2",
+      "value": 2
+    },
+    {
+      "kind": "punctuation",
+      "length": 1,
+      "start": 98,
+      "text": ";"
+    },
+    {
+      "kind": "keyword",
+      "length": 7,
+      "start": 101,
+      "text": "asm6502"
+    },
+    {
+      "kind": "asm",
+      "length": 18,
+      "start": 109,
+      "text": "{ lda #1 ; 😀 \r\n }"
+    },
+    {
+      "kind": "keyword",
+      "length": 3,
+      "start": 129,
+      "text": "let"
+    },
+    {
+      "kind": "identifier",
+      "length": 3,
+      "start": 133,
+      "text": "bad"
+    },
+    {
+      "kind": "operator",
+      "length": 1,
+      "start": 137,
+      "text": "="
+    },
+    {
+      "kind": "punctuation",
+      "length": 1,
+      "start": 141,
+      "text": ";"
+    },
+    {
+      "kind": "keyword",
+      "length": 3,
+      "start": 144,
+      "text": "let"
+    },
+    {
+      "kind": "operator",
+      "length": 1,
+      "start": 150,
+      "text": "="
+    },
+    {
+      "kind": "number",
+      "length": 1,
+      "radix": 10,
+      "start": 152,
+      "text": "1",
+      "value": 1
+    },
+    {
+      "kind": "punctuation",
+      "length": 1,
+      "start": 153,
+      "text": ";"
+    }
+  ]
+}

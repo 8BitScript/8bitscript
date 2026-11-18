@@ -97,6 +97,40 @@ for (const type of types) {
   }
 }
 
+// js_trim, JS_WS / is_js_whitespace, utf16_len, hex_upper, parse_int, math_round.
+const trimStrings = [
+  '', ' ', 'a', ' a ', '\t\n\v\f\r a \r\n', ' a ', '﻿a﻿', '\u0085a\u0085',
+  ' x  ', '  x  　', '​x​', 'a b', '᠎x᠎',
+  '\u{1f600} x ', '\u0000x\u0000',
+];
+out.trim = trimStrings.map((s) => [s, s.trim()]);
+out.ws = [];
+for (let c = 0; c < 0x10000; c++) {
+  if (c >= 0xd800 && c <= 0xdfff) continue;
+  if (/\s/.test(String.fromCharCode(c))) out.ws.push(c);
+}
+out.utf16 = trimStrings.concat(['é', '\u{10000}', 'a\u{1f600}b', '～']).map((s) => [s, s.length]);
+out.hex = [];
+for (const v of [0, 1, 5, 10, 15, 16, 255, 256, 4095, 65535, 65536, 2 ** 31, 2 ** 40, -1, -5, -255, -65536]) {
+  for (const w of [0, 1, 2, 4, 8]) {
+    out.hex.push([v, w, v.toString(16).toUpperCase().padStart(w, '0')]);
+  }
+}
+out.parseInt = [];
+for (const [d, r] of [
+  ['0', 10], ['7', 10], ['0123', 10], ['65535', 10], ['9007199254740993', 10], ['18446744073709551615', 10],
+  ['123456789012345678901234567890', 10], ['0', 16], ['ff', 16], ['FF', 16], ['dEaDbEeF', 16],
+  ['ffffffffffffffff', 16], ['fffffffffffff800', 16], ['20000000000001', 16], ['1fffffffffffff', 16],
+  ['0', 2], ['1', 2], ['101010', 2], ['11111111111111111111111111111111', 2],
+  ['100000000000000000000000000000000000000000000000000001', 2],
+]) {
+  out.parseInt.push([d, r, str(Number.parseInt(d, r))]);
+}
+out.round = [
+  0, -0, 0.5, -0.5, 1.5, -1.5, 2.5, -2.5, 0.49999999999999994, -0.49999999999999994, 0.2, -0.2,
+  4503599627370495.5, 4503599627370497, -4503599627370497, 1e21, -1e21, 255.5, 59.94, NaN, Infinity, -Infinity,
+].map((n) => [str(n), str(Math.round(n))]);
+
 const target = fileURLToPath(new URL('./fixtures.json', import.meta.url));
 writeFileSync(target, JSON.stringify(out) + '\n');
 console.log(

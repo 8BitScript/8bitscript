@@ -1,0 +1,681 @@
+{
+  "chrPatches": [],
+  "debug": false,
+  "entry": "main",
+  "frameHook": {
+    "name": "nesVerticalBlank",
+    "used": false
+  },
+  "frameRate": 60,
+  "functions": [
+    {
+      "body": [
+        {
+          "else": null,
+          "kind": "if",
+          "length": 38,
+          "start": 211,
+          "test": {
+            "kind": "binop",
+            "left": {
+              "kind": "ref",
+              "length": 1,
+              "name": "n",
+              "start": 215,
+              "type": "utinyint"
+            },
+            "operator": ">",
+            "right": {
+              "kind": "const",
+              "type": "utinyint",
+              "value": 200
+            },
+            "type": "bool"
+          },
+          "then": [
+            {
+              "kind": "return",
+              "length": 9,
+              "start": 234,
+              "value": {
+                "kind": "const",
+                "type": "utinyint",
+                "value": 0
+              }
+            }
+          ]
+        },
+        {
+          "kind": "assign",
+          "length": 5,
+          "start": 254,
+          "target": "total",
+          "value": {
+            "kind": "binop",
+            "left": {
+              "kind": "ref",
+              "length": 5,
+              "name": "total",
+              "start": 254,
+              "type": "utinyint"
+            },
+            "operator": "+",
+            "right": {
+              "kind": "ref",
+              "length": 1,
+              "name": "n",
+              "start": 263,
+              "type": "utinyint"
+            },
+            "type": "utinyint"
+          }
+        },
+        {
+          "kind": "return",
+          "length": 13,
+          "start": 270,
+          "value": {
+            "kind": "binop",
+            "left": {
+              "kind": "ref",
+              "length": 1,
+              "name": "n",
+              "start": 277,
+              "type": "utinyint"
+            },
+            "operator": "+",
+            "right": {
+              "kind": "const",
+              "type": "utinyint",
+              "value": 1
+            },
+            "type": "utinyint"
+          }
+        }
+      ],
+      "component": false,
+      "exported": false,
+      "file": "<project>/kinds.8bs",
+      "length": 4,
+      "method": false,
+      "name": "bump",
+      "owner": null,
+      "params": [
+        {
+          "name": "n",
+          "type": "utinyint"
+        }
+      ],
+      "returnType": "utinyint",
+      "start": 177
+    },
+    {
+      "body": [
+        {
+          "body": [
+            {
+              "array": {
+                "kind": "ref",
+                "length": 6,
+                "name": "scores",
+                "start": 370
+              },
+              "elementType": "utinyint",
+              "index": {
+                "kind": "ref",
+                "length": 1,
+                "name": "i",
+                "start": 377,
+                "type": "utinyint"
+              },
+              "kind": "storeIndex",
+              "length": 6,
+              "start": 370,
+              "value": {
+                "kind": "binop",
+                "left": {
+                  "array": {
+                    "kind": "ref",
+                    "length": 5,
+                    "name": "TABLE",
+                    "start": 382
+                  },
+                  "elementType": "utinyint",
+                  "index": {
+                    "kind": "ref",
+                    "length": 1,
+                    "name": "i",
+                    "start": 388,
+                    "type": "utinyint"
+                  },
+                  "kind": "index",
+                  "type": "utinyint"
+                },
+                "operator": "+",
+                "right": {
+                  "args": [
+                    {
+                      "kind": "ref",
+                      "length": 1,
+                      "name": "i",
+                      "start": 398,
+                      "type": "utinyint"
+                    }
+                  ],
+                  "kind": "call",
+                  "length": 4,
+                  "name": "bump",
+                  "start": 393,
+                  "type": "utinyint"
+                },
+                "type": "utinyint"
+              }
+            },
+            {
+              "else": [
+                {
+                  "kind": "continue",
+                  "length": 9,
+                  "start": 492
+                }
+              ],
+              "kind": "if",
+              "length": 101,
+              "start": 410,
+              "test": {
+                "kind": "binop",
+                "left": {
+                  "array": {
+                    "kind": "ref",
+                    "length": 6,
+                    "name": "scores",
+                    "start": 414
+                  },
+                  "elementType": "utinyint",
+                  "index": {
+                    "kind": "ref",
+                    "length": 1,
+                    "name": "i",
+                    "start": 421,
+                    "type": "utinyint"
+                  },
+                  "kind": "index",
+                  "type": "utinyint"
+                },
+                "operator": ">",
+                "right": {
+                  "kind": "const",
+                  "type": "utinyint",
+                  "value": 3
+                },
+                "type": "bool"
+              },
+              "then": [
+                {
+                  "kind": "assign",
+                  "length": 5,
+                  "start": 443,
+                  "target": "total",
+                  "value": {
+                    "kind": "binop",
+                    "left": {
+                      "kind": "ref",
+                      "length": 5,
+                      "name": "total",
+                      "start": 443,
+                      "type": "utinyint"
+                    },
+                    "operator": "+",
+                    "right": {
+                      "array": {
+                        "kind": "ref",
+                        "length": 6,
+                        "name": "scores",
+                        "start": 452
+                      },
+                      "elementType": "utinyint",
+                      "index": {
+                        "kind": "ref",
+                        "length": 1,
+                        "name": "i",
+                        "start": 459,
+                        "type": "utinyint"
+                      },
+                      "kind": "index",
+                      "type": "utinyint"
+                    },
+                    "type": "utinyint"
+                  }
+                }
+              ]
+            }
+          ],
+          "init": {
+            "init": {
+              "kind": "const",
+              "type": "utinyint",
+              "value": 0
+            },
+            "kind": "local",
+            "length": 1,
+            "name": "i",
+            "start": 331,
+            "type": "utinyint"
+          },
+          "kind": "for",
+          "length": 195,
+          "start": 322,
+          "test": {
+            "kind": "binop",
+            "left": {
+              "kind": "ref",
+              "length": 1,
+              "name": "i",
+              "start": 348,
+              "type": "utinyint"
+            },
+            "operator": "<",
+            "right": {
+              "kind": "const",
+              "type": "utinyint",
+              "value": 4
+            },
+            "type": "bool"
+          },
+          "unroll": false,
+          "update": {
+            "kind": "assign",
+            "length": 1,
+            "start": 355,
+            "target": "i",
+            "value": {
+              "kind": "binop",
+              "left": {
+                "kind": "ref",
+                "length": 1,
+                "name": "i",
+                "start": 355,
+                "type": "utinyint"
+              },
+              "operator": "+",
+              "right": {
+                "kind": "const",
+                "type": "utinyint",
+                "value": 1
+              },
+              "type": "utinyint"
+            }
+          }
+        },
+        {
+          "init": {
+            "kind": "const",
+            "type": "utinyint",
+            "value": 0
+          },
+          "kind": "local",
+          "length": 1,
+          "name": "k",
+          "start": 526,
+          "type": "utinyint"
+        },
+        {
+          "body": [
+            {
+              "kind": "assign",
+              "length": 5,
+              "start": 585,
+              "target": "total",
+              "value": {
+                "kind": "binop",
+                "left": {
+                  "kind": "binop",
+                  "left": {
+                    "kind": "ref",
+                    "length": 5,
+                    "name": "total",
+                    "start": 593,
+                    "type": "utinyint"
+                  },
+                  "operator": "+",
+                  "right": {
+                    "index": {
+                      "kind": "ref",
+                      "length": 1,
+                      "name": "k",
+                      "start": 610,
+                      "type": "utinyint"
+                    },
+                    "kind": "stringByte",
+                    "string": {
+                      "index": 0,
+                      "kind": "string",
+                      "length": 8,
+                      "start": 601,
+                      "type": "string"
+                    },
+                    "type": "utinyint"
+                  },
+                  "type": "utinyint"
+                },
+                "operator": "+",
+                "right": {
+                  "args": [
+                    {
+                      "kind": "ref",
+                      "length": 1,
+                      "name": "k",
+                      "start": 620,
+                      "type": "utinyint"
+                    }
+                  ],
+                  "kind": "call",
+                  "length": 4,
+                  "name": "bump",
+                  "start": 615,
+                  "type": "utinyint"
+                },
+                "type": "utinyint"
+              }
+            },
+            {
+              "else": null,
+              "kind": "if",
+              "length": 47,
+              "start": 632,
+              "test": {
+                "kind": "binop",
+                "left": {
+                  "kind": "ref",
+                  "length": 5,
+                  "name": "total",
+                  "start": 636,
+                  "type": "utinyint"
+                },
+                "operator": ">",
+                "right": {
+                  "kind": "const",
+                  "type": "utinyint",
+                  "value": 250
+                },
+                "type": "bool"
+              },
+              "then": [
+                {
+                  "kind": "break",
+                  "length": 6,
+                  "start": 663
+                }
+              ]
+            },
+            {
+              "kind": "assign",
+              "length": 1,
+              "start": 688,
+              "target": "k",
+              "value": {
+                "kind": "binop",
+                "left": {
+                  "kind": "ref",
+                  "length": 1,
+                  "name": "k",
+                  "start": 688,
+                  "type": "utinyint"
+                },
+                "operator": "+",
+                "right": {
+                  "kind": "const",
+                  "type": "utinyint",
+                  "value": 1
+                },
+                "type": "utinyint"
+              }
+            }
+          ],
+          "kind": "while",
+          "length": 151,
+          "start": 547,
+          "test": {
+            "kind": "binop",
+            "left": {
+              "kind": "ref",
+              "length": 1,
+              "name": "k",
+              "start": 554,
+              "type": "utinyint"
+            },
+            "operator": "<",
+            "right": {
+              "kind": "const",
+              "type": "utinyint",
+              "value": 5
+            },
+            "type": "bool"
+          }
+        },
+        {
+          "capacity": 8,
+          "kind": "stringCopy",
+          "length": 4,
+          "source": {
+            "index": 0,
+            "kind": "string",
+            "length": 8,
+            "start": 710,
+            "type": "string"
+          },
+          "start": 703,
+          "target": {
+            "kind": "ref",
+            "length": 4,
+            "name": "name",
+            "start": 703,
+            "type": "string"
+          }
+        },
+        {
+          "address": {
+            "kind": "const",
+            "type": "usmallint",
+            "value": 8194
+          },
+          "kind": "memoryRead",
+          "length": 19,
+          "start": 724,
+          "type": "utinyint"
+        },
+        {
+          "kind": "asm",
+          "length": 15,
+          "start": 749,
+          "text": " nop "
+        },
+        {
+          "address": {
+            "kind": "const",
+            "type": "usmallint",
+            "value": 1024
+          },
+          "kind": "memoryWrite",
+          "length": 27,
+          "start": 769,
+          "value": {
+            "kind": "ref",
+            "length": 5,
+            "name": "total",
+            "start": 790,
+            "type": "utinyint"
+          }
+        }
+      ],
+      "component": false,
+      "exported": true,
+      "file": "<project>/kinds.8bs",
+      "length": 4,
+      "method": false,
+      "name": "main",
+      "owner": null,
+      "params": [],
+      "returnType": "void",
+      "start": 303
+    }
+  ],
+  "globals": [
+    {
+      "address": null,
+      "array": 4,
+      "constant": true,
+      "exported": false,
+      "init": [
+        3,
+        1,
+        4,
+        1
+      ],
+      "length": 5,
+      "name": "TABLE",
+      "start": 40,
+      "type": "utinyint",
+      "volatile": false
+    },
+    {
+      "address": null,
+      "array": 4,
+      "constant": false,
+      "exported": false,
+      "init": null,
+      "length": 6,
+      "name": "scores",
+      "start": 86,
+      "type": "utinyint",
+      "volatile": false
+    },
+    {
+      "address": null,
+      "array": 9,
+      "constant": false,
+      "exported": false,
+      "init": [
+        2,
+        72,
+        73,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "length": 4,
+      "name": "name",
+      "start": 118,
+      "stringCapacity": 8,
+      "type": "utinyint",
+      "volatile": false
+    },
+    {
+      "address": null,
+      "exported": false,
+      "init": 0,
+      "length": 5,
+      "name": "total",
+      "start": 146,
+      "type": "utinyint",
+      "volatile": false
+    }
+  ],
+  "hardware": {
+    "build": {
+      "defsym": {
+        "__bss_ceiling": 2048,
+        "__bss_origin": 512,
+        "__load_address": 32768,
+        "__ram_ceiling": 65529
+      },
+      "output": "nes",
+      "startup": "nrom"
+    },
+    "buildValues": [],
+    "facts": {
+      "audio.entropy": false,
+      "audio.envelope": true,
+      "audio.filter": false,
+      "audio.noise": true,
+      "audio.pcm": true,
+      "audio.voices": 5,
+      "audio.volume": true,
+      "input.controls": [
+        "up",
+        "down",
+        "left",
+        "right",
+        "a",
+        "b",
+        "select",
+        "start"
+      ],
+      "input.joysticks": 0,
+      "input.keyboard": false,
+      "input.mouse": false,
+      "input.paddles": false,
+      "input.pads": 2,
+      "memory.banked": false,
+      "memory.bankedKib": 0,
+      "memory.ram": 1536,
+      "storage.kib": 0,
+      "storage.save": false,
+      "video.bitmap": false,
+      "video.blockHeight": 0,
+      "video.blockWidth": 0,
+      "video.cellColors": 3,
+      "video.cellHeight": 8,
+      "video.cellWidth": 8,
+      "video.colorBlend": false,
+      "video.colorPerCell": false,
+      "video.columns": 28,
+      "video.frameRate": 60,
+      "video.glyphs": 0,
+      "video.layers": 1,
+      "video.palette": 25,
+      "video.raster": false,
+      "video.rows": 26,
+      "video.scroll": true,
+      "video.spriteColors": 3,
+      "video.spriteHeight": 16,
+      "video.spriteWidth": 8,
+      "video.sprites": 64,
+      "video.spritesPerLine": 8
+    },
+    "label": "stock",
+    "load": {},
+    "machine": "nes",
+    "options": {
+      "expansion": "none",
+      "mapper": "nrom"
+    },
+    "profile": null,
+    "run": {},
+    "tags": []
+  },
+  "machine": "nes",
+  "nativeSources": [],
+  "optRemarks": [],
+  "originFiles": {
+    "bump": "<project>/kinds.8bs",
+    "main": "<project>/kinds.8bs"
+  },
+  "remarks": true,
+  "report": true,
+  "strings": [
+    {
+      "bytes": [
+        72,
+        69,
+        76,
+        76,
+        79
+      ],
+      "text": "HELLO"
+    }
+  ]
+}
