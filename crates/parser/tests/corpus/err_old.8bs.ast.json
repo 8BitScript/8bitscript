@@ -1,0 +1,99 @@
+{
+  "ast": {
+    "body": [
+      {
+        "exported": false,
+        "immutable": true,
+        "initializer": {
+          "length": 1,
+          "radix": 10,
+          "raw": "1",
+          "start": 160,
+          "type": "IntegerLiteral",
+          "value": 1
+        },
+        "kind": "let",
+        "length": 11,
+        "name": {
+          "length": 2,
+          "name": "ok",
+          "start": 155,
+          "type": "Identifier"
+        },
+        "start": 151,
+        "type": "VariableDeclaration",
+        "typeAnnotation": null
+      },
+      {
+        "expression": {
+          "left": {
+            "length": 8,
+            "name": "function",
+            "start": 163,
+            "type": "Identifier"
+          },
+          "length": 12,
+          "operator": "=",
+          "right": {
+            "length": 1,
+            "radix": 10,
+            "raw": "3",
+            "start": 174,
+            "type": "IntegerLiteral",
+            "value": 3
+          },
+          "start": 163,
+          "type": "AssignmentExpression"
+        },
+        "length": 13,
+        "start": 163,
+        "type": "ExpressionStatement"
+      }
+    ],
+    "length": 177,
+    "start": 0,
+    "type": "Program"
+  },
+  "diagnostics": [
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 8,
+      "message": "this is the old 8BitScript syntax; run '8bs migrate' to convert it",
+      "severity": "error",
+      "start": 0
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 6,
+      "message": "this is the old 8BitScript syntax; run '8bs migrate' to convert it",
+      "severity": "error",
+      "start": 37
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 6,
+      "message": "this is the old 8BitScript syntax; run '8bs migrate' to convert it",
+      "severity": "error",
+      "start": 71
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 9,
+      "message": "this is the old 8BitScript syntax; run '8bs migrate' to convert it",
+      "severity": "error",
+      "start": 93
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 6,
+      "message": "this is the old 8BitScript syntax; run '8bs migrate' to convert it",
+      "severity": "error",
+      "start": 128
+    }
+  ]
+}

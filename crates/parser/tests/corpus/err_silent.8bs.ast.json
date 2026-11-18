@@ -1,0 +1,160 @@
+{
+  "ast": {
+    "body": [
+      {
+        "expression": {
+          "argument": {
+            "length": 1,
+            "name": "x",
+            "start": 0,
+            "type": "Identifier"
+          },
+          "length": 3,
+          "operator": "++",
+          "prefix": false,
+          "start": 0,
+          "type": "UpdateExpression"
+        },
+        "length": 4,
+        "start": 0,
+        "type": "ExpressionStatement"
+      },
+      {
+        "expression": {
+          "argument": {
+            "length": 1,
+            "name": "y",
+            "start": 7,
+            "type": "Identifier"
+          },
+          "length": 3,
+          "operator": "--",
+          "prefix": true,
+          "start": 5,
+          "type": "UpdateExpression"
+        },
+        "length": 4,
+        "start": 5,
+        "type": "ExpressionStatement"
+      },
+      {
+        "exported": false,
+        "immutable": true,
+        "initializer": {
+          "alternate": {
+            "length": 1,
+            "name": "d",
+            "start": 26,
+            "type": "Identifier"
+          },
+          "consequent": {
+            "length": 1,
+            "name": "b",
+            "start": 22,
+            "type": "Identifier"
+          },
+          "length": 9,
+          "start": 18,
+          "test": {
+            "length": 1,
+            "name": "c",
+            "start": 18,
+            "type": "Identifier"
+          },
+          "type": "ConditionalExpression"
+        },
+        "kind": "let",
+        "length": 18,
+        "name": {
+          "length": 1,
+          "name": "a",
+          "start": 14,
+          "type": "Identifier"
+        },
+        "start": 10,
+        "type": "VariableDeclaration",
+        "typeAnnotation": null
+      },
+      {
+        "exported": false,
+        "immutable": true,
+        "initializer": {
+          "length": 3,
+          "start": 37,
+          "type": "StringLiteral",
+          "value": "A"
+        },
+        "kind": "let",
+        "length": 12,
+        "name": {
+          "length": 1,
+          "name": "s",
+          "start": 33,
+          "type": "Identifier"
+        },
+        "start": 29,
+        "type": "VariableDeclaration",
+        "typeAnnotation": null
+      },
+      {
+        "exported": false,
+        "immutable": true,
+        "initializer": {
+          "alternate": {
+            "alternate": {
+              "length": 1,
+              "name": "f",
+              "start": 66,
+              "type": "Identifier"
+            },
+            "consequent": {
+              "length": 1,
+              "name": "e",
+              "start": 62,
+              "type": "Identifier"
+            },
+            "length": 9,
+            "start": 58,
+            "test": {
+              "length": 1,
+              "name": "d",
+              "start": 58,
+              "type": "Identifier"
+            },
+            "type": "ConditionalExpression"
+          },
+          "consequent": {
+            "length": 1,
+            "name": "c",
+            "start": 54,
+            "type": "Identifier"
+          },
+          "length": 17,
+          "start": 50,
+          "test": {
+            "length": 1,
+            "name": "b",
+            "start": 50,
+            "type": "Identifier"
+          },
+          "type": "ConditionalExpression"
+        },
+        "kind": "let",
+        "length": 26,
+        "name": {
+          "length": 1,
+          "name": "t",
+          "start": 46,
+          "type": "Identifier"
+        },
+        "start": 42,
+        "type": "VariableDeclaration",
+        "typeAnnotation": null
+      }
+    ],
+    "length": 69,
+    "start": 0,
+    "type": "Program"
+  },
+  "diagnostics": []
+}

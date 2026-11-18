@@ -6,4 +6,4 @@ fn café() -> u8 {
     match x { 1 => { go(); } _ => { } }
     return x;
 }
-for i in 0..😀 { }
+for i in 0..9 { }

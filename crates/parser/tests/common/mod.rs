@@ -28,16 +28,25 @@ pub fn read(name: &str) -> String {
     fs::read_to_string(dir().join(name)).unwrap_or_else(|e| panic!("{name}: {e}"))
 }
 
-/// Lex and parse as `.8bs`, as the compiler does.
+/// Lex and parse as `.8bs`, as the compiler does. Runs on a big stack: the
+/// nesting limit is 256 and a debug build uses large frames.
 pub fn parse_text(text: &str) -> Parsed {
-    let lexed = tokenize(
-        text,
-        "t",
-        &Options {
-            source_kind: Some(SourceKind::Bs),
-        },
-    );
-    parse(&lexed.tokens, text, "t")
+    let text = text.to_string();
+    std::thread::Builder::new()
+        .stack_size(256 * 1024 * 1024)
+        .spawn(move || {
+            let lexed = tokenize(
+                &text,
+                "t",
+                &Options {
+                    source_kind: Some(SourceKind::Bs),
+                },
+            );
+            parse(&lexed.tokens, &text, "t")
+        })
+        .expect("spawn")
+        .join()
+        .expect("parser panicked")
 }
 
 /// The messages of the parser's diagnostics, in order.

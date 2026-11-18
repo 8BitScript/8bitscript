@@ -1,0 +1,227 @@
+{
+  "ast": {
+    "body": [
+      {
+        "exported": false,
+        "immutable": true,
+        "initializer": {
+          "length": 5,
+          "start": 40,
+          "type": "StringLiteral",
+          "value": "é😀"
+        },
+        "kind": "let",
+        "length": 14,
+        "name": {
+          "length": 1,
+          "name": "s",
+          "start": 36,
+          "type": "Identifier"
+        },
+        "start": 32,
+        "type": "VariableDeclaration",
+        "typeAnnotation": null
+      },
+      {
+        "exported": false,
+        "immutable": true,
+        "initializer": {
+          "length": 18,
+          "parts": [
+            {
+              "length": 2,
+              "start": 56,
+              "type": "TemplateText",
+              "value": "é "
+            },
+            {
+              "expression": {
+                "length": 1,
+                "name": "s",
+                "start": 60,
+                "type": "Identifier"
+              },
+              "length": 4,
+              "start": 58,
+              "type": "TemplateField",
+              "width": null
+            },
+            {
+              "length": 4,
+              "start": 62,
+              "type": "TemplateText",
+              "value": " 😀 "
+            },
+            {
+              "expression": {
+                "length": 1,
+                "name": "s",
+                "start": 68,
+                "type": "Identifier"
+              },
+              "length": 6,
+              "start": 66,
+              "type": "TemplateField",
+              "width": {
+                "length": 1,
+                "radix": 10,
+                "raw": "2",
+                "start": 70,
+                "type": "IntegerLiteral",
+                "value": 2
+              }
+            }
+          ],
+          "start": 55,
+          "type": "TemplateLiteral"
+        },
+        "kind": "let",
+        "length": 27,
+        "name": {
+          "length": 1,
+          "name": "t",
+          "start": 51,
+          "type": "Identifier"
+        },
+        "start": 47,
+        "type": "VariableDeclaration",
+        "typeAnnotation": null
+      },
+      {
+        "body": {
+          "body": [
+            {
+              "exported": false,
+              "immutable": true,
+              "initializer": {
+                "length": 1,
+                "radix": 10,
+                "raw": "1",
+                "start": 115,
+                "type": "IntegerLiteral",
+                "value": 1
+              },
+              "kind": "let",
+              "length": 10,
+              "name": {
+                "length": 1,
+                "name": "x",
+                "start": 111,
+                "type": "Identifier"
+              },
+              "start": 107,
+              "type": "VariableDeclaration",
+              "typeAnnotation": null
+            },
+            {
+              "alternate": {
+                "body": [],
+                "length": 3,
+                "start": 152,
+                "type": "BlockStatement"
+              },
+              "consequent": {
+                "body": [
+                  {
+                    "expression": {
+                      "args": [],
+                      "callee": {
+                        "length": 2,
+                        "name": "go",
+                        "start": 139,
+                        "type": "Identifier"
+                      },
+                      "length": 4,
+                      "start": 139,
+                      "type": "CallExpression"
+                    },
+                    "length": 5,
+                    "start": 139,
+                    "type": "ExpressionStatement"
+                  }
+                ],
+                "length": 9,
+                "start": 137,
+                "type": "BlockStatement"
+              },
+              "length": 35,
+              "start": 122,
+              "test": {
+                "left": {
+                  "length": 1,
+                  "name": "x",
+                  "start": 128,
+                  "type": "Identifier"
+                },
+                "length": 1,
+                "operator": "==",
+                "right": {
+                  "length": 1,
+                  "radix": 10,
+                  "raw": "1",
+                  "start": 132,
+                  "type": "IntegerLiteral",
+                  "value": 1
+                },
+                "start": 132,
+                "type": "BinaryExpression"
+              },
+              "type": "IfStatement"
+            },
+            {
+              "argument": {
+                "length": 1,
+                "name": "x",
+                "start": 169,
+                "type": "Identifier"
+              },
+              "length": 9,
+              "start": 162,
+              "type": "ReturnStatement"
+            }
+          ],
+          "length": 82,
+          "start": 91,
+          "type": "BlockStatement"
+        },
+        "exported": false,
+        "length": 98,
+        "name": {
+          "length": 3,
+          "name": "caf",
+          "start": 78,
+          "type": "Identifier"
+        },
+        "params": [],
+        "returnType": {
+          "length": 2,
+          "name": "u8",
+          "start": 88,
+          "type": "TypeReference",
+          "typeArguments": []
+        },
+        "start": 75,
+        "type": "FunctionDeclaration"
+      },
+      {
+        "body": [],
+        "length": 3,
+        "start": 189,
+        "type": "BlockStatement"
+      }
+    ],
+    "length": 193,
+    "start": 0,
+    "type": "Program"
+  },
+  "diagnostics": [
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "expected an expression, found '{'",
+      "severity": "error",
+      "start": 189
+    }
+  ]
+}

@@ -1,0 +1,801 @@
+{
+  "ast": {
+    "body": [
+      {
+        "body": {
+          "body": [
+            {
+              "alternate": {
+                "alternate": {
+                  "body": [
+                    {
+                      "argument": {
+                        "length": 1,
+                        "radix": 10,
+                        "raw": "3",
+                        "start": 93,
+                        "type": "IntegerLiteral",
+                        "value": 3
+                      },
+                      "length": 9,
+                      "start": 86,
+                      "type": "ReturnStatement"
+                    }
+                  ],
+                  "length": 13,
+                  "start": 84,
+                  "type": "BlockStatement"
+                },
+                "consequent": {
+                  "body": [
+                    {
+                      "argument": {
+                        "length": 1,
+                        "radix": 10,
+                        "raw": "2",
+                        "start": 74,
+                        "type": "IntegerLiteral",
+                        "value": 2
+                      },
+                      "length": 9,
+                      "start": 67,
+                      "type": "ReturnStatement"
+                    }
+                  ],
+                  "length": 13,
+                  "start": 65,
+                  "type": "BlockStatement"
+                },
+                "length": 41,
+                "start": 56,
+                "test": {
+                  "left": {
+                    "length": 1,
+                    "name": "n",
+                    "start": 59,
+                    "type": "Identifier"
+                  },
+                  "length": 5,
+                  "operator": "<",
+                  "right": {
+                    "length": 1,
+                    "radix": 10,
+                    "raw": "5",
+                    "start": 63,
+                    "type": "IntegerLiteral",
+                    "value": 5
+                  },
+                  "start": 59,
+                  "type": "BinaryExpression"
+                },
+                "type": "IfStatement"
+              },
+              "consequent": {
+                "body": [
+                  {
+                    "argument": {
+                      "length": 1,
+                      "radix": 10,
+                      "raw": "1",
+                      "start": 46,
+                      "type": "IntegerLiteral",
+                      "value": 1
+                    },
+                    "length": 9,
+                    "start": 39,
+                    "type": "ReturnStatement"
+                  }
+                ],
+                "length": 13,
+                "start": 37,
+                "type": "BlockStatement"
+              },
+              "length": 70,
+              "start": 27,
+              "test": {
+                "left": {
+                  "length": 1,
+                  "name": "n",
+                  "start": 30,
+                  "type": "Identifier"
+                },
+                "length": 6,
+                "operator": "==",
+                "right": {
+                  "length": 1,
+                  "radix": 10,
+                  "raw": "0",
+                  "start": 35,
+                  "type": "IntegerLiteral",
+                  "value": 0
+                },
+                "start": 30,
+                "type": "BinaryExpression"
+              },
+              "type": "IfStatement"
+            },
+            {
+              "alternate": null,
+              "consequent": {
+                "body": [
+                  {
+                    "expression": {
+                      "left": {
+                        "length": 1,
+                        "name": "n",
+                        "start": 113,
+                        "type": "Identifier"
+                      },
+                      "length": 5,
+                      "operator": "=",
+                      "right": {
+                        "length": 1,
+                        "radix": 10,
+                        "raw": "1",
+                        "start": 117,
+                        "type": "IntegerLiteral",
+                        "value": 1
+                      },
+                      "start": 113,
+                      "type": "AssignmentExpression"
+                    },
+                    "length": 6,
+                    "start": 113,
+                    "type": "ExpressionStatement"
+                  }
+                ],
+                "length": 10,
+                "start": 111,
+                "type": "BlockStatement"
+              },
+              "length": 19,
+              "start": 102,
+              "test": {
+                "left": {
+                  "length": 1,
+                  "name": "n",
+                  "start": 105,
+                  "type": "Identifier"
+                },
+                "length": 5,
+                "operator": ">",
+                "right": {
+                  "length": 1,
+                  "radix": 10,
+                  "raw": "7",
+                  "start": 109,
+                  "type": "IntegerLiteral",
+                  "value": 7
+                },
+                "start": 105,
+                "type": "BinaryExpression"
+              },
+              "type": "IfStatement"
+            },
+            {
+              "body": {
+                "body": [
+                  {
+                    "expression": {
+                      "left": {
+                        "length": 1,
+                        "name": "n",
+                        "start": 140,
+                        "type": "Identifier"
+                      },
+                      "length": 6,
+                      "operator": "-=",
+                      "right": {
+                        "length": 1,
+                        "radix": 10,
+                        "raw": "1",
+                        "start": 145,
+                        "type": "IntegerLiteral",
+                        "value": 1
+                      },
+                      "start": 140,
+                      "type": "AssignmentExpression"
+                    },
+                    "length": 7,
+                    "start": 140,
+                    "type": "ExpressionStatement"
+                  },
+                  {
+                    "length": 9,
+                    "start": 148,
+                    "type": "ContinueStatement"
+                  }
+                ],
+                "length": 21,
+                "start": 138,
+                "type": "BlockStatement"
+              },
+              "length": 33,
+              "start": 126,
+              "test": {
+                "left": {
+                  "length": 1,
+                  "name": "n",
+                  "start": 132,
+                  "type": "Identifier"
+                },
+                "length": 5,
+                "operator": ">",
+                "right": {
+                  "length": 1,
+                  "radix": 10,
+                  "raw": "0",
+                  "start": 136,
+                  "type": "IntegerLiteral",
+                  "value": 0
+                },
+                "start": 132,
+                "type": "BinaryExpression"
+              },
+              "type": "WhileStatement"
+            },
+            {
+              "body": {
+                "body": [
+                  {
+                    "length": 6,
+                    "start": 171,
+                    "type": "BreakStatement"
+                  }
+                ],
+                "length": 10,
+                "start": 169,
+                "type": "BlockStatement"
+              },
+              "length": 15,
+              "start": 164,
+              "test": {
+                "length": 4,
+                "start": 164,
+                "type": "BooleanLiteral",
+                "value": true
+              },
+              "type": "WhileStatement"
+            },
+            {
+              "body": {
+                "body": [
+                  {
+                    "expression": {
+                      "left": {
+                        "length": 1,
+                        "name": "n",
+                        "start": 201,
+                        "type": "Identifier"
+                      },
+                      "length": 6,
+                      "operator": "+=",
+                      "right": {
+                        "length": 1,
+                        "name": "i",
+                        "start": 206,
+                        "type": "Identifier"
+                      },
+                      "start": 201,
+                      "type": "AssignmentExpression"
+                    },
+                    "length": 7,
+                    "start": 201,
+                    "type": "ExpressionStatement"
+                  }
+                ],
+                "length": 11,
+                "start": 199,
+                "type": "BlockStatement"
+              },
+              "init": {
+                "exported": false,
+                "immutable": true,
+                "initializer": {
+                  "length": 1,
+                  "radix": 10,
+                  "raw": "0",
+                  "start": 193,
+                  "type": "IntegerLiteral",
+                  "value": 0
+                },
+                "kind": "let",
+                "length": 6,
+                "name": {
+                  "length": 1,
+                  "name": "i",
+                  "start": 188,
+                  "type": "Identifier"
+                },
+                "start": 188,
+                "type": "VariableDeclaration",
+                "typeAnnotation": null
+              },
+              "length": 26,
+              "start": 184,
+              "test": {
+                "left": {
+                  "length": 1,
+                  "name": "i",
+                  "start": 188,
+                  "type": "Identifier"
+                },
+                "length": 10,
+                "operator": "<",
+                "right": {
+                  "length": 2,
+                  "radix": 10,
+                  "raw": "10",
+                  "start": 196,
+                  "type": "IntegerLiteral",
+                  "value": 10
+                },
+                "start": 188,
+                "type": "BinaryExpression"
+              },
+              "type": "ForStatement",
+              "update": {
+                "argument": {
+                  "length": 1,
+                  "name": "i",
+                  "start": 188,
+                  "type": "Identifier"
+                },
+                "length": 1,
+                "operator": "++",
+                "prefix": false,
+                "start": 188,
+                "type": "UpdateExpression"
+              }
+            },
+            {
+              "body": {
+                "body": [],
+                "length": 3,
+                "start": 234,
+                "type": "BlockStatement"
+              },
+              "init": {
+                "exported": false,
+                "immutable": true,
+                "initializer": {
+                  "length": 1,
+                  "radix": 10,
+                  "raw": "1",
+                  "start": 228,
+                  "type": "IntegerLiteral",
+                  "value": 1
+                },
+                "kind": "let",
+                "length": 10,
+                "name": {
+                  "length": 1,
+                  "name": "j",
+                  "start": 219,
+                  "type": "Identifier"
+                },
+                "start": 219,
+                "type": "VariableDeclaration",
+                "typeAnnotation": {
+                  "length": 2,
+                  "name": "u8",
+                  "start": 222,
+                  "type": "TypeReference",
+                  "typeArguments": []
+                }
+              },
+              "length": 22,
+              "start": 215,
+              "test": {
+                "left": {
+                  "length": 1,
+                  "name": "j",
+                  "start": 219,
+                  "type": "Identifier"
+                },
+                "length": 14,
+                "operator": "<=",
+                "right": {
+                  "length": 1,
+                  "name": "n",
+                  "start": 232,
+                  "type": "Identifier"
+                },
+                "start": 219,
+                "type": "BinaryExpression"
+              },
+              "type": "ForStatement",
+              "update": {
+                "argument": {
+                  "length": 1,
+                  "name": "j",
+                  "start": 219,
+                  "type": "Identifier"
+                },
+                "length": 1,
+                "operator": "++",
+                "prefix": false,
+                "start": 219,
+                "type": "UpdateExpression"
+              }
+            },
+            {
+              "body": {
+                "body": [],
+                "length": 3,
+                "start": 281,
+                "type": "BlockStatement"
+              },
+              "init": {
+                "exported": false,
+                "initializer": {
+                  "length": 1,
+                  "radix": 10,
+                  "raw": "9",
+                  "start": 263,
+                  "type": "IntegerLiteral",
+                  "value": 9
+                },
+                "kind": "let",
+                "length": 17,
+                "name": {
+                  "length": 1,
+                  "name": "k",
+                  "start": 255,
+                  "type": "Identifier"
+                },
+                "start": 247,
+                "type": "VariableDeclaration",
+                "typeAnnotation": {
+                  "length": 2,
+                  "name": "u8",
+                  "start": 258,
+                  "type": "TypeReference",
+                  "typeArguments": []
+                }
+              },
+              "length": 42,
+              "start": 242,
+              "test": {
+                "left": {
+                  "length": 1,
+                  "name": "k",
+                  "start": 266,
+                  "type": "Identifier"
+                },
+                "length": 5,
+                "operator": ">",
+                "right": {
+                  "length": 1,
+                  "radix": 10,
+                  "raw": "0",
+                  "start": 270,
+                  "type": "IntegerLiteral",
+                  "value": 0
+                },
+                "start": 266,
+                "type": "BinaryExpression"
+              },
+              "type": "ForStatement",
+              "update": {
+                "left": {
+                  "length": 1,
+                  "name": "k",
+                  "start": 273,
+                  "type": "Identifier"
+                },
+                "length": 6,
+                "operator": "-=",
+                "right": {
+                  "length": 1,
+                  "radix": 10,
+                  "raw": "1",
+                  "start": 278,
+                  "type": "IntegerLiteral",
+                  "value": 1
+                },
+                "start": 273,
+                "type": "AssignmentExpression"
+              }
+            },
+            {
+              "body": {
+                "body": [],
+                "length": 3,
+                "start": 309,
+                "type": "BlockStatement"
+              },
+              "init": {
+                "exported": false,
+                "immutable": true,
+                "initializer": {
+                  "length": 1,
+                  "radix": 10,
+                  "raw": "0",
+                  "start": 302,
+                  "type": "IntegerLiteral",
+                  "value": 0
+                },
+                "kind": "let",
+                "length": 9,
+                "name": {
+                  "length": 1,
+                  "name": "c",
+                  "start": 298,
+                  "type": "Identifier"
+                },
+                "start": 294,
+                "type": "VariableDeclaration",
+                "typeAnnotation": null
+              },
+              "length": 23,
+              "start": 289,
+              "test": null,
+              "type": "ForStatement",
+              "update": null
+            },
+            {
+              "body": {
+                "body": [],
+                "length": 3,
+                "start": 344,
+                "type": "BlockStatement"
+              },
+              "init": {
+                "left": {
+                  "length": 1,
+                  "name": "n",
+                  "start": 322,
+                  "type": "Identifier"
+                },
+                "length": 5,
+                "operator": "=",
+                "right": {
+                  "length": 1,
+                  "radix": 10,
+                  "raw": "0",
+                  "start": 326,
+                  "type": "IntegerLiteral",
+                  "value": 0
+                },
+                "start": 322,
+                "type": "AssignmentExpression"
+              },
+              "length": 30,
+              "start": 317,
+              "test": {
+                "left": {
+                  "length": 1,
+                  "name": "n",
+                  "start": 329,
+                  "type": "Identifier"
+                },
+                "length": 5,
+                "operator": "<",
+                "right": {
+                  "length": 1,
+                  "radix": 10,
+                  "raw": "3",
+                  "start": 333,
+                  "type": "IntegerLiteral",
+                  "value": 3
+                },
+                "start": 329,
+                "type": "BinaryExpression"
+              },
+              "type": "ForStatement",
+              "update": {
+                "left": {
+                  "length": 1,
+                  "name": "n",
+                  "start": 336,
+                  "type": "Identifier"
+                },
+                "length": 6,
+                "operator": "+=",
+                "right": {
+                  "length": 1,
+                  "radix": 10,
+                  "raw": "1",
+                  "start": 341,
+                  "type": "IntegerLiteral",
+                  "value": 1
+                },
+                "start": 336,
+                "type": "AssignmentExpression"
+              }
+            },
+            {
+              "body": {
+                "body": [
+                  {
+                    "length": 6,
+                    "start": 363,
+                    "type": "BreakStatement"
+                  }
+                ],
+                "length": 10,
+                "start": 361,
+                "type": "BlockStatement"
+              },
+              "init": null,
+              "length": 19,
+              "start": 352,
+              "test": null,
+              "type": "ForStatement",
+              "update": null
+            },
+            {
+              "body": [
+                {
+                  "exported": false,
+                  "immutable": true,
+                  "initializer": {
+                    "length": 1,
+                    "radix": 10,
+                    "raw": "1",
+                    "start": 390,
+                    "type": "IntegerLiteral",
+                    "value": 1
+                  },
+                  "kind": "let",
+                  "length": 14,
+                  "name": {
+                    "length": 5,
+                    "name": "inner",
+                    "start": 382,
+                    "type": "Identifier"
+                  },
+                  "start": 378,
+                  "type": "VariableDeclaration",
+                  "typeAnnotation": null
+                }
+              ],
+              "length": 18,
+              "start": 376,
+              "type": "BlockStatement"
+            },
+            {
+              "body": {
+                "body": [],
+                "length": 3,
+                "start": 429,
+                "type": "BlockStatement"
+              },
+              "decorators": [
+                {
+                  "args": [],
+                  "length": 9,
+                  "name": "unroll",
+                  "start": 405,
+                  "type": "Decorator"
+                }
+              ],
+              "init": {
+                "exported": false,
+                "immutable": true,
+                "initializer": {
+                  "length": 1,
+                  "radix": 10,
+                  "raw": "0",
+                  "start": 424,
+                  "type": "IntegerLiteral",
+                  "value": 0
+                },
+                "kind": "let",
+                "length": 6,
+                "name": {
+                  "length": 1,
+                  "name": "q",
+                  "start": 419,
+                  "type": "Identifier"
+                },
+                "start": 419,
+                "type": "VariableDeclaration",
+                "typeAnnotation": null
+              },
+              "length": 17,
+              "start": 415,
+              "test": {
+                "left": {
+                  "length": 1,
+                  "name": "q",
+                  "start": 419,
+                  "type": "Identifier"
+                },
+                "length": 9,
+                "operator": "<",
+                "right": {
+                  "length": 1,
+                  "radix": 10,
+                  "raw": "4",
+                  "start": 427,
+                  "type": "IntegerLiteral",
+                  "value": 4
+                },
+                "start": 419,
+                "type": "BinaryExpression"
+              },
+              "type": "ForStatement",
+              "update": {
+                "argument": {
+                  "length": 1,
+                  "name": "q",
+                  "start": 419,
+                  "type": "Identifier"
+                },
+                "length": 1,
+                "operator": "++",
+                "prefix": false,
+                "start": 419,
+                "type": "UpdateExpression"
+              }
+            },
+            {
+              "body": "{ nop }",
+              "length": 15,
+              "start": 437,
+              "type": "AsmBlock"
+            },
+            {
+              "argument": {
+                "length": 1,
+                "name": "n",
+                "start": 464,
+                "type": "Identifier"
+              },
+              "length": 9,
+              "start": 457,
+              "type": "ReturnStatement"
+            }
+          ],
+          "length": 447,
+          "start": 21,
+          "type": "BlockStatement"
+        },
+        "exported": false,
+        "length": 468,
+        "name": {
+          "length": 4,
+          "name": "flow",
+          "start": 3,
+          "type": "Identifier"
+        },
+        "params": [
+          {
+            "defaultValue": null,
+            "length": 5,
+            "name": {
+              "length": 1,
+              "name": "n",
+              "start": 8,
+              "type": "Identifier"
+            },
+            "start": 8,
+            "type": "Parameter",
+            "typeAnnotation": {
+              "length": 2,
+              "name": "u8",
+              "start": 11,
+              "type": "TypeReference",
+              "typeArguments": []
+            }
+          }
+        ],
+        "returnType": {
+          "length": 2,
+          "name": "u8",
+          "start": 18,
+          "type": "TypeReference",
+          "typeArguments": []
+        },
+        "start": 0,
+        "type": "FunctionDeclaration"
+      }
+    ],
+    "length": 469,
+    "start": 0,
+    "type": "Program"
+  },
+  "diagnostics": []
+}

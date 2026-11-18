@@ -10,7 +10,7 @@ fn m(x: u8, p: bool) {
     }
     match p { true => a(), false => b() }
     match x { _ => only() }
-    match config.level { 1 => x(), 2 => { y() } }
-    match x { 1 => y(), _ => { z() } }
+    match config.level { 1 => x(), 2 => { y(); } }
+    match x { 1 => y(), _ => { z(); } }
     match x { 1 => { one(); } 2 => two() }
 }
