@@ -4,4 +4,12 @@ cd "$(dirname "$0")/.." || exit 2
 out=$(cargo nextest run --workspace --status-level fail --final-status-level fail --no-tests=pass "$@" 2>&1)
 status=$?
 printf '%s\n' "$out" | grep -vE '^\s*(Compiling|Finished|Blocking|Downloaded|Downloading|Locking|Adding|Updating)'
+[ "$status" -eq 0 ] || exit "$status"
+# The parser's 1 MB stack test compiles only in release; CI runs it too.
+if [ "$#" -eq 0 ]; then
+  stack=$(cargo test -p parser --release --locked --test stack 2>&1)
+  stack_status=$?
+  printf '%s\n' "$stack" | grep -E 'test result|FAILED|panicked|^error'
+  exit "$stack_status"
+fi
 exit "$status"
