@@ -9,7 +9,9 @@
     "Tokens follow section 5 of the syntax spec: keywords fn mut use pub mod match loop",
     "in self super crate, r#name, #[attr], ::, ->, =>, .., ..=, assert! style macros,",
     "#name compile-time calls, asm6502 { } with 6502 mnemonics, backtick templates,",
-    "$FF / 0xFF / 0b1010 numbers. No old keywords (function, namespace, import, export)."
+    "$FF / 0xFF / 0b1010 numbers. No old keywords (function, namespace, import, export).",
+    "Keep this in step with packages/compiler: a new keyword, type, literal form, or",
+    "reserved builtin there belongs here too (see the repository's AGENTS.md)."
   ],
   "patterns": [
     { "include": "#comments" },
@@ -63,28 +65,28 @@
         { "name": "comment.line.semicolon.8bs", "match": ";.*$" },
         {
           "name": "keyword.mnemonic.8bs",
-          "match": "\\b(adc|and|asl|bcc|bcs|beq|bit|bmi|bne|bpl|brk|bvc|bvs|clc|cld|cli|clv|cmp|cpx|cpy|dec|dex|dey|eor|inc|inx|iny|jmp|jsr|lda|ldx|ldy|lsr|nop|ora|pha|php|pla|plp|rol|ror|rti|rts|sbc|sec|sed|sei|sta|stx|sty|tax|tay|tsx|txa|txs|tya|ADC|AND|ASL|BCC|BCS|BEQ|BIT|BMI|BNE|BPL|BRK|BVC|BVS|CLC|CLD|CLI|CLV|CMP|CPX|CPY|DEC|DEX|DEY|EOR|INC|INX|INY|JMP|JSR|LDA|LDX|LDY|LSR|NOP|ORA|PHA|PHP|PLA|PLP|ROL|ROR|RTI|RTS|SBC|SEC|SED|SEI|STA|STX|STY|TAX|TAY|TSX|TXA|TXS|TYA)\\b"
+          "match": "\\b(?i:adc|and|asl|bcc|bcs|beq|bit|bmi|bne|bpl|brk|bvc|bvs|clc|cld|cli|clv|cmp|cpx|cpy|dec|dex|dey|eor|inc|inx|iny|jmp|jsr|lda|ldx|ldy|lsr|nop|ora|pha|php|pla|plp|rol|ror|rti|rts|sbc|sec|sed|sei|sta|stx|sty|tax|tay|tsx|txa|txs|tya)\\b"
         },
-        { "name": "variable.language.register.8bs", "match": ",\\s*[xXyY]\\b" },
-        { "name": "keyword.operator.immediate.8bs", "match": "#(?=\\s*[$0-9%A-Za-z_])" },
+        { "name": "variable.language.register.8bs", "match": ",\\s*(?i:[xy])\\b" },
+        { "name": "keyword.operator.immediate.8bs", "match": "#(?=\\s*[<>$0-9%A-Za-z_])" },
         { "include": "#numbers" },
         { "name": "entity.name.label.8bs", "match": "\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*:)" },
         { "name": "variable.other.readwrite.8bs", "match": "\\b[A-Za-z_][A-Za-z0-9_]*\\b" }
       ]
     },
     "use": {
-      "comment": "use self::geo::{a, b}; use @lib::game::rules::x; use \"./a-b.8bs\"::{c};. The region ends only at `;`, never at a newline, because a `{ ... }` name list may span lines.",
+      "comment": "use self::geo::{a, b}; use @lib::game::rules::x; use \"./a-b.8bs\"::{c};. The region ends at `;`, or just before the next statement keyword so a missing `;` cannot color the rest of the file. It does not end at a newline, because a `{ ... }` name list may span lines.",
       "name": "meta.use.8bs",
       "begin": "\\b(use)\\b",
       "beginCaptures": { "1": { "name": "keyword.control.import.8bs" } },
-      "end": ";",
+      "end": ";|(?=\\b(?:fn|let|const|mod|pub|use|if|while|loop|for|match|return|break|continue|asm6502)\\b)",
       "endCaptures": { "0": { "name": "punctuation.terminator.8bs" } },
       "patterns": [
         { "include": "#comments" },
         { "include": "#strings" },
         { "name": "entity.name.namespace.scope.8bs", "match": "@[A-Za-z0-9_-]+" },
         { "name": "variable.language.8bs", "match": "\\b(self|super|crate)\\b" },
-        { "name": "keyword.control.as.8bs", "match": "\\bas\\b" },
+        { "name": "keyword.other.as.8bs", "match": "\\bas\\b" },
         { "name": "punctuation.accessor.8bs", "match": "::" },
         { "name": "variable.other.readwrite.8bs", "match": "\\b[A-Za-z_][A-Za-z0-9_]*\\b" }
       ]

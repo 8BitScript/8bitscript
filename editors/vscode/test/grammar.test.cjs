@@ -30,13 +30,19 @@ function rules(node, out = []) {
 
 const all = rules(grammar);
 
+// Oniguruma's `(?i:...)` group is not JavaScript: compile it as `(?:...)` with
+// the `i` flag, which is equivalent for the patterns this grammar writes.
+function jsRegExp(source) {
+  return source.includes('(?i:') ? new RegExp(source.replaceAll('(?i:', '(?:'), 'i') : new RegExp(source);
+}
+
 test('every match/begin/end pattern is a regular expression that compiles', () => {
   for (const rule of all) {
     for (const key of ['match', 'begin', 'end']) {
       if (typeof rule[key] !== 'string') continue;
       // Oniguruma accepts `\\G` and back-references into `begin` captures
       // that JavaScript does not; the grammar uses neither.
-      assert.doesNotThrow(() => new RegExp(rule[key]), `${key}: ${rule[key]}`);
+      assert.doesNotThrow(() => jsRegExp(rule[key]), `${key}: ${rule[key]}`);
     }
   }
 });
@@ -90,7 +96,7 @@ test('the language configuration auto-closes and surrounds backticks, like the o
 test('a #name or @name is one word, so completing one replaces the sigil too', () => {
   const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'language-configuration.json'), 'utf8'));
   const word = new RegExp(config.wordPattern);
-  for (const [text, expected] of [['#frames', '#frames'], ['@address', '@address'], ['ticks', 'ticks'], ['_x9', '_x9']]) {
+  for (const [text, expected] of [['#frames', '#frames'], ['@scope', '@scope'], ['ticks', 'ticks'], ['_x9', '_x9']]) {
     assert.equal(text.match(word)[0], expected);
   }
 });
@@ -600,3 +606,38 @@ test('a template field in a snippet body is escaped, so it is text and not a pla
 // Whether each snippet's expansion actually compiles is asserted in
 // packages/compiler/test/snippets.test.mjs: the compiler is the source of
 // truth for what the language accepts, and this package cannot import it.
+
+test('mnemonics match in any case, immediates take #<label and #>label, and the register may be upper case', async () => {
+  const tokenize = await loadNew();
+  const tokens = tokenize('asm6502 { LDA #<tbl ; x\n  Lda #>tbl\n  sta $D020,Y }');
+  const mnemonics = tokens.filter((t) => t[1] === 'keyword.mnemonic').map((t) => t[0]);
+  assert.deepEqual(mnemonics, ['LDA', 'Lda', 'sta']);
+  assert.equal(tokens.filter((t) => t[0] === '#').length, 2);
+  assert.ok(tokens.every((t) => t[0] !== '#' || t[1] === 'keyword.operator.immediate'));
+  assert.equal(tokens.find((t) => t[0] === ',Y')[1], 'variable.language.register');
+});
+
+test('a use without its semicolon ends before the next statement', async () => {
+  const tokenize = await loadNew();
+  const tokens = tokenize('use self::geo::a\nfn f() {}\nuse x::y as z;');
+  assert.equal(tokens.find((t) => t[0] === 'fn')[1], 'storage.type.function');
+  assert.equal(tokens.find((t) => t[0] === 'f')[1], 'entity.name.function');
+  assert.equal(tokens.find((t) => t[0] === 'as')[1], 'keyword.other.as', 'as is one scope in and out of use');
+});
+
+test('the C-style for and the fn after an attribute are colored', async () => {
+  const tokenize = await loadNew();
+  const tokens = tokenize('#[test]\nfn t() {\n  for (let mut i: u8 = 0; i < 9; i -= 1) {}\n}');
+  assert.equal(tokens.find((t) => t[0] === 'fn')[1], 'storage.type.function');
+  assert.equal(tokens.find((t) => t[0] === 't')[1], 'entity.name.function');
+  assert.equal(tokens.find((t) => t[0] === 'for')[1], 'keyword.control');
+  assert.equal(tokens.find((t) => t[0] === 'mut')[1], 'storage.modifier');
+  assert.equal(tokens.find((t) => t[0] === 'i')[1], 'variable.other.readwrite');
+  assert.equal(tokens.find((t) => t[0] === '-=')[1], 'keyword.operator');
+});
+
+test('single quotes are not an auto-closing or surrounding pair', () => {
+  const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'language-configuration.json'), 'utf8'));
+  assert.ok(!config.autoClosingPairs.some((p) => p.open === "'"));
+  assert.ok(!config.surroundingPairs.some((p) => p[0] === "'"));
+});
