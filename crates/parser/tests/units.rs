@@ -110,7 +110,10 @@ fn e21_old_syntax() {
         "export const X = 1;",
         "namespace N {}",
     ] {
-        assert!(one(text).contains("this is the old 8BitScript syntax"), "{text}");
+        assert!(
+            one(text).contains("this is the old 8BitScript syntax"),
+            "{text}"
+        );
     }
 }
 

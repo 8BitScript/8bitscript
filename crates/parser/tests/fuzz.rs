@@ -194,7 +194,20 @@ fn random_fragment_streams() {
 #[test]
 fn degenerate_inputs() {
     big(|| {
-        for text in ["", "\0", "\"", "`", "${", "#[", "@", "r#", "asm6502 {", "\u{FEFF}", "{", "}"] {
+        for text in [
+            "",
+            "\0",
+            "\"",
+            "`",
+            "${",
+            "#[",
+            "@",
+            "r#",
+            "asm6502 {",
+            "\u{FEFF}",
+            "{",
+            "}",
+        ] {
             check(text);
         }
         check(&"(".repeat(20_000));

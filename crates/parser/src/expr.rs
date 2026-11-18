@@ -1,8 +1,8 @@
 //! Expressions (`parser/index.mjs:761-1100`, syntax spec 6 `Expr`) with the
 //! new-syntax checks E6-E12.
 
-use syntax::{Node, NodeKind, Token, TokenKind};
 use lexer::Options;
+use syntax::{Node, NodeKind, Token, TokenKind};
 
 use crate::types::{integer_node, number_node};
 use crate::{Parser, ident_name, node_end, strip_quotes, tok_end};
@@ -163,9 +163,7 @@ impl Parser<'_> {
         } else {
             None
         };
-        let end = alternate
-            .as_ref()
-            .map_or_else(|| node_end(&expr), node_end);
+        let end = alternate.as_ref().map_or_else(|| node_end(&expr), node_end);
         Some(Node::new(
             start,
             end,
@@ -454,7 +452,11 @@ impl Parser<'_> {
                     token.start,
                     end,
                     NodeKind::Identifier {
-                        name: token.text.strip_prefix('#').unwrap_or(&token.text).to_string(),
+                        name: token
+                            .text
+                            .strip_prefix('#')
+                            .unwrap_or(&token.text)
+                            .to_string(),
                         compile_time: Some(true),
                         imported: None,
                     },
@@ -543,10 +545,8 @@ impl Parser<'_> {
                 self.next();
                 let properties = self.with_braces(Self::parse_record_properties);
                 let close = self.expect("}");
-                let literal_end = close.map_or_else(
-                    || properties.last().map_or(end, node_end),
-                    |t| tok_end(&t),
-                );
+                let literal_end =
+                    close.map_or_else(|| properties.last().map_or(end, node_end), |t| tok_end(&t));
                 Some(Node::new(
                     token.start,
                     literal_end,
@@ -557,10 +557,8 @@ impl Parser<'_> {
                 self.next();
                 let elements = self.with_braces(Self::parse_elements);
                 let close = self.expect("]");
-                let literal_end = close.map_or_else(
-                    || elements.last().map_or(end, node_end),
-                    |t| tok_end(&t),
-                );
+                let literal_end =
+                    close.map_or_else(|| elements.last().map_or(end, node_end), |t| tok_end(&t));
                 Some(Node::new(
                     token.start,
                     literal_end,
@@ -614,10 +612,7 @@ impl Parser<'_> {
             elements.push(element);
             if self.at(";") {
                 if let Some(semi) = self.next() {
-                    self.error_on(
-                        "an array literal lists its elements: [a, b, c]",
-                        &semi,
-                    );
+                    self.error_on("an array literal lists its elements: [a, b, c]", &semi);
                 }
                 self.parse_expression();
                 break;
@@ -648,11 +643,17 @@ impl Parser<'_> {
                 ));
                 continue;
             };
-            if let Some(field) = self.parse_template_field(part.start, part.end, source_start, source_end) {
+            if let Some(field) =
+                self.parse_template_field(part.start, part.end, source_start, source_end)
+            {
                 parts.push(field);
             }
         }
-        Node::new(token.start, tok_end(token), NodeKind::TemplateLiteral { parts })
+        Node::new(
+            token.start,
+            tok_end(token),
+            NodeKind::TemplateLiteral { parts },
+        )
     }
 
     fn parse_template_field(
@@ -699,10 +700,9 @@ impl Parser<'_> {
         if expression.is_some() && !inner.at_end() {
             let message = format!(
                 "unexpected {} in template field",
-                inner.peek().map_or_else(
-                    || "end of file".to_string(),
-                    |t| format!("'{}'", t.text)
-                )
+                inner
+                    .peek()
+                    .map_or_else(|| "end of file".to_string(), |t| format!("'{}'", t.text))
             );
             inner.error_here(message);
         }

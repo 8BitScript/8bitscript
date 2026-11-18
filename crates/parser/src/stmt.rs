@@ -71,10 +71,7 @@ impl Parser<'_> {
             (TokenKind::Keyword, "break" | "continue") => self.parse_break_or_continue(),
             (TokenKind::Keyword, "asm6502") => {
                 self.next();
-                if self
-                    .peek()
-                    .is_some_and(|t| t.kind == TokenKind::AsmBlock)
-                {
+                if self.peek().is_some_and(|t| t.kind == TokenKind::AsmBlock) {
                     return self.parse_asm_block(token.start);
                 }
                 self.error_here("expected '{' after 'asm6502'");
@@ -218,9 +215,9 @@ impl Parser<'_> {
         let is_test = name == "test"
             || (name == "cfg"
                 && args.len() == 1
-                && args.first().is_some_and(|a| {
-                    matches!(&a.kind, NodeKind::Identifier { name, .. } if name == "test")
-                }));
+                && args.first().is_some_and(
+                    |a| matches!(&a.kind, NodeKind::Identifier { name, .. } if name == "test"),
+                ));
         if is_test {
             self.error_at(
                 "tests come with '8bs test'",
@@ -228,7 +225,11 @@ impl Parser<'_> {
                 end.saturating_sub(open.start),
             );
         }
-        Some(Node::new(open.start, end, NodeKind::Decorator { name, args }))
+        Some(Node::new(
+            open.start,
+            end,
+            NodeKind::Decorator { name, args },
+        ))
     }
 
     fn skip_to_bracket_end(&mut self) {
@@ -326,8 +327,16 @@ impl Parser<'_> {
             self.synchronize();
             return None;
         };
-        let type_annotation = if self.eat(":") { self.parse_type() } else { None };
-        let initializer = if self.eat("=") { self.parse_expression() } else { None };
+        let type_annotation = if self.eat(":") {
+            self.parse_type()
+        } else {
+            None
+        };
+        let initializer = if self.eat("=") {
+            self.parse_expression()
+        } else {
+            None
+        };
         let last_end = initializer
             .as_ref()
             .or(type_annotation.as_ref())
@@ -362,7 +371,11 @@ impl Parser<'_> {
                 } else {
                     None
                 };
-                let default_value = if self.eat("=") { self.parse_expression() } else { None };
+                let default_value = if self.eat("=") {
+                    self.parse_expression()
+                } else {
+                    None
+                };
                 let last_end = default_value
                     .as_ref()
                     .or(type_annotation.as_ref())
@@ -383,10 +396,14 @@ impl Parser<'_> {
             }
             self.expect(")");
         }
-        let return_type = if self.eat("->") { self.parse_type() } else { None };
-        let returns_value = return_type.as_ref().is_some_and(|t| {
-            !matches!(&t.kind, NodeKind::TypeReference { name, .. } if name == "void")
-        });
+        let return_type = if self.eat("->") {
+            self.parse_type()
+        } else {
+            None
+        };
+        let returns_value = return_type.as_ref().is_some_and(
+            |t| !matches!(&t.kind, NodeKind::TypeReference { name, .. } if name == "void"),
+        );
         let body = if self.at("{") {
             Some(self.parse_block(returns_value))
         } else {
@@ -445,7 +462,9 @@ impl Parser<'_> {
             .filter(|t| t.kind == TokenKind::Keyword)
             .cloned();
         let mut member = match keyword.as_ref().map(|t| t.text.as_str()) {
-            Some("fn") => keyword.as_ref().and_then(|t| self.parse_function(t.start, false)),
+            Some("fn") => keyword
+                .as_ref()
+                .and_then(|t| self.parse_function(t.start, false)),
             Some("let" | "const") => self.parse_variable(None),
             Some(word) if reserved_message(word).is_some() => {
                 self.skip_reserved_item();
@@ -473,10 +492,7 @@ impl Parser<'_> {
     /// `use self::geo::{a, b as c};`, `use p::name;`, `use "spec"::{..};`.
     fn parse_use(&mut self) -> Option<Node> {
         let start = self.next()?.start;
-        let string_head = self
-            .peek()
-            .filter(|t| t.kind == TokenKind::String)
-            .cloned();
+        let string_head = self.peek().filter(|t| t.kind == TokenKind::String).cloned();
         let (source, use_path, brace_form) = if let Some(token) = string_head {
             self.next();
             let source = Node::new(
@@ -509,7 +525,9 @@ impl Parser<'_> {
         } else if let Some(name) = self.parse_use_name() {
             specifiers.push(name);
         }
-        let end = self.expect(";").map_or_else(|| self.prev_end(), |t| tok_end(&t));
+        let end = self
+            .expect(";")
+            .map_or_else(|| self.prev_end(), |t| tok_end(&t));
         Some(Node::new(
             start,
             end,
@@ -527,12 +545,17 @@ impl Parser<'_> {
         if self.at_kw("as") {
             self.next();
             let local = self.expect_identifier("a local name");
-            if let (Some(local), NodeKind::Identifier { name: n, imported, .. }) =
-                (local, &mut name.kind)
+            if let (
+                Some(local),
+                NodeKind::Identifier {
+                    name: n, imported, ..
+                },
+            ) = (local, &mut name.kind)
+                && let NodeKind::Identifier {
+                    name: local_name, ..
+                } = local.kind
             {
-                if let NodeKind::Identifier { name: local_name, .. } = local.kind {
-                    *imported = Some(std::mem::replace(n, local_name));
-                }
+                *imported = Some(std::mem::replace(n, local_name));
             }
         }
         Some(name)
@@ -735,7 +758,11 @@ impl Parser<'_> {
             self.synchronize();
             return None;
         };
-        let type_annotation = if self.eat(":") { self.parse_type() } else { None };
+        let type_annotation = if self.eat(":") {
+            self.parse_type()
+        } else {
+            None
+        };
         if self.at_kw("in") {
             self.next();
         } else {
@@ -807,9 +834,17 @@ impl Parser<'_> {
         let (init, test, update) = self.with_braces(|p| {
             let init = if p.at(";") { None } else { p.parse_for_init() };
             p.expect(";");
-            let test = if p.at(";") { None } else { p.parse_expression() };
+            let test = if p.at(";") {
+                None
+            } else {
+                p.parse_expression()
+            };
             p.expect(";");
-            let update = if p.at(")") { None } else { p.parse_expression() };
+            let update = if p.at(")") {
+                None
+            } else {
+                p.parse_expression()
+            };
             (init, test, update)
         });
         self.expect(")");
@@ -839,8 +874,16 @@ impl Parser<'_> {
             self.next();
         }
         let name = self.expect_identifier("a variable name");
-        let type_annotation = if self.eat(":") { self.parse_type() } else { None };
-        let initializer = if self.eat("=") { self.parse_expression() } else { None };
+        let type_annotation = if self.eat(":") {
+            self.parse_type()
+        } else {
+            None
+        };
+        let initializer = if self.eat("=") {
+            self.parse_expression()
+        } else {
+            None
+        };
         let end = initializer
             .as_ref()
             .or(type_annotation.as_ref())
@@ -882,7 +925,9 @@ impl Parser<'_> {
 
     fn parse_break_or_continue(&mut self) -> Option<Node> {
         let keyword = self.next()?;
-        let end = self.expect(";").map_or_else(|| tok_end(&keyword), |t| tok_end(&t));
+        let end = self
+            .expect(";")
+            .map_or_else(|| tok_end(&keyword), |t| tok_end(&t));
         let kind = if keyword.text == "break" {
             NodeKind::BreakStatement {}
         } else {

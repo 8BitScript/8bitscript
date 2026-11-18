@@ -87,9 +87,7 @@ impl Parser<'_> {
             .filter(|t| t.kind == TokenKind::Identifier)
             .cloned();
         let Some(head) = head else {
-            self.error_here(
-                "match compares a name or path; bind the value first: let v = …;",
-            );
+            self.error_here("match compares a name or path; bind the value first: let v = …;");
             self.skip_to_brace();
             return None;
         };
@@ -111,9 +109,7 @@ impl Parser<'_> {
             );
         }
         if !self.at("{") && !self.at_end() {
-            self.error_here(
-                "match compares a name or path; bind the value first: let v = …;",
-            );
+            self.error_here("match compares a name or path; bind the value first: let v = …;");
             self.skip_to_brace();
             return None;
         }
@@ -223,9 +219,7 @@ impl Parser<'_> {
             self.error_found("a pattern");
             return None;
         };
-        let integer = |t: &syntax::Token| {
-            t.kind == TokenKind::Number && t.is_decimal != Some(true)
-        };
+        let integer = |t: &syntax::Token| t.kind == TokenKind::Number && t.is_decimal != Some(true);
         match (token.kind, token.text.as_str()) {
             (TokenKind::Operator, "-") if self.peek_n(1).is_some_and(integer) => {
                 self.next();
@@ -295,13 +289,9 @@ fn binary(operator: &str, start: u32, end: u32, left: Node, right: Node) -> Node
 /// `S == P`, or `S >= lo && S <= hi`.
 fn pattern_test(subject: &Node, pattern: Pattern) -> Node {
     match pattern {
-        Pattern::Value(value) => binary(
-            "==",
-            value.start,
-            node_end(&value),
-            subject.clone(),
-            value,
-        ),
+        Pattern::Value(value) => {
+            binary("==", value.start, node_end(&value), subject.clone(), value)
+        }
         Pattern::Range(low, high) => {
             let (start, end) = (low.start, node_end(&high));
             let at_least = binary(">=", low.start, node_end(&low), subject.clone(), low);
@@ -346,9 +336,8 @@ fn lower(subject: Node, arms: Vec<Arm>, start: u32, end: u32) -> Node {
         ));
         top = false;
     }
-    let mut result = tail.unwrap_or_else(|| {
-        Node::new(start, end, NodeKind::BlockStatement { body: Vec::new() })
-    });
+    let mut result = tail
+        .unwrap_or_else(|| Node::new(start, end, NodeKind::BlockStatement { body: Vec::new() }));
     if !top {
         // The first arm's `IfStatement` stands for the whole match.
         result.start = start;

@@ -225,10 +225,7 @@ impl<'a> Parser<'a> {
     }
 
     pub(crate) fn expect_identifier(&mut self, what: &str) -> Option<Node> {
-        if self
-            .peek()
-            .is_some_and(|t| t.kind == TokenKind::Identifier)
-        {
+        if self.peek().is_some_and(|t| t.kind == TokenKind::Identifier) {
             let token = self.next()?;
             return Some(ident_node(&token));
         }
@@ -349,6 +346,9 @@ pub(crate) fn strip_quotes(text: &str) -> String {
     let chars: Vec<char> = text.chars().collect();
     match chars.len() {
         0..=2 => String::new(),
-        n => chars.get(1..n - 1).map(|c| c.iter().collect()).unwrap_or_default(),
+        n => chars
+            .get(1..n - 1)
+            .map(|c| c.iter().collect())
+            .unwrap_or_default(),
     }
 }
