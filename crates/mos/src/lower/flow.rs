@@ -1477,7 +1477,7 @@ mod tests {
         let (r, _) = run(&mut o, |l| {
             l.multiply_into(&bin("*", u8ref("g"), u8ref("s"), "utinyint"))
         });
-        assert_eq!(r, Err("unported: exprTo16".to_string()));
+        assert_eq!(r, Ok(()));
         let (r, _) = run(&mut o, |l| l.multiply_into(&u8ref("g")));
         assert!(r.unwrap_err().starts_with("multiplyInto"));
     }
@@ -1766,7 +1766,7 @@ mod tests {
             "bool",
         );
         let (r, _) = run(&mut o, |l| l.comparison_branch(&two, "T", true));
-        assert_eq!(r, Err("unported: exprTo16".to_string()));
+        assert_eq!(r, Ok(()));
     }
 
     #[test]
@@ -1896,13 +1896,13 @@ mod tests {
         let wide = Stmt::Local(Local {
             name: "x".into(),
             ty: "usmallint".into(),
-            init: konst(1),
+            init: typed(1, "usmallint"),
             inlined: None,
             start: None,
             length: None,
         });
         let (r, _) = run(&mut o, |l| l.statement(&wide));
-        assert_eq!(r, Err("unported: store16Into".to_string()));
+        assert!(r.is_ok());
         let (r, _) = run(&mut o, |l| l.statement(&brk()));
         assert!(r.unwrap_err().starts_with("break outside any loop"));
         let cont = Stmt::Continue(Continue {
@@ -1991,15 +1991,15 @@ mod tests {
             length: None,
         });
         let (r, _) = run(&mut o, |l| l.statement(&assign));
-        assert_eq!(r, Err("unported: emitIncDec".to_string()));
+        assert_eq!(r, Ok(None));
         let assign = Stmt::Assign(Assign {
             target: "w".into(),
-            value: konst(1),
+            value: typed(1, "usmallint"),
             start: None,
             length: None,
         });
         let (r, _) = run(&mut o, |l| l.statement(&assign));
-        assert_eq!(r, Err("unported: store16Into".to_string()));
+        assert!(r.is_ok());
         // An asm6502 block: a frame name becomes its zero-page address.
         let asm = Stmt::Asm(mos_ir::Asm {
             text: "lda p\nsta $d020".into(),
@@ -2140,7 +2140,7 @@ mod tests {
         });
         // The pointers come from the wide unit.
         let (r, p) = run(&mut o, |l| l.string_copy(&copy));
-        assert_eq!(r, Err("unported: expr16".to_string()));
+        assert!(r.unwrap_err().starts_with("'ref' is 'utinyint'"));
         assert!(p.is_empty());
         let (r, _) = run(&mut o, |l| l.string_copy(&brk()));
         assert_eq!(
@@ -2173,7 +2173,7 @@ mod tests {
         let (r, _) = run(&mut o, |l| {
             l.memory_read(&read_of(reference("w", "usmallint")))
         });
-        assert_eq!(r, Err("unported: expr16".to_string()));
+        assert_eq!(r, Ok(()));
         let (r, _) = run(&mut o, |l| l.memory_read(&konst(1)));
         assert_eq!(r, Err("memoryRead: no address to read from".to_string()));
     }
@@ -2203,7 +2203,7 @@ mod tests {
             length: 0,
         });
         let (r, _) = run(&mut o, |l| l.memory_write(&computed));
-        assert_eq!(r, Err("unported: expr16".to_string()));
+        assert_eq!(r, Ok(()));
         let (r, _) = run(&mut o, |l| l.memory_write(&brk()));
         assert_eq!(r, Err("memoryWrite: no address to write to".to_string()));
     }
@@ -2322,7 +2322,7 @@ mod tests {
         let mut o = options();
         // The update is an assignment: it reaches the wide unit's increment path.
         let (r, p) = run(&mut o, |l| l.for_statement(&counted_for(vec![brk()])));
-        assert_eq!(r, Err("unported: emitIncDec".to_string()));
+        assert_eq!(r, Ok(()));
         assert_eq!(p[0], "LDA immediate 0");
         assert_eq!(
             p[..6],
