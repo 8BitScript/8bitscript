@@ -293,6 +293,22 @@ test('a failed build still dumps its diagnostics and the error text', async () =
   }
 });
 
+test('a dump that cannot be written does not hide the error the build threw', async () => {
+  const base = await mkdtemp(join(tmpdir(), '8bs-dump-'));
+  try {
+    const dir = join(base, 'p');
+    await project(dir);
+    const blocker = join(base, 'blocker');
+    await writeFile(blocker, 'a file, so nothing can be created under it');
+    const own = await inDir(dir, () => capture(() => compile('pet', undefined, { hardware: null }).catch((err) => err)));
+    assert.ok(own.result instanceof Error, 'the options must make the build throw');
+    const dumped = await inDir(dir, () => capture(() => compile('pet', undefined, { hardware: null, dumpStages: join(blocker, 'out') }).catch((err) => err)));
+    assert.equal(dumped.result.message, own.result.message);
+  } finally {
+    await rm(base, { recursive: true, force: true });
+  }
+});
+
 test('--release gives each output its own directory under the dump directory', async () => {
   const base = await mkdtemp(join(tmpdir(), '8bs-dump-'));
   try {
