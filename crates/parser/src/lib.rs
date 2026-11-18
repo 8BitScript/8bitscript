@@ -12,7 +12,7 @@
 //!
 //! The lexer already reports `++`, `--`, `?` and `'` strings (E1, E2, E5);
 //! the parser recovers from them without reporting them again. The `.8bx`
-//! tag grammar is in `bx` (P3-06).
+//! tag grammar is in `bx` (P3-06); `component` and `state` are in `stmt`.
 
 mod bx;
 mod expr;
@@ -27,7 +27,7 @@ use std::collections::HashSet;
 
 use diagnostics::{Diagnostic, Severity, codes, diagnostic};
 use serde::Serialize;
-use syntax::{Node, NodeKind, Token, TokenKind, number_nodes, utf16_len};
+use syntax::{Node, NodeKind, SourceKind, Token, TokenKind, number_nodes, utf16_len};
 
 /// What `parse` returns: `{ast, diagnostics}` as in the JS dump. The
 /// diagnostics are the parser's own; the lexer's are separate.
@@ -45,9 +45,16 @@ const MAX_NEST: u32 = 256;
 /// tree's height stays bounded too.
 const MAX_LINKS: u32 = 1500;
 
+/// `parse(tokens, text, file, options)` options (`parser/index.mjs:1100`).
+#[derive(Debug, Clone, Default)]
+pub struct Options {
+    /// The kind of file; `None` is `.8bs`. `component` is for `.8bx` only.
+    pub source_kind: Option<SourceKind>,
+}
+
 /// Parse a token stream. Never fails; see the crate docs.
 #[must_use]
-pub fn parse(tokens: &[Token], text: &str, file: &str) -> Parsed {
+pub fn parse(tokens: &[Token], text: &str, file: &str, options: &Options) -> Parsed {
     let units: Vec<u16> = text.encode_utf16().collect();
     let kept: Vec<Token> = tokens
         .iter()
@@ -55,6 +62,7 @@ pub fn parse(tokens: &[Token], text: &str, file: &str) -> Parsed {
         .cloned()
         .collect();
     let mut parser = Parser::new(kept, &units, file);
+    parser.bx = options.source_kind == Some(SourceKind::Bx);
     let body = parser.parse_program();
     let mut ast = Node::new(0, utf16_len(text), NodeKind::Program { body });
     number_nodes(&mut ast);
@@ -84,6 +92,8 @@ pub(crate) struct Parser<'a> {
     pub(crate) eof: u32,
     /// Set when a `use` path was reported and its item skipped.
     pub(crate) use_skipped: bool,
+    /// Parsing a `.8bx` file.
+    pub(crate) bx: bool,
 }
 
 pub(crate) fn tok_end(t: &Token) -> u32 {
@@ -100,9 +110,23 @@ fn is_op(t: &Token, text: &str) -> bool {
 
 /// Keywords that can begin a statement, used to resynchronise after an
 /// error (syntax spec 6; mirror of `parser/index.mjs:36-40`).
-const STATEMENT_START: [&str; 14] = [
-    "use", "fn", "mod", "let", "const", "if", "while", "loop", "for", "match", "return", "break",
-    "continue", "asm6502",
+const STATEMENT_START: [&str; 16] = [
+    "use",
+    "fn",
+    "mod",
+    "let",
+    "const",
+    "if",
+    "while",
+    "loop",
+    "for",
+    "match",
+    "return",
+    "break",
+    "continue",
+    "asm6502",
+    "component",
+    "state",
 ];
 
 impl<'a> Parser<'a> {
@@ -125,6 +149,7 @@ impl<'a> Parser<'a> {
             expr_depth: 0,
             eof: 0,
             use_skipped: false,
+            bx: false,
         }
     }
 

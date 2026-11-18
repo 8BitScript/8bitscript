@@ -198,11 +198,12 @@ fn e_name_after_open_hand_built() {
         .find(|t| t.kind == syntax::TokenKind::Identifier)
         .expect("name token");
     name.kind = syntax::TokenKind::Number;
-    let messages: Vec<String> = parser::parse(&lexed.tokens, text, "t")
-        .diagnostics
-        .into_iter()
-        .map(|d| d.message)
-        .collect();
+    let messages: Vec<String> =
+        parser::parse(&lexed.tokens, text, "t", &parser::Options::default())
+            .diagnostics
+            .into_iter()
+            .map(|d| d.message)
+            .collect();
     assert_eq!(
         messages.first().map(String::as_str),
         Some("expected a component name after <, found 'A'")

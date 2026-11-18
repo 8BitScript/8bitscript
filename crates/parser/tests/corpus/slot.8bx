@@ -1,0 +1,9 @@
+component Frame(title: u8) {
+    <slot />
+}
+component Nested() {
+    if true { <slot /> }
+}
+component Bare() {
+    <A />
+}

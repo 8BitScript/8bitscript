@@ -1,0 +1,354 @@
+{
+  "ast": {
+    "body": [
+      {
+        "allowsChildren": false,
+        "body": {
+          "body": [],
+          "length": 2,
+          "start": 15,
+          "type": "BlockStatement"
+        },
+        "exported": false,
+        "length": 17,
+        "name": {
+          "length": 1,
+          "name": "B",
+          "start": 10,
+          "type": "Identifier"
+        },
+        "params": [
+          {
+            "defaultValue": null,
+            "length": 1,
+            "name": {
+              "length": 1,
+              "name": "x",
+              "start": 12,
+              "type": "Identifier"
+            },
+            "optional": false,
+            "start": 12,
+            "type": "Parameter",
+            "typeAnnotation": null
+          }
+        ],
+        "start": 0,
+        "type": "ComponentDeclaration"
+      },
+      {
+        "allowsChildren": false,
+        "body": {
+          "body": [
+            {
+              "allowsChildren": false,
+              "body": {
+                "body": [
+                  {
+                    "exported": false,
+                    "immutable": true,
+                    "initializer": {
+                      "length": 1,
+                      "radix": 10,
+                      "raw": "1",
+                      "start": 127,
+                      "type": "IntegerLiteral",
+                      "value": 1
+                    },
+                    "kind": "let",
+                    "length": 14,
+                    "name": {
+                      "length": 5,
+                      "name": "after",
+                      "start": 119,
+                      "type": "Identifier"
+                    },
+                    "start": 115,
+                    "type": "VariableDeclaration",
+                    "typeAnnotation": null
+                  },
+                  {
+                    "allowsChildren": false,
+                    "body": {
+                      "body": [
+                        {
+                          "allowsChildren": false,
+                          "body": {
+                            "body": [
+                              {
+                                "expression": {
+                                  "args": [],
+                                  "callee": {
+                                    "length": 1,
+                                    "radix": 10,
+                                    "raw": "5",
+                                    "start": 153,
+                                    "type": "IntegerLiteral",
+                                    "value": 5
+                                  },
+                                  "length": 3,
+                                  "start": 153,
+                                  "type": "CallExpression"
+                                },
+                                "length": 3,
+                                "start": 153,
+                                "type": "ExpressionStatement"
+                              },
+                              {
+                                "body": [],
+                                "length": 2,
+                                "start": 157,
+                                "type": "BlockStatement"
+                              }
+                            ],
+                            "length": 6,
+                            "start": 153,
+                            "type": "BlockStatement"
+                          },
+                          "exported": false,
+                          "length": 16,
+                          "name": null,
+                          "params": [],
+                          "start": 143,
+                          "type": "ComponentDeclaration"
+                        }
+                      ],
+                      "length": 16,
+                      "start": 143,
+                      "type": "BlockStatement"
+                    },
+                    "exported": false,
+                    "length": 29,
+                    "name": {
+                      "length": 1,
+                      "name": "A",
+                      "start": 140,
+                      "type": "Identifier"
+                    },
+                    "params": [],
+                    "start": 130,
+                    "type": "ComponentDeclaration"
+                  }
+                ],
+                "length": 54,
+                "start": 105,
+                "type": "BlockStatement"
+              },
+              "exported": true,
+              "length": 72,
+              "name": {
+                "length": 1,
+                "name": "E",
+                "start": 101,
+                "type": "Identifier"
+              },
+              "params": [],
+              "start": 87,
+              "type": "ComponentDeclaration"
+            }
+          ],
+          "length": 80,
+          "start": 79,
+          "type": "BlockStatement"
+        },
+        "exported": false,
+        "length": 99,
+        "name": {
+          "length": 1,
+          "name": "C",
+          "start": 70,
+          "type": "Identifier"
+        },
+        "params": [
+          {
+            "defaultValue": null,
+            "length": 5,
+            "name": {
+              "length": 1,
+              "name": "x",
+              "start": 72,
+              "type": "Identifier"
+            },
+            "optional": false,
+            "start": 72,
+            "type": "Parameter",
+            "typeAnnotation": {
+              "length": 2,
+              "name": "u8",
+              "start": 75,
+              "type": "TypeReference",
+              "typeArguments": []
+            }
+          }
+        ],
+        "start": 60,
+        "type": "ComponentDeclaration"
+      }
+    ],
+    "length": 160,
+    "start": 0,
+    "type": "Program"
+  },
+  "diagnostics": [
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "expected ':', found ')'",
+      "severity": "error",
+      "start": 13
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 3,
+      "message": "expected a name, found 'mut'",
+      "severity": "error",
+      "start": 24
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "expected a name, found ';'",
+      "severity": "error",
+      "start": 45
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "expected a name, found '5'",
+      "severity": "error",
+      "start": 53
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "expected a parameter name, found '='",
+      "severity": "error",
+      "start": 79
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "expected ')', found '='",
+      "severity": "error",
+      "start": 79
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "expected '{', found '='",
+      "severity": "error",
+      "start": 79
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "expected an expression, found '='",
+      "severity": "error",
+      "start": 79
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "expected a name, found '}'",
+      "severity": "error",
+      "start": 113
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 9,
+      "message": "expected a parameter name, found 'component'",
+      "severity": "error",
+      "start": 143
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 9,
+      "message": "expected ')', found 'component'",
+      "severity": "error",
+      "start": 143
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 9,
+      "message": "expected '{', found 'component'",
+      "severity": "error",
+      "start": 143
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "expected a component name, found '5'",
+      "severity": "error",
+      "start": 153
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "expected '(', found '5'",
+      "severity": "error",
+      "start": 153
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "expected '{', found '5'",
+      "severity": "error",
+      "start": 153
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "expected ';', found '{'",
+      "severity": "error",
+      "start": 157
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 0,
+      "message": "expected '}', found end of file",
+      "severity": "error",
+      "start": 159
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 0,
+      "message": "expected '}', found end of file",
+      "severity": "error",
+      "start": 159
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 0,
+      "message": "expected '}', found end of file",
+      "severity": "error",
+      "start": 159
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 0,
+      "message": "expected '}', found end of file",
+      "severity": "error",
+      "start": 159
+    }
+  ]
+}
