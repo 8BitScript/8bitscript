@@ -61,6 +61,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "lexer"
+version = "0.0.0"
+dependencies = [
+ "diagnostics",
+ "oracle",
+ "serde",
+ "serde_json",
+ "syntax",
+]
+
+[[package]]
 name = "memchr"
 version = "2.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -261,8 +261,8 @@ impl<'a> Lexer<'a> {
                 self.unexpected_character();
             }
         }
-        for k in 0..self.brackets.len() {
-            let (ch, offset) = (self.brackets[k].ch, self.brackets[k].offset);
+        let open: Vec<(u8, usize)> = self.brackets.iter().map(|b| (b.ch, b.offset)).collect();
+        for (ch, offset) in open {
             self.report(
                 codes::UNCLOSED_BRACKET,
                 format!("unclosed '{}'", char::from(ch)),
@@ -272,8 +272,9 @@ impl<'a> Lexer<'a> {
         }
         // A tag or a run of children still open at the end: one diagnostic
         // per frame, at the `<` that opened it.
-        for k in 0..self.modes.len() {
-            let (kind, offset) = (self.modes[k].kind, self.modes[k].offset);
+        let frames: Vec<(ModeKind, usize)> =
+            self.modes.iter().map(|m| (m.kind, m.offset)).collect();
+        for (kind, offset) in frames {
             if kind == ModeKind::Expr {
                 continue; // its `{` is in `brackets` already
             }

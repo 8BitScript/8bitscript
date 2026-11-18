@@ -664,3 +664,13 @@ fn bx_expression_braces_return_to_the_tag() {
     assert!(l.diagnostics.is_empty(), "{:?}", l.diagnostics);
     assert_eq!(l.tokens.last().expect("last").kind, K::BxSelfClose);
 }
+
+#[test]
+fn a_huge_literal_overflows_to_infinity_and_serializes_as_null() {
+    // Pins today's behaviour: the value is f64 infinity (as `parseFloat`
+    // gives in the JS) and serde_json writes a non-finite float as null.
+    let l = lex(&format!("${}", "F".repeat(300)));
+    assert_eq!(l.tokens[0].value, Some(f64::INFINITY));
+    let json = serde_json::to_value(&l).expect("serializes");
+    assert!(json["tokens"][0]["value"].is_null());
+}
