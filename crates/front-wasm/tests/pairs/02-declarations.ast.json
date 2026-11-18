@@ -1,0 +1,540 @@
+{
+  "body": [
+    {
+      "body": {
+        "body": [
+          {
+            "exported": false,
+            "initializer": {
+              "length": 1,
+              "radix": 10,
+              "raw": "0",
+              "start": 148,
+              "type": "IntegerLiteral",
+              "value": 0
+            },
+            "kind": "let",
+            "length": 18,
+            "name": {
+              "length": 1,
+              "name": "x",
+              "start": 140,
+              "type": "Identifier"
+            },
+            "start": 132,
+            "type": "VariableDeclaration",
+            "typeAnnotation": {
+              "length": 2,
+              "name": "u8",
+              "start": 143,
+              "type": "TypeReference",
+              "typeArguments": []
+            }
+          }
+        ],
+        "length": 26,
+        "start": 126,
+        "type": "BlockStatement"
+      },
+      "exported": true,
+      "length": 40,
+      "name": {
+        "length": 4,
+        "name": "main",
+        "start": 119,
+        "type": "Identifier"
+      },
+      "params": [],
+      "returnType": null,
+      "start": 112,
+      "type": "FunctionDeclaration"
+    },
+    {
+      "body": {
+        "body": [
+          {
+            "argument": {
+              "left": {
+                "length": 1,
+                "name": "a",
+                "start": 197,
+                "type": "Identifier"
+              },
+              "length": 5,
+              "operator": "+",
+              "right": {
+                "length": 1,
+                "name": "b",
+                "start": 201,
+                "type": "Identifier"
+              },
+              "start": 197,
+              "type": "BinaryExpression"
+            },
+            "length": 13,
+            "start": 190,
+            "type": "ReturnStatement"
+          }
+        ],
+        "length": 21,
+        "start": 184,
+        "type": "BlockStatement"
+      },
+      "exported": false,
+      "length": 52,
+      "name": {
+        "length": 3,
+        "name": "add",
+        "start": 156,
+        "type": "Identifier"
+      },
+      "params": [
+        {
+          "defaultValue": null,
+          "length": 5,
+          "name": {
+            "length": 1,
+            "name": "a",
+            "start": 160,
+            "type": "Identifier"
+          },
+          "start": 160,
+          "type": "Parameter",
+          "typeAnnotation": {
+            "length": 2,
+            "name": "u8",
+            "start": 163,
+            "type": "TypeReference",
+            "typeArguments": []
+          }
+        },
+        {
+          "defaultValue": {
+            "length": 1,
+            "radix": 10,
+            "raw": "3",
+            "start": 175,
+            "type": "IntegerLiteral",
+            "value": 3
+          },
+          "length": 9,
+          "name": {
+            "length": 1,
+            "name": "b",
+            "start": 167,
+            "type": "Identifier"
+          },
+          "start": 167,
+          "type": "Parameter",
+          "typeAnnotation": {
+            "length": 2,
+            "name": "u8",
+            "start": 170,
+            "type": "TypeReference",
+            "typeArguments": []
+          }
+        }
+      ],
+      "returnType": {
+        "length": 2,
+        "name": "u8",
+        "start": 181,
+        "type": "TypeReference",
+        "typeArguments": []
+      },
+      "start": 153,
+      "type": "FunctionDeclaration"
+    },
+    {
+      "body": {
+        "body": [],
+        "length": 2,
+        "start": 227,
+        "type": "BlockStatement"
+      },
+      "exported": false,
+      "length": 23,
+      "name": {
+        "length": 7,
+        "name": "nothing",
+        "start": 209,
+        "type": "Identifier"
+      },
+      "params": [],
+      "returnType": {
+        "length": 4,
+        "name": "void",
+        "start": 222,
+        "type": "TypeReference",
+        "typeArguments": []
+      },
+      "start": 206,
+      "type": "FunctionDeclaration"
+    },
+    {
+      "body": {
+        "body": [
+          {
+            "exported": false,
+            "immutable": true,
+            "initializer": {
+              "length": 1,
+              "radix": 10,
+              "raw": "0",
+              "start": 263,
+              "type": "IntegerLiteral",
+              "value": 0
+            },
+            "kind": "let",
+            "length": 14,
+            "name": {
+              "length": 1,
+              "name": "y",
+              "start": 255,
+              "type": "Identifier"
+            },
+            "start": 251,
+            "type": "VariableDeclaration",
+            "typeAnnotation": {
+              "length": 2,
+              "name": "u8",
+              "start": 258,
+              "type": "TypeReference",
+              "typeArguments": []
+            }
+          }
+        ],
+        "length": 22,
+        "start": 245,
+        "type": "BlockStatement"
+      },
+      "exported": false,
+      "length": 37,
+      "name": {
+        "length": 9,
+        "name": "immutable",
+        "start": 233,
+        "type": "Identifier"
+      },
+      "params": [],
+      "returnType": null,
+      "start": 230,
+      "type": "FunctionDeclaration"
+    },
+    {
+      "exported": true,
+      "initializer": {
+        "length": 1,
+        "radix": 10,
+        "raw": "9",
+        "start": 290,
+        "type": "IntegerLiteral",
+        "value": 9
+      },
+      "kind": "const",
+      "length": 24,
+      "name": {
+        "length": 5,
+        "name": "LIMIT",
+        "start": 278,
+        "type": "Identifier"
+      },
+      "start": 268,
+      "type": "VariableDeclaration",
+      "typeAnnotation": {
+        "length": 2,
+        "name": "u8",
+        "start": 285,
+        "type": "TypeReference",
+        "typeArguments": []
+      }
+    },
+    {
+      "exported": true,
+      "initializer": {
+        "length": 1,
+        "radix": 10,
+        "raw": "0",
+        "start": 318,
+        "type": "IntegerLiteral",
+        "value": 0
+      },
+      "kind": "let",
+      "length": 27,
+      "name": {
+        "length": 5,
+        "name": "score",
+        "start": 305,
+        "type": "Identifier"
+      },
+      "start": 293,
+      "type": "VariableDeclaration",
+      "typeAnnotation": {
+        "length": 3,
+        "name": "u16",
+        "start": 312,
+        "type": "TypeReference",
+        "typeArguments": []
+      }
+    },
+    {
+      "exported": false,
+      "initializer": {
+        "length": 1,
+        "radix": 10,
+        "raw": "0",
+        "start": 341,
+        "type": "IntegerLiteral",
+        "value": 0
+      },
+      "kind": "let",
+      "length": 22,
+      "name": {
+        "length": 4,
+        "name": "hits",
+        "start": 329,
+        "type": "Identifier"
+      },
+      "start": 321,
+      "type": "VariableDeclaration",
+      "typeAnnotation": {
+        "length": 3,
+        "name": "u16",
+        "start": 335,
+        "type": "TypeReference",
+        "typeArguments": []
+      }
+    },
+    {
+      "exported": false,
+      "initializer": {
+        "length": 1,
+        "radix": 10,
+        "raw": "9",
+        "start": 360,
+        "type": "IntegerLiteral",
+        "value": 9
+      },
+      "kind": "const",
+      "length": 18,
+      "name": {
+        "length": 3,
+        "name": "MAX",
+        "start": 350,
+        "type": "Identifier"
+      },
+      "start": 344,
+      "type": "VariableDeclaration",
+      "typeAnnotation": {
+        "length": 2,
+        "name": "u8",
+        "start": 355,
+        "type": "TypeReference",
+        "typeArguments": []
+      }
+    },
+    {
+      "exported": false,
+      "initializer": null,
+      "kind": "let",
+      "length": 26,
+      "name": {
+        "length": 5,
+        "name": "label",
+        "start": 371,
+        "type": "Identifier"
+      },
+      "start": 363,
+      "type": "VariableDeclaration",
+      "typeAnnotation": {
+        "length": 10,
+        "name": "string",
+        "start": 378,
+        "type": "TypeReference",
+        "typeArguments": [
+          {
+            "length": 2,
+            "radix": 10,
+            "raw": "16",
+            "start": 385,
+            "type": "IntegerLiteral",
+            "value": 16
+          }
+        ]
+      }
+    },
+    {
+      "exported": false,
+      "length": 103,
+      "members": [
+        {
+          "exported": false,
+          "initializer": {
+            "length": 1,
+            "radix": 10,
+            "raw": "2",
+            "start": 422,
+            "type": "IntegerLiteral",
+            "value": 2
+          },
+          "kind": "const",
+          "length": 18,
+          "name": {
+            "length": 3,
+            "name": "RED",
+            "start": 412,
+            "type": "Identifier"
+          },
+          "start": 406,
+          "type": "VariableDeclaration",
+          "typeAnnotation": {
+            "length": 2,
+            "name": "u8",
+            "start": 417,
+            "type": "TypeReference",
+            "typeArguments": []
+          }
+        },
+        {
+          "body": {
+            "body": [
+              {
+                "argument": {
+                  "length": 1,
+                  "name": "c",
+                  "start": 460,
+                  "type": "Identifier"
+                },
+                "length": 9,
+                "start": 453,
+                "type": "ReturnStatement"
+              }
+            ],
+            "length": 13,
+            "start": 451,
+            "type": "BlockStatement"
+          },
+          "exported": false,
+          "length": 35,
+          "name": {
+            "length": 5,
+            "name": "shade",
+            "start": 432,
+            "type": "Identifier"
+          },
+          "params": [
+            {
+              "defaultValue": null,
+              "length": 5,
+              "name": {
+                "length": 1,
+                "name": "c",
+                "start": 438,
+                "type": "Identifier"
+              },
+              "start": 438,
+              "type": "Parameter",
+              "typeAnnotation": {
+                "length": 2,
+                "name": "u8",
+                "start": 441,
+                "type": "TypeReference",
+                "typeArguments": []
+              }
+            }
+          ],
+          "returnType": {
+            "length": 2,
+            "name": "u8",
+            "start": 448,
+            "type": "TypeReference",
+            "typeArguments": []
+          },
+          "start": 429,
+          "type": "FunctionDeclaration"
+        },
+        {
+          "exported": false,
+          "initializer": {
+            "length": 1,
+            "radix": 10,
+            "raw": "1",
+            "start": 489,
+            "type": "IntegerLiteral",
+            "value": 1
+          },
+          "kind": "let",
+          "length": 22,
+          "name": {
+            "length": 5,
+            "name": "level",
+            "start": 477,
+            "type": "Identifier"
+          },
+          "start": 469,
+          "type": "VariableDeclaration",
+          "typeAnnotation": {
+            "length": 2,
+            "name": "u8",
+            "start": 484,
+            "type": "TypeReference",
+            "typeArguments": []
+          }
+        }
+      ],
+      "name": {
+        "length": 5,
+        "name": "Color",
+        "start": 394,
+        "type": "Identifier"
+      },
+      "start": 390,
+      "type": "NamespaceDeclaration"
+    },
+    {
+      "exported": true,
+      "length": 38,
+      "members": [
+        {
+          "exported": false,
+          "initializer": {
+            "length": 1,
+            "radix": 10,
+            "raw": "1",
+            "start": 528,
+            "type": "IntegerLiteral",
+            "value": 1
+          },
+          "kind": "const",
+          "length": 16,
+          "name": {
+            "length": 1,
+            "name": "A",
+            "start": 520,
+            "type": "Identifier"
+          },
+          "start": 514,
+          "type": "VariableDeclaration",
+          "typeAnnotation": {
+            "length": 2,
+            "name": "u8",
+            "start": 523,
+            "type": "TypeReference",
+            "typeArguments": []
+          }
+        }
+      ],
+      "name": {
+        "length": 5,
+        "name": "Sound",
+        "start": 502,
+        "type": "Identifier"
+      },
+      "start": 494,
+      "type": "NamespaceDeclaration"
+    }
+  ],
+  "length": 533,
+  "start": 0,
+  "type": "Program"
+}

@@ -1,0 +1,91 @@
+{
+  "body": [
+    {
+      "exported": false,
+      "initializer": {
+        "length": 1,
+        "radix": 10,
+        "raw": "1",
+        "start": 42,
+        "type": "IntegerLiteral",
+        "value": 1
+      },
+      "kind": "let",
+      "length": 17,
+      "name": {
+        "length": 4,
+        "name": "loop",
+        "start": 31,
+        "type": "Identifier"
+      },
+      "start": 27,
+      "type": "VariableDeclaration",
+      "typeAnnotation": {
+        "length": 2,
+        "name": "u8",
+        "start": 37,
+        "type": "TypeReference",
+        "typeArguments": []
+      }
+    },
+    {
+      "exported": false,
+      "initializer": {
+        "length": 1,
+        "radix": 10,
+        "raw": "2",
+        "start": 58,
+        "type": "IntegerLiteral",
+        "value": 2
+      },
+      "kind": "let",
+      "length": 15,
+      "name": {
+        "length": 2,
+        "name": "in",
+        "start": 49,
+        "type": "Identifier"
+      },
+      "start": 45,
+      "type": "VariableDeclaration",
+      "typeAnnotation": {
+        "length": 2,
+        "name": "u8",
+        "start": 53,
+        "type": "TypeReference",
+        "typeArguments": []
+      }
+    },
+    {
+      "exported": false,
+      "initializer": {
+        "length": 1,
+        "radix": 10,
+        "raw": "3",
+        "start": 75,
+        "type": "IntegerLiteral",
+        "value": 3
+      },
+      "kind": "let",
+      "length": 16,
+      "name": {
+        "length": 3,
+        "name": "mod",
+        "start": 65,
+        "type": "Identifier"
+      },
+      "start": 61,
+      "type": "VariableDeclaration",
+      "typeAnnotation": {
+        "length": 2,
+        "name": "u8",
+        "start": 70,
+        "type": "TypeReference",
+        "typeArguments": []
+      }
+    }
+  ],
+  "length": 78,
+  "start": 0,
+  "type": "Program"
+}

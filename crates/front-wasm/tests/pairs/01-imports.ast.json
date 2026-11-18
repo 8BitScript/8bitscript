@@ -1,0 +1,180 @@
+{
+  "body": [
+    {
+      "length": 27,
+      "source": {
+        "length": 9,
+        "start": 113,
+        "type": "StringLiteral",
+        "value": "./geo"
+      },
+      "specifiers": [
+        {
+          "length": 1,
+          "name": "a",
+          "start": 125,
+          "type": "Identifier"
+        },
+        {
+          "imported": "b",
+          "length": 1,
+          "name": "c",
+          "start": 128,
+          "type": "Identifier"
+        }
+      ],
+      "start": 109,
+      "type": "ImportDeclaration",
+      "usePath": true
+    },
+    {
+      "length": 27,
+      "source": {
+        "length": 17,
+        "start": 141,
+        "type": "StringLiteral",
+        "value": "../src/index"
+      },
+      "specifiers": [
+        {
+          "length": 1,
+          "name": "d",
+          "start": 161,
+          "type": "Identifier"
+        }
+      ],
+      "start": 137,
+      "type": "ImportDeclaration",
+      "usePath": true
+    },
+    {
+      "length": 53,
+      "source": {
+        "length": 25,
+        "start": 169,
+        "type": "StringLiteral",
+        "value": "@8bitscript/c64/sprites"
+      },
+      "specifiers": [
+        {
+          "imported": "sprites",
+          "length": 7,
+          "name": "hardware",
+          "start": 197,
+          "type": "Identifier"
+        }
+      ],
+      "start": 165,
+      "type": "ImportDeclaration",
+      "usePath": true
+    },
+    {
+      "length": 30,
+      "source": {
+        "length": 17,
+        "start": 223,
+        "type": "StringLiteral",
+        "value": "@lib/game/rules"
+      },
+      "specifiers": [
+        {
+          "length": 1,
+          "name": "e",
+          "start": 243,
+          "type": "Identifier"
+        },
+        {
+          "length": 1,
+          "name": "f",
+          "start": 246,
+          "type": "Identifier"
+        }
+      ],
+      "start": 219,
+      "type": "ImportDeclaration",
+      "usePath": true
+    },
+    {
+      "length": 13,
+      "source": {
+        "length": 3,
+        "start": 254,
+        "type": "StringLiteral",
+        "value": "foo"
+      },
+      "specifiers": [
+        {
+          "length": 1,
+          "name": "g",
+          "start": 260,
+          "type": "Identifier"
+        }
+      ],
+      "start": 250,
+      "type": "ImportDeclaration",
+      "usePath": true
+    },
+    {
+      "length": 31,
+      "source": {
+        "length": 21,
+        "start": 268,
+        "type": "StringLiteral",
+        "value": "./number-values.8bs"
+      },
+      "specifiers": [
+        {
+          "length": 1,
+          "name": "h",
+          "start": 292,
+          "type": "Identifier"
+        }
+      ],
+      "start": 264,
+      "type": "ImportDeclaration"
+    },
+    {
+      "length": 23,
+      "source": {
+        "length": 10,
+        "start": 300,
+        "type": "StringLiteral",
+        "value": "./mark"
+      },
+      "specifiers": [
+        {
+          "length": 4,
+          "name": "mark",
+          "start": 313,
+          "type": "Identifier"
+        }
+      ],
+      "start": 296,
+      "type": "ImportDeclaration",
+      "usePath": true
+    },
+    {
+      "length": 19,
+      "source": {
+        "length": 9,
+        "start": 324,
+        "type": "StringLiteral",
+        "value": "./geo"
+      },
+      "specifiers": [
+        {
+          "length": 3,
+          "name": "one",
+          "start": 335,
+          "type": "Identifier"
+        }
+      ],
+      "start": 320,
+      "type": "ImportDeclaration",
+      "usePath": true
+    }
+  ],
+  "length": 340,
+  "start": 0,
+  "type": "Program"
+}

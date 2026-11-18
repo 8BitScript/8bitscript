@@ -1,0 +1,24 @@
+// rows: export, function, void function, entry point, mutable and immutable variable, global, const, namespace
+pub fn main() {
+    let mut x: u8 = 0;
+}
+fn add(a: u8, b: u8 = 3) -> u8 {
+    return a + b;
+}
+fn nothing() -> void {}
+fn immutable() {
+    let y: u8 = 0;
+}
+pub const LIMIT: u8 = 9;
+pub let mut score: u16 = 0;
+let mut hits: u16 = 0;
+const MAX: u8 = 9;
+let mut label: string<16>;
+mod Color {
+    const RED: u8 = 2;
+    fn shade(c: u8) -> u8 { return c; }
+    let mut level: u8 = 1;
+}
+pub mod Sound {
+    const A: u8 = 1;
+}

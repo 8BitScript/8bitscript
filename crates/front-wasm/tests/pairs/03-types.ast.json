@@ -1,0 +1,559 @@
+{
+  "body": [
+    {
+      "exported": false,
+      "initializer": null,
+      "kind": "let",
+      "length": 24,
+      "name": {
+        "length": 5,
+        "name": "table",
+        "start": 107,
+        "type": "Identifier"
+      },
+      "start": 99,
+      "type": "VariableDeclaration",
+      "typeAnnotation": {
+        "length": 8,
+        "name": "array",
+        "start": 114,
+        "type": "TypeReference",
+        "typeArguments": [
+          {
+            "length": 2,
+            "name": "u8",
+            "start": 115,
+            "type": "TypeReference",
+            "typeArguments": []
+          },
+          {
+            "length": 2,
+            "radix": 10,
+            "raw": "16",
+            "start": 119,
+            "type": "IntegerLiteral",
+            "value": 16
+          }
+        ]
+      }
+    },
+    {
+      "exported": false,
+      "initializer": null,
+      "kind": "let",
+      "length": 27,
+      "name": {
+        "length": 4,
+        "name": "grid",
+        "start": 132,
+        "type": "Identifier"
+      },
+      "start": 124,
+      "type": "VariableDeclaration",
+      "typeAnnotation": {
+        "length": 12,
+        "name": "array",
+        "start": 138,
+        "type": "TypeReference",
+        "typeArguments": [
+          {
+            "length": 7,
+            "name": "array",
+            "start": 139,
+            "type": "TypeReference",
+            "typeArguments": [
+              {
+                "length": 2,
+                "name": "u8",
+                "start": 140,
+                "type": "TypeReference",
+                "typeArguments": []
+              },
+              {
+                "length": 1,
+                "radix": 10,
+                "raw": "4",
+                "start": 144,
+                "type": "IntegerLiteral",
+                "value": 4
+              }
+            ]
+          },
+          {
+            "length": 1,
+            "radix": 10,
+            "raw": "4",
+            "start": 148,
+            "type": "IntegerLiteral",
+            "value": 4
+          }
+        ]
+      }
+    },
+    {
+      "exported": false,
+      "initializer": {
+        "elements": [
+          {
+            "length": 1,
+            "radix": 10,
+            "raw": "1",
+            "start": 177,
+            "type": "IntegerLiteral",
+            "value": 1
+          },
+          {
+            "length": 1,
+            "radix": 10,
+            "raw": "2",
+            "start": 180,
+            "type": "IntegerLiteral",
+            "value": 2
+          },
+          {
+            "length": 1,
+            "radix": 10,
+            "raw": "3",
+            "start": 183,
+            "type": "IntegerLiteral",
+            "value": 3
+          }
+        ],
+        "length": 9,
+        "start": 176,
+        "type": "ArrayLiteral"
+      },
+      "kind": "let",
+      "length": 34,
+      "name": {
+        "length": 4,
+        "name": "nums",
+        "start": 160,
+        "type": "Identifier"
+      },
+      "start": 152,
+      "type": "VariableDeclaration",
+      "typeAnnotation": {
+        "length": 7,
+        "name": "array",
+        "start": 166,
+        "type": "TypeReference",
+        "typeArguments": [
+          {
+            "length": 2,
+            "name": "u8",
+            "start": 167,
+            "type": "TypeReference",
+            "typeArguments": []
+          },
+          {
+            "length": 1,
+            "radix": 10,
+            "raw": "3",
+            "start": 171,
+            "type": "IntegerLiteral",
+            "value": 3
+          }
+        ]
+      }
+    },
+    {
+      "exported": false,
+      "initializer": null,
+      "kind": "let",
+      "length": 24,
+      "name": {
+        "length": 1,
+        "name": "v",
+        "start": 195,
+        "type": "Identifier"
+      },
+      "start": 187,
+      "type": "VariableDeclaration",
+      "typeAnnotation": {
+        "length": 12,
+        "name": "volatile",
+        "start": 198,
+        "type": "TypeReference",
+        "typeArguments": [
+          {
+            "length": 2,
+            "name": "u8",
+            "start": 207,
+            "type": "TypeReference",
+            "typeArguments": []
+          }
+        ]
+      }
+    },
+    {
+      "exported": false,
+      "initializer": null,
+      "kind": "let",
+      "length": 19,
+      "name": {
+        "length": 1,
+        "name": "p",
+        "start": 220,
+        "type": "Identifier"
+      },
+      "start": 212,
+      "type": "VariableDeclaration",
+      "typeAnnotation": {
+        "length": 7,
+        "name": "ptr",
+        "start": 223,
+        "type": "TypeReference",
+        "typeArguments": [
+          {
+            "length": 2,
+            "name": "u8",
+            "start": 227,
+            "type": "TypeReference",
+            "typeArguments": []
+          }
+        ]
+      }
+    },
+    {
+      "exported": false,
+      "initializer": {
+        "length": 7,
+        "start": 256,
+        "type": "StringLiteral",
+        "value": "plain"
+      },
+      "kind": "let",
+      "length": 32,
+      "name": {
+        "length": 1,
+        "name": "s",
+        "start": 240,
+        "type": "Identifier"
+      },
+      "start": 232,
+      "type": "VariableDeclaration",
+      "typeAnnotation": {
+        "length": 10,
+        "name": "string",
+        "start": 243,
+        "type": "TypeReference",
+        "typeArguments": [
+          {
+            "length": 2,
+            "radix": 10,
+            "raw": "16",
+            "start": 250,
+            "type": "IntegerLiteral",
+            "value": 16
+          }
+        ]
+      }
+    },
+    {
+      "exported": false,
+      "initializer": {
+        "length": 6,
+        "start": 289,
+        "type": "StringLiteral",
+        "value": "it's"
+      },
+      "kind": "let",
+      "length": 31,
+      "name": {
+        "length": 1,
+        "name": "t",
+        "start": 273,
+        "type": "Identifier"
+      },
+      "start": 265,
+      "type": "VariableDeclaration",
+      "typeAnnotation": {
+        "length": 10,
+        "name": "string",
+        "start": 276,
+        "type": "TypeReference",
+        "typeArguments": [
+          {
+            "length": 2,
+            "radix": 10,
+            "raw": "16",
+            "start": 283,
+            "type": "IntegerLiteral",
+            "value": 16
+          }
+        ]
+      }
+    },
+    {
+      "exported": false,
+      "initializer": {
+        "length": 14,
+        "properties": [
+          {
+            "key": "x",
+            "length": 4,
+            "start": 311,
+            "type": "RecordProperty",
+            "value": {
+              "length": 1,
+              "radix": 10,
+              "raw": "1",
+              "start": 314,
+              "type": "IntegerLiteral",
+              "value": 1
+            }
+          },
+          {
+            "key": "y",
+            "length": 4,
+            "start": 317,
+            "type": "RecordProperty",
+            "value": {
+              "length": 1,
+              "radix": 10,
+              "raw": "2",
+              "start": 320,
+              "type": "IntegerLiteral",
+              "value": 2
+            }
+          }
+        ],
+        "start": 309,
+        "type": "RecordLiteral"
+      },
+      "kind": "let",
+      "length": 27,
+      "name": {
+        "length": 1,
+        "name": "r",
+        "start": 305,
+        "type": "Identifier"
+      },
+      "start": 297,
+      "type": "VariableDeclaration",
+      "typeAnnotation": null
+    },
+    {
+      "exported": false,
+      "initializer": {
+        "length": 22,
+        "parts": [
+          {
+            "length": 3,
+            "start": 340,
+            "type": "TemplateText",
+            "value": "HP "
+          },
+          {
+            "expression": {
+              "length": 2,
+              "name": "hp",
+              "start": 345,
+              "type": "Identifier"
+            },
+            "length": 7,
+            "start": 343,
+            "type": "TemplateField",
+            "width": {
+              "length": 1,
+              "radix": 10,
+              "raw": "3",
+              "start": 348,
+              "type": "IntegerLiteral",
+              "value": 3
+            }
+          },
+          {
+            "length": 4,
+            "start": 350,
+            "type": "TemplateText",
+            "value": " of "
+          },
+          {
+            "expression": {
+              "length": 3,
+              "name": "max",
+              "start": 356,
+              "type": "Identifier"
+            },
+            "length": 6,
+            "start": 354,
+            "type": "TemplateField",
+            "width": null
+          }
+        ],
+        "start": 339,
+        "type": "TemplateLiteral"
+      },
+      "kind": "let",
+      "length": 37,
+      "name": {
+        "length": 3,
+        "name": "msg",
+        "start": 333,
+        "type": "Identifier"
+      },
+      "start": 325,
+      "type": "VariableDeclaration",
+      "typeAnnotation": null
+    },
+    {
+      "exported": false,
+      "initializer": {
+        "length": 2,
+        "radix": 10,
+        "raw": "12",
+        "start": 376,
+        "type": "IntegerLiteral",
+        "value": 12
+      },
+      "kind": "let",
+      "length": 16,
+      "name": {
+        "length": 2,
+        "name": "n1",
+        "start": 371,
+        "type": "Identifier"
+      },
+      "start": 363,
+      "type": "VariableDeclaration",
+      "typeAnnotation": null
+    },
+    {
+      "exported": false,
+      "initializer": {
+        "length": 3,
+        "radix": 16,
+        "raw": "$FF",
+        "start": 393,
+        "type": "IntegerLiteral",
+        "value": 255
+      },
+      "kind": "let",
+      "length": 17,
+      "name": {
+        "length": 2,
+        "name": "n2",
+        "start": 388,
+        "type": "Identifier"
+      },
+      "start": 380,
+      "type": "VariableDeclaration",
+      "typeAnnotation": null
+    },
+    {
+      "exported": false,
+      "initializer": {
+        "length": 4,
+        "radix": 16,
+        "raw": "0xFF",
+        "start": 411,
+        "type": "IntegerLiteral",
+        "value": 255
+      },
+      "kind": "let",
+      "length": 18,
+      "name": {
+        "length": 2,
+        "name": "n3",
+        "start": 406,
+        "type": "Identifier"
+      },
+      "start": 398,
+      "type": "VariableDeclaration",
+      "typeAnnotation": null
+    },
+    {
+      "exported": false,
+      "initializer": {
+        "length": 6,
+        "radix": 2,
+        "raw": "0b1010",
+        "start": 430,
+        "type": "IntegerLiteral",
+        "value": 10
+      },
+      "kind": "let",
+      "length": 20,
+      "name": {
+        "length": 2,
+        "name": "n4",
+        "start": 425,
+        "type": "Identifier"
+      },
+      "start": 417,
+      "type": "VariableDeclaration",
+      "typeAnnotation": null
+    },
+    {
+      "exported": false,
+      "initializer": {
+        "length": 6,
+        "radix": 2,
+        "raw": "0b1010",
+        "start": 451,
+        "type": "IntegerLiteral",
+        "value": 10
+      },
+      "kind": "let",
+      "length": 20,
+      "name": {
+        "length": 2,
+        "name": "n5",
+        "start": 446,
+        "type": "Identifier"
+      },
+      "start": 438,
+      "type": "VariableDeclaration",
+      "typeAnnotation": null
+    },
+    {
+      "exported": false,
+      "initializer": {
+        "length": 5,
+        "radix": 10,
+        "raw": "1_000",
+        "start": 472,
+        "type": "IntegerLiteral",
+        "value": 1000
+      },
+      "kind": "let",
+      "length": 19,
+      "name": {
+        "length": 2,
+        "name": "n6",
+        "start": 467,
+        "type": "Identifier"
+      },
+      "start": 459,
+      "type": "VariableDeclaration",
+      "typeAnnotation": null
+    },
+    {
+      "exported": false,
+      "initializer": {
+        "denominator": 10,
+        "length": 3,
+        "numerator": 15,
+        "raw": "1.5",
+        "start": 492,
+        "type": "DecimalLiteral"
+      },
+      "kind": "let",
+      "length": 17,
+      "name": {
+        "length": 2,
+        "name": "n7",
+        "start": 487,
+        "type": "Identifier"
+      },
+      "start": 479,
+      "type": "VariableDeclaration",
+      "typeAnnotation": null
+    }
+  ],
+  "length": 497,
+  "start": 0,
+  "type": "Program"
+}
