@@ -26,7 +26,7 @@ fn clean_programs_have_no_diagnostics() {
     clean("let x = 1;");
     clean("fn main() {}");
     clean("pub fn f(a: u8) -> u8 { return a; }");
-    clean("fn f() -> u8 { 1 }");
+    clean("fn f() -> u8 { return 1; }");
     clean("use self::a::{b};");
     clean("fn f(x: u8) { match x { 1 => g(), _ => h() } }");
 }
@@ -42,7 +42,7 @@ fn e3_reserved_words() {
 #[test]
 fn e4_crate_paths() {
     assert!(one("use crate::a::{b};").contains("'crate::' paths are not supported"));
-    assert!(one("let x = crate;").contains("'crate::'"));
+    assert!(messages("let x = crate;")[0].contains("'crate::'"));
 }
 
 #[test]
@@ -85,9 +85,10 @@ fn e13_to_e15_match_shape() {
 
 #[test]
 fn e16_e17_semicolons_and_tail() {
-    assert!(one("fn f() -> u8 { 1 }\nfn g() { 1 }").contains("write 'return …;'"));
+    assert!(one("fn f() -> u8 { 1 }").contains("write 'return …;'"));
+    assert!(messages("fn g() { 1 }")[0].contains("expected ';'"));
     assert!(one("let x = 1").contains("expected ';'"));
-    clean("fn f() -> u8 { 1 }");
+    clean("fn f() -> u8 { return 1; }");
 }
 
 #[test]

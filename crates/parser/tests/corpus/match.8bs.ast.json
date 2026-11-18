@@ -585,16 +585,16 @@
                         "start": 353,
                         "type": "CallExpression"
                       },
-                      "length": 3,
+                      "length": 4,
                       "start": 353,
                       "type": "ExpressionStatement"
                     }
                   ],
-                  "length": 7,
+                  "length": 8,
                   "start": 351,
                   "type": "BlockStatement"
                 },
-                "length": 14,
+                "length": 15,
                 "start": 346,
                 "test": {
                   "left": {
@@ -646,7 +646,7 @@
                 "start": 341,
                 "type": "ExpressionStatement"
               },
-              "length": 45,
+              "length": 46,
               "start": 315,
               "test": {
                 "left": {
@@ -690,20 +690,20 @@
                       "callee": {
                         "length": 1,
                         "name": "z",
-                        "start": 392,
+                        "start": 393,
                         "type": "Identifier"
                       },
                       "length": 3,
-                      "start": 392,
+                      "start": 393,
                       "type": "CallExpression"
                     },
-                    "length": 3,
-                    "start": 392,
+                    "length": 4,
+                    "start": 393,
                     "type": "ExpressionStatement"
                   }
                 ],
-                "length": 7,
-                "start": 390,
+                "length": 8,
+                "start": 391,
                 "type": "BlockStatement"
               },
               "consequent": {
@@ -712,24 +712,24 @@
                   "callee": {
                     "length": 1,
                     "name": "y",
-                    "start": 380,
+                    "start": 381,
                     "type": "Identifier"
                   },
                   "length": 3,
-                  "start": 380,
+                  "start": 381,
                   "type": "CallExpression"
                 },
                 "length": 4,
-                "start": 380,
+                "start": 381,
                 "type": "ExpressionStatement"
               },
-              "length": 34,
-              "start": 365,
+              "length": 35,
+              "start": 366,
               "test": {
                 "left": {
                   "length": 1,
                   "name": "x",
-                  "start": 371,
+                  "start": 372,
                   "type": "Identifier"
                 },
                 "length": 1,
@@ -738,11 +738,11 @@
                   "length": 1,
                   "radix": 10,
                   "raw": "1",
-                  "start": 375,
+                  "start": 376,
                   "type": "IntegerLiteral",
                   "value": 1
                 },
-                "start": 375,
+                "start": 376,
                 "type": "BinaryExpression"
               },
               "type": "IfStatement"
@@ -756,24 +756,24 @@
                     "callee": {
                       "length": 3,
                       "name": "two",
-                      "start": 435,
+                      "start": 437,
                       "type": "Identifier"
                     },
                     "length": 5,
-                    "start": 435,
+                    "start": 437,
                     "type": "CallExpression"
                   },
                   "length": 5,
-                  "start": 435,
+                  "start": 437,
                   "type": "ExpressionStatement"
                 },
                 "length": 12,
-                "start": 430,
+                "start": 432,
                 "test": {
                   "left": {
                     "length": 1,
                     "name": "x",
-                    "start": 410,
+                    "start": 412,
                     "type": "Identifier"
                   },
                   "length": 1,
@@ -782,11 +782,11 @@
                     "length": 1,
                     "radix": 10,
                     "raw": "2",
-                    "start": 430,
+                    "start": 432,
                     "type": "IntegerLiteral",
                     "value": 2
                   },
-                  "start": 430,
+                  "start": 432,
                   "type": "BinaryExpression"
                 },
                 "type": "IfStatement"
@@ -799,29 +799,29 @@
                       "callee": {
                         "length": 3,
                         "name": "one",
-                        "start": 421,
+                        "start": 423,
                         "type": "Identifier"
                       },
                       "length": 5,
-                      "start": 421,
+                      "start": 423,
                       "type": "CallExpression"
                     },
                     "length": 6,
-                    "start": 421,
+                    "start": 423,
                     "type": "ExpressionStatement"
                   }
                 ],
                 "length": 10,
-                "start": 419,
+                "start": 421,
                 "type": "BlockStatement"
               },
               "length": 38,
-              "start": 404,
+              "start": 406,
               "test": {
                 "left": {
                   "length": 1,
                   "name": "x",
-                  "start": 410,
+                  "start": 412,
                   "type": "Identifier"
                 },
                 "length": 1,
@@ -830,22 +830,22 @@
                   "length": 1,
                   "radix": 10,
                   "raw": "1",
-                  "start": 414,
+                  "start": 416,
                   "type": "IntegerLiteral",
                   "value": 1
                 },
-                "start": 414,
+                "start": 416,
                 "type": "BinaryExpression"
               },
               "type": "IfStatement"
             }
           ],
-          "length": 402,
+          "length": 404,
           "start": 42,
           "type": "BlockStatement"
         },
         "exported": false,
-        "length": 423,
+        "length": 425,
         "name": {
           "length": 1,
           "name": "m",
@@ -897,26 +897,9 @@
         "type": "FunctionDeclaration"
       }
     ],
-    "length": 445,
+    "length": 447,
     "start": 0,
     "type": "Program"
   },
-  "diagnostics": [
-    {
-      "code": "8BS1101",
-      "file": "t",
-      "length": 1,
-      "message": "expected ';', found '}'",
-      "severity": "error",
-      "start": 357
-    },
-    {
-      "code": "8BS1101",
-      "file": "t",
-      "length": 1,
-      "message": "expected ';', found '}'",
-      "severity": "error",
-      "start": 396
-    }
-  ]
+  "diagnostics": []
 }

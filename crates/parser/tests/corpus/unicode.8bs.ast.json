@@ -204,24 +204,76 @@
         "type": "FunctionDeclaration"
       },
       {
-        "body": [],
-        "length": 3,
-        "start": 189,
-        "type": "BlockStatement"
+        "body": {
+          "body": [],
+          "length": 3,
+          "start": 188,
+          "type": "BlockStatement"
+        },
+        "init": {
+          "exported": false,
+          "immutable": true,
+          "initializer": {
+            "length": 1,
+            "radix": 10,
+            "raw": "0",
+            "start": 183,
+            "type": "IntegerLiteral",
+            "value": 0
+          },
+          "kind": "let",
+          "length": 6,
+          "name": {
+            "length": 1,
+            "name": "i",
+            "start": 178,
+            "type": "Identifier"
+          },
+          "start": 178,
+          "type": "VariableDeclaration",
+          "typeAnnotation": null
+        },
+        "length": 17,
+        "start": 174,
+        "test": {
+          "left": {
+            "length": 1,
+            "name": "i",
+            "start": 178,
+            "type": "Identifier"
+          },
+          "length": 9,
+          "operator": "<",
+          "right": {
+            "length": 1,
+            "radix": 10,
+            "raw": "9",
+            "start": 186,
+            "type": "IntegerLiteral",
+            "value": 9
+          },
+          "start": 178,
+          "type": "BinaryExpression"
+        },
+        "type": "ForStatement",
+        "update": {
+          "argument": {
+            "length": 1,
+            "name": "i",
+            "start": 178,
+            "type": "Identifier"
+          },
+          "length": 1,
+          "operator": "++",
+          "prefix": false,
+          "start": 178,
+          "type": "UpdateExpression"
+        }
       }
     ],
-    "length": 193,
+    "length": 192,
     "start": 0,
     "type": "Program"
   },
-  "diagnostics": [
-    {
-      "code": "8BS1101",
-      "file": "t",
-      "length": 1,
-      "message": "expected an expression, found '{'",
-      "severity": "error",
-      "start": 189
-    }
-  ]
+  "diagnostics": []
 }
