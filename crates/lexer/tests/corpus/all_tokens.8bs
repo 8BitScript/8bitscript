@@ -1,0 +1,83 @@
+// Every token kind of the new syntax. A line comment.
+/* a block comment,
+   over two lines, not /* nested */
+
+use self::geo::{area, Point as P};
+use super::super::lib::util;
+use @8bitscript::c64::sprites;
+use @my-scope::x;
+use "./number-values.8bs"::{values};
+pub use foo::bar;
+
+#[address($D020)]
+let mut border: volatile<u8>;
+#[unroll]
+#[test]
+
+pub const MAX: u8 = 9;
+let limit: u16 = 0xFFFF;
+let mut hits: [u8; 16];
+
+mod Color {
+    pub const RED: u8 = 2;
+    fn tint(c: u8, d: u8 = 3) -> u8 { return c ^ d; }
+}
+
+fn r#loop(r#in: u8) -> bool {
+    let r#mod = r#in;
+    r#mod += 1;
+    return true;
+}
+
+pub fn main() {
+    let a = 1_000;
+    let b = $ff_00;
+    let c = 0b1010_0101;
+    let d = 0XAB;
+    let e = 0B11;
+    let f = 1.5;
+    let g = 0.25;
+    let h = 10 % 3;
+    let i = %101;
+    for k: u8 in 0..16 { hits[k] = k; }
+    for j in 1..=4 { continue; }
+    for (let mut n: u8 = 9; n > 0; n -= 1) { break; }
+    loop { break; }
+    while a != b && c >= d || !e { a <<= 1; b >>= 2; }
+    match a {
+        0 | 1 => { x = 1; }
+        2..=9 => y = 2,
+        _ => {}
+    }
+    if a < b { a = ~b; } else if a <= b { a &= b; a |= c; } else { a *= 2; a /= 2; a %= 7; }
+    let t = if a == b { 1 } else { 2 };
+    memory::write($D021, u8(a) + b - c * d / e);
+    let s = "text with \"escape\" and \\ slash";
+    let m = `HP ${hp:3} of ${max}, ${ f(1, "}") }`;
+    #frames(2, seconds);
+    #system();
+    assert!(a == b);
+    assert_eq!(a, b);
+    assert_ne!(a, b);
+    panic!("boom");
+    asm6502 {
+        lda #$06   ; comment with { and ' quote
+        sta $D020
+        ldx #'A'
+        .byte "}"
+    }
+    asm6502{ nop }
+    let w: string<16> = "w";
+    let p: ptr<u8>; let q: array<u8, 4>; let z: bool; let v: void;
+    let u1: utinyint; let u2: usmallint; let u3: umediumint; let u4: uint;
+    let i1: tinyint; let i2: smallint; let i3: mediumint; let i4: int;
+    let i5: i8; let i6: i16; let i7: i24; let i8_: i32; let u5: u24; let u6: u32;
+    a = b as u8;
+    return;
+}
+
+enum struct impl trait static type
+function import export namespace from
+component state
+_ _x x_ __
+assert != 1; assert !x;

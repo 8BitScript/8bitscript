@@ -1,0 +1,4 @@
+fn main() {
+    asm6502 {
+        lda #1
+        sta $D020
