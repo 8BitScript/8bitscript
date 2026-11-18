@@ -5,7 +5,10 @@
 // whatever directory the checkout lives in, so nothing here lets a path leak
 // into a hash.
 //
-//   node scripts/oracle/corpus.mjs [--sha-only] --out <dir> [--jobs <n>] [--only <text>]
+//   node scripts/oracle/corpus.mjs [--sha-only] --out <dir> [--jobs <n>] [--only <text>] [--tap <dir>]
+//
+// With --tap, every build also records the inputs and outputs of the tapped
+// 6502 back end functions under <dir>/<corpus id>/ (scripts/oracle/mos-tap).
 //
 // The corpus is the in-repo projects (every directory under packages/ with an
 // 8bitscript.config.8bs or .ts) plus the game repos pinned in
@@ -16,13 +19,14 @@ import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir, availableParallelism } from 'node:os';
 import { dirname, join, relative, resolve, sep } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 
 const run = promisify(execFile);
 
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const CLI = join(ROOT, 'packages', 'cli', 'bin', '8bs.mjs');
+const TAP_REGISTER = join(ROOT, 'scripts', 'oracle', 'mos-tap', 'register.mjs');
 const CONFIG_NAMES = new Set(['8bitscript.config.8bs', '8bitscript.config.ts']);
 const BUILD_TIMEOUT_MS = 300000;
 const GIT_CANDIDATES = ['/usr/bin/git', '/usr/local/bin/git', '/opt/homebrew/bin/git'];
@@ -108,12 +112,28 @@ async function projectInfo(project) {
   return JSON.parse(stdout);
 }
 
-async function buildOne(project, { program, target }) {
+/**
+ * The environment of one build. With a tap directory the build loads the tap's
+ * resolve hook and records into `<tapDir>/<id>`; without one it is `base` as is.
+ */
+export function buildEnv(base, tapDir, id, project) {
+  if (!tapDir) return base;
+  const options = `${base.NODE_OPTIONS ?? ''} --import=${pathToFileURL(TAP_REGISTER).href}`.trim();
+  return {
+    ...base,
+    NODE_OPTIONS: options,
+    EIGHTBS_MOS_TAP: join(tapDir, ...id.split('/')),
+    EIGHTBS_MOS_TAP_ROOTS: JSON.stringify({ toolchain: ROOT, project: project.dir }),
+  };
+}
+
+async function buildOne(project, { program, target }, tapDir) {
   const id = `${project.id}/${program}/${target}`;
   const args = cliArgs(['build', '--target', target, '--program', program], project.checkout);
   try {
     const { stdout } = await run(process.execPath, args, {
       cwd: project.dir, maxBuffer: 64 * 1024 * 1024, timeout: BUILD_TIMEOUT_MS,
+      env: buildEnv(process.env, tapDir, id, project),
     });
     const file = builtPath(stdout);
     if (!file) return { id, error: 'no "built <path>" line in the output' };
@@ -154,7 +174,7 @@ function cloneGame(game, dest) {
 }
 
 export function parseArgs(argv) {
-  const options = { out: null, jobs: Math.min(4, availableParallelism()), only: null, shaOnly: true };
+  const options = { out: null, jobs: Math.min(4, availableParallelism()), only: null, shaOnly: true, tap: null };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     const value = () => {
@@ -165,6 +185,7 @@ export function parseArgs(argv) {
     else if (arg === '--out') options.out = resolve(value());
     else if (arg === '--jobs') options.jobs = Math.max(1, Number.parseInt(value(), 10) || 1);
     else if (arg === '--only') options.only = value();
+    else if (arg === '--tap') options.tap = resolve(value());
     else throw new Error(`unknown argument ${arg}`);
   }
   if (!options.out) throw new Error('--out <dir> is required');
@@ -175,6 +196,7 @@ async function main() {
   const options = parseArgs(process.argv.slice(2));
   const corpus = JSON.parse(readFileSync(join(ROOT, 'oracle', 'corpus.json'), 'utf8'));
   rmSync(join(options.out, 'sha256.txt'), { force: true });
+  if (options.tap) rmSync(options.tap, { recursive: true, force: true });
   const scratch = mkdtempSync(join(tmpdir(), 'oracle-corpus-'));
   try {
     const projects = findProjects(join(ROOT, 'packages')).map((p) => ({ ...p, checkout: null }));
@@ -192,7 +214,7 @@ async function main() {
       for (const build of requireBuilds(project, await projectInfo(project))) {
         const key = `${project.id}\0${build.target}`;
         if (!queues.has(key)) queues.set(key, []);
-        queues.get(key).push(() => buildOne(project, build));
+        queues.get(key).push(() => buildOne(project, build, options.tap));
       }
     }
     const batches = [...queues.values()].map((queue) => async () => {
