@@ -18,6 +18,7 @@ run(process.execPath, [
   'site/test/build-all.test.mjs',
   'site/test/layout.test.mjs',
   'scripts/require-changeset.test.mjs',
+  'scripts/oracle/corpus.test.mjs',
   // Reads the checked-in scripts/vice/*.json and never launches an
   // emulator, so it runs on CI, which has no VICE.
   'scripts/vice-catalog.test.mjs',
