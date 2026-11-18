@@ -1,0 +1,5 @@
+x++;
+--y;
+let a = c ? b : d;
+let s = 'A';
+let t = b ? c : d ? e : f;

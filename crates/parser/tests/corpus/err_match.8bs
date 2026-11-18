@@ -1,0 +1,12 @@
+match 5 { 1 => a() }
+match f(x) { 1 => a() }
+match x + 1 { 1 => a() }
+match x { }
+match x { _ => a(), 1 => b() }
+match x { 1.5 => a() }
+match x { 1 a() }
+match x { 1 => }
+match x { 1 => a(), @ }
+match x
+match x { 1 => a(), 2 => b()
+let z = 1;
