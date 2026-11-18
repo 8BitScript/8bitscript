@@ -137,10 +137,13 @@ fn block_of(map: &mut Map<String, Value>, key: &str) {
     *slot = json!({"type": "BlockStatement", "body": [stmt]});
 }
 
-/// N6: the import source without its source extension, on both sides, and no
-/// `usePath`.
+/// N6: the import source without its source extension, and no `usePath`. The
+/// old tree never has `usePath`, so its quoted path is stripped to meet the
+/// new tree's path form; a node that says `usePath: false` keeps its source.
 fn import_source(map: &mut Map<String, Value>) {
-    map.remove("usePath");
+    if map.remove("usePath") == Some(Value::Bool(false)) {
+        return;
+    }
     let Some(Value::Object(source)) = map.get_mut("source") else {
         return;
     };

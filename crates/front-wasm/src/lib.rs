@@ -6,8 +6,8 @@
 //!
 //! Malformed input is an `{"error": "..."}` reply, never a trap (R6.5).
 
-use lexer::{Options, tokenize};
-use parser::parse;
+use lexer::{Options as LexOptions, tokenize};
+use parser::{Options as ParseOptions, parse};
 use serde_json::{Value, json};
 use syntax::{SourceKind, differences};
 
@@ -59,10 +59,16 @@ fn lex(req: &Request, text: &str) -> lexer::Lexed {
     tokenize(
         text,
         &req.file,
-        &Options {
+        &LexOptions {
             source_kind: Some(req.kind),
         },
     )
+}
+
+fn parse_options(req: &Request) -> ParseOptions {
+    ParseOptions {
+        source_kind: Some(req.kind),
+    }
 }
 
 fn to_value<T: serde::Serialize>(value: &T) -> Result<Value, String> {
@@ -91,7 +97,7 @@ pub fn parse_json(input: &[u8]) -> Vec<u8> {
         let req = request(input)?;
         let text = text_of(&req, "text")?;
         let lexed = lex(&req, text);
-        let parsed = parse(&lexed.tokens, text, &req.file);
+        let parsed = parse(&lexed.tokens, text, &req.file, &parse_options(&req));
         Ok(json!({
             "tokens": to_value(&lexed.tokens)?,
             "ast": to_value(&parsed.ast)?,
@@ -125,7 +131,7 @@ pub fn check_json(input: &[u8]) -> Vec<u8> {
             .filter(|v| v.is_object())
             .ok_or("bad request: `oldAst` must be an object")?;
         let lexed = lex(&req, new_text);
-        let parsed = parse(&lexed.tokens, new_text, &req.file);
+        let parsed = parse(&lexed.tokens, new_text, &req.file, &parse_options(&req));
         let mut found = Vec::new();
         if !lexed.diagnostics.is_empty() || !parsed.diagnostics.is_empty() {
             let mut all = lexed.diagnostics.clone();

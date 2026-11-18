@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict';
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import {
   KEYWORDS, TYPE_NAMES, TokenKind, callFront, check, isOperandToken, normalizeBxText, parse, tokenize,
 } from '../src/front/index.mjs';
 
 const pairs = new URL('../../../crates/front-wasm/tests/pairs/', import.meta.url);
-const stems = readdirSync(pairs).filter((f) => f.endsWith('.old.8bs')).map((f) => f.replace('.old.8bs', '')).sort();
+const stems = readdirSync(pairs).filter((f) => /\.old\.8b[sx]$/.test(f)).map((f) => f.replace(/\.old\.8b[sx]$/, '')).sort();
+const extOf = (stem) => (existsSync(new URL(`${stem}.8bx`, pairs)) ? '.8bx' : '.8bs');
 const read = (name) => readFileSync(new URL(name, pairs), 'utf8');
 
 const byCodeUnit = (a, b) => {
@@ -28,9 +29,11 @@ test('the pair fixtures are present', () => {
 
 test('the wasm AST equals the native AST on every pair', () => {
   for (const stem of stems) {
-    const text = read(`${stem}.8bs`);
-    const { tokens, diagnostics: lexed } = tokenize(text, `${stem}.8bs`);
-    const { ast, diagnostics } = parse(tokens, text, `${stem}.8bs`);
+    const ext = extOf(stem);
+    const options = { sourceKind: ext };
+    const text = read(`${stem}${ext}`);
+    const { tokens, diagnostics: lexed } = tokenize(text, `${stem}${ext}`, options);
+    const { ast, diagnostics } = parse(tokens, text, `${stem}${ext}`, options);
     assert.deepEqual([...lexed, ...diagnostics], [], stem);
     assert.equal(canon(ast), read(`${stem}.ast.json`), stem);
   }
@@ -39,7 +42,8 @@ test('the wasm AST equals the native AST on every pair', () => {
 test('the pair check says equal on every pair, and names a difference when not', () => {
   for (const stem of stems) {
     const oldAst = JSON.parse(read(`${stem}.old.ast.json`));
-    const reply = check({ file: `${stem}.8bs`, oldAst, newText: read(`${stem}.8bs`) });
+    const ext = extOf(stem);
+    const reply = check({ file: `${stem}${ext}`, sourceKind: ext, oldAst, newText: read(`${stem}${ext}`) });
     assert.deepEqual(reply, { equal: true, differences: [] }, stem);
   }
   const oldAst = JSON.parse(read('02-declarations.old.ast.json'));
@@ -107,6 +111,16 @@ test('deep nesting is a diagnostic or an error, not a trap', () => {
 test('the lexer constants keep their shapes', () => {
   assert.ok(KEYWORDS.has('fn') && KEYWORDS.has('struct') && !KEYWORDS.has('function'));
   assert.ok(TYPE_NAMES.has('u8') && TYPE_NAMES.has('volatile'));
+  // The sets are the module's own: every member lexes as that kind, and a
+  // word outside both lexes as an identifier.
+  for (const word of KEYWORDS) {
+    if (word === 'asm6502') continue; // opens an opaque body, not a lone token
+    assert.equal(tokenize(word, 'k.8bs').tokens[0].kind, TokenKind.Keyword, word);
+  }
+  for (const word of TYPE_NAMES) {
+    assert.equal(tokenize(word, 't.8bs').tokens[0].kind, TokenKind.Type, word);
+  }
+  assert.equal(tokenize('function', 'k.8bs').tokens[0].kind, TokenKind.Identifier);
   assert.equal(TokenKind.Macro, 'macro');
   assert.equal(TokenKind.Scope, 'scope');
   assert.equal(isOperandToken({ kind: 'identifier', text: 'a' }), true);
@@ -116,4 +130,11 @@ test('the lexer constants keep their shapes', () => {
   assert.equal(isOperandToken({ kind: 'operator', text: '+' }), false);
   assert.equal(isOperandToken(undefined), false);
   assert.equal(normalizeBxText('  a  \n\n   b \n'), 'a b');
+});
+
+test('a trap drops the instance and the next call runs on a fresh one', () => {
+  const text = 'let x = 1;\n';
+  assert.equal(parse([], text, 'a.8bs').ast.type, 'Program');
+  assert.throws(() => callFront('front_nothing', {}), TypeError);
+  assert.equal(parse([], text, 'b.8bs').ast.type, 'Program');
 });

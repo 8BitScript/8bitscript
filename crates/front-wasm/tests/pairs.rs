@@ -8,9 +8,9 @@ use std::fs;
 use std::path::PathBuf;
 
 use front_wasm::check_json;
-use lexer::{Options, tokenize};
+use lexer::{Options as LexOptions, tokenize};
 use oracle::canonical_json;
-use parser::parse;
+use parser::{Options as ParseOptions, parse};
 use serde_json::{Value, json};
 use syntax::{SourceKind, differences, normalize};
 
@@ -23,7 +23,9 @@ fn names() -> Vec<String> {
         .expect("pairs dir")
         .filter_map(|e| {
             let name = e.ok()?.file_name().into_string().ok()?;
-            let stem = name.strip_suffix(".old.8bs")?;
+            let stem = name
+                .strip_suffix(".old.8bs")
+                .or_else(|| name.strip_suffix(".old.8bx"))?;
             Some(stem.to_string())
         })
         .collect();
@@ -31,17 +33,34 @@ fn names() -> Vec<String> {
     names
 }
 
+/// `.8bx` when the pair is a component file, else `.8bs`.
+fn kind_of(stem: &str) -> SourceKind {
+    if dir().join(format!("{stem}.8bx")).exists() {
+        SourceKind::Bx
+    } else {
+        SourceKind::Bs
+    }
+}
+
+fn ext(stem: &str) -> &'static str {
+    match kind_of(stem) {
+        SourceKind::Bx => ".8bx",
+        _ => ".8bs",
+    }
+}
+
 fn read(name: &str) -> String {
     fs::read_to_string(dir().join(name)).unwrap_or_else(|e| panic!("{name}: {e}"))
 }
 
 fn new_ast(stem: &str) -> Value {
-    let text = read(&format!("{stem}.8bs"));
+    let kind = kind_of(stem);
+    let text = read(&format!("{stem}{}", ext(stem)));
     let lexed = tokenize(
         &text,
         stem,
-        &Options {
-            source_kind: Some(SourceKind::Bs),
+        &LexOptions {
+            source_kind: Some(kind),
         },
     );
     assert!(
@@ -49,7 +68,14 @@ fn new_ast(stem: &str) -> Value {
         "{stem}: {:?}",
         lexed.diagnostics
     );
-    let parsed = parse(&lexed.tokens, &text, stem);
+    let parsed = parse(
+        &lexed.tokens,
+        &text,
+        stem,
+        &ParseOptions {
+            source_kind: Some(kind),
+        },
+    );
     assert!(
         parsed.diagnostics.is_empty(),
         "{stem}: {:?}",
@@ -64,7 +90,7 @@ fn old_ast(stem: &str) -> Value {
 
 #[test]
 fn there_are_pairs() {
-    assert!(names().len() >= 8, "pairs shrank: {:?}", names());
+    assert!(names().len() >= 19, "pairs shrank: {:?}", names());
 }
 
 #[test]
@@ -82,10 +108,10 @@ fn normalized_asts_are_equal_on_every_pair() {
 fn the_bridge_check_agrees_on_every_pair() {
     for stem in names() {
         let request = json!({
-            "file": format!("{stem}.8bs"),
-            "sourceKind": ".8bs",
+            "file": format!("{stem}{}", ext(&stem)),
+            "sourceKind": ext(&stem),
             "oldAst": old_ast(&stem),
-            "newText": read(&format!("{stem}.8bs")),
+            "newText": read(&format!("{stem}{}", ext(&stem))),
         });
         let reply: Value =
             serde_json::from_slice(&check_json(&serde_json::to_vec(&request).unwrap())).unwrap();

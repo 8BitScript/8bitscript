@@ -104,7 +104,15 @@ export function callFront(name, request) {
   const input = api.front_alloc(bytes.length);
   // Memory may have grown during the allocation: take the buffer after it.
   new Uint8Array(api.memory.buffer, input, bytes.length).set(bytes);
-  const packed = api[name](input, bytes.length);
+  let packed;
+  try {
+    packed = api[name](input, bytes.length);
+  } catch (error) {
+    // A trap (or an unknown export) leaves the module's memory in an unknown
+    // state: drop it so the next call starts from a fresh instance.
+    exportsOf = undefined;
+    throw error;
+  }
   api.front_free(input, bytes.length);
   const ptr = Number(packed >> 32n);
   const len = Number(packed & 0xffffffffn);

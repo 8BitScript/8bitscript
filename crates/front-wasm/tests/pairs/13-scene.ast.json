@@ -1,0 +1,1001 @@
+{
+  "body": [
+    {
+      "length": 28,
+      "source": {
+        "length": 17,
+        "start": 668,
+        "type": "StringLiteral",
+        "value": "@8bitscript/text"
+      },
+      "specifiers": [
+        {
+          "length": 4,
+          "name": "text",
+          "start": 687,
+          "type": "Identifier"
+        }
+      ],
+      "start": 664,
+      "type": "ImportDeclaration",
+      "usePath": true
+    },
+    {
+      "length": 34,
+      "source": {
+        "length": 20,
+        "start": 697,
+        "type": "StringLiteral",
+        "value": "@8bitscript/sprites"
+      },
+      "specifiers": [
+        {
+          "length": 7,
+          "name": "sprites",
+          "start": 719,
+          "type": "Identifier"
+        }
+      ],
+      "start": 693,
+      "type": "ImportDeclaration",
+      "usePath": true
+    },
+    {
+      "length": 36,
+      "source": {
+        "length": 21,
+        "start": 732,
+        "type": "StringLiteral",
+        "value": "@8bitscript/timeline"
+      },
+      "specifiers": [
+        {
+          "length": 8,
+          "name": "timeline",
+          "start": 755,
+          "type": "Identifier"
+        }
+      ],
+      "start": 728,
+      "type": "ImportDeclaration",
+      "usePath": true
+    },
+    {
+      "length": 23,
+      "source": {
+        "length": 11,
+        "start": 769,
+        "type": "StringLiteral",
+        "value": "./flock"
+      },
+      "specifiers": [
+        {
+          "length": 5,
+          "name": "flock",
+          "start": 782,
+          "type": "Identifier"
+        }
+      ],
+      "start": 765,
+      "type": "ImportDeclaration",
+      "usePath": true
+    },
+    {
+      "length": 27,
+      "source": {
+        "length": 13,
+        "start": 793,
+        "type": "StringLiteral",
+        "value": "./counter"
+      },
+      "specifiers": [
+        {
+          "length": 7,
+          "name": "counter",
+          "start": 808,
+          "type": "Identifier"
+        }
+      ],
+      "start": 789,
+      "type": "ImportDeclaration",
+      "usePath": true
+    },
+    {
+      "allowsChildren": false,
+      "body": {
+        "body": [
+          {
+            "expression": {
+              "args": [
+                {
+                  "length": 1,
+                  "radix": 10,
+                  "raw": "0",
+                  "start": 858,
+                  "type": "IntegerLiteral",
+                  "value": 0
+                },
+                {
+                  "length": 7,
+                  "start": 861,
+                  "type": "StringLiteral",
+                  "value": "SWARM"
+                }
+              ],
+              "callee": {
+                "length": 11,
+                "object": {
+                  "length": 4,
+                  "name": "text",
+                  "start": 846,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 5,
+                  "name": "print",
+                  "start": 852,
+                  "type": "Identifier"
+                },
+                "start": 846,
+                "type": "MemberExpression"
+              },
+              "length": 23,
+              "start": 846,
+              "type": "CallExpression"
+            },
+            "length": 24,
+            "start": 846,
+            "type": "ExpressionStatement"
+          },
+          {
+            "expression": {
+              "args": [
+                {
+                  "length": 13,
+                  "object": {
+                    "length": 4,
+                    "name": "text",
+                    "start": 887,
+                    "type": "Identifier"
+                  },
+                  "property": {
+                    "length": 7,
+                    "name": "COLUMNS",
+                    "start": 893,
+                    "type": "Identifier"
+                  },
+                  "start": 887,
+                  "type": "MemberExpression"
+                },
+                {
+                  "length": 9,
+                  "start": 902,
+                  "type": "StringLiteral",
+                  "value": "SPRITES"
+                }
+              ],
+              "callee": {
+                "length": 11,
+                "object": {
+                  "length": 4,
+                  "name": "text",
+                  "start": 875,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 5,
+                  "name": "print",
+                  "start": 881,
+                  "type": "Identifier"
+                },
+                "start": 875,
+                "type": "MemberExpression"
+              },
+              "length": 37,
+              "start": 875,
+              "type": "CallExpression"
+            },
+            "length": 38,
+            "start": 875,
+            "type": "ExpressionStatement"
+          },
+          {
+            "expression": {
+              "args": [
+                {
+                  "left": {
+                    "length": 13,
+                    "object": {
+                      "length": 4,
+                      "name": "text",
+                      "start": 936,
+                      "type": "Identifier"
+                    },
+                    "property": {
+                      "length": 7,
+                      "name": "COLUMNS",
+                      "start": 942,
+                      "type": "Identifier"
+                    },
+                    "start": 936,
+                    "type": "MemberExpression"
+                  },
+                  "length": 17,
+                  "operator": "+",
+                  "right": {
+                    "length": 1,
+                    "radix": 10,
+                    "raw": "8",
+                    "start": 952,
+                    "type": "IntegerLiteral",
+                    "value": 8
+                  },
+                  "start": 936,
+                  "type": "BinaryExpression"
+                },
+                {
+                  "args": [],
+                  "callee": {
+                    "length": 11,
+                    "object": {
+                      "length": 5,
+                      "name": "flock",
+                      "start": 955,
+                      "type": "Identifier"
+                    },
+                    "property": {
+                      "length": 4,
+                      "name": "size",
+                      "start": 962,
+                      "type": "Identifier"
+                    },
+                    "start": 955,
+                    "type": "MemberExpression"
+                  },
+                  "length": 13,
+                  "start": 955,
+                  "type": "CallExpression"
+                },
+                {
+                  "length": 1,
+                  "radix": 10,
+                  "raw": "2",
+                  "start": 970,
+                  "type": "IntegerLiteral",
+                  "value": 2
+                }
+              ],
+              "callee": {
+                "length": 17,
+                "object": {
+                  "length": 4,
+                  "name": "text",
+                  "start": 918,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 11,
+                  "name": "printNumber",
+                  "start": 924,
+                  "type": "Identifier"
+                },
+                "start": 918,
+                "type": "MemberExpression"
+              },
+              "length": 54,
+              "start": 918,
+              "type": "CallExpression"
+            },
+            "length": 55,
+            "start": 918,
+            "type": "ExpressionStatement"
+          },
+          {
+            "expression": {
+              "args": [
+                {
+                  "left": {
+                    "length": 13,
+                    "object": {
+                      "length": 4,
+                      "name": "text",
+                      "start": 990,
+                      "type": "Identifier"
+                    },
+                    "property": {
+                      "length": 7,
+                      "name": "COLUMNS",
+                      "start": 996,
+                      "type": "Identifier"
+                    },
+                    "start": 990,
+                    "type": "MemberExpression"
+                  },
+                  "length": 18,
+                  "operator": "+",
+                  "right": {
+                    "length": 2,
+                    "radix": 10,
+                    "raw": "11",
+                    "start": 1006,
+                    "type": "IntegerLiteral",
+                    "value": 11
+                  },
+                  "start": 990,
+                  "type": "BinaryExpression"
+                },
+                {
+                  "length": 7,
+                  "start": 1010,
+                  "type": "StringLiteral",
+                  "value": "FRAME"
+                }
+              ],
+              "callee": {
+                "length": 11,
+                "object": {
+                  "length": 4,
+                  "name": "text",
+                  "start": 978,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 5,
+                  "name": "print",
+                  "start": 984,
+                  "type": "Identifier"
+                },
+                "start": 978,
+                "type": "MemberExpression"
+              },
+              "length": 40,
+              "start": 978,
+              "type": "CallExpression"
+            },
+            "length": 41,
+            "start": 978,
+            "type": "ExpressionStatement"
+          },
+          {
+            "expression": {
+              "args": [
+                {
+                  "left": {
+                    "length": 13,
+                    "object": {
+                      "length": 4,
+                      "name": "text",
+                      "start": 1084,
+                      "type": "Identifier"
+                    },
+                    "property": {
+                      "length": 7,
+                      "name": "COLUMNS",
+                      "start": 1090,
+                      "type": "Identifier"
+                    },
+                    "start": 1084,
+                    "type": "MemberExpression"
+                  },
+                  "length": 18,
+                  "operator": "+",
+                  "right": {
+                    "length": 2,
+                    "radix": 10,
+                    "raw": "17",
+                    "start": 1100,
+                    "type": "IntegerLiteral",
+                    "value": 17
+                  },
+                  "start": 1084,
+                  "type": "BinaryExpression"
+                }
+              ],
+              "callee": {
+                "length": 14,
+                "object": {
+                  "length": 7,
+                  "name": "counter",
+                  "start": 1069,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 5,
+                  "name": "begin",
+                  "start": 1078,
+                  "type": "Identifier"
+                },
+                "start": 1069,
+                "type": "MemberExpression"
+              },
+              "length": 34,
+              "start": 1069,
+              "type": "CallExpression"
+            },
+            "length": 35,
+            "start": 1069,
+            "type": "ExpressionStatement"
+          }
+        ],
+        "length": 266,
+        "start": 840,
+        "type": "BlockStatement"
+      },
+      "exported": true,
+      "length": 288,
+      "name": {
+        "length": 5,
+        "name": "Title",
+        "start": 832,
+        "type": "Identifier"
+      },
+      "params": [],
+      "start": 818,
+      "type": "ComponentDeclaration"
+    },
+    {
+      "allowsChildren": false,
+      "body": {
+        "body": [
+          {
+            "expression": {
+              "args": [],
+              "callee": {
+                "length": 16,
+                "object": {
+                  "length": 7,
+                  "name": "counter",
+                  "start": 1314,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 7,
+                  "name": "advance",
+                  "start": 1323,
+                  "type": "Identifier"
+                },
+                "start": 1314,
+                "type": "MemberExpression"
+              },
+              "length": 18,
+              "start": 1314,
+              "type": "CallExpression"
+            },
+            "length": 19,
+            "start": 1314,
+            "type": "ExpressionStatement"
+          }
+        ],
+        "length": 27,
+        "start": 1308,
+        "type": "BlockStatement"
+      },
+      "exported": true,
+      "length": 51,
+      "name": {
+        "length": 7,
+        "name": "Counter",
+        "start": 1298,
+        "type": "Identifier"
+      },
+      "params": [],
+      "start": 1284,
+      "type": "ComponentDeclaration"
+    },
+    {
+      "allowsChildren": false,
+      "body": {
+        "body": [
+          {
+            "expression": {
+              "args": [],
+              "callee": {
+                "length": 14,
+                "object": {
+                  "length": 5,
+                  "name": "flock",
+                  "start": 1367,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 7,
+                  "name": "release",
+                  "start": 1374,
+                  "type": "Identifier"
+                },
+                "start": 1367,
+                "type": "MemberExpression"
+              },
+              "length": 16,
+              "start": 1367,
+              "type": "CallExpression"
+            },
+            "length": 17,
+            "start": 1367,
+            "type": "ExpressionStatement"
+          }
+        ],
+        "length": 25,
+        "start": 1361,
+        "type": "BlockStatement"
+      },
+      "exported": true,
+      "length": 49,
+      "name": {
+        "length": 7,
+        "name": "Release",
+        "start": 1351,
+        "type": "Identifier"
+      },
+      "params": [],
+      "start": 1337,
+      "type": "ComponentDeclaration"
+    },
+    {
+      "allowsChildren": false,
+      "body": {
+        "body": [
+          {
+            "expression": {
+              "args": [
+                {
+                  "length": 4,
+                  "start": 1431,
+                  "type": "BooleanLiteral",
+                  "value": true
+                }
+              ],
+              "callee": {
+                "length": 15,
+                "object": {
+                  "length": 7,
+                  "name": "sprites",
+                  "start": 1415,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 6,
+                  "name": "extend",
+                  "start": 1424,
+                  "type": "Identifier"
+                },
+                "start": 1415,
+                "type": "MemberExpression"
+              },
+              "length": 21,
+              "start": 1415,
+              "type": "CallExpression"
+            },
+            "length": 22,
+            "start": 1415,
+            "type": "ExpressionStatement"
+          }
+        ],
+        "length": 30,
+        "start": 1409,
+        "type": "BlockStatement"
+      },
+      "exported": true,
+      "length": 51,
+      "name": {
+        "length": 4,
+        "name": "Open",
+        "start": 1402,
+        "type": "Identifier"
+      },
+      "params": [],
+      "start": 1388,
+      "type": "ComponentDeclaration"
+    },
+    {
+      "allowsChildren": false,
+      "body": {
+        "body": [
+          {
+            "expression": {
+              "args": [
+                {
+                  "length": 5,
+                  "start": 1485,
+                  "type": "BooleanLiteral",
+                  "value": false
+                }
+              ],
+              "callee": {
+                "length": 15,
+                "object": {
+                  "length": 7,
+                  "name": "sprites",
+                  "start": 1469,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 6,
+                  "name": "extend",
+                  "start": 1478,
+                  "type": "Identifier"
+                },
+                "start": 1469,
+                "type": "MemberExpression"
+              },
+              "length": 22,
+              "start": 1469,
+              "type": "CallExpression"
+            },
+            "length": 23,
+            "start": 1469,
+            "type": "ExpressionStatement"
+          }
+        ],
+        "length": 31,
+        "start": 1463,
+        "type": "BlockStatement"
+      },
+      "exported": true,
+      "length": 53,
+      "name": {
+        "length": 5,
+        "name": "Close",
+        "start": 1455,
+        "type": "Identifier"
+      },
+      "params": [],
+      "start": 1441,
+      "type": "ComponentDeclaration"
+    },
+    {
+      "allowsChildren": false,
+      "body": {
+        "body": [
+          {
+            "expression": {
+              "args": [],
+              "callee": {
+                "length": 14,
+                "object": {
+                  "length": 5,
+                  "name": "flock",
+                  "start": 1526,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 7,
+                  "name": "recolor",
+                  "start": 1533,
+                  "type": "Identifier"
+                },
+                "start": 1526,
+                "type": "MemberExpression"
+              },
+              "length": 16,
+              "start": 1526,
+              "type": "CallExpression"
+            },
+            "length": 17,
+            "start": 1526,
+            "type": "ExpressionStatement"
+          }
+        ],
+        "length": 25,
+        "start": 1520,
+        "type": "BlockStatement"
+      },
+      "exported": true,
+      "length": 49,
+      "name": {
+        "length": 7,
+        "name": "Recolor",
+        "start": 1510,
+        "type": "Identifier"
+      },
+      "params": [],
+      "start": 1496,
+      "type": "ComponentDeclaration"
+    },
+    {
+      "allowsChildren": false,
+      "body": {
+        "body": [
+          {
+            "argument": {
+              "children": [
+                {
+                  "expression": {
+                    "left": {
+                      "args": [
+                        {
+                          "length": 1,
+                          "radix": 10,
+                          "raw": "1",
+                          "start": 1598,
+                          "type": "IntegerLiteral",
+                          "value": 1
+                        }
+                      ],
+                      "callee": {
+                        "length": 12,
+                        "object": {
+                          "length": 8,
+                          "name": "timeline",
+                          "start": 1585,
+                          "type": "Identifier"
+                        },
+                        "property": {
+                          "length": 2,
+                          "name": "at",
+                          "start": 1595,
+                          "type": "Identifier"
+                        },
+                        "start": 1585,
+                        "type": "MemberExpression"
+                      },
+                      "length": 15,
+                      "start": 1585,
+                      "type": "CallExpression"
+                    },
+                    "length": 28,
+                    "operator": "&&",
+                    "right": {
+                      "attributes": [],
+                      "children": [],
+                      "length": 9,
+                      "name": "Title",
+                      "selfClosing": true,
+                      "start": 1604,
+                      "type": "BxElement"
+                    },
+                    "start": 1585,
+                    "type": "BinaryExpression"
+                  },
+                  "length": 30,
+                  "start": 1584,
+                  "type": "BxExpressionChild"
+                },
+                {
+                  "expression": {
+                    "left": {
+                      "args": [
+                        {
+                          "length": 2,
+                          "radix": 10,
+                          "raw": "60",
+                          "start": 1629,
+                          "type": "IntegerLiteral",
+                          "value": 60
+                        }
+                      ],
+                      "callee": {
+                        "length": 12,
+                        "object": {
+                          "length": 8,
+                          "name": "timeline",
+                          "start": 1616,
+                          "type": "Identifier"
+                        },
+                        "property": {
+                          "length": 2,
+                          "name": "at",
+                          "start": 1626,
+                          "type": "Identifier"
+                        },
+                        "start": 1616,
+                        "type": "MemberExpression"
+                      },
+                      "length": 16,
+                      "start": 1616,
+                      "type": "CallExpression"
+                    },
+                    "length": 31,
+                    "operator": "&&",
+                    "right": {
+                      "attributes": [],
+                      "children": [],
+                      "length": 11,
+                      "name": "Release",
+                      "selfClosing": true,
+                      "start": 1636,
+                      "type": "BxElement"
+                    },
+                    "start": 1616,
+                    "type": "BinaryExpression"
+                  },
+                  "length": 33,
+                  "start": 1615,
+                  "type": "BxExpressionChild"
+                },
+                {
+                  "expression": {
+                    "left": {
+                      "args": [
+                        {
+                          "length": 3,
+                          "radix": 10,
+                          "raw": "180",
+                          "start": 1663,
+                          "type": "IntegerLiteral",
+                          "value": 180
+                        }
+                      ],
+                      "callee": {
+                        "length": 12,
+                        "object": {
+                          "length": 8,
+                          "name": "timeline",
+                          "start": 1650,
+                          "type": "Identifier"
+                        },
+                        "property": {
+                          "length": 2,
+                          "name": "at",
+                          "start": 1660,
+                          "type": "Identifier"
+                        },
+                        "start": 1650,
+                        "type": "MemberExpression"
+                      },
+                      "length": 17,
+                      "start": 1650,
+                      "type": "CallExpression"
+                    },
+                    "length": 29,
+                    "operator": "&&",
+                    "right": {
+                      "attributes": [],
+                      "children": [],
+                      "length": 8,
+                      "name": "Open",
+                      "selfClosing": true,
+                      "start": 1671,
+                      "type": "BxElement"
+                    },
+                    "start": 1650,
+                    "type": "BinaryExpression"
+                  },
+                  "length": 31,
+                  "start": 1649,
+                  "type": "BxExpressionChild"
+                },
+                {
+                  "expression": {
+                    "left": {
+                      "args": [
+                        {
+                          "length": 3,
+                          "radix": 10,
+                          "raw": "420",
+                          "start": 1695,
+                          "type": "IntegerLiteral",
+                          "value": 420
+                        }
+                      ],
+                      "callee": {
+                        "length": 12,
+                        "object": {
+                          "length": 8,
+                          "name": "timeline",
+                          "start": 1682,
+                          "type": "Identifier"
+                        },
+                        "property": {
+                          "length": 2,
+                          "name": "at",
+                          "start": 1692,
+                          "type": "Identifier"
+                        },
+                        "start": 1682,
+                        "type": "MemberExpression"
+                      },
+                      "length": 17,
+                      "start": 1682,
+                      "type": "CallExpression"
+                    },
+                    "length": 30,
+                    "operator": "&&",
+                    "right": {
+                      "attributes": [],
+                      "children": [],
+                      "length": 9,
+                      "name": "Close",
+                      "selfClosing": true,
+                      "start": 1703,
+                      "type": "BxElement"
+                    },
+                    "start": 1682,
+                    "type": "BinaryExpression"
+                  },
+                  "length": 32,
+                  "start": 1681,
+                  "type": "BxExpressionChild"
+                },
+                {
+                  "expression": {
+                    "left": {
+                      "args": [
+                        {
+                          "length": 2,
+                          "radix": 10,
+                          "raw": "32",
+                          "start": 1731,
+                          "type": "IntegerLiteral",
+                          "value": 32
+                        }
+                      ],
+                      "callee": {
+                        "length": 15,
+                        "object": {
+                          "length": 8,
+                          "name": "timeline",
+                          "start": 1715,
+                          "type": "Identifier"
+                        },
+                        "property": {
+                          "length": 5,
+                          "name": "every",
+                          "start": 1725,
+                          "type": "Identifier"
+                        },
+                        "start": 1715,
+                        "type": "MemberExpression"
+                      },
+                      "length": 19,
+                      "start": 1715,
+                      "type": "CallExpression"
+                    },
+                    "length": 34,
+                    "operator": "&&",
+                    "right": {
+                      "attributes": [],
+                      "children": [],
+                      "length": 11,
+                      "name": "Recolor",
+                      "selfClosing": true,
+                      "start": 1738,
+                      "type": "BxElement"
+                    },
+                    "start": 1715,
+                    "type": "BinaryExpression"
+                  },
+                  "length": 36,
+                  "start": 1714,
+                  "type": "BxExpressionChild"
+                },
+                {
+                  "attributes": [],
+                  "children": [],
+                  "length": 11,
+                  "name": "Counter",
+                  "selfClosing": true,
+                  "start": 1751,
+                  "type": "BxElement"
+                }
+              ],
+              "length": 183,
+              "start": 1582,
+              "type": "BxFragment"
+            },
+            "length": 191,
+            "start": 1575,
+            "type": "ReturnStatement"
+          }
+        ],
+        "length": 199,
+        "start": 1569,
+        "type": "BlockStatement"
+      },
+      "exported": true,
+      "length": 221,
+      "name": {
+        "length": 5,
+        "name": "Scene",
+        "start": 1561,
+        "type": "Identifier"
+      },
+      "params": [],
+      "start": 1547,
+      "type": "ComponentDeclaration"
+    }
+  ],
+  "length": 1769,
+  "start": 0,
+  "type": "Program"
+}

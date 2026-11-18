@@ -34,7 +34,7 @@ jobs:
         run: |
           if [ "$EVENT" != "pull_request" ]; then
             echo "run=true" >> "$GITHUB_OUTPUT"
-          elif git diff --name-only "$BASE...$HEAD" | grep -qE '^(crates/|xtask/|Cargo\.toml$|Cargo\.lock$|rust-toolchain|\.cargo/|\.github/workflows/rust\.yml$)'; then
+          elif git diff --name-only "$BASE...$HEAD" | grep -qE '^(crates/|xtask/|Cargo\.toml$|Cargo\.lock$|rust-toolchain|\.cargo/|packages/compiler/src/(lexer|parser)/|\.github/workflows/rust\.yml$)'; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
             echo "run=false" >> "$GITHUB_OUTPUT"
@@ -95,7 +95,7 @@ jobs:
         run: |
           if [ "$EVENT" != "pull_request" ]; then
             echo "run=true" >> "$GITHUB_OUTPUT"
-          elif git diff --name-only "$BASE...$HEAD" | grep -qE '^(crates/|xtask/|Cargo\.toml$|Cargo\.lock$|rust-toolchain|packages/compiler/wasm/|\.github/workflows/rust\.yml$)'; then
+          elif git diff --name-only "$BASE...$HEAD" | grep -qE '^(crates/|xtask/|Cargo\.toml$|Cargo\.lock$|rust-toolchain|packages/compiler/wasm/|packages/compiler/src/(lexer|parser)/|\.github/workflows/rust\.yml$)'; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
             echo "run=false" >> "$GITHUB_OUTPUT"

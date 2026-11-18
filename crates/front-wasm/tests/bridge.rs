@@ -90,11 +90,14 @@ fn check_lists_at_most_twenty_differences() {
         check_json,
         &json!({
             "oldAst": {"type": "Program", "body": old_body},
-            "newText": "",
+            "newText": "continue;".repeat(30),
         }),
     );
     assert_eq!(reply["equal"], json!(false));
-    assert!(reply["differences"].as_array().unwrap().len() <= MAX_DIFFERENCES);
+    assert_eq!(
+        reply["differences"].as_array().unwrap().len(),
+        MAX_DIFFERENCES
+    );
 }
 
 #[test]
