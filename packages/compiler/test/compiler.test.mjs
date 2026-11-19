@@ -47,6 +47,14 @@ test('numeric literal spellings', () => {
   clean('let d: u8 = 0b11111111;');
 });
 
+test('a % is only the modulo operator now: %11111111 is no binary literal', () => {
+  // The old `%11111111` binary spelling is gone (use 0b...). It lexes as the
+  // operator `%` then the number 11111111, and the parser rejects the leading `%`.
+  const toks = tokenize('let e: u8 = %11111111;', 't').tokens.map((t) => t.text);
+  assert.deepEqual(toks.slice(4, 7), ['=', '%', '11111111']);
+  assert.ok(codes('let e: u8 = %11111111;').length > 0, 'not accepted as a number');
+});
+
 test('shipped bug: modulo is not a binary literal', () => {
   parsesClean('fn f() { let y: u8 = x%2; }');
   parsesClean('fn f() { let y: u8 = a%b; }');
@@ -90,8 +98,8 @@ test('shipped bug: no token may carry NaN', () => {
 });
 
 test('shipped bug: operators lex by maximal munch, not greed', () => {
-  parsesClean('fn f() {\n    x = -1;\n}');
-  parsesClean('fn f() {\n    let y: bool = a < -1;\n}');
+  parsesClean('fn f() {\n    x=-1;\n}');
+  parsesClean('fn f() {\n    let y: bool = a<-1;\n}');
   parsesClean('fn f() {\n    x <<= 1;\n}');
 });
 
@@ -104,7 +112,7 @@ test('shipped bug: asm6502 bodies are opaque', () => {
   assert.deepEqual(frontEndCodes('asm6502 {\n lda #$06\n'), ['8BS1007']);
 });
 
-test('unterminated constructs each have one code', () => {
+test('unterminated constructs report their own code; an unclosed string or block also gets the 8BS1101 follow-on from the parser (intended)', () => {
   assert.deepEqual(frontEndCodes('let s = "abc;'), ['8BS1002', '8BS1101']);
   assert.deepEqual(frontEndCodes('/* never closed'), ['8BS1006']);
   assert.deepEqual(frontEndCodes('fn f() {'), ['8BS1005', '8BS1101']);
@@ -208,7 +216,7 @@ test('a construct the compiler cannot lower yet is reported by analyze(), not sa
   assert.deepEqual(codes('let x: u8 = 200 + 100;'), ['8BS3001']);
   // Arrays, locals, and for loops lower now (arrays.test.mjs,
   // locals.test.mjs); a pointer still does not.
-  clean('let a: array<u8, 16>;');
+  clean('let a: [u8; 16];');
   clean('fn f() {\n    let local: u8 = 1;\n}');
   clean('pub fn main() {\n    for (; ; ) {\n        break;\n    }\n}');
 });

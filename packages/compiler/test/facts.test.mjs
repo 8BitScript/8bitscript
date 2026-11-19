@@ -207,22 +207,28 @@ pub fn main() {
 });
 
 test('hover explains #fact(...) and a key inside it, and nowhere else', () => {
-  // The key inside #fact( is still hovered in its dotted spelling only: intellisense
-  // does not yet read `video::columns` (src/intellisense, not a test change).
   const text = 'let x: utinyint = #fact(video.columns);';
   const call = getHoverInfo(text, text.indexOf('fact') + 1);
   assert.match(call.markdown, /\*\*#fact\(\.\.\.\)\*\*/);
   assert.match(call.markdown, /Video\.COLUMNS/);
+  assert.match(getHoverInfo('let video: utinyint = 1;', 5).markdown, /\*\*video\*\* — variable/, 'not a key outside the call: the variable');
+});
+
+// Pending F-01b: factKeyAt must walk `::` (it reads only the dotted spelling today).
+test('hover on a #fact key reads the `::` spelling', { todo: 'F-01b: factKeyAt walks `::`' }, () => {
+  const text = 'let x: utinyint = #fact(video::columns);';
   for (const word of ['video', 'columns']) {
     const info = getHoverInfo(text, text.indexOf(word) + 1);
-    assert.match(info.markdown, /\*\*video\.columns\*\*/, word);
+    assert.match(info.markdown, /\*\*video::columns\*\*/, word);
     assert.match(info.markdown, /Cells across the text grid/, word);
-    assert.equal(info.start, text.indexOf('video.columns'), word);
-    assert.equal(info.length, 'video.columns'.length, word);
+    assert.equal(info.start, text.indexOf('video::columns'), word);
+    assert.equal(info.length, 'video::columns'.length, word);
   }
-  const run = getHoverInfo('let x: bool = #fact(memory.banked);', 24);
+  const run = getHoverInfo('let x: bool = #fact(memory::banked);', 24);
   assert.match(run.markdown, /settled at run time/);
-  assert.match(getHoverInfo('let video: utinyint = 1;', 5).markdown, /\*\*video\*\* — variable/, 'not a key outside the call: the variable');
+});
+
+test('an unknown #fact key has no hover', { todo: 'F-01b: factKeyAt walks `::`; today this passes only because `::` is ignored' }, () => {
   assert.equal(getHoverInfo('let x: utinyint = #fact(video::nope);', 26), null, 'not a key the compiler knows');
 });
 

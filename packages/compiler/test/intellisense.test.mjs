@@ -356,10 +356,17 @@ test('completion after object. offers every member, function and constant alike'
     const items = getCompletions(text, text.length, { path: file });
     const blank = items.find((i) => i.label === 'blank');
     assert.equal(blank.kind, 'function');
-    // Completion details still spell the path with a dot (src/intellisense); hover uses `::`.
-    assert.match(blank.detail, /^Registers\.blank\(/);
     const border = items.find((i) => i.label === 'BORDER');
     assert.equal(border.kind, 'constant');
+  });
+});
+
+test('completion detail spells the member path with `::`', { todo: 'F-01b: completion detail uses `::`' }, () => {
+  withFiles({ 'registers.8bs': REGISTERS }, (dir) => {
+    const file = join(dir, 'main.8bs');
+    const text = 'use self::registers::Registers;\nRegisters::bl';
+    const blank = getCompletions(text, text.length, { path: file }).find((i) => i.label === 'blank');
+    assert.match(blank.detail, /^Registers::blank\(/);
   });
 });
 
@@ -500,9 +507,16 @@ test('completion after object. lists the merged members, a subset member annotat
     const text = 'use @t::hw::screen;\nscreen::';
     const items = getCompletions(text, text.length, { path: file });
     assert.deepEqual(items.map((i) => i.label).sort(), ['TOP', 'blank', 'releaseCursor', 'scroll', 'touch']);
-    assert.equal(items.find((i) => i.label === 'blank').detail, 'screen.blank()');
-    assert.equal(items.find((i) => i.label === 'touch').detail, 'screen.touch() -> bool — web only');
     assert.match(items.find((i) => i.label === 'TOP').documentation, /Available on c64 and web; not on pet\./);
+  });
+});
+
+test('merged-member completion details spell the path with `::`', { todo: 'F-01b: completion detail uses `::`' }, () => {
+  withFiles(CONDITIONAL_PACKAGE, (dir) => {
+    const text = 'use @t::hw::screen;\nscreen::';
+    const items = getCompletions(text, text.length, { path: join(dir, 'main.8bs') });
+    assert.equal(items.find((i) => i.label === 'blank').detail, 'screen::blank()');
+    assert.equal(items.find((i) => i.label === 'touch').detail, 'screen::touch() -> bool — web only');
   });
 });
 

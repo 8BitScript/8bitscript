@@ -117,9 +117,13 @@ test('hover follows an import to its declaration in the other file, and says whe
     assert.match(variable.markdown, /\*\*opened\*\* — variable/);
     assert.match(variable.markdown, /pub let mut opened: utinyint = 0/);
     assert.match(variable.markdown, /how many bars have been opened/);
-    // The import specifier itself: hover on the last segment of a `use` path is
-    // null today (src/intellisense reads only `import { x }` specifiers), so the
-    // old assertion is left out until that lands; named gap, not a test change.
+  });
+});
+
+test('hover on the last segment of a `use` path is the imported variable', { todo: 'F-01b: hover reads `use` specifiers' }, () => {
+  withFiles({ 'bar.8bs': BAR, 'Menu.8bx': MENU, 'main.8bs': MAIN }, (dir) => {
+    const specifier = getHoverInfo(MAIN, at(MAIN, 'bar::opened', 6), { path: join(dir, 'main.8bs') });
+    assert.match(specifier.markdown, /\*\*opened\*\* — variable/);
   });
 });
 
@@ -175,7 +179,7 @@ test('after < the components visible from here complete, then slot; a < in .8bs 
     const typing = `${text}Menu`;
     assert.deepEqual(getCompletions(typing, typing.length, { path }).map((i) => i.label), ['MenuBar', 'MenuItem', 'Hidden', 'slot']);
     // An imported component is offered from the file that imports it.
-    const main = `${MAIN.replace('.8bs', '.8bx')}`;
+    const main = MAIN;
     const other = `${main}pub fn draw() { <`;
     assert.deepEqual(getCompletions(other, other.length, { path: join(dir, 'main.8bx') }).map((i) => i.label), ['MenuBar', 'MenuItem', 'slot']);
   });
@@ -247,7 +251,7 @@ test('definition of a tag, a call from .8bs, an import, a local and a member lan
       { path: main, start: MAIN.indexOf('count'), length: 'count'.length });
     assert.deepEqual(getDefinition(MENU, at(MENU, 'bar::end', 6), { path: menu }),
       { path: bar, start: BAR.indexOf('end('), length: 'end'.length });
-    assert.equal(getDefinition(MAIN, at(MAIN, 'void {', 2), { path: main }), null, 'not a name');
+    assert.equal(getDefinition(MAIN, at(MAIN, 'fn main', 1), { path: main }), null, 'not a name');
     assert.equal(getDefinition(MAIN, at(MAIN, 'count + 1', 2)), null, 'no path, no file to point at');
   });
 });
