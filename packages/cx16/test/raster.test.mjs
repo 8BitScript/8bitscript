@@ -40,11 +40,17 @@ test('the probe links clean for the X16, and the list, its plan and the handler 
 });
 
 test('the three capability constants fold to what the driver accepts', () => {
-  const src = `import { raster } from "../src/rasterline.8bs";
-export function main(): void {
-    if (raster.COLORS) { raster.clear(); }
-    if (raster.FINE_SCROLL) { raster.clear(); }
-    if (raster.CHARSET) { raster.clear(); }
+  const src = `use super::src::rasterline::raster;
+pub fn main() {
+    if raster::COLORS {
+        raster::clear();
+    }
+    if raster::FINE_SCROLL {
+        raster::clear();
+    }
+    if raster::CHARSET {
+        raster::clear();
+    }
     return;
 }
 `;

@@ -86,30 +86,30 @@ const DIAGONAL = [1, 2, 4, 8, 16, 32, 64, 128];
 const SOLID = new Array(8).fill(255);
 
 const CHARSET_PROGRAM = [
-  'import { charset } from "@8bitscript/web/charset";',
-  'import { text } from "@8bitscript/text";',
+  'use @8bitscript::web::charset::charset;',
+  'use @8bitscript::text::text;',
   '',
-  'export function main(): void {',
-  '    charset.define(176, 0x3c, 0x42, 0x81, 0x81, 0x81, 0x81, 0x42, 0x3c);',
-  '    charset.define(255, 1, 2, 4, 8, 16, 32, 64, 128);',
-  '    charset.define(175, 255, 255, 255, 255, 255, 255, 255, 255);', // below the table
-  '    charset.define(144, 255, 255, 255, 255, 255, 255, 255, 255);', // the font\'s corner mask
-  '    charset.setRow(200, 8, 255);', // a ninth row: refused
-  '    text.putChar(0, 176);',
-  '    text.putColor(0, 5);',
-  '    text.putChar(1, 255);',
-  '    text.putColor(1, 2);',
-  '    text.putChar(2, 177);', // in range, never defined: blank
-  '    text.putColor(2, 1);',
-  '    text.putChar(3, 144);', // the corner mask, untouched
-  '    text.putColor(3, 1);',
-  '    text.putChar(4, 175);', // below the table: nothing
-  '    text.putColor(4, 1);',
-  '    text.putChar(5, 200);', // the refused ninth row defined nothing
-  '    text.putColor(5, 1);',
-  '    let row: usmallint = text.columns();',
-  '    text.print(row, "AB");', // the program\'s data, above the table, still its own
-  '    while (true) {',
+  'pub fn main() {',
+  '    charset::define(176, 0x3c, 0x42, 0x81, 0x81, 0x81, 0x81, 0x42, 0x3c);',
+  '    charset::define(255, 1, 2, 4, 8, 16, 32, 64, 128);',
+  '    charset::define(175, 255, 255, 255, 255, 255, 255, 255, 255);', // below the table
+  '    charset::define(144, 255, 255, 255, 255, 255, 255, 255, 255);', // the font\'s corner mask
+  '    charset::setRow(200, 8, 255);', // a ninth row: refused
+  '    text::putChar(0, 176);',
+  '    text::putColor(0, 5);',
+  '    text::putChar(1, 255);',
+  '    text::putColor(1, 2);',
+  '    text::putChar(2, 177);', // in range, never defined: blank
+  '    text::putColor(2, 1);',
+  '    text::putChar(3, 144);', // the corner mask, untouched
+  '    text::putColor(3, 1);',
+  '    text::putChar(4, 175);', // below the table: nothing
+  '    text::putColor(4, 1);',
+  '    text::putChar(5, 200);', // the refused ninth row defined nothing
+  '    text::putColor(5, 1);',
+  '    let row: usmallint = text::columns();',
+  '    text::print(row, "AB");', // the program\'s data, above the table, still its own
+  '    loop {',
   '        waitFrame();',
   '    }',
   '}',
@@ -203,38 +203,37 @@ const ART = [
 // alternate set is on over picture lines 56-103 (cell rows 7-12) — where big
 // and spin are.
 const ART_PROGRAM = [
-  'import { graphics } from "@8bitscript/graphics";',
-  'import { raster, Slot } from "@8bitscript/raster";',
-  'import { sprites } from "@8bitscript/sprites";',
-  'import { stairs, flag, diamond, checker, big, spin, hold } from "./art.8bg";',
+  'use @8bitscript::graphics::graphics;',
+  'use @8bitscript::raster::{raster, Slot};',
+  'use @8bitscript::sprites::sprites;',
+  'use self::art::{stairs, flag, diamond, checker, big, spin, hold};',
   '',
-  'export function main(): void {',
-  '    graphics.place(stairs, 0, 0);',
-  '    graphics.place(flag, sprites.right(), sprites.bottom());',
-  '    graphics.place(diamond, 40, 24);',
-  '    graphics.color(diamond, 2);',
-  '    graphics.place(checker, 80, 24);',
-  '    graphics.place(big, 96, 64);',
-  '    graphics.place(spin, 200, 80);',
-  '    graphics.place(hold, 200, 104);',
-  '    graphics.setFrame(hold, 3);',
-  '    graphics.animate(hold, false);',
-  '    graphics.update();',
+  'pub fn main() {',
+  '    graphics::place(stairs, 0, 0);',
+  '    graphics::place(flag, sprites::right(), sprites::bottom());',
+  '    graphics::place(diamond, 40, 24);',
+  '    graphics::color(diamond, 2);',
+  '    graphics::place(checker, 80, 24);',
+  '    graphics::place(big, 96, 64);',
+  '    graphics::place(spin, 200, 80);',
+  '    graphics::place(hold, 200, 104);',
+  '    graphics::setFrame(hold, 3);',
+  '    graphics::animate(hold, false);',
+  '    graphics::update();',
   '    waitFrame();',
-  '    graphics.hide(checker);',
-  '    graphics.place(big, 112, 64);',
-  '    raster.clear();',
-  '    if (raster.CHARSET) {',
-  '        raster.at(56, Slot.CHARSET, 1);',
-  '        raster.at(104, Slot.CHARSET, 0);',
+  '    graphics::hide(checker);',
+  '    graphics::place(big, 112, 64);',
+  '    raster::clear();',
+  '    if raster::CHARSET {',
+  '        raster::at(56, Slot::CHARSET, 1);',
+  '        raster::at(104, Slot::CHARSET, 0);',
   '    }',
-  '    raster.enable();',
-  '    while (true) {',
+  '    raster::enable();',
+  '    loop {',
   '        waitFrame();',
-  '        graphics.update();',
+  '        graphics::update();',
   '    }',
   '}',
-  '',
 ].join('\n');
 
 async function buildArt(machine) {
@@ -300,34 +299,33 @@ for (const machine of [undefined, 'pet-2001']) {
 // picture one row below the grid draws nothing and writes nothing (not onto
 // the raster list or the glyph table above it, not onto another picture).
 const EDGES_PROGRAM = [
-  'import { graphics } from "@8bitscript/graphics";',
-  'import { sprites } from "@8bitscript/sprites";',
-  'import { stairs, diamond, spin } from "./art.8bg";',
+  'use @8bitscript::graphics::graphics;',
+  'use @8bitscript::sprites::sprites;',
+  'use self::art::{stairs, diamond, spin};',
   '',
-  'export function main(): void {',
-  '    graphics.color(stairs, 3);',
-  '    graphics.place(stairs, 16, 0);',
-  '    graphics.update();',
+  'pub fn main() {',
+  '    graphics::color(stairs, 3);',
+  '    graphics::place(stairs, 16, 0);',
+  '    graphics::update();',
   '    waitFrame();',
-  '    graphics.hide(stairs);',
-  '    graphics.update();',
+  '    graphics::hide(stairs);',
+  '    graphics::update();',
   '    waitFrame();',
-  '    graphics.place(stairs, 16, 8);',
-  '    graphics.place(diamond, 0, sprites.bottom() + 8);',
-  '    graphics.setFrame(spin, 200);',
-  '    graphics.animate(spin, false);',
-  '    graphics.place(spin, 64, 32);',
-  '    let n: utinyint = 0;',
-  '    while (true) {',
+  '    graphics::place(stairs, 16, 8);',
+  '    graphics::place(diamond, 0, sprites::bottom() + 8);',
+  '    graphics::setFrame(spin, 200);',
+  '    graphics::animate(spin, false);',
+  '    graphics::place(spin, 64, 32);',
+  '    let mut n: utinyint = 0;',
+  '    loop {',
   '        waitFrame();',
   '        n = n + 1;',
-  '        if (n == 4) {',
-  '            graphics.animate(spin, true);',
+  '        if n == 4 {',
+  '            graphics::animate(spin, true);',
   '        }',
-  '        graphics.update();',
+  '        graphics::update();',
   '    }',
   '}',
-  '',
 ].join('\n');
 
 for (const machine of [undefined, 'pet-2001']) {

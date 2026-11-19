@@ -64,22 +64,22 @@ function fixtures(dir) {
 function timeline(dir, calls, { body = '', name = 'main' } = {}) {
   fixtures(dir);
   const file = join(dir, `${name}.8bs`);
-  writeFileSync(file, `import { screen } from "@8bitscript/screen";
-import { text } from "@8bitscript/text";
-import { graphics } from "@8bitscript/graphics";
-import { ring } from "./ring.8bg";
-import { walk } from "./walk.8bg";
-import { blink } from "./blink.8bg";
+  writeFileSync(file, `use @8bitscript::screen::screen;
+use @8bitscript::text::text;
+use @8bitscript::graphics::graphics;
+use self::ring::ring;
+use self::walk::walk;
+use self::blink::blink;
 
-export function main(): void {
-    screen.blank();
-${body}
-    let t: usmallint = 0;
-    while (true) {
+pub fn main() {
+    screen::blank();
+    ${body};
+    let mut t: usmallint = 0;
+    loop {
         waitFrame();
-        graphics.update();
+        graphics::update();
         t = t + 1;
-${calls}
+        ${calls};
     }
 }
 `);
@@ -186,20 +186,20 @@ test('under xpet, an object that does not fit the screen is not drawn, and does 
   try {
     fixtures(scratch);
     const file = join(scratch, 'main.8bs');
-    writeFileSync(file, `import { screen } from "@8bitscript/screen";
-import { graphics } from "@8bitscript/graphics";
-import { ring } from "./ring.8bg";
-import { walk } from "./walk.8bg";
-import { blink } from "./blink.8bg";
+    writeFileSync(file, `use @8bitscript::screen::screen;
+use @8bitscript::graphics::graphics;
+use self::ring::ring;
+use self::walk::walk;
+use self::blink::blink;
 
-export function main(): void {
-    screen.blank();
-    graphics.place(ring, 312, 16);
-    graphics.place(walk, 16, 200);
-    graphics.place(blink, 400, 40);
-    while (true) {
+pub fn main() {
+    screen::blank();
+    graphics::place(ring, 312, 16);
+    graphics::place(walk, 16, 200);
+    graphics::place(blink, 400, 40);
+    loop {
         waitFrame();
-        graphics.update();
+        graphics::update();
     }
 }
 `);

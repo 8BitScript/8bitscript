@@ -271,8 +271,8 @@ test('the icon theme covers the rest of a project, not only the four pillars', (
       assert.ok(read(section.fileExtensions[supporting]).includes(accent), `.${supporting} does not carry the .${pillar} accent ${accent}`);
     }
   }
-  assert.equal(defs.fileNames['8bitscript.config.8bs'], '_8bs_dark', 'a project config wears the language own 8');
-  assert.equal(defs.light.fileNames['8bitscript.config.8bs'], '_8bs_light');
+  assert.equal(defs.fileNames['8bitscript.config.ts'], '_8bs_dark', 'a project config wears the language own 8');
+  assert.equal(defs.light.fileNames['8bitscript.config.ts'], '_8bs_light');
   // The old names still load, and still keep the icon rather than falling
   // back to a bare file icon for a project that has not renamed yet.
   assert.equal(defs.fileNames['8bitscript.config.ts'], '_8bs_dark');
@@ -366,17 +366,21 @@ async function loadBx() {
 
 const SAMPLE = `component Player(name: string) {
     state health: utinyint = 100;
-    let a: array<utinyint, 4>;
-    if (health < 50 && a[0] << 2 > 3) { damage(1); }
+    let a: [utinyint; 4];
+    if health < 50 && a[0] << 2 > 3 {
+        damage(1);
+    }
 }
-export function draw(): void {
+pub fn draw() {
     <MenuBar row={0} width={40} wide>
         <MenuItem label="FILE" />
-        {open && <MenuItem label={"EDIT"} />}
+        {open && <MenuItem label="EDIT" />}
         <Text>Hello World!</Text>
     </MenuBar>;
-    <Box>{c ? <A /> : <B />}</Box>;
-    return (<>{on ? <A /> : <slot />}</>);
+    <Box>
+        {if c { <A /> } else { <B /> }}
+    </Box>;
+    return <>{if on { <A /> } else { <slot /> }}</>;
 }
 `;
 

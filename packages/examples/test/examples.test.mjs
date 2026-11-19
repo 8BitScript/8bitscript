@@ -21,7 +21,7 @@ const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
 const cli = JSON.parse(readFileSync(join(ROOT, '..', 'cli', 'package.json'), 'utf8'));
 const examples = pkg['8bitscript'].examples;
 
-// 8bitscript.config.8bs is the current name; 8bitscript.config.ts and
+// 8bitscript.config.ts is the current name; 8bitscript.config.ts and
 // 8bs.config.ts are older ones still loaded for a few more releases — the
 // same precedence the CLI's own loader uses (packages/cli/src/config.mjs)
 // — an example may be written any of the three ways.

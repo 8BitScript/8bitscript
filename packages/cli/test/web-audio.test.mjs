@@ -237,19 +237,19 @@ test('a host with no region, or a browser with no AudioContext, does nothing and
 
 // ---- 4. a real program ------------------------------------------------------
 
-const PROGRAM = `import { audio } from "@8bitscript/audio";
-import { text } from "@8bitscript/text";
+const PROGRAM = `use @8bitscript::audio::audio;
+use @8bitscript::text::text;
 
-export function main(): void {
-    text.print(0, "TONE");
-    audio.tone(57, 30);
-    let n: utinyint = 0;
-    while (true) {
+pub fn main() {
+    text::print(0, "TONE");
+    audio::tone(57, 30);
+    let mut n: utinyint = 0;
+    loop {
         waitFrame();
-        audio.update();
+        audio::update();
         n = n + 1;
-        if (n == 60) {
-            audio.tone(69, 20);
+        if n == 60 {
+            audio::tone(69, 20);
         }
     }
 }
@@ -326,26 +326,26 @@ for (const machine of [undefined, 'pet-2001']) {
 
 // ---- 5. levels and plucked tones ----------------------------------------------
 
-const LEVEL_PROGRAM = `import { audio } from "@8bitscript/audio";
-import { text } from "@8bitscript/text";
+const LEVEL_PROGRAM = `use @8bitscript::audio::audio;
+use @8bitscript::text::text;
 
-export function main(): void {
-    text.print(0, "LEVEL");
-    audio.setLevel(6);
-    audio.blip(57, 6);
-    let n: utinyint = 0;
-    while (true) {
+pub fn main() {
+    text::print(0, "LEVEL");
+    audio::setLevel(6);
+    audio::blip(57, 6);
+    let mut n: utinyint = 0;
+    loop {
         waitFrame();
-        audio.update();
+        audio::update();
         n = n + 1;
-        if (n == 40) {
-            audio.setLevel(15);
-            audio.tone(57, 5);
+        if n == 40 {
+            audio::setLevel(15);
+            audio::tone(57, 5);
         }
-        if (n == 80) {
-            audio.setLevel(0);
-            audio.tone(57, 5);
-            audio.blip(69, 3);
+        if n == 80 {
+            audio::setLevel(0);
+            audio::tone(57, 5);
+            audio::blip(69, 3);
         }
     }
 }
@@ -432,19 +432,19 @@ const ZAP_WAV = (() => {
 })();
 
 // A program that calls `setup` once and `at(n)` before frame n's update, for n = 1, 2, ....
-const songProgram = (setup, steps = {}, imports = 'tick, win, loopy, once, zap') => `import { ${imports} } from "./songs.8ba";
-import { audio } from "@8bitscript/audio";
-import { text } from "@8bitscript/text";
+const songProgram = (setup, steps = {}, imports = 'tick, win, loopy, once, zap') => `use self::songs::${imports};
+use @8bitscript::audio::audio;
+use @8bitscript::text::text;
 
-export function main(): void {
-    text.print(0, "SONGS");
-${setup.split('\n').map((line) => `    ${line}`).join('\n')}
-    let n: usmallint = 0;
-    while (true) {
+pub fn main() {
+    text::print(0, "SONGS");
+    ${setup.split('\n').map((line) => `    ${line}`).join('\n')};
+    let mut n: usmallint = 0;
+    loop {
         waitFrame();
-        audio.update();
+        audio::update();
         n = n + 1;
-${Object.entries(steps).map(([at, code]) => `        if (n == ${at}) {\n            ${code}\n        }`).join('\n')}
+        ${Object.entries(steps).map(([at, code]) => `        if (n == ${at}) {\n            ${code}\n        }`).join('\n')};
     }
 }
 `;
@@ -525,19 +525,19 @@ test('a sample plays its synth fallback for eight frames, and two .8ba files get
   assert.ok(runs.length >= 2 && near(runs[1].hz, 'C4'), 'then the song, from its first note');
   // Two files, each with a song at its own slot 0: both are heard, neither overwrites the other.
   const second = `song second { speed 2 loop false pattern p length 2 { track t { row 0 { note E4; } } } }\n`;
-  const program = `import { win } from "./songs.8ba";
-import { second } from "./more.8ba";
-import { audio } from "@8bitscript/audio";
+  const program = `use self::songs::win;
+use self::more::second;
+use @8bitscript::audio::audio;
 
-export function main(): void {
-    audio.play(win);
-    let n: utinyint = 0;
-    while (true) {
+pub fn main() {
+    audio::play(win);
+    let mut n: utinyint = 0;
+    loop {
         waitFrame();
-        audio.update();
+        audio::update();
         n = n + 1;
-        if (n == 30) {
-            audio.play(second);
+        if n == 30 {
+            audio::play(second);
         }
     }
 }

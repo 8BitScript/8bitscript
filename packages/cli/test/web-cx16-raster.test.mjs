@@ -116,10 +116,10 @@ test("the X16 raster twin's offsets are the ones the page reads and writes for t
   for (const target of ['c64', 'vic20', 'pet']) assert.equal(layoutForRealMachine(target, { facts: {} }).frameOffset, -1, `${target} has no frame byte`);
 });
 
-/** The names `export namespace <name> { ... }` declares: its functions and consts. */
+/** The names `pub mod <name> { ... }` declares: its functions and consts. */
 function namespaceNames(text, name) {
-  const start = text.indexOf(`export namespace ${name} {`);
-  assert.notEqual(start, -1, `export namespace ${name}`);
+  const start = text.indexOf(`pub mod ${name} {`);
+  assert.notEqual(start, -1, `pub mod ${name}`);
   let depth = 0;
   let end = start;
   for (let i = text.indexOf('{', start); i < text.length; i += 1) {
@@ -128,8 +128,8 @@ function namespaceNames(text, name) {
   }
   const body = text.slice(start, end);
   return {
-    functions: new Set([...body.matchAll(/^\s{4}function (\w+)\(/gm)].map((m) => m[1])),
-    consts: new Set([...body.matchAll(/^\s{4}const (\w+):/gm)].map((m) => m[1])),
+    functions: new Set([...body.matchAll(/^\s{4}(?:pub )?fn (\w+)\(/gm)].map((m) => m[1])),
+    consts: new Set([...body.matchAll(/^\s{4}(?:pub )?const (\w+):/gm)].map((m) => m[1])),
   };
 }
 
@@ -166,34 +166,33 @@ const printed = (mem, cell) => (mem[layout.charBase + cell] - 48) * 10 + (mem[la
 // ---- the portable raster list --------------------------------------------------------
 
 const RASTER_PROGRAM = [
-  'import { screen, BorderColor, BackgroundColor } from "@8bitscript/screen";',
-  'import { text, TextColor } from "@8bitscript/text";',
-  'import { raster, Slot } from "@8bitscript/raster";',
+  'use @8bitscript::screen::{screen, BorderColor, BackgroundColor};',
+  'use @8bitscript::text::{text, TextColor};',
+  'use @8bitscript::raster::{raster, Slot};',
   '',
-  'export function main(): void {',
-  '    screen.blank(BorderColor.GREEN, BackgroundColor.BLACK);',
-  '    text.setColor(TextColor.WHITE);',
-  '    let width: usmallint = text.COLUMNS;',
-  '    text.print(width * 10, "scroll");',
-  '    text.print(width * 11, "scroll");',
-  '    text.print(width * 14, "abc");',
-  '    text.print(width * 15, "abc");',
-  '    text.print(width * 16, "abc");',
-  '    raster.clear();',
-  '    raster.at(40, Slot.BORDER, BorderColor.RED);',
-  '    raster.at(40, Slot.BACKGROUND, BackgroundColor.BLUE);',
-  '    raster.at(80, Slot.SCROLL_X, 3);',
-  '    raster.at(100, Slot.SCROLL_X, 0);',
-  '    raster.at(120, Slot.CHARSET, 1);',
-  '    raster.at(140, Slot.CHARSET, 0);',
-  '    raster.at(160, Slot.BORDER, BorderColor.GREEN);',
-  '    raster.at(160, Slot.BACKGROUND, BackgroundColor.BLACK);',
-  '    raster.enable();',
-  '    while (true) {',
+  'pub fn main() {',
+  '    screen::blank(BorderColor::GREEN, BackgroundColor::BLACK);',
+  '    text::setColor(TextColor::WHITE);',
+  '    let width: usmallint = text::COLUMNS;',
+  '    text::print(width * 10, "scroll");',
+  '    text::print(width * 11, "scroll");',
+  '    text::print(width * 14, "abc");',
+  '    text::print(width * 15, "abc");',
+  '    text::print(width * 16, "abc");',
+  '    raster::clear();',
+  '    raster::at(40, Slot::BORDER, BorderColor::RED);',
+  '    raster::at(40, Slot::BACKGROUND, BackgroundColor::BLUE);',
+  '    raster::at(80, Slot::SCROLL_X, 3);',
+  '    raster::at(100, Slot::SCROLL_X, 0);',
+  '    raster::at(120, Slot::CHARSET, 1);',
+  '    raster::at(140, Slot::CHARSET, 0);',
+  '    raster::at(160, Slot::BORDER, BorderColor::GREEN);',
+  '    raster::at(160, Slot::BACKGROUND, BackgroundColor::BLACK);',
+  '    raster::enable();',
+  '    loop {',
   '        waitFrame();',
   '    }',
   '}',
-  '',
 ].join('\n');
 
 /** The pixel at (x, y) of cell (col, row)'s glyph box, in the picture. */
@@ -246,17 +245,17 @@ test('the portable raster list on the X16 wasm build applies each slot at its pi
 
 test('a raster list that is built but not committed does not show, and setValue on a committed one is live', async () => {
   const program = (finish) => [
-    'import { screen, BorderColor, BackgroundColor } from "@8bitscript/screen";',
-    'import { raster, Slot } from "@8bitscript/raster";',
+    'use @8bitscript::screen::{screen, BorderColor, BackgroundColor};',
+    'use @8bitscript::raster::{raster, Slot};',
     '',
-    'export function main(): void {',
-    '    screen.blank(BorderColor.GREEN, BackgroundColor.BLACK);',
-    '    raster.clear();',
-    '    raster.at(40, Slot.BORDER, BorderColor.RED);',
-    '    raster.enable();',
+    'pub fn main() {',
+    '    screen::blank(BorderColor::GREEN, BackgroundColor::BLACK);',
+    '    raster::clear();',
+    '    raster::at(40, Slot::BORDER, BorderColor::RED);',
+    '    raster::enable();',
     '    waitFrame();',
     finish,
-    '    while (true) {',
+    '    loop {',
     '        waitFrame();',
     '    }',
     '}',
@@ -266,38 +265,57 @@ test('a raster list that is built but not committed does not show, and setValue 
   const green = RGB[5];
   const blue = RGB[6];
   // After enable() the band shows. Rebuilding the list without commit() changes nothing on screen.
-  let png = await shoot(program('    raster.clear();\n    raster.at(100, Slot.BORDER, BorderColor.BLUE);'));
+  let png = await shoot(program('    raster::clear();\n    raster::at(100, Slot::BORDER, BorderColor::BLUE);'));
   assert.ok(same(pixelAt(png, 2, BORDER_PX + 40), red), 'the committed list still shows');
   assert.ok(same(pixelAt(png, 2, BORDER_PX + 100), red), 'and the rebuilt one, not yet committed, does not');
   // The same rebuild with commit() takes over.
-  png = await shoot(program('    raster.clear();\n    raster.at(100, Slot.BORDER, BorderColor.BLUE);\n    raster.commit();'));
+  png = await shoot(program('    raster::clear();\n    raster::at(100, Slot::BORDER, BorderColor::BLUE);\n    raster::commit();'));
   assert.ok(same(pixelAt(png, 2, BORDER_PX + 40), green), 'committed: nothing at line 40 now');
   assert.ok(same(pixelAt(png, 2, BORDER_PX + 100), blue), 'and the new band at line 100');
   // setValue on a committed list needs no commit.
-  png = await shoot(program('    raster.setValue(0, BorderColor.BLUE);'));
+  png = await shoot(program('    raster::setValue(0, BorderColor::BLUE);'));
   assert.ok(same(pixelAt(png, 2, BORDER_PX + 40), blue), 'setValue changed the live entry at once');
   // But on a list that has changed since its commit it edits the program's copy only: what shows keeps showing.
-  png = await shoot(program('    raster.clear();\n    raster.at(100, Slot.BORDER, BorderColor.GREEN);\n    raster.setValue(0, BorderColor.BLUE);'));
+  png = await shoot(program('    raster::clear();\n    raster::at(100, Slot::BORDER, BorderColor::GREEN);\n    raster::setValue(0, BorderColor::BLUE);'));
   assert.ok(same(pixelAt(png, 2, BORDER_PX + 40), red), 'the live list is untouched until the next commit()');
   // And a bad offset or slot is refused, as natively.
   const mem = await runWith([
-    'import { raster, Slot } from "@8bitscript/raster";',
-    'import { screen } from "@8bitscript/screen";',
-    'import { text } from "@8bitscript/text";',
+    'use @8bitscript::raster::{raster, Slot};',
+    'use @8bitscript::screen::screen;',
+    'use @8bitscript::text::text;',
     '',
-    'export function main(): void {',
-    '    screen.blank();',
-    '    raster.clear();',
-    '    if (raster.at(40, 9, 1)) { text.print(0, "A"); } else { text.print(0, "a"); }',
-    '    raster.at(50, Slot.BORDER, 1);',
-    '    if (raster.at(49, Slot.BORDER, 2)) { text.print(1, "B"); } else { text.print(1, "b"); }',
-    '    if (raster.setValue(1, 3)) { text.print(2, "C"); } else { text.print(2, "c"); }',
-    '    if (raster.setValue(0, 3)) { text.print(3, "D"); } else { text.print(3, "d"); }',
-    '    if (raster.insert(10, Slot.BORDER, 2)) { text.print(4, "E"); } else { text.print(4, "e"); }',
-    '    text.printNumber(10, raster.count(), 2);',
+    'pub fn main() {',
+    '    screen::blank();',
+    '    raster::clear();',
+    '    if raster::at(40, 9, 1) {',
+    '        text::print(0, "A");',
+    '    } else {',
+    '        text::print(0, "a");',
+    '    }',
+    '    raster::at(50, Slot::BORDER, 1);',
+    '    if raster::at(49, Slot::BORDER, 2) {',
+    '        text::print(1, "B");',
+    '    } else {',
+    '        text::print(1, "b");',
+    '    }',
+    '    if raster::setValue(1, 3) {',
+    '        text::print(2, "C");',
+    '    } else {',
+    '        text::print(2, "c");',
+    '    }',
+    '    if raster::setValue(0, 3) {',
+    '        text::print(3, "D");',
+    '    } else {',
+    '        text::print(3, "d");',
+    '    }',
+    '    if raster::insert(10, Slot::BORDER, 2) {',
+    '        text::print(4, "E");',
+    '    } else {',
+    '        text::print(4, "e");',
+    '    }',
+    '    text::printNumber(10, raster::count(), 2);',
     '    waitFrame();',
     '}',
-    '',
   ].join('\n'), 2, () => {});
   const chars = (cell) => String.fromCharCode(mem[layout.charBase + cell]);
   assert.equal(chars(0), 'a', 'an unknown slot is refused');
@@ -328,20 +346,20 @@ function digitAt(png, col, row) {
 }
 
 const FRAME_PROGRAM = (inner) => [
-  'import { screen } from "@8bitscript/screen";',
-  'import { text } from "@8bitscript/text";',
-  'import { raster, Slot } from "@8bitscript/raster";',
+  'use @8bitscript::screen::screen;',
+  'use @8bitscript::text::text;',
+  'use @8bitscript::raster::{raster, Slot};',
   '',
-  'export function main(): void {',
-  '    screen.blank();',
-  '    raster.clear();',
-  '    raster.at(0, Slot.BORDER, 0);',
-  '    raster.enable();',
+  'pub fn main() {',
+  '    screen::blank();',
+  '    raster::clear();',
+  '    raster::at(0, Slot::BORDER, 0);',
+  '    raster::enable();',
   '    let seen: utinyint = 0;',
   inner,
-  '    text.printNumber(0, raster.frame(), 2);',
-  '    if (raster.FRAME_COUNTER) { text.print(10, "T"); } else { text.print(10, "F"); }',
-  '    while (true) {',
+  '    text::printNumber(0, raster::frame(), 2);',
+  '    if raster::FRAME_COUNTER { text::print(10, "T"); } else { text::print(10, "F"); }',
+  '    loop {',
   '        waitFrame();',
   '    }',
   '}',
@@ -351,37 +369,40 @@ const FRAME_PROGRAM = (inner) => [
 test("raster.frame() counts the frames the host releases, however many waitFrame()s a loop pass takes", async () => {
   // Five passes of one frame: five frames. The headless host adds one to the page's frame byte for every
   // frame it releases, as the browser page does, so the screenshot reads what a person would.
-  let png = await shoot(FRAME_PROGRAM('    for (let pass: utinyint = 0; pass < 5; pass++) { waitFrame(); }'), { frames: 30 });
+  let png = await shoot(FRAME_PROGRAM('    for (let mut pass: utinyint = 0; pass < 5; pass += 1) { waitFrame(); }'), { frames: 30 });
   assert.equal(digitAt(png, 0, 0) * 10 + digitAt(png, 1, 0), 5, 'five frames after enable()');
   // Four passes of three: twelve. The count is the host's, not the loop's.
-  png = await shoot(FRAME_PROGRAM('    for (let pass: utinyint = 0; pass < 4; pass++) { waitFrame(); waitFrame(); waitFrame(); }'), { frames: 30 });
+  png = await shoot(FRAME_PROGRAM('    for (let mut pass: utinyint = 0; pass < 4; pass += 1) { waitFrame(); waitFrame(); waitFrame(); }'), { frames: 30 });
   assert.equal(digitAt(png, 0, 0) * 10 + digitAt(png, 1, 0), 12, 'twelve frames, however the loop slices them');
   assert.equal(cellIs(png, 10, 0, 'T'.charCodeAt(0), 0, RGB[1], RGB[0]), true, 'and FRAME_COUNTER says it counts');
   // Frames that pass before enable() are not counted: it is "since enable()", as on the machine.
   png = await shoot([
-    'import { screen } from "@8bitscript/screen";',
-    'import { text } from "@8bitscript/text";',
-    'import { raster, Slot } from "@8bitscript/raster";',
+    'use @8bitscript::screen::screen;',
+    'use @8bitscript::text::text;',
+    'use @8bitscript::raster::{raster, Slot};',
     '',
-    'export function main(): void {',
-    '    screen.blank();',
-    '    for (let pass: utinyint = 0; pass < 7; pass++) { waitFrame(); }',
-    '    raster.clear();',
-    '    raster.at(0, Slot.BORDER, 0);',
-    '    raster.enable();',
-    '    for (let pass: utinyint = 0; pass < 3; pass++) { waitFrame(); }',
-    '    text.printNumber(0, raster.frame(), 2);',
-    '    while (true) {',
+    'pub fn main() {',
+    '    screen::blank();',
+    '    for pass: utinyint in 0..7 {',
+    '        waitFrame();',
+    '    }',
+    '    raster::clear();',
+    '    raster::at(0, Slot::BORDER, 0);',
+    '    raster::enable();',
+    '    for pass: utinyint in 0..3 {',
+    '        waitFrame();',
+    '    }',
+    '    text::printNumber(0, raster::frame(), 2);',
+    '    loop {',
     '        waitFrame();',
     '    }',
     '}',
-    '',
   ].join('\n'), { frames: 30 });
   assert.equal(digitAt(png, 0, 0) * 10 + digitAt(png, 1, 0), 3, 'three frames since enable(), not ten since the program began');
 });
 
 test('the headless host releases frames to its onFrame hook, counting from 1, before the program resumes', async () => {
-  const { dir, result } = await build('export function main(): void {\n    while (true) {\n        waitFrame();\n    }\n}\n');
+  const { dir, result } = await build('pub fn main() {\n    loop {\n        waitFrame();\n    }\n}\n');
   try {
     const bytes = await readFile(result.outFile);
     const seen = [];

@@ -30,7 +30,7 @@ const cli = JSON.parse(readFileSync(join(ROOT, '..', 'cli', 'package.json'), 'ut
 test('Studio declares itself an app, with a title and the shared entry', () => {
   assert.equal(pkg['8bitscript'].app.title, 'Studio');
   assert.equal(pkg['8bitscript'].app.entry, './src/main.8bs');
-  assert.ok(existsSync(join(ROOT, '8bitscript.config.8bs')), 'an app is a project: it has the manifest the CLI reads');
+  assert.ok(existsSync(join(ROOT, '8bitscript.config.ts')), 'an app is a project: it has the manifest the CLI reads');
 });
 
 test("Studio's version is the toolchain's version", () => {
@@ -75,7 +75,7 @@ for (const target of RELEASE_TARGETS) {
 }
 
 test('release config matches shared-release-targets and names the X16 baseline', () => {
-  const config = readFileSync(join(ROOT, '8bitscript.config.8bs'), 'utf8');
+  const config = readFileSync(join(ROOT, '8bitscript.config.ts'), 'utf8');
   assert.match(config, /shared-release-targets/);
   assert.match(config, /^  baseline: 'cx16',$/m);
   assert.match(config, /^  input: \{ primary: 'mouse', also: \['keyboard', 'stick', 'pad'\] \},$/m);
@@ -88,7 +88,7 @@ test('release config matches shared-release-targets and names the X16 baseline',
 // the way a pack would and load the configs from there: Studio's must be in
 // the tarball, and its targets and every example's must still resolve.
 test('Studio and the examples load their configs from an installed copy', async () => {
-  assert.ok(pkg.files.includes('8bitscript.config.8bs'), 'Studio ships its config');
+  assert.ok(pkg.files.includes('8bitscript.config.ts'), 'Studio ships its config');
   const root = mkdtempSync(join(tmpdir(), '8bs-installed-'));
   try {
     const scope = join(root, 'node_modules', '@8bitscript');

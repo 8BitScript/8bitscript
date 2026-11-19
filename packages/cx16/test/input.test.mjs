@@ -81,7 +81,7 @@ test('the SNES bits agree with the X16 ROM joystick driver', { skip: existsSync(
   assert.match(rom, /C_B  = 128/);
   assert.match(rom, /C_A  = 128/);
   assert.match(rom, /KEYCODE_ENTER/);
-  const snes = SOURCE.slice(SOURCE.indexOf('namespace Snes'), SOURCE.indexOf('namespace SnesHi'));
+  const snes = SOURCE.slice(SOURCE.indexOf('mod Snes'), SOURCE.indexOf('mod SnesHi'));
   assert.match(snes, /const RIGHT: utinyint = 1;/);
   assert.match(snes, /const LEFT: utinyint = 2;/);
   assert.match(snes, /const DOWN: utinyint = 4;/);

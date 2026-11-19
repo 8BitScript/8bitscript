@@ -35,14 +35,13 @@ const NATIVE_BACKEND_PENDING = 'Bare Metal: waiting on the native backend';
 // scratch directory without workspace resolution): sums 0..9 into RAM.
 // Matches the SUM fixture compile.test.mjs already uses for the same reason.
 const PROBE_SOURCE = [
-  'let sum: utinyint = 0;',
-  'export function main(): void {',
-  '    for (let i: utinyint = 0; i < 10; i++) {',
+  'let mut sum: utinyint = 0;',
+  'pub fn main() {',
+  '    for i: utinyint in 0..10 {',
   '        sum = sum + i;',
   '    }',
-  '    memory.write(0x8000, sum);',
+  '    memory::write(0x8000, sum);',
   '}',
-  '',
 ].join('\n');
 
 function onPath(name) {

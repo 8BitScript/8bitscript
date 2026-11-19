@@ -28,14 +28,13 @@ function capture(fn) {
 }
 
 const SUM = [
-  'let sum: utinyint = 0;',
-  'export function main(): void {',
-  '    for (let i: utinyint = 0; i < 10; i++) {',
+  'let mut sum: utinyint = 0;',
+  'pub fn main() {',
+  '    for i: utinyint in 0..10 {',
   '        sum = sum + i;',
   '    }',
-  '    memory.write(0x8000, sum);',
+  '    memory::write(0x8000, sum);',
   '}',
-  '',
 ].join('\n');
 
 test('build() with no target is usage and exit 2', async () => {
@@ -140,7 +139,7 @@ test('build() --release builds every target listed, once per name in its own rel
   const prev = process.cwd();
   try {
     await writeFile(join(dir, 'main.8bs'), SUM);
-    await writeFile(join(dir, '8bitscript.config.8bs'), [
+    await writeFile(join(dir, '8bitscript.config.ts'), [
       'export default {',
       '  entry: "main.8bs",',
       '  targets: {',
@@ -175,16 +174,19 @@ test('build() with no target builds the baseline, and --release measures every b
     // Tests video.raster and Memory.RAM itself; prints through text, whose
     // own fold on video.columns is the package's business and not listed.
     await writeFile(join(dir, 'main.8bs'), [
-      'import { text } from "@8bitscript/text";',
-      'import { Memory } from "@8bitscript/system";',
-      'const HAS_RASTER: bool = #fact(video.raster);',
-      'export function main(): void {',
-      '    if (HAS_RASTER) { text.print(0, "RASTER"); }',
-      '    if (Memory.RAM < 4096) { text.print(40, "SMALL"); }',
+      'use @8bitscript::text::text;',
+      'use @8bitscript::system::Memory;',
+      'const HAS_RASTER: bool = #fact(video::raster);',
+      'pub fn main() {',
+      '    if HAS_RASTER {',
+      '        text::print(0, "RASTER");',
+      '    }',
+      '    if Memory::RAM < 4096 {',
+      '        text::print(40, "SMALL");',
+      '    }',
       '}',
-      '',
     ].join('\n'));
-    await writeFile(join(dir, '8bitscript.config.8bs'), [
+    await writeFile(join(dir, '8bitscript.config.ts'), [
       'export default {',
       '  entry: "main.8bs",',
       '  targets: { c64: {}, pet: { hardware: { model: "4032", ram: "32" }, release: ["2001", {}] }, web: {} },',
@@ -221,7 +223,7 @@ test('build() refuses a baseline below the program\'s own requires, and a baseli
   const prev = process.cwd();
   try {
     await writeFile(join(dir, 'main.8bs'), SUM);
-    await writeFile(join(dir, '8bitscript.config.8bs'),
+    await writeFile(join(dir, '8bitscript.config.ts'),
       'export default { entry: "main.8bs", targets: { pet: {} }, requires: { "memory.ram": 8192 }, baseline: { target: "pet", profile: "2001", hardware: { ram: "4" } } };\n');
     process.chdir(dir);
     const low = await capture(() => build([]));
@@ -245,13 +247,13 @@ test('build() refuses a baseline below the program\'s own requires, and a baseli
   }
 });
 
-test('build() --release skips a target 8bitscript.config.8bs lists that this release does not build for', async () => {
+test('build() --release skips a target 8bitscript.config.ts lists that this release does not build for', async () => {
   const dir = await mkdtemp(join(tmpdir(), '8bs-compile-'));
   const prev = process.cwd();
   try {
     await writeFile(join(dir, 'main.8bs'), SUM);
     await writeFile(
-      join(dir, '8bitscript.config.8bs'),
+      join(dir, '8bitscript.config.ts'),
       'export default { entry: "main.8bs", targets: { c64: {}, web: {} } };\n',
     );
     process.chdir(dir);
@@ -271,7 +273,7 @@ test('build() --release fails clearly when the config lists no release-ready tar
     // A name the toolchain does not know at all, now that every machine it
     // does know is release-ready: the config still lists no target this
     // release builds for, which is what the message is about.
-    await writeFile(join(dir, '8bitscript.config.8bs'), 'export default { targets: { zx81: {} } };\n');
+    await writeFile(join(dir, '8bitscript.config.ts'), 'export default { targets: { zx81: {} } };\n');
     process.chdir(dir);
     const { result, stderr } = await capture(() => build(['--release']));
     assert.equal(result, 1);
@@ -390,11 +392,10 @@ test('compile() --target vic20 --web builds through the wasm backend: releaseCur
     // $FFF0) — build.mjs's `webTag` is what resolves cursor.vic20.web.8bs
     // instead for this specific build.
     await writeFile(entry, [
-      'import { text } from "@8bitscript/text";',
-      'export function main(): void {',
-      '    text.releaseCursor();',
+      'use @8bitscript::text::text;',
+      'pub fn main() {',
+      '    text::releaseCursor();',
       '}',
-      '',
     ].join('\n'));
     process.chdir(dir);
     // checkout: REPO, the same way hello-8bx.test.mjs's own throwaway
@@ -428,14 +429,13 @@ test('compile() --target cx16 --web builds through the wasm backend: text/screen
     // screen.cx16.web.8bs instead: a flat two-plane screen at the same
     // addresses agreementFor() computes for this package's 76x56 grid.
     await writeFile(entry, [
-      'import { screen } from "@8bitscript/screen";',
-      'import { text } from "@8bitscript/text";',
-      'export function main(): void {',
-      '    screen.blank();',
-      '    text.print(0, "Hi!");',
-      '    text.printNumber(10, 42, 3);',
+      'use @8bitscript::screen::screen;',
+      'use @8bitscript::text::text;',
+      'pub fn main() {',
+      '    screen::blank();',
+      '    text::print(0, "Hi!");',
+      '    text::printNumber(10, 42, 3);',
       '}',
-      '',
     ].join('\n'));
     process.chdir(dir);
     // Native: unchanged, still the real VERA port protocol.
@@ -476,7 +476,7 @@ test('compile() for web still names a real, specific gap for a construct nothing
     // compiler prunes whatever the entry can't reach
     // (linker/reachability.mjs), so an unreferenced global's own
     // unsupported shape would otherwise never be seen at all.
-    await writeFile(entry, '@address(0xD020)\nlet border: utinyint;\nexport function main(): void { border = 1; }\n');
+    await writeFile(entry, '#[address(0xD020)]\nlet mut border: utinyint;\npub fn main() { border = 1; }\n');
     process.chdir(dir);
     const { result, stderr } = await capture(() => compile('web', entry));
     assert.equal(result.ok, false);
@@ -492,7 +492,7 @@ test('compile() prints diagnostics and does not build when the entry has a probl
   const prev = process.cwd();
   try {
     const entry = join(dir, 'main.8bs');
-    await writeFile(entry, 'let x: u8 = 0x;\nexport function main(): void {}\n');
+    await writeFile(entry, 'let x: u8 = 0x;\npub fn main() {}\n');
     process.chdir(dir);
     const { result, stdout } = await capture(() => compile('pet', entry));
     assert.equal(result.ok, false);
@@ -513,7 +513,7 @@ test('compile() names a missing entry and a project that does not list the targe
     assert.equal(missing.result.ok, false);
     assert.match(missing.stderr, /does not exist/);
 
-    await writeFile(join(dir, '8bitscript.config.8bs'), 'export default { targets: ["web"] };\n');
+    await writeFile(join(dir, '8bitscript.config.ts'), 'export default { targets: ["web"] };\n');
     const listed = await capture(() => compile('pet', join(dir, 'main.8bs')));
     assert.equal(listed.result.ok, false);
     assert.match(listed.stderr, /does not list 'pet'/);
@@ -527,7 +527,7 @@ test('compile() refuses a frameRate that is not a positive integer', async () =>
   const dir = await mkdtemp(join(tmpdir(), '8bs-compile-'));
   const prev = process.cwd();
   try {
-    await writeFile(join(dir, '8bitscript.config.8bs'), 'export default { frameRate: -1 };\n');
+    await writeFile(join(dir, '8bitscript.config.ts'), 'export default { frameRate: -1 };\n');
     process.chdir(dir);
     const { result, stderr } = await capture(() => compile('pet'));
     assert.equal(result.ok, false);
@@ -543,7 +543,7 @@ test('compile() names unknown hardware and a program the PET backend cannot lowe
   const prev = process.cwd();
   try {
     const entry = join(dir, 'main.8bs');
-    await writeFile(entry, 'export function main(): void { memory.write(0x8000, 1); }\n');
+    await writeFile(entry, 'pub fn main() { memory::write(0x8000, 1); }\n');
     process.chdir(dir);
     const unknownHw = await capture(() => compile('pet', entry, { hardware: { model: 'nope' } }));
     assert.equal(unknownHw.result.ok, false);
@@ -551,7 +551,7 @@ test('compile() names unknown hardware and a program the PET backend cannot lowe
 
     // A mutable array builds now (0.2.2); a runtime divide is a shape the
     // PET backend still genuinely refuses by name, and stays the fixture.
-    await writeFile(entry, 'export function main(): void {\n    let a: utinyint = 9;\n    let b: utinyint = 3;\n    memory.write(0x8000, a / b);\n}\n');
+    await writeFile(entry, 'pub fn main() {\n    let a: utinyint = 9;\n    let b: utinyint = 3;\n    memory::write(0x8000, a / b);\n}\n');
     const noRule = await capture(() => compile('pet', entry));
     assert.equal(noRule.result.ok, false);
     assert.match(noRule.stdout + noRule.stderr, /the '\/' operator isn't lowered yet/);
@@ -598,7 +598,7 @@ const withPrograms = async (config, fn) => {
   try {
     await writeFile(join(dir, 'main.8bs'), SUM);
     await writeFile(join(dir, 'format.8bs'), SUM.replace('0x8000', '0x8001'));
-    await writeFile(join(dir, '8bitscript.config.8bs'), `export default ${config};\n`);
+    await writeFile(join(dir, '8bitscript.config.ts'), `export default ${config};\n`);
     process.chdir(dir);
     await fn(dir);
   } finally {
@@ -697,14 +697,17 @@ test('build() prints a warning and still builds; bx.strict: false silences the l
     const dir = await mkdtemp(join(tmpdir(), '8bs-bx-lint-'));
     const prev = process.cwd();
     try {
-      await writeFile(join(dir, 'main.8bs'), 'import { draw } from "./Draw.8bx";\nexport function main(): void { draw(); }\n');
+      await writeFile(join(dir, 'main.8bs'), 'use self::Draw::draw;\npub fn main() { draw(); }\n');
       await writeFile(join(dir, 'Draw.8bx'), [
         'let ticks: utinyint = 0;',
-        'component Mark(v: utinyint) { memory.write(0x8000, v); }',
-        'export function draw(): void { <Mark v={1} />; }',
-        '',
+        'component Mark(v: utinyint) {',
+        '    memory::write(0x8000, v);',
+        '}',
+        'pub fn draw() {',
+        '    <Mark v={1} />;',
+        '}',
       ].join('\n'));
-      await writeFile(join(dir, '8bitscript.config.8bs'), `export default ${config};\n`);
+      await writeFile(join(dir, '8bitscript.config.ts'), `export default ${config};\n`);
       process.chdir(dir);
       await fn(dir);
     } finally {
@@ -724,7 +727,7 @@ test('build() prints a warning and still builds; bx.strict: false silences the l
     assert.doesNotMatch(stdout, /8BS2021/);
   });
   await project(`{ entry: "main.8bs", targets: ["pet"], bx: { strict: false } }`, async (dir) => {
-    await writeFile(join(dir, 'Draw.8bx'), 'component Mark() { asm6502 { nop } }\nexport function draw(): void { <Mark />; }\n');
+    await writeFile(join(dir, 'Draw.8bx'), 'component Mark() { asm6502 { nop } }\npub fn draw() { <Mark />; }\n');
     const { result, stdout } = await capture(() => build(['--target', 'pet']));
     assert.equal(result, 1, 'asm6502 in .8bx is an error whatever bx.strict says');
     assert.match(stdout, /error 8BS2020: asm6502 has no place in an \.8bx file/);
@@ -738,17 +741,19 @@ test('build() --size lists each 8BX instance and the bytes of state it holds', a
   const dir = await mkdtemp(join(tmpdir(), '8bs-bx-state-'));
   const prev = process.cwd();
   try {
-    await writeFile(join(dir, 'main.8bs'), 'import { draw } from "./Tally.8bx";\nexport function main(): void { draw(); }\n');
+    await writeFile(join(dir, 'main.8bs'), 'use self::Tally::draw;\npub fn main() { draw(); }\n');
     await writeFile(join(dir, 'Tally.8bx'), [
       'component Tally(step: utinyint) {',
       '    state count: usmallint = 0;',
       '    count = count + step;',
-      '    memory.write(0x8000, count);',
+      '    memory::write(0x8000, count);',
       '}',
-      'export function draw(): void { <Tally step={1} />; <Tally step={2} />; }',
-      '',
+      'pub fn draw() {',
+      '    <Tally step={1} />;',
+      '    <Tally step={2} />;',
+      '}',
     ].join('\n'));
-    await writeFile(join(dir, '8bitscript.config.8bs'), "export default { entry: 'main.8bs', targets: ['pet'] };\n");
+    await writeFile(join(dir, '8bitscript.config.ts'), "export default { entry: 'main.8bs', targets: ['pet'] };\n");
     process.chdir(dir);
     const { result, stdout } = await capture(() => build(['--target', 'pet', '--size']));
     assert.equal(result, 0, stdout);

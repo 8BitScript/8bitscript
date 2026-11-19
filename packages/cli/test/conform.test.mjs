@@ -417,7 +417,7 @@ test('the real capture runs this CLI, and says why when it cannot make a picture
 });
 
 test('the probe project ships with the package and builds for every conform machine', () => {
-  assert.ok(existsSync(join(CONFORM_PROJECT, '8bitscript.config.8bs')));
+  assert.ok(existsSync(join(CONFORM_PROJECT, '8bitscript.config.ts')));
   assert.ok(existsSync(join(CONFORM_PROJECT, 'src', 'grid.8bs')));
   const pkg = JSON.parse(readFileSync(join(CONFORM_PROJECT, '..', 'package.json'), 'utf8'));
   assert.ok(pkg.files.includes('conform'), 'package.json "files" must include conform/ or the probes are not published');

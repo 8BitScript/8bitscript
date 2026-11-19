@@ -209,7 +209,7 @@ test('findConfig prefers 8bitscript.config.ts, then 8bs.config.ts, like the CLI'
   assert.equal(findConfig(dir), path.join(dir, '8bs.config.ts'), 'a pre-0.4.0 project still marks one');
   write(path.join(dir, '8bitscript.config.ts'), 'export default {};');
   assert.equal(findConfig(dir), path.join(dir, '8bitscript.config.ts'), 'the current name wins over the older one');
-  write(path.join(dir, '8bitscript.config.8bs'), 'export default {};');
+  write(path.join(dir, '8bitscript.config.ts'), 'export default {};');
   assert.equal(findConfig(dir), path.join(dir, '8bitscript.config.ts'), 'an old .8bs config is never a project marker');
   assert.equal(findConfig(path.join(root, 'empty')), null);
 });
@@ -821,11 +821,11 @@ test('commandArgs names the program for run and build — not for boot, which lo
   assert.deepEqual(commandArgs('run', 'c64', 'ntsc', undefined, {}), ['run', 'c64', '--size'], 'no program named: the CLI\'s own default');
 });
 
-test('an old 8bitscript.config.8bs with no current config is reported, with the rename to do', () => {
+test('an old 8bitscript.config.ts with no current config is reported, with the rename to do', () => {
   const { staleConfigMessage, staleConfigsOnly } = require('../src/projects.cjs');
-  const old = path.join(path.sep, 'p', 'a', '8bitscript.config.8bs');
+  const old = path.join(path.sep, 'p', 'a', '8bitscript.config.ts');
   const current = path.join(path.sep, 'p', 'b', '8bitscript.config.ts');
-  const both = path.join(path.sep, 'p', 'b', '8bitscript.config.8bs');
+  const both = path.join(path.sep, 'p', 'b', '8bitscript.config.ts');
   assert.deepEqual(staleConfigsOnly([current], [old, both]), [old]);
   assert.match(staleConfigMessage(old), /no longer read: rename it to 8bitscript\.config\.ts/);
 });

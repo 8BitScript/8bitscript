@@ -34,7 +34,7 @@ function cliData(dir, { systems = [], problems = [], configError = null, defines
   });
   return {
     project: {
-      version: 1, dir, name: 'my-game', configPath: path.join(dir, '8bitscript.config.8bs'), hasConfig: true, configError,
+      version: 1, dir, name: 'my-game', configPath: path.join(dir, '8bitscript.config.ts'), hasConfig: true, configError,
       targets: ALL.map((id) => ({ id, hardware: {}, profiles: [], locale: null })),
       programs: [
         program('main', { title: 'Lobby', group: 'Slots', description: 'The front door.' }),
@@ -65,8 +65,8 @@ function cliData(dir, { systems = [], problems = [], configError = null, defines
 /** A project in the shape of vegas-nights on disk, with a fake `8bs` that answers from `cliData`. */
 function writeLab(dir, options) {
   fs.mkdirSync(path.join(dir, 'src'), { recursive: true });
-  for (const entry of ['main', 'slot', 'tiny']) fs.writeFileSync(path.join(dir, 'src', `${entry}.8bs`), 'export function main(): void {}\n');
-  fs.writeFileSync(path.join(dir, '8bitscript.config.8bs'), `export default {
+  for (const entry of ['main', 'slot', 'tiny']) fs.writeFileSync(path.join(dir, 'src', `${entry}.8bs`), 'pub fn main() {}\n');
+  fs.writeFileSync(path.join(dir, '8bitscript.config.ts'), `export default {
   programs: {
     main: { entry: 'src/main.8bs' },
     slot: { entry: 'src/slot.8bs' },
@@ -130,7 +130,7 @@ async function withLauncher(fn, { settings = {}, configure, cli: cliOptions, det
     vscode.__mock.configStore.set('project', dir);
     vscode.__mock.configStore.set('system', 'c64');
     for (const [key, value] of Object.entries(settings)) vscode.__mock.configStore.set(key, typeof value === 'function' ? value(dir) : value);
-    vscode.workspace.findFiles = () => Promise.resolve([{ fsPath: path.join(dir, '8bitscript.config.8bs') }]);
+    vscode.workspace.findFiles = () => Promise.resolve([{ fsPath: path.join(dir, '8bitscript.config.ts') }]);
     const projects = registerRunner(context, { appendLine() {} });
     await tick();
     for (const id of STUBBED) vscode.__mock.commandHandlers.set(id, () => undefined);

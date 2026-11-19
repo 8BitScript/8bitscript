@@ -114,10 +114,10 @@ const OUT = 0x1000;
 
 /** A program that writes `calls` draws of `draw` (an expression) to OUT.. */
 const drawing = (imports, seed, draw, calls) => `${imports}
-export function main(): void {
-    ${seed}
-    for (let i: usmallint = 0; i < ${calls}; i++) {
-        memory.write(${OUT} + i, ${draw});
+pub fn main() {
+    ${seed};
+    for i: usmallint in 0..${calls} {
+        memory::write(${OUT} + i, ${draw});
     }
 }
 `;
@@ -126,7 +126,7 @@ const BOUNDS = [1, 2, 3, 6, 7, 37, 52, 100, 128, 150, 200, 255];
 
 test('compiled range() draws the same values as the model, for bounds from 1 to 255', async () => {
   for (const bound of BOUNDS) {
-    const memory = await runWeb(drawing(`import { random } from ${JSON.stringify(LCG)};`, 'random.seed(777);', `random.range(${bound})`, 300));
+    const memory = await runWeb(drawing(`use ${JSON.stringify(LCG)}::random;`, 'random::seed(777);', `random::range(${bound})`, 300));
     const next = lcg(777);
     const want = Array.from({ length: 300 }, () => modelRange(next, bound));
     assert.deepEqual(Array.from(memory.slice(OUT, OUT + 300)), want, `bound ${bound}`);
@@ -136,7 +136,7 @@ test('compiled range() draws the same values as the model, for bounds from 1 to 
 
 test('compiled bits(k) is the top k bits of the next byte, for k from 1 to 8', async () => {
   for (let k = 1; k <= 8; k += 1) {
-    const memory = await runWeb(drawing(`import { random } from ${JSON.stringify(LCG)};`, 'random.seed(31);', `random.bits(${k})`, 200));
+    const memory = await runWeb(drawing(`use ${JSON.stringify(LCG)}::random;`, 'random::seed(31);', `random::bits(${k})`, 200));
     const next = lcg(31);
     const want = Array.from({ length: 200 }, () => next() >> (8 - k));
     assert.deepEqual(Array.from(memory.slice(OUT, OUT + 200)), want, `bits(${k})`);
@@ -145,7 +145,7 @@ test('compiled bits(k) is the top k bits of the next byte, for k from 1 to 8', a
 });
 
 test('a fixed seed gives a fixed sequence: two fresh runs agree with each other and with the model', async () => {
-  const source = drawing(`import { random } from ${JSON.stringify(LCG)};`, 'random.seed(2468);', 'random.range(52)', 200);
+  const source = drawing(`use ${JSON.stringify(LCG)}::random;`, 'random::seed(2468);', 'random::range(52)', 200);
   const a = await runWeb(source);
   const b = await runWeb(source);
   assert.deepEqual(a.slice(OUT, OUT + 200), b.slice(OUT, OUT + 200));
@@ -166,9 +166,9 @@ test('a fixed seed gives a fixed sequence: two fresh runs agree with each other 
 
 const ENTROPY = join(SRC, 'entropy.8bs');
 const SURFACES = {
-  random: { imports: `import { random } from ${JSON.stringify(LCG)};`, calls: ['random.range(6)', 'random.range(37)', 'random.bits(3)', 'random.bits(8)', 'random.next()'] },
-  table: { imports: `import { table } from ${JSON.stringify(TABLE)};`, calls: ['table.range(6)', 'table.range(37)', 'table.bits(3)', 'table.next()'] },
-  entropy: { imports: `import { entropy } from ${JSON.stringify(ENTROPY)};`, calls: ['entropy.range(6)', 'entropy.range(37)', 'entropy.bits(3)', 'entropy.next()'] },
+  random: { imports: `use ${JSON.stringify(LCG)}::random;`, calls: ['random::range(6)', 'random::range(37)', 'random::bits(3)', 'random::bits(8)', 'random::next()'] },
+  table: { imports: `use ${JSON.stringify(TABLE)}::table;`, calls: ['table::range(6)', 'table::range(37)', 'table::bits(3)', 'table::next()'] },
+  entropy: { imports: `use ${JSON.stringify(ENTROPY)}::entropy;`, calls: ['entropy::range(6)', 'entropy::range(37)', 'entropy::bits(3)', 'entropy::next()'] },
 };
 
 for (const target of ['pet', 'vic20', 'c64', 'cx16', 'web']) {
@@ -179,8 +179,12 @@ for (const target of ['pet', 'vic20', 'c64', 'cx16', 'web']) {
       const log = console.log;
       try {
         const entry = join(dir, 'main.8bs');
-        const begin = name === 'entropy' ? '    entropy.begin();\n' : '';
-        await writeFile(entry, `${imports}\nexport function main(): void {\n${begin}${calls.map((c, i) => `    memory.write(0x0300 + ${i}, ${c});`).join('\n')}\n}\n`);
+        const begin = name === 'entropy' ? '    entropy::begin();\n' : '';
+        await writeFile(entry, `${imports}
+pub fn main() {
+    ${begin}${calls.map((c, i) => `    memory::write(0x0300 + ${i}, ${c});`).join('\n')};
+}
+`);
         process.chdir(dir);
         console.log = () => {};
         const result = await compile(target, entry);
@@ -208,16 +212,16 @@ const HI = 0x2100;
  * times — exactly.
  */
 const counting = (imports, seed, bound, calls) => `${imports}
-let counts: array<usmallint, 128>;
-export function main(): void {
-    ${seed}
-    for (let i: usmallint = 0; i < ${calls}; i++) {
+let mut counts: [usmallint; 128];
+pub fn main() {
+    ${seed};
+    for i: usmallint in 0..${calls} {
         let v: utinyint = draw(${bound});
         counts[v] = counts[v] + 1;
     }
-    for (let k: utinyint = 0; k < ${bound}; k++) {
-        memory.write(${LO} + k, counts[k] & 255);
-        memory.write(${HI} + k, counts[k] >> 8);
+    for k: utinyint in 0..${bound} {
+        memory::write(${LO} + k, counts[k] & 255);
+        memory::write(${HI} + k, counts[k] >> 8);
     }
 }
 `;
@@ -227,8 +231,8 @@ test('over one whole period of the default generator, every outcome of range(n) 
     const calls = 256 * (256 - (256 % bound));
     assert.ok(calls < 65536, 'a loop counter is a usmallint');
     const source = counting(
-      `import { random } from ${JSON.stringify(LCG)};\nfunction draw(n: utinyint): utinyint { return random.range(n); }`,
-      'random.seed(4242);', bound, calls,
+      `use ${JSON.stringify(LCG)}::random;\nfn draw(n: utinyint) -> utinyint { return random::range(n); }`,
+      'random::seed(4242);', bound, calls,
     );
     const memory = await runWeb(source);
     const want = 256 * Math.floor(256 / bound);
@@ -241,18 +245,18 @@ test('over one pass of the table (every byte once), every outcome of table.range
   for (const bound of [3, 6, 7, 10, 37, 52, 100]) {
     const calls = 256 - (256 % bound);
     const source = counting(
-      `import { table } from ${JSON.stringify(TABLE)};\nfunction draw(n: utinyint): utinyint { return table.range(n); }`,
-      'table.seed(0);', bound, calls,
+      `use ${JSON.stringify(TABLE)}::table;\nfn draw(n: utinyint) -> utinyint { return table::range(n); }`,
+      'table::seed(0);', bound, calls,
     );
     const memory = await runWeb(source);
     const got = Array.from({ length: bound }, (_, k) => memory[LO + k] + 256 * memory[HI + k]);
-    assert.deepEqual(got, new Array(bound).fill(Math.floor(256 / bound)), `table.range(${bound}) counts over one pass`);
+    assert.deepEqual(got, new Array(bound).fill(Math.floor(256 / bound)), `table::range(${bound}) counts over one pass`);
   }
 });
 
 test('table.bits(k) is the top k bits of the next table byte', async () => {
-  const memory = await runWeb(drawing(`import { table } from ${JSON.stringify(TABLE)};`, 'table.seed(9);', 'table.bits(5)', 100));
-  const source = (await readFile(TABLE, 'utf8')).match(/const TABLE: array<utinyint, 256> = \[([\s\S]*?)\];/)[1];
+  const memory = await runWeb(drawing(`use ${JSON.stringify(TABLE)}::table;`, 'table::seed(9);', 'table::bits(5)', 100));
+  const source = (await readFile(TABLE, 'utf8')).match(/const TABLE: [utinyint; 256] = \[([\s\S]*?)\];/)[1];
   const bytes = source.split(',').map((s) => s.trim()).filter(Boolean).map(Number);
   assert.deepEqual(Array.from(memory.slice(OUT, OUT + 100)), Array.from({ length: 100 }, (_, i) => bytes[(9 + i) % 256] >> 3));
 });

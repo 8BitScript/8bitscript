@@ -27,14 +27,14 @@ function capture(fn) {
   }).then((result) => ({ result, stdout: stdout.join(''), stderr: stderr.join('') }));
 }
 
-const MAIN = `import { screen } from "@8bitscript/screen";
-import { text } from "@8bitscript/text";
+const MAIN = `use @8bitscript::screen::screen;
+use @8bitscript::text::text;
 const VERSION: string = #package("version");
-export function main(): void {
-    screen.blank();
-    text.print(0, VERSION);
-    text.print(40, #package("name"));
-    text.releaseCursor();
+pub fn main() {
+    screen::blank();
+    text::print(0, VERSION);
+    text::print(40, #package("name"));
+    text::releaseCursor();
 }
 `;
 
@@ -42,7 +42,7 @@ async function project(pkg) {
   const dir = await mkdtemp(join(tmpdir(), '8bs-package-'));
   await mkdir(join(dir, 'src'));
   await writeFile(join(dir, 'src', 'main.8bs'), MAIN);
-  await writeFile(join(dir, '8bitscript.config.8bs'), "export default { entry: 'src/main.8bs', targets: { pet: {}, web: {} } };\n");
+  await writeFile(join(dir, '8bitscript.config.ts'), "export default { entry: 'src/main.8bs', targets: { pet: {}, web: {} } };\n");
   if (pkg !== null) await writeFile(join(dir, 'package.json'), JSON.stringify({ type: 'module', ...pkg }));
   return dir;
 }

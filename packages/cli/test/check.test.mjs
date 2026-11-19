@@ -29,7 +29,7 @@ test('check of a clean file is 0; a diagnostic is 1; a missing file is 1', async
   const dir = await mkdtemp(join(tmpdir(), '8bs-check-'));
   try {
     const clean = join(dir, 'ok.8bs');
-    await writeFile(clean, 'export function main(): void { memory.write(0x8000, 1); }\n');
+    await writeFile(clean, 'pub fn main() { memory::write(0x8000, 1); }\n');
     const good = await capture(() => check([clean]));
     assert.equal(good.code, 0, good.stdout + good.stderr);
     assert.match(good.stdout, /No problems found/);
