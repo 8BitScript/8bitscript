@@ -86,6 +86,11 @@ fn strip_prov(v: &mut Value) {
     }
 }
 
+/// True for the error text of a method that is not ported yet.
+fn is_unported(error: &str) -> bool {
+    error.starts_with("unported:")
+}
+
 /// Replays one `lower` record.
 #[must_use]
 pub fn replay(record: &Value, counters: &mut Counters) -> Replay {
@@ -110,7 +115,7 @@ pub fn replay(record: &Value, counters: &mut Counters) -> Replay {
         counters.lower = n;
     }
     let mut rust = match lower(&body, &mut options, counters) {
-        Err(e) if e.starts_with("unported:") => return Replay::Skip,
+        Err(e) if is_unported(&e) => return Replay::Skip,
         Err(error) => json!({"ok": false, "error": error}),
         Ok(done) => {
             let mut v = serde_json::to_value(&done).unwrap_or(Value::Null);
@@ -197,9 +202,11 @@ mod tests {
             replay(&json!({"args": [[]], "result": {}}), &mut c),
             Replay::Skip
         );
+        assert!(is_unported("unported: expr16"));
+        assert!(!is_unported("break outside any loop"));
         assert_eq!(
             replay(&rec(json!([]), options_json()), &mut c),
-            Replay::Skip
+            Replay::Match
         );
         assert_eq!(c.lower, 5);
         assert!(

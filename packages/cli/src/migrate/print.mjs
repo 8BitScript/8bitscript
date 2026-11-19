@@ -782,6 +782,17 @@ class Printer {
     if (n.selfClosing && !isFragment) return open;
     const close = isFragment ? '</>' : `</${n.name}>`;
     if (n.children.length === 0) return `${open}${close}`;
+    // A text child carries its own whitespace (the proof compares it), so an element with one
+    // prints on one line with that text verbatim and no separator next to it.
+    const hasText = n.children.some((c) => c.type === NodeType.BxText);
+    if (hasText) {
+      const parts = n.children.map((c) => this.bxChild(c, false));
+      const joined = parts.map((p, i) => {
+        const gap = i > 0 && n.children[i].type !== NodeType.BxText && n.children[i - 1].type !== NodeType.BxText;
+        return gap ? ` ${p}` : p;
+      }).join('');
+      return `${open}${joined}${close}`;
+    }
     if (!multi) return `${open}${n.children.map((c) => this.bxChild(c, false)).join(' ')}${close}`;
     this.level += 1;
     const inner = n.children.map((c) => `${INDENT.repeat(this.level)}${this.bxChild(c, true)}`);
@@ -790,7 +801,7 @@ class Printer {
   }
 
   bxChild(c, multi) {
-    if (c.type === NodeType.BxText) return c.value;
+    if (c.type === NodeType.BxText) return c.raw ?? c.value;
     if (c.type === NodeType.BxExpressionChild) return `{${c.expression ? this.ex(c.expression) : ''}}`;
     return this.bx(c, multi);
   }
