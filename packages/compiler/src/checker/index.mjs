@@ -25,6 +25,7 @@
 import { Codes, diagnostic } from '../diagnostics/index.mjs';
 import { NodeType, walk } from '../ast/index.mjs';
 import { resolveIntegerType } from '../types/index.mjs';
+import { checkImmutableLets } from './immutable.mjs';
 import {
   scanDeclaredTypes, parameterTypes, layoutTemplate, isTemplateCall, misplacedTemplate, resolveScalarType,
 } from '../templates/index.mjs';
@@ -240,6 +241,7 @@ export function check(ast, file = '<unknown>', source = null, options = {}) {
   if (!ast) return diagnostics;
 
   checkFunctions(ast, file, source, diagnostics);
+  diagnostics.push(...checkImmutableLets(ast, file));
 
   walk(ast, (n, parent) => {
     if (n.type === NodeType.RecordLiteral) {

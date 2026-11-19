@@ -42,6 +42,15 @@ export function resolveImportAliases(imports, projectDir) {
 }
 
 /**
+ * A path-form `use` names a module without its extension (`./geo`,
+ * `@lib/util/math`): the last segment is an identifier, so a specifier that
+ * names some other file (`./data.json`) is not one.
+ */
+export function isPathForm(specifier) {
+  return /^[A-Za-z_][A-Za-z0-9_]*$/.test(specifier.slice(specifier.lastIndexOf('/') + 1));
+}
+
+/**
  * The longest configured prefix `specifier` starts with (`@lib/…`), or null.
  *
  * @param {string} specifier
@@ -61,13 +70,13 @@ export function longestAliasPrefix(specifier, importAliases) {
 }
 
 /**
- * The relative `.8bs`/`.8bx` path after an alias prefix, or null when the
- * specifier does not name a source file.
+ * The relative path after an alias prefix, or null when the specifier names
+ * neither a source file (string form) nor a module (path form).
  *
  * @param {string} specifier
  * @param {string} prefix
  */
 export function aliasedSubpath(specifier, prefix) {
   const rest = specifier.slice(prefix.length + 1);
-  return isSourceFile(rest) ? rest : null;
+  return isSourceFile(rest) || isPathForm(rest) ? rest : null;
 }

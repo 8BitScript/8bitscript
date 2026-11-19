@@ -20,8 +20,10 @@ import { basename, dirname, isAbsolute, join, resolve as resolvePath } from 'nod
 import { Codes, diagnostic } from '../diagnostics/index.mjs';
 import { TokenKind } from '../lexer/index.mjs';
 import { resolveCatalogSpecifier } from '../i18n/index.mjs';
-import { aliasedSubpath, longestAliasPrefix, resolveImportAliases } from './import-aliases.mjs';
-import { MACHINES, isLocaleName, isSourceFile, sourceKindOf, stripSourceExtension } from '../source/index.mjs';
+import { aliasedSubpath, isPathForm, longestAliasPrefix, resolveImportAliases } from './import-aliases.mjs';
+import {
+  MACHINES, SOURCE_EXTENSIONS, isLocaleName, isSourceFile, sourceKindOf, stripSourceExtension,
+} from '../source/index.mjs';
 
 export { resolveImportAliases } from './import-aliases.mjs';
 
@@ -284,7 +286,96 @@ function chooseVariant(specifier, path, machine, tags = [], locale) {
 }
 
 /**
- * Extract every `import ... from "specifier"` and bare `import "specifier"`.
+ * The file a relative or alias specifier means. A specifier that carries a
+ * source extension is taken as written (string form). One without it is
+ * searched: each of `SOURCE_EXTENSIONS` goes through the twin choice, none
+ * found is `null` (the caller reports 8BS2004), two or more found is
+ * 8BS2217 — the resolver will not guess between `geo.8bs` and `geo.8bx`.
+ */
+function chooseModule(specifier, target, options) {
+  const tags = tagsOf(options);
+  if (isSourceFile(target)) return chooseVariant(specifier, target, options.machine, tags, options.locale);
+  const hits = [];
+  for (const ext of SOURCE_EXTENSIONS) {
+    const chosen = chooseVariant(specifier, `${target}${ext}`, options.machine, tags, options.locale);
+    if (chosen) hits.push({ ext, chosen });
+  }
+  if (hits.length < 2) return hits[0]?.chosen ?? null;
+  return {
+    code: Codes.AMBIGUOUS_IMPORT,
+    message: `'${specifier}' names more than one file (${hits.map((h) => `${basename(target)}${h.ext}`).join(', ')}) — `
+      + 'keep one, or write the extension in a string path to choose',
+  };
+}
+
+// The new lexer's `@scope` token kind; the old lexer has no such kind.
+const SCOPE_TOKEN = 'scope';
+
+/**
+ * The module a `use` run names, as the specifier the resolver takes: the same
+ * head mapping the parser applies (`self` is `.`, each `super` is `..`, an
+ * identifier or `@scope` is itself, segments join with `/`), so it equals the
+ * `ImportDeclaration.source` the parser makes. `use p::{a, b}` names module
+ * `p`; `use p::name` names the module before `name`; `use "x"::name` is the
+ * string form, specifier unchanged. Null when the run is not an import the
+ * resolver can look up (a malformed path is the parser's to report).
+ *
+ * @param {object[]} t  Tokens without comments.
+ * @param {number} i    Index of the `use` token.
+ */
+function findUse(t, i) {
+  let j = i + 1;
+  const head = t[j];
+  if (!head) return null;
+  if (head.kind === TokenKind.String) {
+    const raw = head.text;
+    if (raw.length < 2 || !raw.endsWith(raw[0]) || t[j + 1]?.text !== '::') return null;
+    return { specifier: raw.slice(1, -1), start: head.start, length: head.length };
+  }
+  // `crate::` is E4 in the parser; the path after it still names a module.
+  if (head.kind === TokenKind.Keyword && head.text === 'crate' && t[j + 1]?.text === '::') j += 2;
+  const first = t[j];
+  const isWord = (tok, word) => tok?.kind === TokenKind.Keyword && tok.text === word;
+  const stem = (tok) => (tok.text.startsWith('r#') ? tok.text.slice(2) : tok.text);
+  let word;
+  if (isWord(first, 'self')) word = '.';
+  else if (isWord(first, 'super')) word = '..';
+  else if (first?.kind === SCOPE_TOKEN || first?.kind === TokenKind.Identifier) word = stem(first);
+  else return null;
+  const segments = [{ word, tok: first }];
+  let allSuper = word === '..';
+  j += 1;
+  while (t[j]?.text === '::' && t[j + 1]?.text !== '{') {
+    const next = t[j + 1];
+    if (allSuper && isWord(next, 'super')) {
+      segments.push({ word: '..', tok: next });
+    } else if (next?.kind === TokenKind.Identifier) {
+      allSuper = false;
+      segments.push({ word: stem(next), tok: next });
+    } else if (isWord(next, 'super') || isWord(next, 'self')) {
+      return null;
+    } else {
+      break;
+    }
+    j += 2;
+  }
+  const braced = t[j]?.text === '::' && t[j + 1]?.text === '{';
+  if (!braced) {
+    if (segments.length < 2) return null;
+    segments.pop();
+  }
+  if (segments.every((s) => s.word === '.' || s.word === '..')) return null;
+  const last = segments[segments.length - 1].tok;
+  return {
+    specifier: segments.map((s) => s.word).join('/'),
+    start: first.start,
+    length: last.start + last.length - first.start,
+  };
+}
+
+/**
+ * Extract every `import ... from "specifier"` and bare `import "specifier"`,
+ * and every `use` run of the new syntax (see findUse).
  *
  * Token-level, because there is no parser. The scan is bounded: it gives up at
  * a `;` or at any keyword that cannot continue an import, so a typo cannot pair
@@ -299,6 +390,13 @@ export function findImports(tokens) {
   const found = [];
 
   for (let i = 0; i < t.length; i += 1) {
+    // The new syntax's `use` is a keyword token; in the old lexer it is a
+    // plain identifier, so one file never produces both kinds of run.
+    if (t[i].kind === TokenKind.Keyword && t[i].text === 'use') {
+      const used = findUse(t, i);
+      if (used) found.push(used);
+      continue;
+    }
     if (t[i].kind !== TokenKind.Keyword || t[i].text !== 'import') continue;
 
     for (let j = i + 1; j < t.length; j += 1) {
@@ -595,14 +693,15 @@ export function resolveSpecifier(specifier, fromFile, options = {}, seen = new S
   const fromDir = dirname(fromFile);
 
   if (specifier.startsWith('.') || specifier.startsWith('/')) {
-    if (!isSourceFile(specifier)) return null;
+    if (!isSourceFile(specifier) && !isPathForm(specifier)) return null;
     const target = resolvePath(fromDir, specifier);
     // `./hardware.8bs` on the NES is `./hardware.nes.8bs` when that file
     // exists beside it — see chooseVariant.
-    const chosen = chooseVariant(specifier, target, options.machine, tagsOf(options), options.locale);
+    const chosen = chooseModule(specifier, target, options);
     if (!chosen) {
       return { code: Codes.UNRESOLVED_RELATIVE_IMPORT, message: `cannot find module '${specifier}'` };
     }
+    if (chosen.code === Codes.AMBIGUOUS_IMPORT) return chosen;
     // The file's own package's native sources come with it (see
     // nativeSourcesBeside); a package whose manifest names a missing one
     // is reported here as it would be at the package's own resolution.
@@ -618,10 +717,11 @@ export function resolveSpecifier(specifier, fromFile, options = {}, seen = new S
       const rest = aliasedSubpath(specifier, prefix);
       if (!rest) return null;
       const target = resolvePath(importAliases[prefix], rest);
-      const chosen = chooseVariant(specifier, target, options.machine, tagsOf(options), options.locale);
+      const chosen = chooseModule(specifier, target, options);
       if (!chosen) {
         return { code: Codes.UNRESOLVED_RELATIVE_IMPORT, message: `cannot find module '${specifier}'` };
       }
+      if (chosen.code === Codes.AMBIGUOUS_IMPORT) return chosen;
       const sources = nativeSourcesBeside(chosen.path ?? target);
       if (sources.code) return sources;
       return sources.native.length > 0 ? { ...chosen, native: sources.native } : chosen;
