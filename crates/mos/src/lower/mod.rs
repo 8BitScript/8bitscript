@@ -1390,10 +1390,10 @@ mod tests {
             argument: Box::new(konst(1, None)),
             ty: "bool".into(),
         });
-        assert_eq!(l.expr(&un), Err("unported: unop".into()));
+        assert_eq!(l.expr(&un), Ok(()));
         assert_eq!(
             l.expr(&binop("+", konst(1, None), konst(2, None), "utinyint")),
-            Err("unported: binop".into())
+            Ok(())
         );
     }
 
@@ -1408,27 +1408,31 @@ mod tests {
             start: None,
             length: None,
         });
-        assert_eq!(l.expr(&sl), Err("unported: stringLength".into()));
+        assert_eq!(l.expr(&sl), Ok(()));
         let sb = Expr::StringByte(mos_ir::StringByte {
             string: Box::new(konst(0, None)),
             index: Box::new(konst(0, None)),
             ty: "utinyint".into(),
         });
-        assert_eq!(l.expr(&sb), Err("unported: stringByte".into()));
+        assert_eq!(l.expr(&sb), Ok(()));
         let ix = Expr::Index(mos_ir::Index {
             array: Box::new(reference("a", None)),
             index: Box::new(konst(0, None)),
             element_type: "utinyint".into(),
             ty: "utinyint".into(),
         });
-        assert_eq!(l.expr(&ix), Err("unported: indexRead".into()));
+        assert!(
+            l.expr(&ix)
+                .unwrap_err()
+                .starts_with("'a' resolves to no array this backend placed")
+        );
         let mr = Expr::MemoryRead(mos_ir::MemoryRead {
             address: Box::new(konst(0, None)),
             ty: "utinyint".into(),
             start: 0,
             length: 0,
         });
-        assert_eq!(l.expr(&mr), Err("unported: memoryRead".into()));
+        assert_eq!(l.expr(&mr), Ok(()));
         let call = Expr::Call(mos_ir::Call {
             name: "f".into(),
             args: vec![],
@@ -1437,15 +1441,19 @@ mod tests {
             length: None,
             instance: None,
         });
-        assert_eq!(l.expr(&call), Err("unported: callSite".into()));
+        assert!(
+            l.expr(&call)
+                .unwrap_err()
+                .starts_with("call to 'f' resolves to nothing")
+        );
         let cond = Expr::Cond(mos_ir::Cond {
             test: Box::new(konst(1, None)),
             consequent: Box::new(konst(1, None)),
             alternate: Box::new(konst(2, None)),
             ty: jsnum::Nullable::Absent,
         });
-        assert_eq!(l.expr(&cond), Err("unported: branchIfFalse".into()));
-        // The two labels were taken in order before the refusal.
+        assert_eq!(l.expr(&cond), Ok(()));
+        // The two labels were taken in order.
         assert_eq!(l.counters.lower, 3);
     }
 
@@ -1461,18 +1469,15 @@ mod tests {
         l.expr8(&binop(">>", wide.clone(), konst(16, None), "usmallint"))
             .unwrap();
         assert_eq!(l.program.last(), Some(&lda_imm(0)));
-        // `wide >> 9` goes through exprTo16 (a stub) and leaves the mark alone.
-        assert_eq!(
-            l.expr8(&binop(">>", wide.clone(), konst(9, None), "usmallint")),
-            Err("unported: exprTo16".into())
-        );
-        // `wide & 0xff00` masks the low byte of the left side (here a stub).
-        assert_eq!(
-            l.expr8(&binop("&", wide.clone(), konst(0xff00, None), "usmallint")),
-            Err("unported: expr16".into())
-        );
+        // `wide >> 9` goes through exprTo16 and refuses the unbound name.
+        let unbound = |r: Result<(), String>| {
+            assert!(r.unwrap_err().starts_with("'w' resolves to nothing"));
+        };
+        unbound(l.expr8(&binop(">>", wide.clone(), konst(9, None), "usmallint")));
+        // `wide & 0xff00` masks the low byte of the left side.
+        unbound(l.expr8(&binop("&", wide.clone(), konst(0xff00, None), "usmallint")));
         // Anything else: the wide value is evaluated and its low byte loaded.
-        assert_eq!(l.expr8(&wide), Err("unported: expr16".into()));
+        unbound(l.expr8(&wide));
     }
 
     #[test]
@@ -1690,10 +1695,7 @@ mod tests {
     fn lower_reports_the_first_unported_method() {
         let mut opts = options(Some("main"));
         let mut c = Counters::default();
-        assert_eq!(
-            lower(&[], &mut opts, &mut c).unwrap_err(),
-            "unported: block"
-        );
+        assert!(lower(&[], &mut opts, &mut c).is_ok());
         assert_eq!(c.lower, 1);
     }
 }
