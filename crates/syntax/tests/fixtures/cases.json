@@ -1,0 +1,111 @@
+[
+  {
+    "file": "packages/compiler/test/fixtures/partial-subset.8bs",
+    "name": "packages_compiler_test_fixtures_partial_subset.8bs",
+    "source": "// A program written against the intended standard library, one step past\n// the compiled subset: arrays and a `for` loop with a local (which lower),\n// and a `ptr` global (which does not — 8BS3001). The compiler's tests feed\n// every prefix of this file to analyze(), hover, and completion to prove\n// none of them throw on a half-typed program; the imports are never resolved.\n//\n// This directory is also the resolver's fixture: `@8bitscript/compiler`\n// lists `@8bitscript/text` and `@8bitscript/vic20` as devDependencies, so a\n// file under here resolves them through a real pnpm-linked node_modules.\nimport { text } from \"@8bitscript/text\";\nimport { input } from \"@8bitscript/input\";\n\n@address(0x900F)\nlet vicColor: volatile<utinyint>;\n\nlet buffer: array<utinyint, 16>;\nlet cursor: ptr<utinyint>;\n\nexport function update(): void {\n    if (input.left()) {\n        cursor--;\n    } else {\n        cursor++;\n    }\n\n    for (let i: utinyint = 0; i < 16; i++) {\n        text.putChar(i, 10, buffer[0]);\n    }\n\n    while (true) {\n        break;\n    }\n\n    asm6502 {\n        lda #$06\n        sta $900f\n    }\n\n    return;\n}\n",
+    "utf16Length": 1120
+  },
+  {
+    "file": "packages/plus4/src/index.8bs",
+    "name": "packages_plus4_src_index.8bs",
+    "source": "// @8bitscript/plus4 — Commodore Plus/4: TED registers, not VIC-II.\n// TED is video, sound, timers, keyboard latch and ROM banking at once.\n// Screen is a 2K block: attributes at $0800, characters at $0C00.\n// Color byte: bits 0-3 chroma, 4-6 luma, 7 blink. 121 colors.\n// Raster: $FF1C bit 0 + $FF1D. ROM in $FF3E, RAM in $FF3F.\n@address(0xFF15)\nexport let tedBackground: volatile<u8>;\n\n@address(0xFF19)\nexport let tedBorder: volatile<u8>;\n\n@address(0xFF1C)\nexport let tedRasterHi: volatile<u8>;\n\n@address(0xFF1D)\nexport let tedRasterLo: volatile<u8>;\n",
+    "utf16Length": 553
+  },
+  {
+    "file": "packages/i18n/src/index.8bs",
+    "name": "packages_i18n_src_index.8bs",
+    "source": "// @8bitscript/i18n — what the build's locale is like, as compile-time\n// facts. This file is the one a build with no locale named reads: the\n// program's source language, which for every program so far has been\n// English, so the numbers below are English's. Beside it, index.de.8bs\n// and the rest are one locale each, and `8bs build --locale de` (or a\n// target's `locale`, or a `release` entry's) takes that file instead —\n// the resolver's locale twin rule, the same one that takes a program's\n// own strings.de.8bs over its strings.8bs (docs/config.md, \"One binary\n// per locale\"). A locale with no file here reads this one, silently:\n// add the twin (five lines) rather than branch on #locale(\"...\").\n//\n// Every value is a literal in a namespace, so a read of Locale.GROUP is\n// one byte in the image and a branch on it folds; a program that never\n// reads it links none of this. What is here is what a program on a\n// character grid can act on: the two separators a number is written\n// with, as the ASCII codes @8bitscript/text's putChar takes. Both are\n// in the portable character set on every machine (`,` and `.`; a space\n// where a language groups with one). What is not here is anything the\n// machines cannot show — an accented letter, a currency sign — and\n// anything that is a string: strings are the program's own, in its\n// strings.8bs and that file's locale twins.\n//\n// Sources: CLDR's number symbols for each locale (unicode.org/cldr);\n// each twin cites the entry it was read from.\n\nexport namespace Locale {\n    const DECIMAL: utinyint = 46; // '.' — 3.5\n    const GROUP: utinyint = 44;   // ',' — 65,535\n}\n\n// Folded by the compiler at every call site (`i18n.format(Prompt.START,\n// { control: Input.CONFIRM_LABEL })` becomes the interpolated literal).\n// The body is never linked on a retro build.\nexport namespace i18n {\n    // Interpolate {name} slots in a catalog string. Folded at every\n    // call site; the body is never linked on a retro build.\n    function format(template: string): void {\n    }\n}\n",
+    "utf16Length": 2035
+  },
+  {
+    "file": "packages/i18n/src/index.nl.8bs",
+    "name": "packages_i18n_src_index.nl.8bs",
+    "source": "// Dutch — index.8bs's twin for `--locale nl`. CLDR nl: decimal \",\",\n// group \".\" (1.234,5).\nexport namespace Locale {\n    const DECIMAL: utinyint = 44; // ','\n    const GROUP: utinyint = 46;   // '.'\n}\n\nexport namespace i18n {\n    // Interpolate {name} slots in a catalog string. Folded at every\n    // call site; the body is never linked on a retro build.\n    function format(template: string): void {\n    }\n}\n",
+    "utf16Length": 412
+  },
+  {
+    "file": "packages/i18n/src/catalog.8bs",
+    "name": "packages_i18n_src_catalog.8bs",
+    "utf16Length": 339
+  },
+  {
+    "file": "packages/sprites/test/shapes.c64.8bs",
+    "name": "packages_sprites_test_shapes.c64.8bs",
+    "utf16Length": 510
+  },
+  {
+    "file": "packages/vic20/src/cursor.8bs",
+    "name": "packages_vic20_src_cursor.8bs",
+    "source": "// The one real-hardware-only piece of @8bitscript/vic20/text's\n// releaseCursor(): the KERNAL's own PLOT call. Split out of text.8bs so it\n// alone can carry a `.web` twin (cursor.vic20.web.8bs) — see that file, and\n// build.mjs's own comment on the `web` tag it resolves against — rather\n// than duplicating everything else in text.8bs just to change this one\n// function. text.8bs's `releaseCursor()` calls this and does nothing else,\n// so the linker's single-call-site inlining folds the two back into one on\n// every build, real hardware or wasm.\n//\n// Tells the KERNAL screen editor the cursor is at the start of row 1,\n// through PLOT ($FFF0: carry clear, row in X, column in Y). print()/\n// putChar() write straight into screen memory, which the editor's own\n// cursor tracking never sees, so without this BASIC's next PRINT —\n// READY. included — lands wherever the cursor was before the program\n// ran, not under what the program just drew.\n//\n// Row 1 rather than row 0: PLOT's own pointer math walks the screen\n// line link table ($D9, one byte per row — bit 7 clear on a row means\n// \"this row continues the one above\") looking for where the cursor's\n// logical line actually starts, and row 0's entry is whatever the boot\n// banner's scrolling left there. Measured under xvic: PLOT to row 0\n// landed READY. on row 2, same as row 1 — the stale table sends both\n// to the same place — so row 1 is the one that costs nothing extra\n// and is provably stable (rows 1, 2 and 5 all measured one row below\n// where PLOT put them).\nexport function releaseCursor(): void {\n    asm6502 {\n        ldx #1\n        ldy #0\n        clc\n        jsr $FFF0\n    }\n}\n",
+    "utf16Length": 1661
+  },
+  {
+    "file": "packages/cx16/src/pointer.cx16.web.8bs",
+    "name": "packages_cx16_src_pointer.cx16.web.8bs",
+    "source": "// pointer.8bs's own `.web` twin — the wasm build links this in place of\n// ./pointer.8bs. On the wasm rail nothing draws an arrow in the picture: the\n// browser's own cursor over the canvas is the arrow, and the position the\n// program hit-tests is that cursor's (input.pointerCell(), read from the\n// page's pointer block). `DRAWS` is false, so a program's `if (pointer.DRAWS)`\n// folds away. The native file would call the KERNAL's mouse from asm6502, which the wasm backend cannot lower.\n// Keep the export list identical to pointer.8bs —\n// packages/compiler/test/cx16-web-twin.test.mjs holds the two to the same names.\nexport namespace pointer {\n\n    const DRAWS: bool = false;\n\n    function begin(): void {\n    }\n\n    function setColor(color: utinyint): void {\n    }\n\n    function update(): void {\n    }\n\n    function hide(): void {\n    }\n}\n",
+    "utf16Length": 848
+  },
+  {
+    "file": "packages/c64/test/addr-tmp.8bs",
+    "name": "packages_c64_test_addr_tmp.8bs",
+    "utf16Length": 147
+  },
+  {
+    "file": "packages/odyssey2/src/geometry.8bs",
+    "name": "packages_odyssey2_src_geometry.8bs",
+    "utf16Length": 129
+  },
+  {
+    "file": "packages/examples/hello-8bx/src/Hello.8bx",
+    "name": "packages_examples_hello_8bx_src_Hello.8bx",
+    "source": "// The greeting as a component. This file declares composition and nothing\n// else: no main(), no program — the .8bs beside it is the program, and it\n// reaches this component by importing it (8BX spec §4.3, §4.5).\nimport { text } from \"@8bitscript/text\";\n\nexport component Hello() {\n    text.print(0, \"Hello World!\");\n}\n",
+    "utf16Length": 321
+  },
+  {
+    "file": "packages/examples/media-walk/src/Walk.8bx",
+    "name": "packages_examples_media_walk_src_Walk.8bx",
+    "utf16Length": 353
+  },
+  {
+    "file": "utf16-astral.8bs",
+    "name": "utf16_astral.8bs",
+    "source": "// 😀 café — spans count UTF-16 units\nlet s: string<8> = \"héllo 😀\";\nlet n: utinyint = 7;\n",
+    "utf16Length": 90
+  },
+  {
+    "file": "frames-decimal.8bs",
+    "name": "frames_decimal.8bs",
+    "source": "export function main(): void {\n  let t: utinyint = #frames(0.5, seconds);\n  let big: smallint = 0xFFFFFFFF;\n  let b: utinyint = %1010_1010;\n}\n",
+    "utf16Length": 142
+  },
+  {
+    "file": "template-record.8bs",
+    "name": "template_record.8bs",
+    "source": "function f(): void {\n  text.print(0, `TICK ${ticks % 10:1} OPT ${opt}`);\n  i18n.format(M.X, { control: Input.OK, n: 2 });\n}\n",
+    "utf16Length": 124
+  },
+  {
+    "file": "imports-as.8bs",
+    "name": "imports_as.8bs",
+    "source": "import { a, b as c } from \"./geo.8bs\";\nimport \"x\";\n@address($D020) let border: volatile<u8>;\n@unroll(4) for (let i: u8 = 0; i < 8; i++) { a[i] = -i; }\n",
+    "utf16Length": 151
+  },
+  {
+    "file": "control-flow.8bs",
+    "name": "control_flow.8bs",
+    "source": "function g(x: u8 = 3): u8 {\n  if (x > 1) return 1; else if (x) { x += 2; } else x--;\n  while (true) { break; continue; }\n  for (;;) {}\n  return x ? --x : ~x;\n}\nasm6502 { lda #1 }\nlet arr: array<u8, 4> = [1, 2, 3, 4,];\nconst K: u8 = 0x10;\n",
+    "utf16Length": 238
+  },
+  {
+    "file": "recovery.8bs",
+    "name": "recovery.8bs",
+    "source": "function (a: ) { let = 3; }\nnamespace N { let ; function f(): void {} 5 }\nlet s = \"open\nif (\n",
+    "utf16Length": 93
+  },
+  {
+    "file": "state-component.8bx",
+    "name": "state_component.8bx",
+    "source": "component Box(label: string = \"x\", n: u8) {\n  state shown: u8 = 1;\n  <slot />\n  <>{shown ? <Mark /> : <Mark on {...p} k={1} t=\"s\" />}</>\n  text here\n}\nexport component Top() { <Box label=\"a\">hi {n}</Box> }\n",
+    "utf16Length": 206
+  }
+]

@@ -1,0 +1,164 @@
+[
+  {
+    "kind": "keyword",
+    "length": 6,
+    "start": 0,
+    "text": "export"
+  },
+  {
+    "kind": "keyword",
+    "length": 9,
+    "start": 7,
+    "text": "namespace"
+  },
+  {
+    "kind": "identifier",
+    "length": 5,
+    "start": 17,
+    "text": "Video"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 23,
+    "text": "{"
+  },
+  {
+    "kind": "keyword",
+    "length": 5,
+    "start": 29,
+    "text": "const"
+  },
+  {
+    "kind": "identifier",
+    "length": 7,
+    "start": 35,
+    "text": "COLUMNS"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 42,
+    "text": ":"
+  },
+  {
+    "kind": "type",
+    "length": 8,
+    "start": 44,
+    "text": "utinyint"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 53,
+    "text": "="
+  },
+  {
+    "kind": "number",
+    "length": 2,
+    "radix": 10,
+    "start": 55,
+    "text": "12",
+    "value": 12
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 57,
+    "text": ";"
+  },
+  {
+    "kind": "keyword",
+    "length": 5,
+    "start": 63,
+    "text": "const"
+  },
+  {
+    "kind": "identifier",
+    "length": 4,
+    "start": 69,
+    "text": "ROWS"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 73,
+    "text": ":"
+  },
+  {
+    "kind": "type",
+    "length": 8,
+    "start": 75,
+    "text": "utinyint"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 84,
+    "text": "="
+  },
+  {
+    "kind": "number",
+    "length": 1,
+    "radix": 10,
+    "start": 86,
+    "text": "8",
+    "value": 8
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 87,
+    "text": ";"
+  },
+  {
+    "kind": "keyword",
+    "length": 5,
+    "start": 93,
+    "text": "const"
+  },
+  {
+    "kind": "identifier",
+    "length": 10,
+    "start": 99,
+    "text": "CELL_COUNT"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 109,
+    "text": ":"
+  },
+  {
+    "kind": "type",
+    "length": 9,
+    "start": 111,
+    "text": "usmallint"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 121,
+    "text": "="
+  },
+  {
+    "kind": "number",
+    "length": 2,
+    "radix": 10,
+    "start": 123,
+    "text": "96",
+    "value": 96
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 125,
+    "text": ";"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 127,
+    "text": "}"
+  }
+]

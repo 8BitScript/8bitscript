@@ -1,0 +1,875 @@
+{
+  "body": [
+    {
+      "length": 51,
+      "source": {
+        "length": 18,
+        "start": 262,
+        "type": "StringLiteral",
+        "value": "@8bitscript/text"
+      },
+      "specifiers": [
+        {
+          "length": 4,
+          "name": "text",
+          "start": 239,
+          "type": "Identifier"
+        },
+        {
+          "length": 9,
+          "name": "TextColor",
+          "start": 245,
+          "type": "Identifier"
+        }
+      ],
+      "start": 230,
+      "type": "ImportDeclaration"
+    },
+    {
+      "allowsChildren": false,
+      "body": {
+        "body": [
+          {
+            "exported": false,
+            "initializer": {
+              "args": [],
+              "callee": {
+                "length": 12,
+                "object": {
+                  "length": 4,
+                  "name": "text",
+                  "start": 346,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 7,
+                  "name": "columns",
+                  "start": 351,
+                  "type": "Identifier"
+                },
+                "start": 346,
+                "type": "MemberExpression"
+              },
+              "length": 14,
+              "start": 346,
+              "type": "CallExpression"
+            },
+            "kind": "let",
+            "length": 40,
+            "name": {
+              "length": 7,
+              "name": "columns",
+              "start": 325,
+              "type": "Identifier"
+            },
+            "start": 321,
+            "type": "VariableDeclaration",
+            "typeAnnotation": {
+              "length": 9,
+              "name": "usmallint",
+              "start": 334,
+              "type": "TypeReference",
+              "typeArguments": []
+            }
+          },
+          {
+            "exported": false,
+            "initializer": {
+              "left": {
+                "left": {
+                  "args": [],
+                  "callee": {
+                    "length": 9,
+                    "object": {
+                      "length": 4,
+                      "name": "text",
+                      "start": 388,
+                      "type": "Identifier"
+                    },
+                    "property": {
+                      "length": 4,
+                      "name": "rows",
+                      "start": 393,
+                      "type": "Identifier"
+                    },
+                    "start": 388,
+                    "type": "MemberExpression"
+                  },
+                  "length": 11,
+                  "start": 388,
+                  "type": "CallExpression"
+                },
+                "length": 15,
+                "operator": "-",
+                "right": {
+                  "length": 1,
+                  "radix": 10,
+                  "raw": "1",
+                  "start": 402,
+                  "type": "IntegerLiteral",
+                  "value": 1
+                },
+                "start": 388,
+                "type": "BinaryExpression"
+              },
+              "length": 26,
+              "operator": "*",
+              "right": {
+                "length": 7,
+                "name": "columns",
+                "start": 407,
+                "type": "Identifier"
+              },
+              "start": 388,
+              "type": "BinaryExpression"
+            },
+            "kind": "let",
+            "length": 49,
+            "name": {
+              "length": 3,
+              "name": "row",
+              "start": 370,
+              "type": "Identifier"
+            },
+            "start": 366,
+            "type": "VariableDeclaration",
+            "typeAnnotation": {
+              "length": 9,
+              "name": "usmallint",
+              "start": 375,
+              "type": "TypeReference",
+              "typeArguments": []
+            }
+          },
+          {
+            "expression": {
+              "args": [
+                {
+                  "length": 14,
+                  "object": {
+                    "length": 9,
+                    "name": "TextColor",
+                    "start": 434,
+                    "type": "Identifier"
+                  },
+                  "property": {
+                    "length": 4,
+                    "name": "CYAN",
+                    "start": 444,
+                    "type": "Identifier"
+                  },
+                  "start": 434,
+                  "type": "MemberExpression"
+                }
+              ],
+              "callee": {
+                "length": 13,
+                "object": {
+                  "length": 4,
+                  "name": "text",
+                  "start": 420,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 8,
+                  "name": "setColor",
+                  "start": 425,
+                  "type": "Identifier"
+                },
+                "start": 420,
+                "type": "MemberExpression"
+              },
+              "length": 29,
+              "start": 420,
+              "type": "CallExpression"
+            },
+            "length": 30,
+            "start": 420,
+            "type": "ExpressionStatement"
+          },
+          {
+            "expression": {
+              "args": [
+                {
+                  "length": 4,
+                  "start": 471,
+                  "type": "BooleanLiteral",
+                  "value": true
+                }
+              ],
+              "callee": {
+                "length": 15,
+                "object": {
+                  "length": 4,
+                  "name": "text",
+                  "start": 455,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 10,
+                  "name": "setReverse",
+                  "start": 460,
+                  "type": "Identifier"
+                },
+                "start": 455,
+                "type": "MemberExpression"
+              },
+              "length": 21,
+              "start": 455,
+              "type": "CallExpression"
+            },
+            "length": 22,
+            "start": 455,
+            "type": "ExpressionStatement"
+          },
+          {
+            "expression": {
+              "args": [
+                {
+                  "length": 3,
+                  "name": "row",
+                  "start": 492,
+                  "type": "Identifier"
+                },
+                {
+                  "length": 7,
+                  "name": "columns",
+                  "start": 497,
+                  "type": "Identifier"
+                },
+                {
+                  "length": 2,
+                  "radix": 10,
+                  "raw": "32",
+                  "start": 506,
+                  "type": "IntegerLiteral",
+                  "value": 32
+                }
+              ],
+              "callee": {
+                "length": 9,
+                "object": {
+                  "length": 4,
+                  "name": "text",
+                  "start": 482,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 4,
+                  "name": "fill",
+                  "start": 487,
+                  "type": "Identifier"
+                },
+                "start": 482,
+                "type": "MemberExpression"
+              },
+              "length": 27,
+              "start": 482,
+              "type": "CallExpression"
+            },
+            "length": 28,
+            "start": 482,
+            "type": "ExpressionStatement"
+          },
+          {
+            "expression": {
+              "args": [
+                {
+                  "left": {
+                    "length": 3,
+                    "name": "row",
+                    "start": 526,
+                    "type": "Identifier"
+                  },
+                  "length": 7,
+                  "operator": "+",
+                  "right": {
+                    "length": 1,
+                    "radix": 10,
+                    "raw": "1",
+                    "start": 532,
+                    "type": "IntegerLiteral",
+                    "value": 1
+                  },
+                  "start": 526,
+                  "type": "BinaryExpression"
+                },
+                {
+                  "length": 7,
+                  "start": 535,
+                  "type": "StringLiteral",
+                  "value": "READY"
+                }
+              ],
+              "callee": {
+                "length": 10,
+                "object": {
+                  "length": 4,
+                  "name": "text",
+                  "start": 515,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 5,
+                  "name": "print",
+                  "start": 520,
+                  "type": "Identifier"
+                },
+                "start": 515,
+                "type": "MemberExpression"
+              },
+              "length": 28,
+              "start": 515,
+              "type": "CallExpression"
+            },
+            "length": 29,
+            "start": 515,
+            "type": "ExpressionStatement"
+          },
+          {
+            "expression": {
+              "args": [
+                {
+                  "left": {
+                    "length": 3,
+                    "name": "row",
+                    "start": 560,
+                    "type": "Identifier"
+                  },
+                  "length": 7,
+                  "operator": "+",
+                  "right": {
+                    "length": 1,
+                    "radix": 10,
+                    "raw": "9",
+                    "start": 566,
+                    "type": "IntegerLiteral",
+                    "value": 9
+                  },
+                  "start": 560,
+                  "type": "BinaryExpression"
+                },
+                {
+                  "length": 12,
+                  "start": 569,
+                  "type": "StringLiteral",
+                  "value": "DAW MODULE"
+                }
+              ],
+              "callee": {
+                "length": 10,
+                "object": {
+                  "length": 4,
+                  "name": "text",
+                  "start": 549,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 5,
+                  "name": "print",
+                  "start": 554,
+                  "type": "Identifier"
+                },
+                "start": 549,
+                "type": "MemberExpression"
+              },
+              "length": 33,
+              "start": 549,
+              "type": "CallExpression"
+            },
+            "length": 34,
+            "start": 549,
+            "type": "ExpressionStatement"
+          },
+          {
+            "alternate": null,
+            "consequent": {
+              "body": [
+                {
+                  "expression": {
+                    "args": [
+                      {
+                        "left": {
+                          "length": 3,
+                          "name": "row",
+                          "start": 627,
+                          "type": "Identifier"
+                        },
+                        "length": 8,
+                        "operator": "+",
+                        "right": {
+                          "length": 2,
+                          "radix": 10,
+                          "raw": "22",
+                          "start": 633,
+                          "type": "IntegerLiteral",
+                          "value": 22
+                        },
+                        "start": 627,
+                        "type": "BinaryExpression"
+                      },
+                      {
+                        "length": 14,
+                        "start": 637,
+                        "type": "StringLiteral",
+                        "value": "NO SOUND YET"
+                      }
+                    ],
+                    "callee": {
+                      "length": 10,
+                      "object": {
+                        "length": 4,
+                        "name": "text",
+                        "start": 616,
+                        "type": "Identifier"
+                      },
+                      "property": {
+                        "length": 5,
+                        "name": "print",
+                        "start": 621,
+                        "type": "Identifier"
+                      },
+                      "start": 616,
+                      "type": "MemberExpression"
+                    },
+                    "length": 36,
+                    "start": 616,
+                    "type": "CallExpression"
+                  },
+                  "length": 37,
+                  "start": 616,
+                  "type": "ExpressionStatement"
+                }
+              ],
+              "length": 53,
+              "start": 606,
+              "type": "BlockStatement"
+            },
+            "length": 71,
+            "start": 588,
+            "test": {
+              "left": {
+                "length": 7,
+                "name": "columns",
+                "start": 592,
+                "type": "Identifier"
+              },
+              "length": 12,
+              "operator": ">",
+              "right": {
+                "length": 2,
+                "radix": 10,
+                "raw": "48",
+                "start": 602,
+                "type": "IntegerLiteral",
+                "value": 48
+              },
+              "start": 592,
+              "type": "BinaryExpression"
+            },
+            "type": "IfStatement"
+          },
+          {
+            "expression": {
+              "args": [
+                {
+                  "left": {
+                    "left": {
+                      "length": 3,
+                      "name": "row",
+                      "start": 675,
+                      "type": "Identifier"
+                    },
+                    "length": 13,
+                    "operator": "+",
+                    "right": {
+                      "length": 7,
+                      "name": "columns",
+                      "start": 681,
+                      "type": "Identifier"
+                    },
+                    "start": 675,
+                    "type": "BinaryExpression"
+                  },
+                  "length": 18,
+                  "operator": "-",
+                  "right": {
+                    "length": 2,
+                    "radix": 10,
+                    "raw": "13",
+                    "start": 691,
+                    "type": "IntegerLiteral",
+                    "value": 13
+                  },
+                  "start": 675,
+                  "type": "BinaryExpression"
+                },
+                {
+                  "length": 6,
+                  "start": 695,
+                  "type": "StringLiteral",
+                  "value": "GRID"
+                }
+              ],
+              "callee": {
+                "length": 10,
+                "object": {
+                  "length": 4,
+                  "name": "text",
+                  "start": 664,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 5,
+                  "name": "print",
+                  "start": 669,
+                  "type": "Identifier"
+                },
+                "start": 664,
+                "type": "MemberExpression"
+              },
+              "length": 38,
+              "start": 664,
+              "type": "CallExpression"
+            },
+            "length": 39,
+            "start": 664,
+            "type": "ExpressionStatement"
+          },
+          {
+            "expression": {
+              "args": [
+                {
+                  "left": {
+                    "left": {
+                      "length": 3,
+                      "name": "row",
+                      "start": 725,
+                      "type": "Identifier"
+                    },
+                    "length": 13,
+                    "operator": "+",
+                    "right": {
+                      "length": 7,
+                      "name": "columns",
+                      "start": 731,
+                      "type": "Identifier"
+                    },
+                    "start": 725,
+                    "type": "BinaryExpression"
+                  },
+                  "length": 17,
+                  "operator": "-",
+                  "right": {
+                    "length": 1,
+                    "radix": 10,
+                    "raw": "8",
+                    "start": 741,
+                    "type": "IntegerLiteral",
+                    "value": 8
+                  },
+                  "start": 725,
+                  "type": "BinaryExpression"
+                },
+                {
+                  "length": 7,
+                  "name": "columns",
+                  "start": 744,
+                  "type": "Identifier"
+                },
+                {
+                  "length": 1,
+                  "radix": 10,
+                  "raw": "3",
+                  "start": 753,
+                  "type": "IntegerLiteral",
+                  "value": 3
+                }
+              ],
+              "callee": {
+                "length": 16,
+                "object": {
+                  "length": 4,
+                  "name": "text",
+                  "start": 708,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 11,
+                  "name": "printNumber",
+                  "start": 713,
+                  "type": "Identifier"
+                },
+                "start": 708,
+                "type": "MemberExpression"
+              },
+              "length": 47,
+              "start": 708,
+              "type": "CallExpression"
+            },
+            "length": 48,
+            "start": 708,
+            "type": "ExpressionStatement"
+          },
+          {
+            "expression": {
+              "args": [
+                {
+                  "left": {
+                    "left": {
+                      "length": 3,
+                      "name": "row",
+                      "start": 772,
+                      "type": "Identifier"
+                    },
+                    "length": 13,
+                    "operator": "+",
+                    "right": {
+                      "length": 7,
+                      "name": "columns",
+                      "start": 778,
+                      "type": "Identifier"
+                    },
+                    "start": 772,
+                    "type": "BinaryExpression"
+                  },
+                  "length": 17,
+                  "operator": "-",
+                  "right": {
+                    "length": 1,
+                    "radix": 10,
+                    "raw": "5",
+                    "start": 788,
+                    "type": "IntegerLiteral",
+                    "value": 5
+                  },
+                  "start": 772,
+                  "type": "BinaryExpression"
+                },
+                {
+                  "length": 3,
+                  "start": 791,
+                  "type": "StringLiteral",
+                  "value": "X"
+                }
+              ],
+              "callee": {
+                "length": 10,
+                "object": {
+                  "length": 4,
+                  "name": "text",
+                  "start": 761,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 5,
+                  "name": "print",
+                  "start": 766,
+                  "type": "Identifier"
+                },
+                "start": 761,
+                "type": "MemberExpression"
+              },
+              "length": 34,
+              "start": 761,
+              "type": "CallExpression"
+            },
+            "length": 35,
+            "start": 761,
+            "type": "ExpressionStatement"
+          },
+          {
+            "expression": {
+              "args": [
+                {
+                  "left": {
+                    "left": {
+                      "length": 3,
+                      "name": "row",
+                      "start": 818,
+                      "type": "Identifier"
+                    },
+                    "length": 13,
+                    "operator": "+",
+                    "right": {
+                      "length": 7,
+                      "name": "columns",
+                      "start": 824,
+                      "type": "Identifier"
+                    },
+                    "start": 818,
+                    "type": "BinaryExpression"
+                  },
+                  "length": 17,
+                  "operator": "-",
+                  "right": {
+                    "length": 1,
+                    "radix": 10,
+                    "raw": "4",
+                    "start": 834,
+                    "type": "IntegerLiteral",
+                    "value": 4
+                  },
+                  "start": 818,
+                  "type": "BinaryExpression"
+                },
+                {
+                  "args": [],
+                  "callee": {
+                    "length": 9,
+                    "object": {
+                      "length": 4,
+                      "name": "text",
+                      "start": 837,
+                      "type": "Identifier"
+                    },
+                    "property": {
+                      "length": 4,
+                      "name": "rows",
+                      "start": 842,
+                      "type": "Identifier"
+                    },
+                    "start": 837,
+                    "type": "MemberExpression"
+                  },
+                  "length": 11,
+                  "start": 837,
+                  "type": "CallExpression"
+                },
+                {
+                  "length": 1,
+                  "radix": 10,
+                  "raw": "3",
+                  "start": 850,
+                  "type": "IntegerLiteral",
+                  "value": 3
+                }
+              ],
+              "callee": {
+                "length": 16,
+                "object": {
+                  "length": 4,
+                  "name": "text",
+                  "start": 801,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 11,
+                  "name": "printNumber",
+                  "start": 806,
+                  "type": "Identifier"
+                },
+                "start": 801,
+                "type": "MemberExpression"
+              },
+              "length": 51,
+              "start": 801,
+              "type": "CallExpression"
+            },
+            "length": 52,
+            "start": 801,
+            "type": "ExpressionStatement"
+          },
+          {
+            "expression": {
+              "args": [
+                {
+                  "length": 5,
+                  "start": 874,
+                  "type": "BooleanLiteral",
+                  "value": false
+                }
+              ],
+              "callee": {
+                "length": 15,
+                "object": {
+                  "length": 4,
+                  "name": "text",
+                  "start": 858,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 10,
+                  "name": "setReverse",
+                  "start": 863,
+                  "type": "Identifier"
+                },
+                "start": 858,
+                "type": "MemberExpression"
+              },
+              "length": 22,
+              "start": 858,
+              "type": "CallExpression"
+            },
+            "length": 23,
+            "start": 858,
+            "type": "ExpressionStatement"
+          },
+          {
+            "expression": {
+              "args": [
+                {
+                  "length": 15,
+                  "object": {
+                    "length": 9,
+                    "name": "TextColor",
+                    "start": 900,
+                    "type": "Identifier"
+                  },
+                  "property": {
+                    "length": 5,
+                    "name": "WHITE",
+                    "start": 910,
+                    "type": "Identifier"
+                  },
+                  "start": 900,
+                  "type": "MemberExpression"
+                }
+              ],
+              "callee": {
+                "length": 13,
+                "object": {
+                  "length": 4,
+                  "name": "text",
+                  "start": 886,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 8,
+                  "name": "setColor",
+                  "start": 891,
+                  "type": "Identifier"
+                },
+                "start": 886,
+                "type": "MemberExpression"
+              },
+              "length": 30,
+              "start": 886,
+              "type": "CallExpression"
+            },
+            "length": 31,
+            "start": 886,
+            "type": "ExpressionStatement"
+          }
+        ],
+        "length": 604,
+        "start": 315,
+        "type": "BlockStatement"
+      },
+      "exported": true,
+      "length": 636,
+      "name": {
+        "length": 12,
+        "name": "DawStatusBar",
+        "start": 300,
+        "type": "Identifier"
+      },
+      "params": [],
+      "start": 283,
+      "type": "ComponentDeclaration"
+    }
+  ],
+  "length": 920,
+  "start": 0,
+  "type": "Program"
+}

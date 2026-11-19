@@ -22,6 +22,57 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm run test:ci
 
+  # The Rust port's oracle. The corpus is dumped twice in parallel jobs, the
+  # second time from a copy of the checkout at another path, and the compare
+  # job requires the two trees to be identical. Rust fmt, clippy and tests are
+  # not run here.
+  oracle-dump:
+    name: Oracle dump ${{ matrix.where }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        where: [a, b]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 26
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Dump the corpus
+        run: |
+          if [ "${{ matrix.where }}" = b ]; then
+            cp -a "$GITHUB_WORKSPACE" "$RUNNER_TEMP/copy"
+            cd "$RUNNER_TEMP/copy"
+          fi
+          node scripts/oracle/corpus.mjs --dump --out "$RUNNER_TEMP/dump"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: oracle-dump-${{ matrix.where }}
+          path: ${{ runner.temp }}/dump
+          include-hidden-files: true
+          retention-days: 1
+          compression-level: 1
+
+  oracle:
+    name: Oracle
+    needs: oracle-dump
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@1.100.0
+      - uses: Swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6 # v2.7.8
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: oracle-dump-*
+          path: ${{ runner.temp }}/dumps
+      - name: The two dumps are identical
+        run: cargo xtask compare "$RUNNER_TEMP/dumps/oracle-dump-a" "$RUNNER_TEMP/dumps/oracle-dump-b"
+
   # Fails the pull request when packages/ or editors/ changed and no
   # .changeset/*.md came with them. The version bot only opens a release
   # for changesets that actually merged. Docs and CI do not need one.

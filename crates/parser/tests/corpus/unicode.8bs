@@ -1,0 +1,9 @@
+// é 😀 before every span below
+let s = "é😀";
+let t = `é ${s} 😀 ${s:2}`;
+fn café() -> u8 {
+    /* ünï */ let x = 1;
+    match x { 1 => { go(); } _ => { } }
+    return x;
+}
+for i in 0..9 { }

@@ -1,0 +1,293 @@
+{
+  "body": [
+    {
+      "length": 38,
+      "source": {
+        "length": 14,
+        "start": 23,
+        "type": "StringLiteral",
+        "value": "./player.8bg"
+      },
+      "specifiers": [
+        {
+          "length": 6,
+          "name": "player",
+          "start": 9,
+          "type": "Identifier"
+        }
+      ],
+      "start": 0,
+      "type": "ImportDeclaration"
+    },
+    {
+      "length": 42,
+      "source": {
+        "length": 13,
+        "start": 67,
+        "type": "StringLiteral",
+        "value": "./theme.8ba"
+      },
+      "specifiers": [
+        {
+          "length": 4,
+          "name": "blip",
+          "start": 48,
+          "type": "Identifier"
+        },
+        {
+          "length": 5,
+          "name": "theme",
+          "start": 54,
+          "type": "Identifier"
+        }
+      ],
+      "start": 39,
+      "type": "ImportDeclaration"
+    },
+    {
+      "length": 48,
+      "source": {
+        "length": 22,
+        "start": 107,
+        "type": "StringLiteral",
+        "value": "@8bitscript/graphics"
+      },
+      "specifiers": [
+        {
+          "length": 8,
+          "name": "graphics",
+          "start": 91,
+          "type": "Identifier"
+        }
+      ],
+      "start": 82,
+      "type": "ImportDeclaration"
+    },
+    {
+      "length": 42,
+      "source": {
+        "length": 19,
+        "start": 153,
+        "type": "StringLiteral",
+        "value": "@8bitscript/audio"
+      },
+      "specifiers": [
+        {
+          "length": 5,
+          "name": "audio",
+          "start": 140,
+          "type": "Identifier"
+        }
+      ],
+      "start": 131,
+      "type": "ImportDeclaration"
+    },
+    {
+      "length": 40,
+      "source": {
+        "length": 18,
+        "start": 195,
+        "type": "StringLiteral",
+        "value": "@8bitscript/text"
+      },
+      "specifiers": [
+        {
+          "length": 4,
+          "name": "text",
+          "start": 183,
+          "type": "Identifier"
+        }
+      ],
+      "start": 174,
+      "type": "ImportDeclaration"
+    },
+    {
+      "allowsChildren": false,
+      "body": {
+        "body": [
+          {
+            "expression": {
+              "args": [
+                {
+                  "length": 1,
+                  "radix": 10,
+                  "raw": "0",
+                  "start": 257,
+                  "type": "IntegerLiteral",
+                  "value": 0
+                },
+                {
+                  "length": 6,
+                  "start": 260,
+                  "type": "StringLiteral",
+                  "value": "WALK"
+                }
+              ],
+              "callee": {
+                "length": 10,
+                "object": {
+                  "length": 4,
+                  "name": "text",
+                  "start": 246,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 5,
+                  "name": "print",
+                  "start": 251,
+                  "type": "Identifier"
+                },
+                "start": 246,
+                "type": "MemberExpression"
+              },
+              "length": 21,
+              "start": 246,
+              "type": "CallExpression"
+            },
+            "length": 22,
+            "start": 246,
+            "type": "ExpressionStatement"
+          },
+          {
+            "expression": {
+              "args": [
+                {
+                  "length": 6,
+                  "name": "player",
+                  "start": 288,
+                  "type": "Identifier"
+                },
+                {
+                  "length": 2,
+                  "radix": 10,
+                  "raw": "40",
+                  "start": 296,
+                  "type": "IntegerLiteral",
+                  "value": 40
+                },
+                {
+                  "length": 2,
+                  "radix": 10,
+                  "raw": "40",
+                  "start": 300,
+                  "type": "IntegerLiteral",
+                  "value": 40
+                }
+              ],
+              "callee": {
+                "length": 14,
+                "object": {
+                  "length": 8,
+                  "name": "graphics",
+                  "start": 273,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 5,
+                  "name": "place",
+                  "start": 282,
+                  "type": "Identifier"
+                },
+                "start": 273,
+                "type": "MemberExpression"
+              },
+              "length": 30,
+              "start": 273,
+              "type": "CallExpression"
+            },
+            "length": 31,
+            "start": 273,
+            "type": "ExpressionStatement"
+          },
+          {
+            "expression": {
+              "args": [
+                {
+                  "length": 4,
+                  "name": "blip",
+                  "start": 320,
+                  "type": "Identifier"
+                }
+              ],
+              "callee": {
+                "length": 10,
+                "object": {
+                  "length": 5,
+                  "name": "audio",
+                  "start": 309,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 4,
+                  "name": "play",
+                  "start": 315,
+                  "type": "Identifier"
+                },
+                "start": 309,
+                "type": "MemberExpression"
+              },
+              "length": 16,
+              "start": 309,
+              "type": "CallExpression"
+            },
+            "length": 17,
+            "start": 309,
+            "type": "ExpressionStatement"
+          },
+          {
+            "expression": {
+              "args": [
+                {
+                  "length": 5,
+                  "name": "theme",
+                  "start": 343,
+                  "type": "Identifier"
+                }
+              ],
+              "callee": {
+                "length": 11,
+                "object": {
+                  "length": 5,
+                  "name": "audio",
+                  "start": 331,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 5,
+                  "name": "music",
+                  "start": 337,
+                  "type": "Identifier"
+                },
+                "start": 331,
+                "type": "MemberExpression"
+              },
+              "length": 18,
+              "start": 331,
+              "type": "CallExpression"
+            },
+            "length": 19,
+            "start": 331,
+            "type": "ExpressionStatement"
+          }
+        ],
+        "length": 112,
+        "start": 240,
+        "type": "BlockStatement"
+      },
+      "exported": true,
+      "length": 136,
+      "name": {
+        "length": 4,
+        "name": "Walk",
+        "start": 233,
+        "type": "Identifier"
+      },
+      "params": [],
+      "start": 216,
+      "type": "ComponentDeclaration"
+    }
+  ],
+  "length": 353,
+  "start": 0,
+  "type": "Program"
+}

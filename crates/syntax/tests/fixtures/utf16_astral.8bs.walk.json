@@ -1,0 +1,12 @@
+[
+  "Program@0+90<",
+  "VariableDeclaration@38+30<Program",
+  "Identifier@42+1<VariableDeclaration",
+  "TypeReference@45+9<VariableDeclaration",
+  "IntegerLiteral@52+1<TypeReference",
+  "StringLiteral@57+10<VariableDeclaration",
+  "VariableDeclaration@69+20<Program",
+  "Identifier@73+1<VariableDeclaration",
+  "TypeReference@76+8<VariableDeclaration",
+  "IntegerLiteral@87+1<VariableDeclaration"
+]

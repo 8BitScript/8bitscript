@@ -1,0 +1,20 @@
+[package]
+name = "front-wasm"
+description = "The front end behind one wasm module: tokenize, parse and the pair check, JSON in and out"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["float_roundtrip"] }
+syntax = { path = "../syntax" }
+lexer = { path = "../lexer" }
+parser = { path = "../parser" }
+
+[dev-dependencies]
+oracle = { path = "../oracle" }

@@ -1,0 +1,383 @@
+{
+  "body": [
+    {
+      "body": {
+        "body": [
+          {
+            "alternate": {
+              "alternate": {
+                "alternate": {
+                  "alternate": {
+                    "body": [
+                      {
+                        "expression": {
+                          "args": [],
+                          "callee": {
+                            "length": 1,
+                            "name": "e",
+                            "start": 177,
+                            "type": "Identifier"
+                          },
+                          "length": 3,
+                          "start": 177,
+                          "type": "CallExpression"
+                        },
+                        "length": 4,
+                        "start": 177,
+                        "type": "ExpressionStatement"
+                      }
+                    ],
+                    "length": 8,
+                    "start": 175,
+                    "type": "BlockStatement"
+                  },
+                  "consequent": {
+                    "body": [
+                      {
+                        "expression": {
+                          "args": [],
+                          "callee": {
+                            "length": 1,
+                            "name": "d",
+                            "start": 161,
+                            "type": "Identifier"
+                          },
+                          "length": 3,
+                          "start": 161,
+                          "type": "CallExpression"
+                        },
+                        "length": 4,
+                        "start": 161,
+                        "type": "ExpressionStatement"
+                      }
+                    ],
+                    "length": 8,
+                    "start": 159,
+                    "type": "BlockStatement"
+                  },
+                  "length": 36,
+                  "start": 147,
+                  "test": {
+                    "left": {
+                      "length": 1,
+                      "name": "n",
+                      "start": 151,
+                      "type": "Identifier"
+                    },
+                    "length": 6,
+                    "operator": "==",
+                    "right": {
+                      "length": 1,
+                      "name": "K",
+                      "start": 156,
+                      "type": "Identifier"
+                    },
+                    "start": 151,
+                    "type": "BinaryExpression"
+                  },
+                  "type": "IfStatement"
+                },
+                "consequent": {
+                  "body": [
+                    {
+                      "expression": {
+                        "args": [],
+                        "callee": {
+                          "length": 1,
+                          "name": "c",
+                          "start": 133,
+                          "type": "Identifier"
+                        },
+                        "length": 3,
+                        "start": 133,
+                        "type": "CallExpression"
+                      },
+                      "length": 4,
+                      "start": 133,
+                      "type": "ExpressionStatement"
+                    }
+                  ],
+                  "length": 8,
+                  "start": 131,
+                  "type": "BlockStatement"
+                },
+                "length": 74,
+                "start": 109,
+                "test": {
+                  "left": {
+                    "left": {
+                      "length": 1,
+                      "name": "n",
+                      "start": 113,
+                      "type": "Identifier"
+                    },
+                    "length": 6,
+                    "operator": ">=",
+                    "right": {
+                      "length": 1,
+                      "radix": 10,
+                      "raw": "3",
+                      "start": 118,
+                      "type": "IntegerLiteral",
+                      "value": 3
+                    },
+                    "start": 113,
+                    "type": "BinaryExpression"
+                  },
+                  "length": 16,
+                  "operator": "&&",
+                  "right": {
+                    "left": {
+                      "length": 1,
+                      "name": "n",
+                      "start": 123,
+                      "type": "Identifier"
+                    },
+                    "length": 6,
+                    "operator": "<=",
+                    "right": {
+                      "length": 1,
+                      "radix": 10,
+                      "raw": "5",
+                      "start": 128,
+                      "type": "IntegerLiteral",
+                      "value": 5
+                    },
+                    "start": 123,
+                    "type": "BinaryExpression"
+                  },
+                  "start": 113,
+                  "type": "BinaryExpression"
+                },
+                "type": "IfStatement"
+              },
+              "consequent": {
+                "body": [
+                  {
+                    "expression": {
+                      "args": [],
+                      "callee": {
+                        "length": 1,
+                        "name": "b",
+                        "start": 95,
+                        "type": "Identifier"
+                      },
+                      "length": 3,
+                      "start": 95,
+                      "type": "CallExpression"
+                    },
+                    "length": 4,
+                    "start": 95,
+                    "type": "ExpressionStatement"
+                  }
+                ],
+                "length": 8,
+                "start": 93,
+                "type": "BlockStatement"
+              },
+              "length": 112,
+              "start": 71,
+              "test": {
+                "left": {
+                  "left": {
+                    "length": 1,
+                    "name": "n",
+                    "start": 75,
+                    "type": "Identifier"
+                  },
+                  "length": 6,
+                  "operator": "==",
+                  "right": {
+                    "length": 1,
+                    "radix": 10,
+                    "raw": "1",
+                    "start": 80,
+                    "type": "IntegerLiteral",
+                    "value": 1
+                  },
+                  "start": 75,
+                  "type": "BinaryExpression"
+                },
+                "length": 16,
+                "operator": "||",
+                "right": {
+                  "left": {
+                    "length": 1,
+                    "name": "n",
+                    "start": 85,
+                    "type": "Identifier"
+                  },
+                  "length": 6,
+                  "operator": "==",
+                  "right": {
+                    "length": 1,
+                    "radix": 10,
+                    "raw": "2",
+                    "start": 90,
+                    "type": "IntegerLiteral",
+                    "value": 2
+                  },
+                  "start": 85,
+                  "type": "BinaryExpression"
+                },
+                "start": 75,
+                "type": "BinaryExpression"
+              },
+              "type": "IfStatement"
+            },
+            "consequent": {
+              "body": [
+                {
+                  "expression": {
+                    "args": [],
+                    "callee": {
+                      "length": 1,
+                      "name": "a",
+                      "start": 57,
+                      "type": "Identifier"
+                    },
+                    "length": 3,
+                    "start": 57,
+                    "type": "CallExpression"
+                  },
+                  "length": 4,
+                  "start": 57,
+                  "type": "ExpressionStatement"
+                }
+              ],
+              "length": 8,
+              "start": 55,
+              "type": "BlockStatement"
+            },
+            "length": 140,
+            "start": 43,
+            "test": {
+              "left": {
+                "length": 1,
+                "name": "n",
+                "start": 47,
+                "type": "Identifier"
+              },
+              "length": 6,
+              "operator": "==",
+              "right": {
+                "length": 1,
+                "radix": 10,
+                "raw": "0",
+                "start": 52,
+                "type": "IntegerLiteral",
+                "value": 0
+              },
+              "start": 47,
+              "type": "BinaryExpression"
+            },
+            "type": "IfStatement"
+          },
+          {
+            "alternate": null,
+            "consequent": {
+              "body": [
+                {
+                  "expression": {
+                    "args": [],
+                    "callee": {
+                      "length": 1,
+                      "name": "f",
+                      "start": 210,
+                      "type": "Identifier"
+                    },
+                    "length": 3,
+                    "start": 210,
+                    "type": "CallExpression"
+                  },
+                  "length": 4,
+                  "start": 210,
+                  "type": "ExpressionStatement"
+                }
+              ],
+              "length": 8,
+              "start": 208,
+              "type": "BlockStatement"
+            },
+            "length": 30,
+            "start": 186,
+            "test": {
+              "left": {
+                "length": 8,
+                "object": {
+                  "length": 3,
+                  "name": "cfg",
+                  "start": 190,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 4,
+                  "name": "mode",
+                  "start": 194,
+                  "type": "Identifier"
+                },
+                "start": 190,
+                "type": "MemberExpression"
+              },
+              "length": 16,
+              "operator": "==",
+              "right": {
+                "length": 4,
+                "start": 202,
+                "type": "BooleanLiteral",
+                "value": true
+              },
+              "start": 190,
+              "type": "BinaryExpression"
+            },
+            "type": "IfStatement"
+          }
+        ],
+        "length": 179,
+        "start": 39,
+        "type": "BlockStatement"
+      },
+      "exported": false,
+      "length": 203,
+      "name": {
+        "length": 1,
+        "name": "m",
+        "start": 24,
+        "type": "Identifier"
+      },
+      "params": [
+        {
+          "defaultValue": null,
+          "length": 5,
+          "name": {
+            "length": 1,
+            "name": "n",
+            "start": 26,
+            "type": "Identifier"
+          },
+          "start": 26,
+          "type": "Parameter",
+          "typeAnnotation": {
+            "length": 2,
+            "name": "u8",
+            "start": 29,
+            "type": "TypeReference",
+            "typeArguments": []
+          }
+        }
+      ],
+      "returnType": {
+        "length": 4,
+        "name": "void",
+        "start": 34,
+        "type": "TypeReference",
+        "typeArguments": []
+      },
+      "start": 15,
+      "type": "FunctionDeclaration"
+    }
+  ],
+  "length": 219,
+  "start": 0,
+  "type": "Program"
+}

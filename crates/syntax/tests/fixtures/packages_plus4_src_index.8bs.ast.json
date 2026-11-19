@@ -1,0 +1,195 @@
+{
+  "body": [
+    {
+      "decorators": [
+        {
+          "args": [
+            {
+              "length": 6,
+              "radix": 16,
+              "raw": "0xFF15",
+              "start": 339,
+              "type": "IntegerLiteral",
+              "value": 65301
+            }
+          ],
+          "length": 16,
+          "name": "address",
+          "start": 330,
+          "type": "Decorator"
+        }
+      ],
+      "exported": true,
+      "initializer": null,
+      "kind": "let",
+      "length": 39,
+      "name": {
+        "length": 13,
+        "name": "tedBackground",
+        "start": 358,
+        "type": "Identifier"
+      },
+      "start": 347,
+      "type": "VariableDeclaration",
+      "typeAnnotation": {
+        "length": 12,
+        "name": "volatile",
+        "start": 373,
+        "type": "TypeReference",
+        "typeArguments": [
+          {
+            "length": 2,
+            "name": "u8",
+            "start": 382,
+            "type": "TypeReference",
+            "typeArguments": []
+          }
+        ]
+      }
+    },
+    {
+      "decorators": [
+        {
+          "args": [
+            {
+              "length": 6,
+              "radix": 16,
+              "raw": "0xFF19",
+              "start": 397,
+              "type": "IntegerLiteral",
+              "value": 65305
+            }
+          ],
+          "length": 16,
+          "name": "address",
+          "start": 388,
+          "type": "Decorator"
+        }
+      ],
+      "exported": true,
+      "initializer": null,
+      "kind": "let",
+      "length": 35,
+      "name": {
+        "length": 9,
+        "name": "tedBorder",
+        "start": 416,
+        "type": "Identifier"
+      },
+      "start": 405,
+      "type": "VariableDeclaration",
+      "typeAnnotation": {
+        "length": 12,
+        "name": "volatile",
+        "start": 427,
+        "type": "TypeReference",
+        "typeArguments": [
+          {
+            "length": 2,
+            "name": "u8",
+            "start": 436,
+            "type": "TypeReference",
+            "typeArguments": []
+          }
+        ]
+      }
+    },
+    {
+      "decorators": [
+        {
+          "args": [
+            {
+              "length": 6,
+              "radix": 16,
+              "raw": "0xFF1C",
+              "start": 451,
+              "type": "IntegerLiteral",
+              "value": 65308
+            }
+          ],
+          "length": 16,
+          "name": "address",
+          "start": 442,
+          "type": "Decorator"
+        }
+      ],
+      "exported": true,
+      "initializer": null,
+      "kind": "let",
+      "length": 37,
+      "name": {
+        "length": 11,
+        "name": "tedRasterHi",
+        "start": 470,
+        "type": "Identifier"
+      },
+      "start": 459,
+      "type": "VariableDeclaration",
+      "typeAnnotation": {
+        "length": 12,
+        "name": "volatile",
+        "start": 483,
+        "type": "TypeReference",
+        "typeArguments": [
+          {
+            "length": 2,
+            "name": "u8",
+            "start": 492,
+            "type": "TypeReference",
+            "typeArguments": []
+          }
+        ]
+      }
+    },
+    {
+      "decorators": [
+        {
+          "args": [
+            {
+              "length": 6,
+              "radix": 16,
+              "raw": "0xFF1D",
+              "start": 507,
+              "type": "IntegerLiteral",
+              "value": 65309
+            }
+          ],
+          "length": 16,
+          "name": "address",
+          "start": 498,
+          "type": "Decorator"
+        }
+      ],
+      "exported": true,
+      "initializer": null,
+      "kind": "let",
+      "length": 37,
+      "name": {
+        "length": 11,
+        "name": "tedRasterLo",
+        "start": 526,
+        "type": "Identifier"
+      },
+      "start": 515,
+      "type": "VariableDeclaration",
+      "typeAnnotation": {
+        "length": 12,
+        "name": "volatile",
+        "start": 539,
+        "type": "TypeReference",
+        "typeArguments": [
+          {
+            "length": 2,
+            "name": "u8",
+            "start": 548,
+            "type": "TypeReference",
+            "typeArguments": []
+          }
+        ]
+      }
+    }
+  ],
+  "length": 553,
+  "start": 0,
+  "type": "Program"
+}
