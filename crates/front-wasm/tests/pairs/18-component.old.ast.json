@@ -1,0 +1,322 @@
+{
+  "body": [
+    {
+      "length": 33,
+      "source": {
+        "length": 10,
+        "start": 45,
+        "type": "StringLiteral",
+        "value": "./ui.8bs"
+      },
+      "specifiers": [
+        {
+          "length": 5,
+          "name": "Label",
+          "start": 32,
+          "type": "Identifier"
+        }
+      ],
+      "start": 23,
+      "type": "ImportDeclaration"
+    },
+    {
+      "allowsChildren": false,
+      "body": {
+        "body": [
+          {
+            "exported": false,
+            "initializer": {
+              "length": 1,
+              "radix": 10,
+              "raw": "0",
+              "start": 132,
+              "type": "IntegerLiteral",
+              "value": 0
+            },
+            "kind": "state",
+            "length": 23,
+            "name": {
+              "length": 8,
+              "name": "selected",
+              "start": 117,
+              "type": "Identifier"
+            },
+            "start": 111,
+            "type": "StateDeclaration",
+            "typeAnnotation": {
+              "length": 2,
+              "name": "u8",
+              "start": 127,
+              "type": "TypeReference",
+              "typeArguments": []
+            }
+          },
+          {
+            "exported": false,
+            "initializer": null,
+            "kind": "state",
+            "length": 17,
+            "name": {
+              "length": 4,
+              "name": "done",
+              "start": 145,
+              "type": "Identifier"
+            },
+            "start": 139,
+            "type": "StateDeclaration",
+            "typeAnnotation": {
+              "length": 4,
+              "name": "bool",
+              "start": 151,
+              "type": "TypeReference",
+              "typeArguments": []
+            }
+          },
+          {
+            "exported": false,
+            "initializer": {
+              "length": 1,
+              "radix": 10,
+              "raw": "1",
+              "start": 169,
+              "type": "IntegerLiteral",
+              "value": 1
+            },
+            "kind": "let",
+            "length": 10,
+            "name": {
+              "length": 1,
+              "name": "x",
+              "start": 165,
+              "type": "Identifier"
+            },
+            "start": 161,
+            "type": "VariableDeclaration",
+            "typeAnnotation": null
+          },
+          {
+            "body": {
+              "body": [],
+              "length": 2,
+              "start": 194,
+              "type": "BlockStatement"
+            },
+            "exported": false,
+            "length": 20,
+            "name": {
+              "length": 6,
+              "name": "helper",
+              "start": 185,
+              "type": "Identifier"
+            },
+            "params": [],
+            "returnType": null,
+            "start": 176,
+            "type": "FunctionDeclaration"
+          },
+          {
+            "expression": {
+              "left": {
+                "length": 8,
+                "name": "selected",
+                "start": 201,
+                "type": "Identifier"
+              },
+              "length": 13,
+              "operator": "+=",
+              "right": {
+                "length": 1,
+                "radix": 10,
+                "raw": "1",
+                "start": 213,
+                "type": "IntegerLiteral",
+                "value": 1
+              },
+              "start": 201,
+              "type": "AssignmentExpression"
+            },
+            "length": 14,
+            "start": 201,
+            "type": "ExpressionStatement"
+          }
+        ],
+        "length": 112,
+        "start": 105,
+        "type": "BlockStatement"
+      },
+      "exported": true,
+      "length": 160,
+      "name": {
+        "length": 4,
+        "name": "Menu",
+        "start": 74,
+        "type": "Identifier"
+      },
+      "params": [
+        {
+          "defaultValue": null,
+          "length": 9,
+          "name": {
+            "length": 5,
+            "name": "title",
+            "start": 79,
+            "type": "Identifier"
+          },
+          "optional": false,
+          "start": 79,
+          "type": "Parameter",
+          "typeAnnotation": {
+            "length": 2,
+            "name": "u8",
+            "start": 86,
+            "type": "TypeReference",
+            "typeArguments": []
+          }
+        },
+        {
+          "defaultValue": {
+            "length": 1,
+            "radix": 10,
+            "raw": "3",
+            "start": 102,
+            "type": "IntegerLiteral",
+            "value": 3
+          },
+          "length": 13,
+          "name": {
+            "length": 5,
+            "name": "count",
+            "start": 90,
+            "type": "Identifier"
+          },
+          "optional": true,
+          "start": 90,
+          "type": "Parameter",
+          "typeAnnotation": {
+            "length": 2,
+            "name": "u8",
+            "start": 97,
+            "type": "TypeReference",
+            "typeArguments": []
+          }
+        }
+      ],
+      "start": 57,
+      "type": "ComponentDeclaration"
+    },
+    {
+      "allowsChildren": false,
+      "body": {
+        "body": [],
+        "length": 2,
+        "start": 236,
+        "type": "BlockStatement"
+      },
+      "exported": false,
+      "length": 20,
+      "name": {
+        "length": 5,
+        "name": "Plain",
+        "start": 228,
+        "type": "Identifier"
+      },
+      "params": [],
+      "start": 218,
+      "type": "ComponentDeclaration"
+    },
+    {
+      "allowsChildren": false,
+      "body": {
+        "body": [
+          {
+            "exported": false,
+            "initializer": {
+              "length": 1,
+              "radix": 10,
+              "raw": "2",
+              "start": 284,
+              "type": "IntegerLiteral",
+              "value": 2
+            },
+            "kind": "state",
+            "length": 12,
+            "name": {
+              "length": 1,
+              "name": "s",
+              "start": 280,
+              "type": "Identifier"
+            },
+            "start": 274,
+            "type": "StateDeclaration",
+            "typeAnnotation": null
+          }
+        ],
+        "length": 16,
+        "start": 272,
+        "type": "BlockStatement"
+      },
+      "exported": false,
+      "length": 49,
+      "name": {
+        "length": 4,
+        "name": "Both",
+        "start": 249,
+        "type": "Identifier"
+      },
+      "params": [
+        {
+          "defaultValue": null,
+          "length": 5,
+          "name": {
+            "length": 1,
+            "name": "a",
+            "start": 254,
+            "type": "Identifier"
+          },
+          "optional": false,
+          "start": 254,
+          "type": "Parameter",
+          "typeAnnotation": {
+            "length": 2,
+            "name": "u8",
+            "start": 257,
+            "type": "TypeReference",
+            "typeArguments": []
+          }
+        },
+        {
+          "defaultValue": {
+            "length": 1,
+            "radix": 10,
+            "raw": "1",
+            "start": 269,
+            "type": "IntegerLiteral",
+            "value": 1
+          },
+          "length": 9,
+          "name": {
+            "length": 1,
+            "name": "b",
+            "start": 261,
+            "type": "Identifier"
+          },
+          "optional": true,
+          "start": 261,
+          "type": "Parameter",
+          "typeAnnotation": {
+            "length": 2,
+            "name": "u8",
+            "start": 264,
+            "type": "TypeReference",
+            "typeArguments": []
+          }
+        }
+      ],
+      "start": 239,
+      "type": "ComponentDeclaration"
+    }
+  ],
+  "length": 289,
+  "start": 0,
+  "type": "Program"
+}

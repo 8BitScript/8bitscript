@@ -1,0 +1,17 @@
+// rows: array type, array literal, other generic types, record literal, string, template, numbers
+let mut table: [u8; 16];
+let mut grid: [[u8; 4]; 4];
+let mut nums: [u8; 3] = [1, 2, 3];
+let mut v: volatile<u8>;
+let mut p: ptr<u8>;
+let mut s: string<16> = "plain";
+let mut t: string<16> = "it's";
+let mut r = { x: 1, y: 2 };
+let mut msg = `HP ${hp:3} of ${max}`;
+let mut n1 = 12;
+let mut n2 = $FF;
+let mut n3 = 0xFF;
+let mut n4 = 0b1010;
+let mut n5 = 0b1010;
+let mut n6 = 1_000;
+let mut n7 = 1.5;

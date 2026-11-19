@@ -1,0 +1,11 @@
+// é before every span
+use self::ui::{Label};
+pub component Menu(title: u8, count: u8 = 3,) {
+    state selected: u8 = 0;
+    state done: bool;
+    let x = 1;
+    fn helper() {}
+    selected += 1;
+}
+component Plain() {}
+component Both(a: u8, b: u8 = 1) { state s = 2; }

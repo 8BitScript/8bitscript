@@ -1,0 +1,542 @@
+{
+  "body": [
+    {
+      "length": 41,
+      "source": {
+        "length": 17,
+        "start": 297,
+        "type": "StringLiteral",
+        "value": "@8bitscript/text"
+      },
+      "specifiers": [
+        {
+          "length": 4,
+          "name": "text",
+          "start": 317,
+          "type": "Identifier"
+        },
+        {
+          "length": 9,
+          "name": "TextColor",
+          "start": 323,
+          "type": "Identifier"
+        }
+      ],
+      "start": 293,
+      "type": "ImportDeclaration",
+      "usePath": true
+    },
+    {
+      "allowsChildren": false,
+      "body": {
+        "body": [
+          {
+            "expression": {
+              "args": [
+                {
+                  "length": 15,
+                  "object": {
+                    "length": 9,
+                    "name": "TextColor",
+                    "start": 384,
+                    "type": "Identifier"
+                  },
+                  "property": {
+                    "length": 4,
+                    "name": "CYAN",
+                    "start": 395,
+                    "type": "Identifier"
+                  },
+                  "start": 384,
+                  "type": "MemberExpression"
+                }
+              ],
+              "callee": {
+                "length": 14,
+                "object": {
+                  "length": 4,
+                  "name": "text",
+                  "start": 369,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 8,
+                  "name": "setColor",
+                  "start": 375,
+                  "type": "Identifier"
+                },
+                "start": 369,
+                "type": "MemberExpression"
+              },
+              "length": 31,
+              "start": 369,
+              "type": "CallExpression"
+            },
+            "length": 32,
+            "start": 369,
+            "type": "ExpressionStatement"
+          },
+          {
+            "expression": {
+              "args": [
+                {
+                  "length": 4,
+                  "start": 423,
+                  "type": "BooleanLiteral",
+                  "value": true
+                }
+              ],
+              "callee": {
+                "length": 16,
+                "object": {
+                  "length": 4,
+                  "name": "text",
+                  "start": 406,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 10,
+                  "name": "setReverse",
+                  "start": 412,
+                  "type": "Identifier"
+                },
+                "start": 406,
+                "type": "MemberExpression"
+              },
+              "length": 22,
+              "start": 406,
+              "type": "CallExpression"
+            },
+            "length": 23,
+            "start": 406,
+            "type": "ExpressionStatement"
+          },
+          {
+            "expression": {
+              "args": [
+                {
+                  "length": 1,
+                  "radix": 10,
+                  "raw": "0",
+                  "start": 445,
+                  "type": "IntegerLiteral",
+                  "value": 0
+                },
+                {
+                  "args": [],
+                  "callee": {
+                    "length": 13,
+                    "object": {
+                      "length": 4,
+                      "name": "text",
+                      "start": 448,
+                      "type": "Identifier"
+                    },
+                    "property": {
+                      "length": 7,
+                      "name": "columns",
+                      "start": 454,
+                      "type": "Identifier"
+                    },
+                    "start": 448,
+                    "type": "MemberExpression"
+                  },
+                  "length": 15,
+                  "start": 448,
+                  "type": "CallExpression"
+                },
+                {
+                  "length": 2,
+                  "radix": 10,
+                  "raw": "32",
+                  "start": 465,
+                  "type": "IntegerLiteral",
+                  "value": 32
+                }
+              ],
+              "callee": {
+                "length": 10,
+                "object": {
+                  "length": 4,
+                  "name": "text",
+                  "start": 434,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 4,
+                  "name": "fill",
+                  "start": 440,
+                  "type": "Identifier"
+                },
+                "start": 434,
+                "type": "MemberExpression"
+              },
+              "length": 34,
+              "start": 434,
+              "type": "CallExpression"
+            },
+            "length": 35,
+            "start": 434,
+            "type": "ExpressionStatement"
+          },
+          {
+            "expression": {
+              "args": [
+                {
+                  "length": 1,
+                  "radix": 10,
+                  "raw": "3",
+                  "start": 486,
+                  "type": "IntegerLiteral",
+                  "value": 3
+                },
+                {
+                  "length": 6,
+                  "start": 489,
+                  "type": "StringLiteral",
+                  "value": "FILE"
+                }
+              ],
+              "callee": {
+                "length": 11,
+                "object": {
+                  "length": 4,
+                  "name": "text",
+                  "start": 474,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 5,
+                  "name": "print",
+                  "start": 480,
+                  "type": "Identifier"
+                },
+                "start": 474,
+                "type": "MemberExpression"
+              },
+              "length": 22,
+              "start": 474,
+              "type": "CallExpression"
+            },
+            "length": 23,
+            "start": 474,
+            "type": "ExpressionStatement"
+          },
+          {
+            "expression": {
+              "args": [
+                {
+                  "length": 1,
+                  "radix": 10,
+                  "raw": "9",
+                  "start": 514,
+                  "type": "IntegerLiteral",
+                  "value": 9
+                },
+                {
+                  "length": 6,
+                  "start": 517,
+                  "type": "StringLiteral",
+                  "value": "EDIT"
+                }
+              ],
+              "callee": {
+                "length": 11,
+                "object": {
+                  "length": 4,
+                  "name": "text",
+                  "start": 502,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 5,
+                  "name": "print",
+                  "start": 508,
+                  "type": "Identifier"
+                },
+                "start": 502,
+                "type": "MemberExpression"
+              },
+              "length": 22,
+              "start": 502,
+              "type": "CallExpression"
+            },
+            "length": 23,
+            "start": 502,
+            "type": "ExpressionStatement"
+          },
+          {
+            "expression": {
+              "args": [
+                {
+                  "length": 2,
+                  "radix": 10,
+                  "raw": "15",
+                  "start": 542,
+                  "type": "IntegerLiteral",
+                  "value": 15
+                },
+                {
+                  "length": 6,
+                  "start": 546,
+                  "type": "StringLiteral",
+                  "value": "SONG"
+                }
+              ],
+              "callee": {
+                "length": 11,
+                "object": {
+                  "length": 4,
+                  "name": "text",
+                  "start": 530,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 5,
+                  "name": "print",
+                  "start": 536,
+                  "type": "Identifier"
+                },
+                "start": 530,
+                "type": "MemberExpression"
+              },
+              "length": 23,
+              "start": 530,
+              "type": "CallExpression"
+            },
+            "length": 24,
+            "start": 530,
+            "type": "ExpressionStatement"
+          },
+          {
+            "expression": {
+              "args": [
+                {
+                  "length": 2,
+                  "radix": 10,
+                  "raw": "21",
+                  "start": 571,
+                  "type": "IntegerLiteral",
+                  "value": 21
+                },
+                {
+                  "length": 7,
+                  "start": 575,
+                  "type": "StringLiteral",
+                  "value": "TRACK"
+                }
+              ],
+              "callee": {
+                "length": 11,
+                "object": {
+                  "length": 4,
+                  "name": "text",
+                  "start": 559,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 5,
+                  "name": "print",
+                  "start": 565,
+                  "type": "Identifier"
+                },
+                "start": 559,
+                "type": "MemberExpression"
+              },
+              "length": 24,
+              "start": 559,
+              "type": "CallExpression"
+            },
+            "length": 25,
+            "start": 559,
+            "type": "ExpressionStatement"
+          },
+          {
+            "expression": {
+              "args": [
+                {
+                  "length": 2,
+                  "radix": 10,
+                  "raw": "28",
+                  "start": 601,
+                  "type": "IntegerLiteral",
+                  "value": 28
+                },
+                {
+                  "length": 6,
+                  "start": 605,
+                  "type": "StringLiteral",
+                  "value": "VIEW"
+                }
+              ],
+              "callee": {
+                "length": 11,
+                "object": {
+                  "length": 4,
+                  "name": "text",
+                  "start": 589,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 5,
+                  "name": "print",
+                  "start": 595,
+                  "type": "Identifier"
+                },
+                "start": 589,
+                "type": "MemberExpression"
+              },
+              "length": 23,
+              "start": 589,
+              "type": "CallExpression"
+            },
+            "length": 24,
+            "start": 589,
+            "type": "ExpressionStatement"
+          },
+          {
+            "expression": {
+              "args": [
+                {
+                  "length": 2,
+                  "radix": 10,
+                  "raw": "34",
+                  "start": 630,
+                  "type": "IntegerLiteral",
+                  "value": 34
+                },
+                {
+                  "length": 6,
+                  "start": 634,
+                  "type": "StringLiteral",
+                  "value": "HELP"
+                }
+              ],
+              "callee": {
+                "length": 11,
+                "object": {
+                  "length": 4,
+                  "name": "text",
+                  "start": 618,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 5,
+                  "name": "print",
+                  "start": 624,
+                  "type": "Identifier"
+                },
+                "start": 618,
+                "type": "MemberExpression"
+              },
+              "length": 23,
+              "start": 618,
+              "type": "CallExpression"
+            },
+            "length": 24,
+            "start": 618,
+            "type": "ExpressionStatement"
+          },
+          {
+            "expression": {
+              "args": [
+                {
+                  "length": 5,
+                  "start": 664,
+                  "type": "BooleanLiteral",
+                  "value": false
+                }
+              ],
+              "callee": {
+                "length": 16,
+                "object": {
+                  "length": 4,
+                  "name": "text",
+                  "start": 647,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 10,
+                  "name": "setReverse",
+                  "start": 653,
+                  "type": "Identifier"
+                },
+                "start": 647,
+                "type": "MemberExpression"
+              },
+              "length": 23,
+              "start": 647,
+              "type": "CallExpression"
+            },
+            "length": 24,
+            "start": 647,
+            "type": "ExpressionStatement"
+          },
+          {
+            "expression": {
+              "args": [
+                {
+                  "length": 16,
+                  "object": {
+                    "length": 9,
+                    "name": "TextColor",
+                    "start": 691,
+                    "type": "Identifier"
+                  },
+                  "property": {
+                    "length": 5,
+                    "name": "WHITE",
+                    "start": 702,
+                    "type": "Identifier"
+                  },
+                  "start": 691,
+                  "type": "MemberExpression"
+                }
+              ],
+              "callee": {
+                "length": 14,
+                "object": {
+                  "length": 4,
+                  "name": "text",
+                  "start": 676,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 8,
+                  "name": "setColor",
+                  "start": 682,
+                  "type": "Identifier"
+                },
+                "start": 676,
+                "type": "MemberExpression"
+              },
+              "length": 32,
+              "start": 676,
+              "type": "CallExpression"
+            },
+            "length": 33,
+            "start": 676,
+            "type": "ExpressionStatement"
+          }
+        ],
+        "length": 348,
+        "start": 363,
+        "type": "BlockStatement"
+      },
+      "exported": true,
+      "length": 375,
+      "name": {
+        "length": 10,
+        "name": "DawMenuBar",
+        "start": 350,
+        "type": "Identifier"
+      },
+      "params": [],
+      "start": 336,
+      "type": "ComponentDeclaration"
+    }
+  ],
+  "length": 712,
+  "start": 0,
+  "type": "Program"
+}

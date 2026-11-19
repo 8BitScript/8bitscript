@@ -1,0 +1,6 @@
+import { mark } from "./mark.8bg";
+import { graphics } from "@8bitscript/graphics";
+
+export component Mark() {
+    graphics.place(mark, 120, 0);
+}
