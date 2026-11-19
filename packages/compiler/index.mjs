@@ -26,6 +26,7 @@ export { tokenize, TokenKind, KEYWORDS, TYPE_NAMES } from './src/lexer/index.mjs
 export { parse, normalizeBxText } from './src/parser/index.mjs';
 export { NodeType, walk } from './src/ast/index.mjs';
 export { check } from './src/checker/index.mjs';
+export { lookup, storeTarget, targetOf, walkScopes } from './src/checker/scopes.mjs';
 export { bind, bindImports, bindImportedComponents, componentOf, SymbolKind, resolveSymbol } from './src/binder/index.mjs';
 export { foldCompileTime, DURATION_CLOCKS, DURATION_UNITS, SYSTEMS, DEFINE_NAME, defineKind } from './src/fold/index.mjs';
 export {
