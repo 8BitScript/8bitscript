@@ -12,18 +12,13 @@ import { findImports } from '../../compiler/src/resolver/index.mjs';
 
 // The frozen old-syntax corpus: the repo's own sources are new syntax now.
 const pairs = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'crates', 'front-wasm', 'tests', 'pairs');
-const sources = readdirSync(pairs).filter((n) => /\.old\.8bs$/.test(n)).map((n) => join(pairs, n));
+const sources = readdirSync(pairs).filter((n) => /\.old\.8b[sx]$/.test(n)).map((n) => join(pairs, n));
 
 test('findImports equals the parsed import sources over the frozen old-syntax corpus', () => {
-  assert.ok(sources.length >= 8);
+  assert.ok(sources.length >= 19);
   let imports = 0;
   for (const file of sources) {
-    let text;
-    try {
-      ({ text } = convertSource(readFileSync(file, 'utf8'), { file }));
-    } catch {
-      continue; // not old syntax any more, or not convertible: C-02's concern
-    }
+    const { text } = convertSource(readFileSync(file, 'utf8'), { file, sourceKind: file.endsWith('.8bx') ? '.8bx' : '.8bs' });
     const { tokens } = tokenize(text, file);
     const { ast } = parse(tokens, text, file);
     const expected = ast.body.filter((n) => n.type === 'ImportDeclaration').map((n) => n.source.value);
@@ -31,5 +26,5 @@ test('findImports equals the parsed import sources over the frozen old-syntax co
     assert.deepEqual(found, expected, file);
     imports += expected.length;
   }
-  assert.ok(imports >= 1);
+  assert.ok(imports >= 8);
 });

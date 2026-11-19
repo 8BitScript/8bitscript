@@ -87,8 +87,8 @@ test('the drop-down offers the bar\'s calls, plus clear() for the rows it covere
   assert.match(code, /text::setReverse\(on\)/, 'the highlighted entry is inverted, not recolored');
   assert.match(code, /text::setReverse\(false\)/, 'reverse is turned off after each row');
   // The two-comparison hit test, for the reason the bar's test gives.
-  assert.match(code, /if pointerAt >= start/);
-  assert.match(code, /if pointerAt - start < width/);
+  assert.match(code, /if pointerAt >= start \{/);
+  assert.match(code, /if pointerAt - start < width \{/);
   assert.doesNotMatch(code, /pointerAt < start \+/);
 });
 
@@ -173,8 +173,8 @@ test('the pointer hit test never forms a sum that the two backends disagree abou
   // in menubar.8bs and packages/ui/AGENTS.md). Two comparisons instead.
   const source = readFileSync(join(SRC, 'menubar.8bs'), 'utf8');
   const code = source.split('\n').filter((line) => !line.trim().startsWith('//')).join('\n');
-  assert.match(code, /if pointerAt >= start/);
-  assert.match(code, /if pointerAt - start < n/);
+  assert.match(code, /if pointerAt >= start \{/);
+  assert.match(code, /if pointerAt - start < n \{/);
   assert.doesNotMatch(code, /pointerAt < start \+/,
     'the hit test must not add a length to a cell');
 });

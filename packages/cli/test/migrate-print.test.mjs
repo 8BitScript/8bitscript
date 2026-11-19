@@ -307,7 +307,7 @@ const sources = () => readdirSync(PAIRS).filter((n) => /\.old\.8b[sx]$/.test(n))
 
 test('every frozen old-syntax .8bs and .8bx source prints without an unsupported construct', () => {
   const files = sources();
-  assert.ok(files.length >= 19, `expected the whole corpus, found ${files.length}`);
+  assert.ok(files.length >= 19, `expected the frozen old-syntax corpus, found ${files.length}`);
   const old = /^\s*(?:export |import |function |namespace )|\bfunction\s+\w+\(|\bnamespace\s+\w+\s*\{|\)\s*:\s*(?:void|u8)\b/;
   for (const file of files) {
     const text = readFileSync(file, 'utf8');
