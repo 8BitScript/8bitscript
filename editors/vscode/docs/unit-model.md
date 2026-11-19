@@ -10,7 +10,7 @@ with its **inputs**. Everything below is that sentence made into code.
 
 | Word | Is | Comes from |
 | --- | --- | --- |
-| Project | a directory with an `8bitscript.config.8bs` | the workspace |
+| Project | a directory with an `8bitscript.config.ts` | the workspace |
 | Program | a work unit: its own entry, targets, title, group, inputs | `programs` in the config, via `8bs project --json` |
 | System | a machine plus the hardware fitted to it (or a named system) | `targets`, `systems`; the launcher's System selector |
 | Runtime | `editor` (wasm in an editor tab), `browser` (wasm in the system browser), `native` (the machine's own emulator) | the machine's `runtime` object in `8bs targets --json` |

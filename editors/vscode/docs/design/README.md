@@ -78,7 +78,7 @@ the PNGs about 3×. The codicon font is copied once from the editor install (`DE
 ## 2. The model
 
 ```
-Project            a folder with an 8bitscript.config.8bs
+Project            a folder with an 8bitscript.config.ts
  └─ Program        a work unit (config `programs`): its own entry, targets, optional title,
      │             description, group and inputs
      ├─ System     machine + hardware + region + language — limited to the program's targets

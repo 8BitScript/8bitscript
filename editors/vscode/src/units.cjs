@@ -7,7 +7,7 @@
 //
 // ---- the words (docs/project/units.md) ------------------------------------
 //
-//   Project   a directory with an 8bitscript.config.8bs
+//   Project   a directory with an 8bitscript.config.ts
 //   Program   one thing the project builds, from its own `.8bs` entry (a
 //             work unit; config `programs`)
 //   System    a machine plus the hardware fitted to it (target, profile,
