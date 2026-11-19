@@ -167,6 +167,13 @@ test('embedded: ${expr} is kept verbatim and a lost one is a failure', () => {
   assert.equal(out.text, 'const p = `fn f() -> u8 {\n    return ${value};\n}\npub const K: u8 = ${a + 1};`;\n');
 });
 
+test('embedded: a ${} lost by the conversion is a failure and the literal is left alone', () => {
+  const src = 'const p = `function f(): void { ${x}; }`;\n';
+  const out = convertEmbedded(src, () => ({ status: 'converted', text: 'fn f() {}\n' }));
+  assert.equal(out.text, src);
+  assert.match(out.failures[0].message, /did not survive/);
+});
+
 test('embedded: backslashes and backticks in the program survive the round trip', () => {
   const src = 'const p = `export function main(): void { print("a\\\\nb"); }`;\n';
   const out = convertEmbedded(src, convert);
@@ -273,6 +280,12 @@ test('fences: ```8bs blocks are converted, others and failures are left alone', 
   assert.equal(out.text, ['# T', '', '```8bs', 'fn f() {', '}', '```', '', '```js', 'function g() {}', '```', '', '```8bs', 'let x = ;', '```', ''].join('\n'));
   assert.equal(out.converted, 1);
   assert.deepEqual(out.failures.map((f) => f.line), [11]);
+});
+
+test('fences: a ```8bs block holding a component is converted as .8bx', () => {
+  const out = convertFences('```8bs\nexport component Box() { <A />; }\n```\n', convert);
+  assert.equal(out.converted, 1);
+  assert.equal(out.text, '```8bs\npub component Box() {\n    <A />;\n}\n```\n');
 });
 
 test('fences: an indented fence keeps its indent', () => {

@@ -68,7 +68,7 @@ bundle and how a page hosts it.
 | `8bs doctor` | Checks Node, pnpm, git, and the emulators. Missing pnpm (`npx get-pnpm`) and every packaged emulator doctor can install are offered from the prompt (`--want` to narrow; `--install` skips the prompt). |
 | `8bs setup <mega65\|cx16>` | Builds that machine's emulator and installs a ROM. |
 | `8bs controller` | Names the buttons of the pad plugged into this machine. |
-| `8bs migrate [--check]` | Converts old-syntax `.8bs`/`.8bx` files to the new syntax in place, each proved against the new front end before it is written; `--check` writes nothing and exits 1 on any difference. `--embedded` and `--fences` also convert programs inside JS test files and Markdown fences. One-time tool, removed once the syntax change lands. |
+| `8bs migrate [--check]` | Converts old-syntax `.8bs`/`.8bx` files to the new syntax in place, each proved against the new front end before it is written; `--check` writes nothing and exits 1 on any difference. `--embedded` and `--fences` also convert programs inside JS sources (tests, generators, scripts) and Markdown fences. One-time tool, removed once the syntax change lands. |
 | `8bs lsp` | The language server, on stdio. |
 
 Each is described in the manual's [Project & CLI](language/project.md)

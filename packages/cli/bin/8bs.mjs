@@ -189,7 +189,8 @@ Implemented:
                                rewrites .8bs/.8bx files in place, each
                                proved equal to the old tree by the new
                                front end before it is written. --embedded
-                               takes the programs inside JS/TS test files
+                               takes the programs inside JS/TS sources (tests,
+                               generators, scripts)
                                (a template literal or a ['...'].join('\\n')
                                array; \${expr} is kept), --fences the
                                \`\`\`8bs fences in Markdown, --all all three.

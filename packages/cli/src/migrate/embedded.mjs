@@ -13,7 +13,7 @@
 /** A literal that looks like old-syntax 8BitScript rather than prose or JS. */
 const OLD_MARKER = new RegExp([
   String.raw`\bfunction\s+[A-Za-z_]\w*\s*\(`,
-  String.raw`\bexport\s+(?:function|let|const)\b`,
+  String.raw`\bexport\s+(?:function|let|const|component)\b`,
   String.raw`\bimport\s*(?:\{[^}]*\}\s*from\s*)?["'](?:\.{1,2}\/|@8bitscript|[^"'\n]*\.8b[sxga])`,
   String.raw`\bnamespace\s+\w+\s*\{`,
   String.raw`\b(?:let|const)\s+[A-Za-z_]\w*\s*(?::[^;=]+)?=[^;]*;`,
@@ -303,9 +303,6 @@ function convertArray(src, array, convert) {
   const joined = array.elements.map((e) => cookLiteral(e, placeholders)).join('\n');
   if (!looksOld(joined)) return null;
   if (array.mixed) return { failure: { status: 'failed', message: 'the array has elements that are not string literals' } };
-  if (/\/\/|\/\*/.test(src.slice(array.start, array.closeAt).replace(/(['"`])(?:\\.|(?!\1)[^\\\n])*\1/g, ''))) {
-    return { failure: { status: 'failed', message: 'the array has comments between its elements' } };
-  }
   const result = convertProgram(joined, convert);
   if (result.status === 'already-new') return { same: true };
   if (result.status !== 'converted') return { failure: result };
@@ -387,7 +384,11 @@ export function convertFences(md, convert) {
     if (close >= lines.length) continue;
     const indent = open[1];
     const body = lines.slice(i + 1, close).map((l) => (l.startsWith(indent) ? l.slice(indent.length) : l)).join('\n');
-    const result = convert(`${body}\n`, '.8bs');
+    let result = convert(`${body}\n`, '.8bs');
+    if (result.status === 'failed') {
+      const retry = convert(`${body}\n`, '.8bx');
+      if (retry.status !== 'failed') result = retry;
+    }
     if (result.status === 'already-new') {
       out.push(...lines.slice(i + 1, close));
     } else if (result.status === 'converted') {

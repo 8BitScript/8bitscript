@@ -108,7 +108,7 @@ A system is `{ target, profile?, hardware?, region? }`, reached everywhere by `-
 | `8bs doctor` | Checks Node, pnpm, git, and the emulators are in place. A FAIL on pnpm, or a missing packaged emulator doctor can install, offers `[i]` / `[s]` / `[a]` / `[q]` to install it (`npx get-pnpm`, brew/apt/pacman, or `8bs setup <target>`). `--install` runs the offers without a prompt. `--want vice,atari800` narrows the offer; the report still lists every machine. A GUI-launched editor does not read `.zshrc`; doctor still finds pnpm in the installer's real location (`~/Library/pnpm` on macOS). |
 | `8bs setup <mega65\|cx16>` | Builds that machine's emulator and installs a ROM. |
 | `8bs controller` | Finds the pad plugged into this machine and writes down what its buttons are called. |
-| `8bs migrate [--check]` | Converts old-syntax `.8bs`/`.8bx` files to the new syntax in place, each proved against the new front end before it is written; `--check` writes nothing and exits 1 on any difference. `--embedded` and `--fences` also convert programs inside JS test files and Markdown fences. One-time tool, removed once the syntax change lands. |
+| `8bs migrate [--check]` | Converts old-syntax `.8bs`/`.8bx` files to the new syntax in place, each proved against the new front end before it is written; `--check` writes nothing and exits 1 on any difference. `--embedded` and `--fences` also convert programs inside JS sources (tests, generators, scripts) and Markdown fences. One-time tool, removed once the syntax change lands. |
 | `8bs lsp` | The language server, on stdio. |
 
 ## §4.6 Point a project at a local checkout

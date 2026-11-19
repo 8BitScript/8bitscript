@@ -9,7 +9,7 @@
 // (`front_check`). A file that fails the proof is reported and never written.
 //
 //   8bs migrate [paths] [--check]       .8bs/.8bx sources, in place
-//   8bs migrate --embedded <file>...    programs inside JS/TS test files
+//   8bs migrate --embedded <file>...    programs inside JS/TS sources (tests, generators, scripts)
 //   8bs migrate --fences <md>...        ```8bs fences in Markdown
 //   8bs migrate --all [paths]           all three over the same paths
 //   --alias @lib                        an import alias head from the config (repeatable)
@@ -216,7 +216,7 @@ export async function migrate(args, io = {}) {
       if (result.converted > 0 || result.unchanged > 0) {
         totals.converted += result.converted;
         totals.unchanged += result.unchanged;
-        out(`${verb} ${result.converted} ${kind} in ${show(file)}`);
+        if (result.converted > 0) out(`${verb} ${result.converted} ${kind} in ${show(file)}`);
         if (!opts.check && result.text !== text) writeFileSync(file, result.text);
       }
     }
