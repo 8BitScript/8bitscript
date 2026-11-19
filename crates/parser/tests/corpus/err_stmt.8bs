@@ -1,0 +1,20 @@
+use crate::geo::{a};
+#[test]
+fn t() {}
+#[cfg(test)]
+fn u() {}
+#![no_std]
+pub use x::{y};
+pub 5;
+fn tail() -> u8 { 1 }
+fn quiet() { 1 }
+fn nobody()
+let x = 1
+let y = 2;
+if x { } else y;
+while x
+fn after() {}
+#[address(
+}
+asm6502 x;
+else;

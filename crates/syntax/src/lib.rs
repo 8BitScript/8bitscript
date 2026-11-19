@@ -5,12 +5,14 @@
 
 mod kind;
 mod node;
+mod normalize;
 mod span;
 mod token;
 mod walk;
 
 pub use kind::{SOURCE_EXTENSIONS, SourceKind};
 pub use node::{Node, NodeId, NodeKind};
+pub use normalize::{Difference, differences, normalize};
 pub use span::{Span, utf16_len};
 pub use token::{PartKind, TemplatePart, Token, TokenKind};
 pub use walk::{children, children_mut, number_nodes, walk};

@@ -1,0 +1,56 @@
+{
+  "ast": {
+    "body": [
+      {
+        "body": {
+          "body": [
+            {
+              "exported": false,
+              "immutable": true,
+              "initializer": null,
+              "kind": "let",
+              "length": 5,
+              "name": {
+                "length": 1,
+                "name": "x",
+                "start": 13,
+                "type": "Identifier"
+              },
+              "start": 9,
+              "type": "VariableDeclaration",
+              "typeAnnotation": null
+            }
+          ],
+          "length": 641,
+          "start": 7,
+          "type": "BlockStatement"
+        },
+        "exported": false,
+        "length": 648,
+        "name": {
+          "length": 1,
+          "name": "f",
+          "start": 3,
+          "type": "Identifier"
+        },
+        "params": [],
+        "returnType": null,
+        "start": 0,
+        "type": "FunctionDeclaration"
+      }
+    ],
+    "length": 649,
+    "start": 0,
+    "type": "Program"
+  },
+  "diagnostics": [
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "this is nested too deeply to parse",
+      "severity": "error",
+      "start": 144
+    }
+  ]
+}

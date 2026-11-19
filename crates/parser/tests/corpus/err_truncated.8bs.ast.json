@@ -1,0 +1,138 @@
+{
+  "ast": {
+    "body": [
+      {
+        "body": {
+          "body": [
+            {
+              "exported": false,
+              "immutable": true,
+              "initializer": {
+                "length": 1,
+                "radix": 10,
+                "raw": "1",
+                "start": 24,
+                "type": "IntegerLiteral",
+                "value": 1
+              },
+              "kind": "let",
+              "length": 10,
+              "name": {
+                "length": 1,
+                "name": "x",
+                "start": 20,
+                "type": "Identifier"
+              },
+              "start": 16,
+              "type": "VariableDeclaration",
+              "typeAnnotation": null
+            },
+            {
+              "alternate": null,
+              "consequent": {
+                "body": [
+                  {
+                    "alternate": null,
+                    "consequent": {
+                      "body": [],
+                      "length": 1,
+                      "start": 61,
+                      "type": "BlockStatement"
+                    },
+                    "length": 16,
+                    "start": 46,
+                    "test": {
+                      "left": {
+                        "length": 1,
+                        "name": "x",
+                        "start": 52,
+                        "type": "Identifier"
+                      },
+                      "length": 1,
+                      "operator": "==",
+                      "right": {
+                        "length": 1,
+                        "radix": 10,
+                        "raw": "1",
+                        "start": 56,
+                        "type": "IntegerLiteral",
+                        "value": 1
+                      },
+                      "start": 56,
+                      "type": "BinaryExpression"
+                    },
+                    "type": "IfStatement"
+                  }
+                ],
+                "length": 26,
+                "start": 36,
+                "type": "BlockStatement"
+              },
+              "length": 31,
+              "start": 31,
+              "test": {
+                "length": 1,
+                "name": "x",
+                "start": 34,
+                "type": "Identifier"
+              },
+              "type": "IfStatement"
+            }
+          ],
+          "length": 52,
+          "start": 10,
+          "type": "BlockStatement"
+        },
+        "exported": false,
+        "length": 62,
+        "name": {
+          "length": 4,
+          "name": "main",
+          "start": 3,
+          "type": "Identifier"
+        },
+        "params": [],
+        "returnType": null,
+        "start": 0,
+        "type": "FunctionDeclaration"
+      }
+    ],
+    "length": 63,
+    "start": 0,
+    "type": "Program"
+  },
+  "diagnostics": [
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 0,
+      "message": "expected '}', found end of file",
+      "severity": "error",
+      "start": 62
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 0,
+      "message": "expected '}', found end of file",
+      "severity": "error",
+      "start": 62
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 0,
+      "message": "expected '}', found end of file",
+      "severity": "error",
+      "start": 62
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 0,
+      "message": "expected '}', found end of file",
+      "severity": "error",
+      "start": 62
+    }
+  ]
+}

@@ -60,6 +60,10 @@ pub enum NodeKind {
         specifiers: Vec<Node>,
         #[serde(default)]
         source: Option<Box<Node>>,
+        /// `use a::b::{..}`: the source was written as a path and mapped to a
+        /// specifier (syntax spec 4.1). Absent for the string form.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        use_path: Option<bool>,
     },
     VariableDeclaration {
         kind: String,
@@ -70,6 +74,9 @@ pub enum NodeKind {
         #[serde(default)]
         initializer: Option<Box<Node>>,
         exported: bool,
+        /// `let x` without `mut` (syntax spec 2). Absent otherwise.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        immutable: Option<bool>,
     },
     FunctionDeclaration {
         #[serde(default)]

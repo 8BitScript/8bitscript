@@ -1,0 +1,17 @@
+{
+  "diagnostics": [],
+  "tokens": [
+    {
+      "kind": "keyword",
+      "length": 9,
+      "start": 0,
+      "text": "component"
+    },
+    {
+      "kind": "keyword",
+      "length": 5,
+      "start": 10,
+      "text": "state"
+    }
+  ]
+}

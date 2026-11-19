@@ -1,0 +1,413 @@
+{
+  "ast": {
+    "body": [
+      {
+        "length": 8,
+        "source": null,
+        "specifiers": [],
+        "start": 0,
+        "type": "ImportDeclaration"
+      },
+      {
+        "length": 12,
+        "source": null,
+        "specifiers": [
+          {
+            "length": 1,
+            "name": "a",
+            "start": 19,
+            "type": "Identifier"
+          }
+        ],
+        "start": 9,
+        "type": "ImportDeclaration"
+      },
+      {
+        "length": 14,
+        "source": null,
+        "specifiers": [
+          {
+            "length": 1,
+            "name": "a",
+            "start": 33,
+            "type": "Identifier"
+          }
+        ],
+        "start": 22,
+        "type": "ImportDeclaration"
+      },
+      {
+        "length": 15,
+        "source": null,
+        "specifiers": [
+          {
+            "length": 1,
+            "name": "a",
+            "start": 49,
+            "type": "Identifier"
+          }
+        ],
+        "start": 37,
+        "type": "ImportDeclaration"
+      },
+      {
+        "length": 3,
+        "source": null,
+        "specifiers": [],
+        "start": 53,
+        "type": "ImportDeclaration"
+      },
+      {
+        "length": 17,
+        "source": {
+          "length": 9,
+          "start": 68,
+          "type": "StringLiteral",
+          "value": "./geo"
+        },
+        "specifiers": [],
+        "start": 64,
+        "type": "ImportDeclaration",
+        "usePath": true
+      },
+      {
+        "length": 22,
+        "source": {
+          "length": 9,
+          "start": 86,
+          "type": "StringLiteral",
+          "value": "./geo"
+        },
+        "specifiers": [
+          {
+            "length": 1,
+            "name": "a",
+            "start": 98,
+            "type": "Identifier"
+          }
+        ],
+        "start": 82,
+        "type": "ImportDeclaration",
+        "usePath": true
+      },
+      {
+        "length": 21,
+        "source": {
+          "length": 9,
+          "start": 109,
+          "type": "StringLiteral",
+          "value": "./geo"
+        },
+        "specifiers": [
+          {
+            "length": 1,
+            "name": "a",
+            "start": 121,
+            "type": "Identifier"
+          },
+          {
+            "length": 1,
+            "name": "b",
+            "start": 124,
+            "type": "Identifier"
+          }
+        ],
+        "start": 105,
+        "type": "ImportDeclaration",
+        "usePath": true
+      },
+      {
+        "length": 12,
+        "source": {
+          "length": 3,
+          "start": 131,
+          "type": "StringLiteral",
+          "value": "x"
+        },
+        "specifiers": [
+          {
+            "length": 1,
+            "name": "a",
+            "start": 136,
+            "type": "Identifier"
+          }
+        ],
+        "start": 127,
+        "type": "ImportDeclaration"
+      },
+      {
+        "length": 3,
+        "source": null,
+        "specifiers": [],
+        "start": 140,
+        "type": "ImportDeclaration"
+      },
+      {
+        "expression": {
+          "length": 1,
+          "radix": 10,
+          "raw": "5",
+          "start": 144,
+          "type": "IntegerLiteral",
+          "value": 5
+        },
+        "length": 2,
+        "start": 144,
+        "type": "ExpressionStatement"
+      },
+      {
+        "length": 13,
+        "source": null,
+        "specifiers": [
+          {
+            "length": 3,
+            "name": "geo",
+            "start": 157,
+            "type": "Identifier"
+          }
+        ],
+        "start": 147,
+        "type": "ImportDeclaration"
+      },
+      {
+        "length": 21,
+        "source": {
+          "length": 4,
+          "start": 167,
+          "type": "StringLiteral",
+          "value": "a/b"
+        },
+        "specifiers": [
+          {
+            "length": 1,
+            "name": "c",
+            "start": 174,
+            "type": "Identifier"
+          },
+          {
+            "imported": "d",
+            "length": 1,
+            "name": "e",
+            "start": 177,
+            "type": "Identifier"
+          }
+        ],
+        "start": 163,
+        "type": "ImportDeclaration",
+        "usePath": true
+      },
+      {
+        "exported": false,
+        "immutable": true,
+        "initializer": {
+          "length": 1,
+          "radix": 10,
+          "raw": "1",
+          "start": 193,
+          "type": "IntegerLiteral",
+          "value": 1
+        },
+        "kind": "let",
+        "length": 10,
+        "name": {
+          "length": 1,
+          "name": "z",
+          "start": 189,
+          "type": "Identifier"
+        },
+        "start": 185,
+        "type": "VariableDeclaration",
+        "typeAnnotation": null
+      }
+    ],
+    "length": 233,
+    "start": 0,
+    "type": "Program"
+  },
+  "diagnostics": [
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "expected '::', found ';'",
+      "severity": "error",
+      "start": 7
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "expected an imported name, found ';'",
+      "severity": "error",
+      "start": 7
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "expected a module name after 'self'",
+      "severity": "error",
+      "start": 19
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "expected a module name after 'self'",
+      "severity": "error",
+      "start": 32
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "expected a module name after 'super'",
+      "severity": "error",
+      "start": 48
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 2,
+      "message": "expected a module path, found '::'",
+      "severity": "error",
+      "start": 57
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 2,
+      "message": "expected an imported name, found '::'",
+      "severity": "error",
+      "start": 57
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 2,
+      "message": "expected ';', found '::'",
+      "severity": "error",
+      "start": 57
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 2,
+      "message": "expected an expression, found '::'",
+      "severity": "error",
+      "start": 57
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "expected an imported name, found ';'",
+      "severity": "error",
+      "start": 80
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "expected '}', found ';'",
+      "severity": "error",
+      "start": 80
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "expected a local name, found '}'",
+      "severity": "error",
+      "start": 102
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 3,
+      "message": "expected ';', found 'use'",
+      "severity": "error",
+      "start": 127
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "expected '::', found '{'",
+      "severity": "error",
+      "start": 135
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "expected a module path, found '5'",
+      "severity": "error",
+      "start": 144
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "expected an imported name, found '5'",
+      "severity": "error",
+      "start": 144
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "expected ';', found '5'",
+      "severity": "error",
+      "start": 144
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 3,
+      "message": "expected a module name after 'self'",
+      "severity": "error",
+      "start": 157
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 2,
+      "message": "expected ';', found '::'",
+      "severity": "error",
+      "start": 160
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 2,
+      "message": "expected an expression, found '::'",
+      "severity": "error",
+      "start": 160
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 3,
+      "message": "expected ';', found 'let'",
+      "severity": "error",
+      "start": 185
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 5,
+      "message": "'super' is only allowed at the start of a path",
+      "severity": "error",
+      "start": 205
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 4,
+      "message": "'self' is only allowed at the start of a path",
+      "severity": "error",
+      "start": 224
+    }
+  ]
+}
