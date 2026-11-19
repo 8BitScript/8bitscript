@@ -214,13 +214,13 @@ mod tests {
         let mut comp = sym("App", SymbolKind::Component, 5, 0);
         comp.props = Some(vec![
             Prop {
-                name: Some("a".into()),
+                name: "a".into(),
                 type_annotation: Some(NodeId(6)),
                 optional: false,
                 default_value: None,
             },
             Prop {
-                name: None,
+                name: "b".into(),
                 type_annotation: None,
                 optional: true,
                 default_value: Some(NodeId(7)),
