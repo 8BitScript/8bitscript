@@ -28,33 +28,33 @@
 // default 16:9 host, or a machine skin's grid via geometry.8bs twins. Two
 // side-by-side regions, not interleaved, so a caller that only ever
 // touches a handful of cells leaves most of both untouched.
-import { Video } from "./geometry.8bs";
+use self::geometry::Video;
 
-export namespace WebRegisters {
+pub mod WebRegisters {
     const BORDER_OFFSET: usmallint = 0;
     const BACKGROUND_OFFSET: usmallint = 1;
-    const CHAR_BASE: usmallint = Video.CHAR_BASE;
-    const COLOR_BASE: usmallint = Video.COLOR_BASE;
+    const CHAR_BASE: usmallint = Video::CHAR_BASE;
+    const COLOR_BASE: usmallint = Video::COLOR_BASE;
     // Directions, confirm and cancel as the same Edge bits every input
     // layer uses. The page writes this; poll() in ./input.8bs reads it.
     // First byte after the color cells at COLOR_BASE.
-    const INPUT_OFFSET: usmallint = Video.INPUT_OFFSET;
+    const INPUT_OFFSET: usmallint = Video::INPUT_OFFSET;
     // Device properties the page sets, not keys. Bit 0 is TOUCH: this
     // host is a touchscreen. A screenshot has no viewport, so that bit
     // stays clear there.
-    const HOST_OFFSET: usmallint = Video.HOST_OFFSET;
+    const HOST_OFFSET: usmallint = Video::HOST_OFFSET;
     // The pointer block (present, buttons, x, y) on the one host that has a
     // mouse; HAS_POINTER is false on a skin and every read of it folds away.
-    const POINTER_BASE: usmallint = Video.POINTER_BASE;
-    const HAS_POINTER: bool = Video.HAS_POINTER;
+    const POINTER_BASE: usmallint = Video::POINTER_BASE;
+    const HAS_POINTER: bool = Video::HAS_POINTER;
     // The per-scanline raster list ./rasterline.8bs keeps: one control
     // byte (the renderer applies the list while it is nonzero), one count
     // byte, then RASTER_MAX_ENTRIES three-byte entries — the line's low
     // byte, the slot byte (bit 7 carries the line's ninth bit, so every
     // picture line the resizable host reaches fits), the value. The
     // renderer reads it fresh at every paint.
-    const RASTER_CONTROL_OFFSET: usmallint = Video.RASTER_CONTROL_OFFSET;
-    const RASTER_COUNT_OFFSET: usmallint = Video.RASTER_COUNT_OFFSET;
-    const RASTER_BASE: usmallint = Video.RASTER_BASE;
-    const RASTER_MAX_ENTRIES: utinyint = Video.RASTER_MAX_ENTRIES;
+    const RASTER_CONTROL_OFFSET: usmallint = Video::RASTER_CONTROL_OFFSET;
+    const RASTER_COUNT_OFFSET: usmallint = Video::RASTER_COUNT_OFFSET;
+    const RASTER_BASE: usmallint = Video::RASTER_BASE;
+    const RASTER_MAX_ENTRIES: utinyint = Video::RASTER_MAX_ENTRIES;
 }

@@ -11,28 +11,28 @@
 // the same codes are capitals. packages/cli/test/web-vic20.test.mjs reads the
 // pixels. SCROLL_X is refused on this machine (raster.FINE_SCROLL is false),
 // so there is no scroll band.
-import { screen, BorderColor, BackgroundColor } from "@8bitscript/screen";
-import { text, TextColor } from "@8bitscript/text";
-import { raster, Slot } from "@8bitscript/raster";
+use @8bitscript::screen::{screen, BorderColor, BackgroundColor};
+use @8bitscript::text::{text, TextColor};
+use @8bitscript::raster::{raster, Slot};
 
-export function main(): void {
-    screen.blank(BorderColor.GREEN, BackgroundColor.BLACK);
-    text.setColor(TextColor.WHITE);
+pub fn main() {
+    screen::blank(BorderColor::GREEN, BackgroundColor::BLACK);
+    text::setColor(TextColor::WHITE);
     // A cell is y * 22 + x: the width is a usmallint, because 22 * 14 of two
     // byte-wide literals is a byte-wide product that wraps at 256.
-    let width: usmallint = text.COLUMNS;
-    text.print(width * 14, "abc");
-    text.print(width * 15, "abc");
-    text.print(width * 16, "abc");
-    raster.clear();
-    raster.at(40, Slot.BORDER, BorderColor.RED);
-    raster.at(40, Slot.BACKGROUND, BackgroundColor.BLUE);
-    raster.at(120, Slot.CHARSET, 0);
-    raster.at(140, Slot.CHARSET, 1);
-    raster.at(160, Slot.BORDER, BorderColor.GREEN);
-    raster.at(160, Slot.BACKGROUND, BackgroundColor.BLACK);
-    raster.enable();
-    while (true) {
+    let width: usmallint = text::COLUMNS;
+    text::print(width * 14, "abc");
+    text::print(width * 15, "abc");
+    text::print(width * 16, "abc");
+    raster::clear();
+    raster::at(40, Slot::BORDER, BorderColor::RED);
+    raster::at(40, Slot::BACKGROUND, BackgroundColor::BLUE);
+    raster::at(120, Slot::CHARSET, 0);
+    raster::at(140, Slot::CHARSET, 1);
+    raster::at(160, Slot::BORDER, BorderColor::GREEN);
+    raster::at(160, Slot::BACKGROUND, BackgroundColor::BLACK);
+    raster::enable();
+    loop {
         waitFrame();
     }
 }

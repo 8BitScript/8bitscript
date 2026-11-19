@@ -15,15 +15,15 @@
 // character set copied under the I/O area — is ./geometry.8bs's story, and
 // `setupVideo()` (in ./index.8bs) is what puts it there, once, before the
 // first cell is written.
-import { borderColor, backgroundColor, setupVideo } from "./index.8bs";
-import { Video, screenRam } from "./geometry.8bs";
+use self::index::{borderColor, backgroundColor, setupVideo};
+use self::geometry::{Video, screenRam};
 
 // ---- the screen: border and background --------------------------------------
 //
 // The VIC-II gives border and background their own registers, sixteen
 // colors each; the masks make the wrap around the palette explicit.
-export namespace screen {
-    function setColors(border: u8, background: u8): void {
+pub mod screen {
+    fn setColors(border: u8, background: u8) {
         borderColor = border & 15;
         backgroundColor = background & 15;
     }
@@ -33,13 +33,13 @@ export namespace screen {
     // to leave one as it is. `setBorder` and `setBackground` are one
     // color each, `setColors` the pair; `text.setColor` owns what the
     // next print looks like.
-    function blank(border: utinyint = BorderColor.BLACK, background: utinyint = BackgroundColor.BLACK): void {
+    fn blank(border: utinyint = BorderColor::BLACK, background: utinyint = BackgroundColor::BLACK) {
         setupVideo();
-        if (border != BorderColor.KEEP) {
-            screen.setBorder(border);
+        if border != BorderColor::KEEP {
+            screen::setBorder(border);
         }
-        if (background != BackgroundColor.KEEP) {
-            screen.setBackground(background);
+        if background != BackgroundColor::KEEP {
+            screen::setBackground(background);
         }
         // Four quarters at once, indexed by one byte. Written as a single
         // `cell < CELL_COUNT` loop this is a sixteen-bit counter and a
@@ -47,7 +47,7 @@ export namespace screen {
         // what a 6502 has to emit when an index does not fit a register.
         // Four constant offsets off one 8-bit index is the shape a 6502
         // wants: `sta $0400,x` and friends, a quarter of the iterations.
-        for (let i: utinyint = 0; i < 250; i++) {
+        for i: utinyint in 0..250 {
             screenRam[i] = 32; // 32: the space screen code
             screenRam[i + 250] = 32;
             screenRam[i + 500] = 32;
@@ -55,11 +55,11 @@ export namespace screen {
         }
     }
 
-    function setBackground(background: u8): void {
+    fn setBackground(background: u8) {
         backgroundColor = background & 15;
     }
 
-    function setBorder(border: u8): void {
+    fn setBorder(border: u8) {
         borderColor = border & 15;
     }
 
@@ -71,7 +71,7 @@ export namespace screen {
     // disappears with them.
     const RESIZABLE: bool = false;
 
-    function resized(): bool {
+    fn resized() -> bool {
         return false;
     }
 }
@@ -87,7 +87,7 @@ export namespace screen {
 // numbering the VIC-20 shares for its first eight, and that @8bitscript/web
 // and @8bitscript/cx16 borrow.
 
-export namespace BorderColor {
+pub mod BorderColor {
     const BLACK: utinyint = 0;
     const WHITE: utinyint = 1;
     const RED: utinyint = 2;
@@ -109,7 +109,7 @@ export namespace BorderColor {
     const KEEP: utinyint = 255;
 }
 
-export namespace BackgroundColor {
+pub mod BackgroundColor {
     const BLACK: utinyint = 0;
     const WHITE: utinyint = 1;
     const RED: utinyint = 2;

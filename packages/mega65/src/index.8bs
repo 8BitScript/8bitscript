@@ -24,12 +24,10 @@
 // four SIDs) are not exported yet, and AGENTS.md is where their rules are.
 
 // $D020, the VIC-II(-compatible) border color register.
-@address(0xD020)
-export let borderColor: volatile<u8>;
+#[address(0xD020)] pub let mut borderColor: volatile<u8>;
 
 // $D021, the VIC-II(-compatible) background color register (background #0).
-@address(0xD021)
-export let backgroundColor: volatile<u8>;
+#[address(0xD021)] pub let mut backgroundColor: volatile<u8>;
 
 // $D018, the VIC-II-compatible memory pointer, laid out as the C64's: bits
 // 4-7 the screen base in 1K units, bits 1-3 the character set base in 2K
@@ -39,8 +37,7 @@ export let backgroundColor: volatile<u8>;
 // the C64 has there) where $26 would be the lower-case set at $1800. The
 // MEGA65 re-derives its own wider VIC-IV pointers from a legacy $D018
 // write, so this is enough; verified on screen under xmega65, not inferred.
-@address(0xD018)
-export let memoryPointer: volatile<u8>;
+#[address(0xD018)] pub let mut memoryPointer: volatile<u8>;
 
 // $D030, the VIC-III control register A. Start-up (pre-0.2.0) sets it to $44
 // (PAL-RAM on, CROM9 on, no C65 ROM mapped, CRAM2K clear). Bit 0, CRAM2K,
@@ -49,12 +46,11 @@ export let memoryPointer: volatile<u8>;
 // text.8bs sets before every run of text (the frame runtime polls $D012,
 // not a CIA, so nothing here misses them). Writing anything but bit 0
 // re-maps ROM over the program: keep the other bits as start-up left them.
-@address(0xD030)
-export let vicIIIControlA: volatile<u8>;
+#[address(0xD030)] pub let mut vicIIIControlA: volatile<u8>;
 
-export namespace VicIIIControl {
-    const STARTUP: utinyint = 0x44;              // what .init.010 stores
-    const COLOR_RAM_2K: utinyint = 0x45;         // the same, plus CRAM2K
+pub mod VicIIIControl {
+    const STARTUP: utinyint = 0x44; // what .init.010 stores
+    const COLOR_RAM_2K: utinyint = 0x45; // the same, plus CRAM2K
 }
 
 // ---- CIA1 ($DC00): the keyboard matrix and the two control ports ------------
@@ -70,11 +66,7 @@ export namespace VicIIIControl {
 // **ALT**, CAPS LOCK and the four dedicated cursor keys — which the
 // hardware presents through its own registers rather than through this
 // matrix. That is the next thing to wire up here.
-@address(0xDC00)
-export let cia1PortA: volatile<u8>;
-@address(0xDC01)
-export let cia1PortB: volatile<u8>;
-@address(0xDC02)
-export let cia1DirectionA: volatile<u8>;
-@address(0xDC03)
-export let cia1DirectionB: volatile<u8>;
+#[address(0xDC00)] pub let mut cia1PortA: volatile<u8>;
+#[address(0xDC01)] pub let mut cia1PortB: volatile<u8>;
+#[address(0xDC02)] pub let mut cia1DirectionA: volatile<u8>;
+#[address(0xDC03)] pub let mut cia1DirectionB: volatile<u8>;

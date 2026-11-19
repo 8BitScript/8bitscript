@@ -10,7 +10,7 @@
 // @8bitscript/mega65 itself exports, one layer up from them. Every machine's
 // screen.8bs exports this same surface, which is what lets a program import
 // it from @8bitscript/screen and never name the hardware.
-import { borderColor, backgroundColor } from "./index.8bs";
+use self::index::{borderColor, backgroundColor};
 
 // ---- the screen: border and background --------------------------------------
 //
@@ -19,8 +19,8 @@ import { borderColor, backgroundColor } from "./index.8bs";
 // names stay on 0-15 so a program's color means the same thing everywhere.
 // The screen a build runs on is 80x25 at $0800 (see text.8bs), so a blank
 // clears 2000 cells.
-export namespace screen {
-    function setColors(border: u8, background: u8): void {
+pub mod screen {
+    fn setColors(border: u8, background: u8) {
         borderColor = border & 15;
         backgroundColor = background & 15;
     }
@@ -30,23 +30,23 @@ export namespace screen {
     // to leave one as it is. `setBorder` and `setBackground` are one
     // color each, `setColors` the pair; `text.setColor` owns what the
     // next print looks like.
-    function blank(border: utinyint = BorderColor.BLACK, background: utinyint = BackgroundColor.BLACK): void {
-        if (border != BorderColor.KEEP) {
-            screen.setBorder(border);
+    fn blank(border: utinyint = BorderColor::BLACK, background: utinyint = BackgroundColor::BLACK) {
+        if border != BorderColor::KEEP {
+            screen::setBorder(border);
         }
-        if (background != BackgroundColor.KEEP) {
-            screen.setBackground(background);
+        if background != BackgroundColor::KEEP {
+            screen::setBackground(background);
         }
-        for (let cell: usmallint = 0; cell < 2000; cell++) {
-            memory.write(0x0800 + cell, 32); // 32: the space screen code
+        for cell: usmallint in 0..2000 {
+            memory::write(0x0800 + cell, 32); // 32: the space screen code
         }
     }
 
-    function setBackground(background: u8): void {
+    fn setBackground(background: u8) {
         backgroundColor = background & 15;
     }
 
-    function setBorder(border: u8): void {
+    fn setBorder(border: u8) {
         borderColor = border & 15;
     }
 
@@ -58,7 +58,7 @@ export namespace screen {
     // disappears with them.
     const RESIZABLE: bool = false;
 
-    function resized(): bool {
+    fn resized() -> bool {
         return false;
     }
 }
@@ -73,7 +73,7 @@ export namespace screen {
 // C64's sixteen colors in the C64's numbering, so both namespaces carry
 // all sixteen.
 
-export namespace BorderColor {
+pub mod BorderColor {
     const BLACK: utinyint = 0;
     const WHITE: utinyint = 1;
     const RED: utinyint = 2;
@@ -95,7 +95,7 @@ export namespace BorderColor {
     const KEEP: utinyint = 255;
 }
 
-export namespace BackgroundColor {
+pub mod BackgroundColor {
     const BLACK: utinyint = 0;
     const WHITE: utinyint = 1;
     const RED: utinyint = 2;

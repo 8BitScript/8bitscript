@@ -33,25 +33,25 @@
 //
 // Ghosting: three keys down can read as four (any three corners of a
 // rectangle in the matrix light the fourth). Two keys are always safe.
-import { pia1PortA, pia1PortB } from "./index.8bs";
+use self::index::{pia1PortA, pia1PortB};
 
 // The last scan, one byte per row, a 1 bit where a key is down (the port's
 // active-low columns inverted once, here, so nothing else has to think
 // about it). All zero until the first scan.
-let state: array<utinyint, 10>;
+let mut state: [utinyint; 10];
 
 // Column masks, indexed rather than shifted: `1 << n` with a variable n is
 // a loop on the 6502, a table lookup is one indexed load.
-const COLUMN_BIT: array<utinyint, 8> = [1, 2, 4, 8, 16, 32, 64, 128];
+const COLUMN_BIT: [utinyint; 8] = [1, 2, 4, 8, 16, 32, 64, 128];
 
-export namespace keyboard {
+pub mod keyboard {
     const ROWS: utinyint = 10;
     const COLUMNS: utinyint = 8;
 
     // Read all ten rows into the snapshot. Once a frame, right after
     // waitFrame().
-    function scan(): void {
-        for (let row: utinyint = 0; row < 10; row++) {
+    fn scan() {
+        for row: utinyint in 0..10 {
             pia1PortA = row;
             state[row] = pia1PortB ^ 0xFF;
         }
@@ -59,14 +59,14 @@ export namespace keyboard {
 
     // Is this key down in the last scan? `key` is a `Key.*` value from
     // @8bitscript/pet/keys — `row * 8 + column` in the profile's matrix.
-    function pressed(key: utinyint): bool {
+    fn pressed(key: utinyint) -> bool {
         return (state[key >> 3] & COLUMN_BIT[key & 7]) != 0;
     }
 
     // The last scan's eight columns of one row, a 1 bit per key down:
     // for code that wants a whole row at once (a matrix ghosting check,
     // an "any key" test over all ten).
-    function row(index: utinyint): utinyint {
+    fn row(index: utinyint) -> utinyint {
         return state[index];
     }
 }

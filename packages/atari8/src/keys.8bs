@@ -29,7 +29,7 @@
 // against it. (../AGENTS.md listed this table as "to verify" before the
 // header was found; it is now sourced.)
 
-export namespace Key {
+pub mod Key {
     // Nothing pressed: what CH holds when the OS has no key for the program,
     // and what `keyboard.key()` answers.
     const NONE: utinyint = 0xFF;

@@ -10,8 +10,8 @@
 // itself exports, one layer up from it. Every machine's screen.8bs exports
 // this same surface, which is what lets a program import it from
 // @8bitscript/screen and never name the hardware.
-import { vicColor } from "./index.8bs";
-import { Video } from "./geometry.8bs";
+use self::index::vicColor;
+use self::geometry::Video;
 
 // ---- the screen: border and background --------------------------------------
 //
@@ -21,9 +21,9 @@ import { Video } from "./geometry.8bs";
 // are one write here — and because on the NES and the X16 the two are
 // genuinely one operation (see those packages), so the portable surface is
 // the one every machine can honor.
-export namespace screen {
-    function setColors(border: u8, background: u8): void {
-        vicColor = (8 | (border & 7)) | (background << 4);
+pub mod screen {
+    fn setColors(border: u8, background: u8) {
+        vicColor = 8 | border & 7 | background << 4;
     }
 
     // `blank(border, background)`: every cell blank and both colors set —
@@ -31,24 +31,24 @@ export namespace screen {
     // to leave one as it is. `setBorder` and `setBackground` are one
     // color each, `setColors` the pair; `text.setColor` owns what the
     // next print looks like.
-    function blank(border: utinyint = BorderColor.BLACK, background: utinyint = BackgroundColor.BLACK): void {
-        if (border != BorderColor.KEEP) {
-            screen.setBorder(border);
+    fn blank(border: utinyint = BorderColor::BLACK, background: utinyint = BackgroundColor::BLACK) {
+        if border != BorderColor::KEEP {
+            screen::setBorder(border);
         }
-        if (background != BackgroundColor.KEEP) {
-            screen.setBackground(background);
+        if background != BackgroundColor::KEEP {
+            screen::setBackground(background);
         }
-        for (let cell: usmallint = 0; cell < Video.CELL_COUNT; cell++) {
-            memory.write(Video.SCREEN + cell, 32); // 32: the space screen code
+        for cell: usmallint in 0..Video::CELL_COUNT {
+            memory::write(Video::SCREEN + cell, 32); // 32: the space screen code
         }
     }
 
-    function setBackground(background: u8): void {
-        vicColor = (vicColor & 0x0F) | (background << 4);
+    fn setBackground(background: u8) {
+        vicColor = vicColor & 0x0F | background << 4;
     }
 
-    function setBorder(border: u8): void {
-        vicColor = (vicColor & 0xF0) | 8 | (border & 7);
+    fn setBorder(border: u8) {
+        vicColor = vicColor & 0xF0 | 8 | border & 7;
     }
 
     // Whether this machine's grid can change under a running program. It
@@ -59,7 +59,7 @@ export namespace screen {
     // disappears with them.
     const RESIZABLE: bool = false;
 
-    function resized(): bool {
+    fn resized() -> bool {
         return false;
     }
 }
@@ -76,7 +76,7 @@ export namespace screen {
 // its own hardware's value, which is what lets a program say
 // `screen.setColors(BorderColor.BLUE, BackgroundColor.BLACK)` on any target.
 
-export namespace BorderColor {
+pub mod BorderColor {
     const BLACK: utinyint = 0;
     const WHITE: utinyint = 1;
     const RED: utinyint = 2;
@@ -90,7 +90,7 @@ export namespace BorderColor {
     const KEEP: utinyint = 255;
 }
 
-export namespace BackgroundColor {
+pub mod BackgroundColor {
     const BLACK: utinyint = 0;
     const WHITE: utinyint = 1;
     const RED: utinyint = 2;

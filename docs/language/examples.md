@@ -16,29 +16,29 @@ The first real mixed program: `2048.8bs` is the program and the move logic's dri
 *2048 — src/Screen.8bx (trimmed)*
 
 ```8bx
-import { board, shown, score, over, won, started } from "./game.8bs";
-import { drawHud, drawTile, drawTitleScreen } from "./tile.8bs";
+use self::game::{board, shown, score, over, won, started};
+use self::tile::{drawHud, drawTile, drawTitleScreen};
 
-export component Title() {
+pub component Title() {
     drawTitleScreen();
 }
 
-export component Tiles() {
-    for (let i: utinyint = 0; i < 16; i++) {
-        if (board[i] != shown[i]) {
+pub component Tiles() {
+    for i: utinyint in 0..16 {
+        if board[i] != shown[i] {
             drawTile(i >> 2, i & 3, board[i]);
             shown[i] = board[i];
         }
     }
 }
 
-export component Board() {
+pub component Board() {
     drawHud(score, over, won);
     <Tiles />;
 }
 
-export component Screen() {
-    return (<>{started ? <Board /> : <Title />}</>);
+pub component Screen() {
+    return <>{if started { <Board /> } else { <Title /> }}</>;
 }
 ```
 

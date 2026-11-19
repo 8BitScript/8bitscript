@@ -76,55 +76,54 @@
 const GHOST_ADDRESS: usmallint = 0xFFFF; // $3FFF in bank 3: read-only by this package's rules
 const PATTERN_ADDRESS: usmallint = 0xF9FF; // $39FF in bank 3: block 231's pad byte
 
-@address(PATTERN_ADDRESS)
-let patternByte: volatile<u8>;
+#[address(PATTERN_ADDRESS)] let mut patternByte: volatile<u8>;
 
-export let patternSet: bool = false;
+pub let mut patternSet: bool = false;
 
 // Some bytes. Bits are pixels left to right; 1 is black, 0 the background.
-export namespace Pattern {
+pub mod Pattern {
     const TRANSPARENT: utinyint = 0x00; // the background color, as $FFFF's 0 gives without ECM
     const BLACK: utinyint = 0xFF;
-    const DITHER: utinyint = 0x55;      // alternate pixels: a 50% mix
-    const DITHER_2: utinyint = 0x33;    // pairs
-    const LEFT_HALF: utinyint = 0xF0;   // each cell's left four pixels black
-    const LINE: utinyint = 0x80;        // one pixel in eight: a fine vertical grid
-    const SPARSE: utinyint = 0x11;      // two in eight
-    const DENSE: utinyint = 0xEE;       // six in eight
+    const DITHER: utinyint = 0x55; // alternate pixels: a 50% mix
+    const DITHER_2: utinyint = 0x33; // pairs
+    const LEFT_HALF: utinyint = 0xF0; // each cell's left four pixels black
+    const LINE: utinyint = 0x80; // one pixel in eight: a fine vertical grid
+    const SPARSE: utinyint = 0x11; // two in eight
+    const DENSE: utinyint = 0xEE; // six in eight
 }
 
-export namespace idle {
-    const GHOST: usmallint = GHOST_ADDRESS;     // what the VIC reads with ECM clear: 0, always
+pub mod idle {
+    const GHOST: usmallint = GHOST_ADDRESS; // what the VIC reads with ECM clear: 0, always
     const PATTERN: usmallint = PATTERN_ADDRESS; // what it reads with ECM set: setPattern()'s byte
-    const ECM: utinyint = 0x40;                 // $D011 bit 6
-    const PATTERN_BLOCK: utinyint = 231;        // the sprite shape block whose pad byte PATTERN is
+    const ECM: utinyint = 0x40; // $D011 bit 6
+    const PATTERN_BLOCK: utinyint = 231; // the sprite shape block whose pad byte PATTERN is
 
     // The byte idle lines draw while ECM is set.
-    function setPattern(bits: utinyint): void {
+    fn setPattern(bits: utinyint) {
         patternByte = bits;
         patternSet = true;
     }
 
-    function pattern(): utinyint {
+    fn pattern() -> utinyint {
         return patternByte;
     }
 
     // The byte idle lines draw with ECM clear — the IRQ vector's page,
     // 0 by construction. A program can check it rather than believe it.
-    function ghost(): utinyint {
-        return memory.read(GHOST_ADDRESS);
+    fn ghost() -> utinyint {
+        return memory::read(GHOST_ADDRESS);
     }
 
     // The first line in display state for a YSCROLL: the first bad line,
     // 48 + YSCROLL. Above it, down to the top of the window (51), is idle.
-    function firstBadLine(yscroll: utinyint): utinyint {
+    fn firstBadLine(yscroll: utinyint) -> utinyint {
         return 48 + (yscroll & 7);
     }
 
     // The last line of row 24 for a YSCROLL: 247 + YSCROLL. Below it, up
     // to the bottom of the window (250), is idle; above 250, row 24's
     // last lines are under the border unless it is opened.
-    function lastRowLine(yscroll: utinyint): utinyint {
+    fn lastRowLine(yscroll: utinyint) -> utinyint {
         return 247 + (yscroll & 7);
     }
 }
