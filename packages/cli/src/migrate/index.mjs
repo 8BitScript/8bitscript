@@ -46,7 +46,7 @@ function collect(target, wanted, found = []) {
     if (wanted.test(target)) found.push(target);
     return found;
   }
-  for (const name of readdirSync(target).sort()) {
+  for (const name of readdirSync(target).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))) {
     if (SKIP_DIRS.has(name)) continue;
     const path = join(target, name);
     if (statSync(path).isDirectory()) collect(path, wanted, found);

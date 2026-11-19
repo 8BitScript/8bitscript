@@ -38,10 +38,12 @@ const lineAt = (src, offset) => {
 /** The JS escapes of a string or template segment, resolved. */
 function cook(raw) {
   let out = '';
-  for (let i = 0; i < raw.length; i += 1) {
+  let i = 0;
+  while (i < raw.length) {
     const c = raw[i];
     if (c !== '\\') {
       out += c;
+      i += 1;
       continue;
     }
     i += 1;
@@ -66,6 +68,7 @@ function cook(raw) {
     } else if (e === '\n') {
       // line continuation
     } else out += e;
+    i += 1;
   }
   return out;
 }
@@ -247,7 +250,7 @@ function cookLiteral(literal, placeholders) {
   return out;
 }
 
-const countPlaceholders = (text) => (text.match(PLACEHOLDER) ?? []).map((m) => m).sort().join(',');
+const countPlaceholders = (text) => (text.match(PLACEHOLDER) ?? []).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)).join(',');
 
 const restore = (text, placeholders) => text.replace(PLACEHOLDER, (m, n) => placeholders[Number(n)] ?? m);
 
@@ -273,7 +276,7 @@ function convertTemplate(literal, convert) {
   if (!looksOld(cooked)) return null;
   const lead = /^[ \t]*\n/.exec(cooked)?.[0] ?? '';
   const rest = cooked.slice(lead.length);
-  const trailing = /\s*$/.exec(rest)[0];
+  const trailing = rest.slice(rest.trimEnd().length);
   const core = rest.slice(0, rest.length - trailing.length);
   const lines = core.split('\n');
   const indents = lines.filter((l) => l.trim() !== '').map((l) => /^[ \t]*/.exec(l)[0].length);
@@ -375,13 +378,20 @@ export function convertFences(md, convert) {
   const failures = [];
   let converted = 0;
   let unchanged = 0;
-  for (let i = 0; i < lines.length; i += 1) {
+  let i = 0;
+  while (i < lines.length) {
     const open = /^(\s*)```8bs\s*$/.exec(lines[i]);
     out.push(lines[i]);
-    if (!open) continue;
+    if (!open) {
+      i += 1;
+      continue;
+    }
     let close = i + 1;
     while (close < lines.length && !/^\s*```\s*$/.test(lines[close])) close += 1;
-    if (close >= lines.length) continue;
+    if (close >= lines.length) {
+      i += 1;
+      continue;
+    }
     const indent = open[1];
     const body = lines.slice(i + 1, close).map((l) => (l.startsWith(indent) ? l.slice(indent.length) : l)).join('\n');
     let result = convert(`${body}\n`, '.8bs');
@@ -400,7 +410,7 @@ export function convertFences(md, convert) {
       failures.push({ line: i + 1, status: result.status, message: result.message });
       out.push(...lines.slice(i + 1, close));
     }
-    i = close - 1;
+    i = close;
   }
   return { text: out.join('\n'), converted, unchanged, failures };
 }
