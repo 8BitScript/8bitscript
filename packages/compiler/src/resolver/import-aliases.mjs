@@ -75,8 +75,9 @@ export function longestAliasPrefix(specifier, importAliases) {
  *
  * @param {string} specifier
  * @param {string} prefix
+ * @param {boolean} [pathForm]  The import is a path-form `use`: a module name, no extension.
  */
-export function aliasedSubpath(specifier, prefix) {
+export function aliasedSubpath(specifier, prefix, pathForm = false) {
   const rest = specifier.slice(prefix.length + 1);
-  return isSourceFile(rest) || isPathForm(rest) ? rest : null;
+  return isSourceFile(rest) || (pathForm && isPathForm(rest)) ? rest : null;
 }

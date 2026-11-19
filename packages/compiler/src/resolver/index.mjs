@@ -287,14 +287,15 @@ function chooseVariant(specifier, path, machine, tags = [], locale) {
 
 /**
  * The file a relative or alias specifier means. A specifier that carries a
- * source extension is taken as written (string form). One without it is
- * searched: each of `SOURCE_EXTENSIONS` goes through the twin choice, none
+ * source extension is taken as written (string form), and so is every
+ * specifier of the old `import` syntax. A path-form `use` (`options.pathForm`)
+ * without an extension is searched: each of `SOURCE_EXTENSIONS` goes through the twin choice, none
  * found is `null` (the caller reports 8BS2004), two or more found is
  * 8BS2217 — the resolver will not guess between `geo.8bs` and `geo.8bx`.
  */
 function chooseModule(specifier, target, options) {
   const tags = tagsOf(options);
-  if (isSourceFile(target)) return chooseVariant(specifier, target, options.machine, tags, options.locale);
+  if (!options.pathForm || isSourceFile(target)) return chooseVariant(specifier, target, options.machine, tags, options.locale);
   const hits = [];
   for (const ext of SOURCE_EXTENSIONS) {
     const chosen = chooseVariant(specifier, `${target}${ext}`, options.machine, tags, options.locale);
@@ -368,6 +369,7 @@ function findUse(t, i) {
   const last = segments[segments.length - 1].tok;
   return {
     specifier: segments.map((s) => s.word).join('/'),
+    pathForm: true,
     start: first.start,
     length: last.start + last.length - first.start,
   };
@@ -382,7 +384,8 @@ function findUse(t, i) {
  * an `import` with a string much further down the file.
  *
  * @param {object[]} tokens
- * @returns {{ specifier: string, start: number, length: number }[]}
+ * @returns {{ specifier: string, start: number, length: number, pathForm?: true }[]}
+ *   `pathForm` marks a `use` path, whose extension is searched for.
  */
 export function findImports(tokens) {
   const t = tokens.filter((tok) => tok.kind !== TokenKind.Comment);
@@ -693,7 +696,7 @@ export function resolveSpecifier(specifier, fromFile, options = {}, seen = new S
   const fromDir = dirname(fromFile);
 
   if (specifier.startsWith('.') || specifier.startsWith('/')) {
-    if (!isSourceFile(specifier) && !isPathForm(specifier)) return null;
+    if (!isSourceFile(specifier) && !(options.pathForm && isPathForm(specifier))) return null;
     const target = resolvePath(fromDir, specifier);
     // `./hardware.8bs` on the NES is `./hardware.nes.8bs` when that file
     // exists beside it — see chooseVariant.
@@ -714,7 +717,7 @@ export function resolveSpecifier(specifier, fromFile, options = {}, seen = new S
   if (importAliases && typeof importAliases === 'object') {
     const prefix = longestAliasPrefix(specifier, importAliases);
     if (prefix) {
-      const rest = aliasedSubpath(specifier, prefix);
+      const rest = aliasedSubpath(specifier, prefix, options.pathForm === true);
       if (!rest) return null;
       const target = resolvePath(importAliases[prefix], rest);
       const chosen = chooseModule(specifier, target, options);
@@ -799,8 +802,8 @@ export function resolveImports(tokens, file, options = {}) {
   if (!file || !isAbsolute(file)) return [];
   const diagnostics = [];
 
-  for (const { specifier, start, length } of findImports(tokens)) {
-    const resolved = resolveSpecifier(specifier, file, options);
+  for (const { specifier, start, length, pathForm } of findImports(tokens)) {
+    const resolved = resolveSpecifier(specifier, file, pathForm ? { ...options, pathForm } : options);
     if (resolved?.diagnostics?.length) {
       for (const extra of resolved.diagnostics) {
         if (!diagnostics.some((d) => d.code === extra.code && d.file === extra.file && d.start === extra.start && d.message === extra.message)) {

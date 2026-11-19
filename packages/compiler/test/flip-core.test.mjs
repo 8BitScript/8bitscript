@@ -10,6 +10,7 @@ import test from 'node:test';
 import { check } from '../src/checker/index.mjs';
 import { findImports, resolveImports, resolveSpecifier } from '../src/resolver/index.mjs';
 import { parse, tokenize } from '../src/front/index.mjs';
+import { link } from '../index.mjs';
 
 const E20 = (src) => {
   const { tokens } = tokenize(src, 't.8bs');
@@ -54,6 +55,38 @@ test('E20: a range for steps its own variable; assigning it in the body is still
   assert.deepEqual(E20('pub fn main() { for i in 0..4 { let mut n: u8 = i; n = 1; } }'), []);
   assert.deepEqual(E20('pub fn main() { for i in 0..=4 { i = 3; } }'), [msg('i')]);
   assert.deepEqual(E20('pub fn main() { for (let mut i: u8 = 0; i < 4; i += 1) { } }'), []);
+});
+
+test('E20: a C-style for with a plain let is reported; with let mut it is not', () => {
+  assert.deepEqual(E20('pub fn main() { for (let i: u8 = 0; i < 4; i += 1) { } }'), [msg('i')]);
+  assert.deepEqual(E20('pub fn main() { for (let mut i: u8 = 0; i < 4; i += 1) { } }'), []);
+});
+
+test('E20: ++ and -- on a plain let, in a statement or a C-style update, are reported', () => {
+  const id = (name, start) => ({ type: 'Identifier', name, start, length: 1 });
+  const decl = (immutable, start = 0) => ({
+    type: 'VariableDeclaration', kind: 'let', immutable, start, length: 10, name: id('x', start + 4),
+  });
+  const update = (operator) => ({ type: 'UpdateExpression', operator, prefix: false, argument: id('x', 20) });
+  for (const operator of ['++', '--']) {
+    const stmt = { type: 'Program', body: [decl(true),
+      { type: 'ExpressionStatement', expression: update(operator) }] };
+    assert.deepEqual(check(stmt, 't.8bs').map((d) => d.message), [msg('x')], operator);
+    // a C-style init starts at `let`, so its own update is not the range step
+    const cFor = { type: 'Program', body: [{ type: 'ForStatement', init: decl(true), update: update(operator),
+      test: null, body: { type: 'BlockStatement', body: [] } }] };
+    assert.deepEqual(check(cFor, 't.8bs').map((d) => d.message), [msg('x')], operator);
+    // the range form (init starts at the variable) steps its own variable
+    const range = { type: 'Program', body: [{ type: 'ForStatement', init: { ...decl(true), start: 4, name: id('x', 4) },
+      update: update('++'), test: null, body: { type: 'BlockStatement', body: [] } }] };
+    assert.deepEqual(check(range, 't.8bs').map((d) => d.message), [], 'range');
+  }
+});
+
+test('E20: a let named in an asm6502 body is not a user store, and an import is not a local let', () => {
+  assert.deepEqual(E20('let x: u8 = 0;\npub fn main() { asm6502 { lda x } }'), []);
+  // The exporting module declares `pub let mut`; an importer's store is not seen here.
+  assert.deepEqual(E20('use self::a::{x};\npub fn main() { x = 1; }'), []);
 });
 
 test('E20: an old-syntax tree is never reported', () => {
@@ -109,6 +142,7 @@ test('findImports still reads the old import syntax', async () => {
   assert.deepEqual(findImports(old.tokenize(src, 't.8bs').tokens).map((i) => i.specifier), ['./geo.8bs', './raw.8bs']);
 });
 
+const PATH = { pathForm: true };
 const tree = (files) => {
   const root = mkdtempSync(join(tmpdir(), '8bs-flip-'));
   for (const [name, text] of Object.entries(files)) {
@@ -121,18 +155,18 @@ const tree = (files) => {
 test('resolver: a path-form specifier searches the source extensions', () => {
   const root = tree({ 'main.8bs': '', 'geo.8bs': '', 'ui.8bx': '', 'art.8bg': '', 'song.8ba': '' });
   const from = join(root, 'main.8bs');
-  assert.equal(resolveSpecifier('./geo', from).path, join(root, 'geo.8bs'));
-  assert.equal(resolveSpecifier('./ui', from).path, join(root, 'ui.8bx'));
-  assert.equal(resolveSpecifier('./art', from).path, join(root, 'art.8bg'));
-  assert.equal(resolveSpecifier('./song', from).path, join(root, 'song.8ba'));
+  assert.equal(resolveSpecifier('./geo', from, PATH).path, join(root, 'geo.8bs'));
+  assert.equal(resolveSpecifier('./ui', from, PATH).path, join(root, 'ui.8bx'));
+  assert.equal(resolveSpecifier('./art', from, PATH).path, join(root, 'art.8bg'));
+  assert.equal(resolveSpecifier('./song', from, PATH).path, join(root, 'song.8ba'));
   assert.equal(resolveSpecifier('./geo.8bs', from).path, join(root, 'geo.8bs'));
 });
 
 test('resolver: none found is 8BS2004, two or more is 8BS2217', () => {
   const root = tree({ 'main.8bs': '', 'both.8bs': '', 'both.8bx': '' });
   const from = join(root, 'main.8bs');
-  assert.equal(resolveSpecifier('./nope', from).code, '8BS2004');
-  const two = resolveSpecifier('./both', from);
+  assert.equal(resolveSpecifier('./nope', from, PATH).code, '8BS2004');
+  const two = resolveSpecifier('./both', from, PATH);
   assert.equal(two.code, '8BS2217');
   assert.match(two.message, /both\.8bs, both\.8bx/);
   // The string form with the extension chooses.
@@ -148,7 +182,7 @@ test('resolver: alias path form searches too, and resolveImports reports on the 
   const root = tree({ 'src/lib/rules.8bs': '', 'src/main.8bs': '' });
   const importAliases = { '@lib': join(root, 'src', 'lib') };
   assert.equal(
-    resolveSpecifier('@lib/rules', join(root, 'src', 'main.8bs'), { importAliases }).path,
+    resolveSpecifier('@lib/rules', join(root, 'src', 'main.8bs'), { importAliases, pathForm: true }).path,
     join(root, 'src', 'lib', 'rules.8bs'),
   );
   const src = 'use self::missing::{a};';
@@ -157,4 +191,15 @@ test('resolver: alias path form searches too, and resolveImports reports on the 
   const found = resolveImports(tokens, file);
   assert.deepEqual(found.map((d) => d.code), ['8BS2004']);
   assert.equal(src.slice(found[0].start, found[0].start + found[0].length), 'self::missing');
+});
+
+test('old import syntax: an extensionless relative or alias specifier is still not resolved', () => {
+  const root = tree({ 'src/main.8bs': '', 'src/geo.8bs': '', 'src/lib/rules.8bs': '' });
+  const from = join(root, 'src', 'main.8bs');
+  const importAliases = { '@lib': join(root, 'src', 'lib') };
+  assert.equal(resolveSpecifier('./geo', from), null);
+  assert.equal(resolveSpecifier('@lib/rules', from, { importAliases }), null);
+  const oldText = 'import { f } from "./geo";\nexport function main(): void { f(); }\n';
+  const { diagnostics } = link(oldText, from);
+  assert.ok(diagnostics.some((d) => d.code === '8BS3001'), JSON.stringify(diagnostics.map((d) => d.code)));
 });

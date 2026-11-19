@@ -71,21 +71,30 @@ const targetOf = (scope, target) => {
 };
 
 /**
+ * Whether a `for` is a range `for` (`for i in a..b`), whose update is the
+ * loop's own `i++`. The parser builds it as a `ForStatement` with an immutable
+ * `let i` and that update, but its init has no `let` keyword, so the init
+ * starts at the variable itself; a C-style `for (let i …; …; …)` starts at
+ * `let`. Only the range form steps its immutable variable: in the C form a
+ * plain `let` that is updated is E20, and `i = 3;` in a range body still is.
+ */
+function isRangeStep({ init, update }) {
+  if (init?.type !== NodeType.VariableDeclaration || init.immutable !== true || !init.name) return false;
+  if (init.start !== init.name.start) return false;
+  return update?.type === NodeType.UpdateExpression && update.operator === '++'
+    && update.argument?.type === NodeType.Identifier && update.argument.name === init.name.name;
+}
+
+/**
  * @param {object} ast   Program node from the parser.
  * @param {string} file
  * @returns {object[]} diagnostics
  */
 export function checkImmutableLets(ast, file) {
   const diagnostics = [];
-  // A range `for` is a `ForStatement` whose `let i` is immutable and whose
-  // update is `i++`: the loop's own step, so it is never reported. `i = 3;`
-  // in the body still is.
-  const skipped = new Set();
-
   const visitExpression = (scope, root) => {
     if (!root) return;
     walk(root, (n) => {
-      if (skipped.has(n)) return;
       const target = storeTarget(n);
       const hit = target && targetOf(scope, target);
       if (hit?.decl.immutable === true) {
@@ -112,14 +121,10 @@ export function checkImmutableLets(ast, file) {
   function visitFor(scope, s) {
     const forScope = newScope(scope);
     const { init, update } = s;
-    if (init?.type === NodeType.VariableDeclaration && init.immutable === true && init.name) {
-      const target = update && storeTarget(update);
-      if (target?.type === NodeType.Identifier && target.name === init.name.name) skipped.add(update);
-    }
     if (init?.type === NodeType.VariableDeclaration) visitStatement(forScope, init);
     else visitExpression(forScope, init);
     visitExpression(forScope, s.test);
-    visitExpression(forScope, update);
+    if (!isRangeStep(s)) visitExpression(forScope, update);
     visitStatement(newScope(forScope), s.body);
   }
 
