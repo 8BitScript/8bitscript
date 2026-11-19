@@ -948,16 +948,20 @@ function hoverAt(tokens, offset, text, filePath, resolverOptions = {}, machine =
  *
  * @returns {{ text: string, start: number, length: number } | null}
  */
+function isPathSep(token) {
+  return token?.text === '::' || token?.text === '.';
+}
+
 function factKeyAt(tokens, index) {
   let first = index;
-  while (tokens[first - 1]?.text === '.' && tokens[first - 2]?.kind === TokenKind.Identifier) first -= 2;
+  while (isPathSep(tokens[first - 1]) && tokens[first - 2]?.kind === TokenKind.Identifier) first -= 2;
   let last = index;
-  while (tokens[last + 1]?.text === '.' && tokens[last + 2]?.kind === TokenKind.Identifier) last += 2;
+  while (isPathSep(tokens[last + 1]) && tokens[last + 2]?.kind === TokenKind.Identifier) last += 2;
   const open = tokens[first - 1];
   const callee = tokens[first - 2];
   const close = tokens[last + 1];
   if (open?.text !== '(' || close?.text !== ')' || callee?.kind !== TokenKind.CompileTime || callee.text !== '#fact') return null;
-  const text = tokens.slice(first, last + 1).map((t) => t.text).join('');
+  const text = tokens.slice(first, last + 1).filter((t) => t.kind === TokenKind.Identifier).map((t) => t.text).join('.');
   if (!FACTS.has(text)) return null;
   return { text, start: tokens[first].start, length: tokens[last].start + tokens[last].length - tokens[first].start };
 }
@@ -1244,8 +1248,8 @@ function completionsAt(tokens, offset, text, filePath, resolverOptions, program,
       kind: member.kind,
       sortRank: 0,
       detail: all.length > 0 && member.machines.length < all.length
-        ? `${object}.${member.signature} — ${member.machines.join(', ')} only`
-        : `${object}.${member.signature}`,
+        ? `${object}::${member.signature} — ${member.machines.join(', ')} only`
+        : `${object}::${member.signature}`,
       documentation: memberMarkdown(object, member, context),
     }));
   }
