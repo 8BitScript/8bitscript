@@ -1,0 +1,9 @@
+// rows: import relative, parent dir, package, config alias, bare package, one name, string specifier, asset
+use self::geo::{a, b as c};
+use super::src::index::{d};
+use @8bitscript::c64::sprites::{sprites as hardware};
+use @lib::game::rules::{e, f};
+use foo::{g};
+use "./number-values.8bs"::{h};
+use self::mark::{mark};
+use self::geo::one;

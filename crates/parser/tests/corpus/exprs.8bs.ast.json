@@ -1,0 +1,1695 @@
+{
+  "ast": {
+    "body": [
+      {
+        "exported": false,
+        "immutable": true,
+        "initializer": {
+          "left": {
+            "left": {
+              "length": 1,
+              "radix": 10,
+              "raw": "1",
+              "start": 8,
+              "type": "IntegerLiteral",
+              "value": 1
+            },
+            "length": 9,
+            "operator": "+",
+            "right": {
+              "left": {
+                "length": 1,
+                "radix": 10,
+                "raw": "2",
+                "start": 12,
+                "type": "IntegerLiteral",
+                "value": 2
+              },
+              "length": 5,
+              "operator": "*",
+              "right": {
+                "length": 1,
+                "radix": 10,
+                "raw": "3",
+                "start": 16,
+                "type": "IntegerLiteral",
+                "value": 3
+              },
+              "start": 12,
+              "type": "BinaryExpression"
+            },
+            "start": 8,
+            "type": "BinaryExpression"
+          },
+          "length": 21,
+          "operator": "-",
+          "right": {
+            "left": {
+              "left": {
+                "length": 1,
+                "radix": 10,
+                "raw": "4",
+                "start": 20,
+                "type": "IntegerLiteral",
+                "value": 4
+              },
+              "length": 5,
+              "operator": "/",
+              "right": {
+                "length": 1,
+                "radix": 10,
+                "raw": "5",
+                "start": 24,
+                "type": "IntegerLiteral",
+                "value": 5
+              },
+              "start": 20,
+              "type": "BinaryExpression"
+            },
+            "length": 9,
+            "operator": "%",
+            "right": {
+              "length": 1,
+              "radix": 10,
+              "raw": "6",
+              "start": 28,
+              "type": "IntegerLiteral",
+              "value": 6
+            },
+            "start": 20,
+            "type": "BinaryExpression"
+          },
+          "start": 8,
+          "type": "BinaryExpression"
+        },
+        "kind": "let",
+        "length": 30,
+        "name": {
+          "length": 1,
+          "name": "a",
+          "start": 4,
+          "type": "Identifier"
+        },
+        "start": 0,
+        "type": "VariableDeclaration",
+        "typeAnnotation": null
+      },
+      {
+        "exported": false,
+        "immutable": true,
+        "initializer": {
+          "left": {
+            "left": {
+              "left": {
+                "left": {
+                  "length": 1,
+                  "name": "a",
+                  "start": 39,
+                  "type": "Identifier"
+                },
+                "length": 6,
+                "operator": "<<",
+                "right": {
+                  "length": 1,
+                  "radix": 10,
+                  "raw": "1",
+                  "start": 44,
+                  "type": "IntegerLiteral",
+                  "value": 1
+                },
+                "start": 39,
+                "type": "BinaryExpression"
+              },
+              "length": 11,
+              "operator": ">>",
+              "right": {
+                "length": 1,
+                "radix": 10,
+                "raw": "2",
+                "start": 49,
+                "type": "IntegerLiteral",
+                "value": 2
+              },
+              "start": 39,
+              "type": "BinaryExpression"
+            },
+            "length": 15,
+            "operator": "&",
+            "right": {
+              "length": 1,
+              "radix": 10,
+              "raw": "3",
+              "start": 53,
+              "type": "IntegerLiteral",
+              "value": 3
+            },
+            "start": 39,
+            "type": "BinaryExpression"
+          },
+          "length": 23,
+          "operator": "|",
+          "right": {
+            "left": {
+              "length": 1,
+              "radix": 10,
+              "raw": "4",
+              "start": 57,
+              "type": "IntegerLiteral",
+              "value": 4
+            },
+            "length": 5,
+            "operator": "^",
+            "right": {
+              "length": 1,
+              "radix": 10,
+              "raw": "5",
+              "start": 61,
+              "type": "IntegerLiteral",
+              "value": 5
+            },
+            "start": 57,
+            "type": "BinaryExpression"
+          },
+          "start": 39,
+          "type": "BinaryExpression"
+        },
+        "kind": "let",
+        "length": 32,
+        "name": {
+          "length": 1,
+          "name": "b",
+          "start": 35,
+          "type": "Identifier"
+        },
+        "start": 31,
+        "type": "VariableDeclaration",
+        "typeAnnotation": null
+      },
+      {
+        "exported": false,
+        "immutable": true,
+        "initializer": {
+          "left": {
+            "left": {
+              "left": {
+                "length": 1,
+                "name": "a",
+                "start": 72,
+                "type": "Identifier"
+              },
+              "length": 5,
+              "operator": "<",
+              "right": {
+                "length": 1,
+                "name": "b",
+                "start": 76,
+                "type": "Identifier"
+              },
+              "start": 72,
+              "type": "BinaryExpression"
+            },
+            "length": 15,
+            "operator": "&&",
+            "right": {
+              "left": {
+                "length": 1,
+                "name": "b",
+                "start": 81,
+                "type": "Identifier"
+              },
+              "length": 6,
+              "operator": ">=",
+              "right": {
+                "length": 1,
+                "name": "a",
+                "start": 86,
+                "type": "Identifier"
+              },
+              "start": 81,
+              "type": "BinaryExpression"
+            },
+            "start": 72,
+            "type": "BinaryExpression"
+          },
+          "length": 25,
+          "operator": "||",
+          "right": {
+            "left": {
+              "length": 1,
+              "name": "a",
+              "start": 91,
+              "type": "Identifier"
+            },
+            "length": 6,
+            "operator": "!=",
+            "right": {
+              "length": 1,
+              "name": "b",
+              "start": 96,
+              "type": "Identifier"
+            },
+            "start": 91,
+            "type": "BinaryExpression"
+          },
+          "start": 72,
+          "type": "BinaryExpression"
+        },
+        "kind": "let",
+        "length": 34,
+        "name": {
+          "length": 1,
+          "name": "c",
+          "start": 68,
+          "type": "Identifier"
+        },
+        "start": 64,
+        "type": "VariableDeclaration",
+        "typeAnnotation": null
+      },
+      {
+        "exported": false,
+        "immutable": true,
+        "initializer": {
+          "left": {
+            "left": {
+              "length": 1,
+              "name": "a",
+              "start": 108,
+              "type": "Identifier"
+            },
+            "length": 6,
+            "operator": "==",
+            "right": {
+              "length": 1,
+              "name": "b",
+              "start": 113,
+              "type": "Identifier"
+            },
+            "start": 108,
+            "type": "BinaryExpression"
+          },
+          "length": 16,
+          "operator": "&",
+          "right": {
+            "left": {
+              "length": 1,
+              "name": "c",
+              "start": 119,
+              "type": "Identifier"
+            },
+            "length": 5,
+            "operator": "<",
+            "right": {
+              "length": 1,
+              "name": "d",
+              "start": 123,
+              "type": "Identifier"
+            },
+            "start": 119,
+            "type": "BinaryExpression"
+          },
+          "start": 108,
+          "type": "BinaryExpression"
+        },
+        "kind": "let",
+        "length": 27,
+        "name": {
+          "length": 1,
+          "name": "d",
+          "start": 103,
+          "type": "Identifier"
+        },
+        "start": 99,
+        "type": "VariableDeclaration",
+        "typeAnnotation": null
+      },
+      {
+        "exported": false,
+        "immutable": true,
+        "initializer": {
+          "left": {
+            "left": {
+              "length": 1,
+              "name": "a",
+              "start": 136,
+              "type": "Identifier"
+            },
+            "length": 6,
+            "operator": "==",
+            "right": {
+              "length": 1,
+              "name": "b",
+              "start": 141,
+              "type": "Identifier"
+            },
+            "start": 136,
+            "type": "BinaryExpression"
+          },
+          "length": 26,
+          "operator": "|",
+          "right": {
+            "left": {
+              "left": {
+                "length": 1,
+                "name": "c",
+                "start": 147,
+                "type": "Identifier"
+              },
+              "length": 5,
+              "operator": "<",
+              "right": {
+                "length": 1,
+                "name": "d",
+                "start": 151,
+                "type": "Identifier"
+              },
+              "start": 147,
+              "type": "BinaryExpression"
+            },
+            "length": 15,
+            "operator": "^",
+            "right": {
+              "left": {
+                "length": 1,
+                "name": "a",
+                "start": 157,
+                "type": "Identifier"
+              },
+              "length": 5,
+              "operator": ">",
+              "right": {
+                "length": 1,
+                "radix": 10,
+                "raw": "0",
+                "start": 161,
+                "type": "IntegerLiteral",
+                "value": 0
+              },
+              "start": 157,
+              "type": "BinaryExpression"
+            },
+            "start": 147,
+            "type": "BinaryExpression"
+          },
+          "start": 136,
+          "type": "BinaryExpression"
+        },
+        "kind": "let",
+        "length": 37,
+        "name": {
+          "length": 1,
+          "name": "e",
+          "start": 131,
+          "type": "Identifier"
+        },
+        "start": 127,
+        "type": "VariableDeclaration",
+        "typeAnnotation": null
+      },
+      {
+        "exported": false,
+        "immutable": true,
+        "initializer": {
+          "left": {
+            "left": {
+              "argument": {
+                "length": 1,
+                "name": "a",
+                "start": 174,
+                "type": "Identifier"
+              },
+              "length": 2,
+              "operator": "!",
+              "start": 173,
+              "type": "UnaryExpression"
+            },
+            "length": 7,
+            "operator": "+",
+            "right": {
+              "argument": {
+                "length": 1,
+                "name": "b",
+                "start": 179,
+                "type": "Identifier"
+              },
+              "length": 2,
+              "operator": "~",
+              "start": 178,
+              "type": "UnaryExpression"
+            },
+            "start": 173,
+            "type": "BinaryExpression"
+          },
+          "length": 17,
+          "operator": "-",
+          "right": {
+            "left": {
+              "argument": {
+                "length": 1,
+                "name": "c",
+                "start": 184,
+                "type": "Identifier"
+              },
+              "length": 2,
+              "operator": "-",
+              "start": 183,
+              "type": "UnaryExpression"
+            },
+            "length": 7,
+            "operator": "*",
+            "right": {
+              "argument": {
+                "length": 1,
+                "name": "d",
+                "start": 189,
+                "type": "Identifier"
+              },
+              "length": 2,
+              "operator": "+",
+              "start": 188,
+              "type": "UnaryExpression"
+            },
+            "start": 183,
+            "type": "BinaryExpression"
+          },
+          "start": 173,
+          "type": "BinaryExpression"
+        },
+        "kind": "let",
+        "length": 26,
+        "name": {
+          "length": 1,
+          "name": "f",
+          "start": 169,
+          "type": "Identifier"
+        },
+        "start": 165,
+        "type": "VariableDeclaration",
+        "typeAnnotation": null
+      },
+      {
+        "exported": false,
+        "immutable": true,
+        "initializer": {
+          "index": {
+            "length": 1,
+            "radix": 10,
+            "raw": "4",
+            "start": 219,
+            "type": "IntegerLiteral",
+            "value": 4
+          },
+          "length": 21,
+          "object": {
+            "index": {
+              "length": 1,
+              "radix": 10,
+              "raw": "3",
+              "start": 216,
+              "type": "IntegerLiteral",
+              "value": 3
+            },
+            "length": 18,
+            "object": {
+              "args": [
+                {
+                  "length": 1,
+                  "radix": 10,
+                  "raw": "1",
+                  "start": 209,
+                  "type": "IntegerLiteral",
+                  "value": 1
+                },
+                {
+                  "length": 1,
+                  "radix": 10,
+                  "raw": "2",
+                  "start": 212,
+                  "type": "IntegerLiteral",
+                  "value": 2
+                }
+              ],
+              "callee": {
+                "length": 8,
+                "object": {
+                  "length": 6,
+                  "object": {
+                    "length": 3,
+                    "object": {
+                      "length": 1,
+                      "name": "a",
+                      "start": 200,
+                      "type": "Identifier"
+                    },
+                    "property": {
+                      "length": 1,
+                      "name": "b",
+                      "start": 202,
+                      "type": "Identifier"
+                    },
+                    "start": 200,
+                    "type": "MemberExpression"
+                  },
+                  "property": {
+                    "length": 1,
+                    "name": "c",
+                    "start": 205,
+                    "type": "Identifier"
+                  },
+                  "start": 200,
+                  "type": "MemberExpression"
+                },
+                "property": {
+                  "length": 1,
+                  "name": "d",
+                  "start": 207,
+                  "type": "Identifier"
+                },
+                "start": 200,
+                "type": "MemberExpression"
+              },
+              "length": 15,
+              "start": 200,
+              "type": "CallExpression"
+            },
+            "start": 200,
+            "type": "IndexExpression"
+          },
+          "start": 200,
+          "type": "IndexExpression"
+        },
+        "kind": "let",
+        "length": 30,
+        "name": {
+          "length": 1,
+          "name": "g",
+          "start": 196,
+          "type": "Identifier"
+        },
+        "start": 192,
+        "type": "VariableDeclaration",
+        "typeAnnotation": null
+      },
+      {
+        "expression": {
+          "left": {
+            "length": 1,
+            "name": "x",
+            "start": 223,
+            "type": "Identifier"
+          },
+          "length": 9,
+          "operator": "=",
+          "right": {
+            "left": {
+              "length": 1,
+              "name": "y",
+              "start": 227,
+              "type": "Identifier"
+            },
+            "length": 5,
+            "operator": "=",
+            "right": {
+              "length": 1,
+              "radix": 10,
+              "raw": "3",
+              "start": 231,
+              "type": "IntegerLiteral",
+              "value": 3
+            },
+            "start": 227,
+            "type": "AssignmentExpression"
+          },
+          "start": 223,
+          "type": "AssignmentExpression"
+        },
+        "length": 10,
+        "start": 223,
+        "type": "ExpressionStatement"
+      },
+      {
+        "expression": {
+          "left": {
+            "length": 1,
+            "name": "x",
+            "start": 234,
+            "type": "Identifier"
+          },
+          "length": 6,
+          "operator": "+=",
+          "right": {
+            "length": 1,
+            "radix": 10,
+            "raw": "1",
+            "start": 239,
+            "type": "IntegerLiteral",
+            "value": 1
+          },
+          "start": 234,
+          "type": "AssignmentExpression"
+        },
+        "length": 7,
+        "start": 234,
+        "type": "ExpressionStatement"
+      },
+      {
+        "expression": {
+          "left": {
+            "length": 1,
+            "name": "x",
+            "start": 242,
+            "type": "Identifier"
+          },
+          "length": 6,
+          "operator": "-=",
+          "right": {
+            "length": 1,
+            "radix": 10,
+            "raw": "1",
+            "start": 247,
+            "type": "IntegerLiteral",
+            "value": 1
+          },
+          "start": 242,
+          "type": "AssignmentExpression"
+        },
+        "length": 7,
+        "start": 242,
+        "type": "ExpressionStatement"
+      },
+      {
+        "expression": {
+          "left": {
+            "length": 1,
+            "name": "x",
+            "start": 250,
+            "type": "Identifier"
+          },
+          "length": 6,
+          "operator": "*=",
+          "right": {
+            "length": 1,
+            "radix": 10,
+            "raw": "2",
+            "start": 255,
+            "type": "IntegerLiteral",
+            "value": 2
+          },
+          "start": 250,
+          "type": "AssignmentExpression"
+        },
+        "length": 7,
+        "start": 250,
+        "type": "ExpressionStatement"
+      },
+      {
+        "expression": {
+          "left": {
+            "length": 1,
+            "name": "x",
+            "start": 258,
+            "type": "Identifier"
+          },
+          "length": 6,
+          "operator": "/=",
+          "right": {
+            "length": 1,
+            "radix": 10,
+            "raw": "2",
+            "start": 263,
+            "type": "IntegerLiteral",
+            "value": 2
+          },
+          "start": 258,
+          "type": "AssignmentExpression"
+        },
+        "length": 7,
+        "start": 258,
+        "type": "ExpressionStatement"
+      },
+      {
+        "expression": {
+          "left": {
+            "length": 1,
+            "name": "x",
+            "start": 266,
+            "type": "Identifier"
+          },
+          "length": 6,
+          "operator": "%=",
+          "right": {
+            "length": 1,
+            "radix": 10,
+            "raw": "3",
+            "start": 271,
+            "type": "IntegerLiteral",
+            "value": 3
+          },
+          "start": 266,
+          "type": "AssignmentExpression"
+        },
+        "length": 7,
+        "start": 266,
+        "type": "ExpressionStatement"
+      },
+      {
+        "expression": {
+          "left": {
+            "length": 1,
+            "name": "x",
+            "start": 274,
+            "type": "Identifier"
+          },
+          "length": 6,
+          "operator": "&=",
+          "right": {
+            "length": 1,
+            "radix": 10,
+            "raw": "4",
+            "start": 279,
+            "type": "IntegerLiteral",
+            "value": 4
+          },
+          "start": 274,
+          "type": "AssignmentExpression"
+        },
+        "length": 7,
+        "start": 274,
+        "type": "ExpressionStatement"
+      },
+      {
+        "expression": {
+          "left": {
+            "length": 1,
+            "name": "x",
+            "start": 282,
+            "type": "Identifier"
+          },
+          "length": 6,
+          "operator": "|=",
+          "right": {
+            "length": 1,
+            "radix": 10,
+            "raw": "5",
+            "start": 287,
+            "type": "IntegerLiteral",
+            "value": 5
+          },
+          "start": 282,
+          "type": "AssignmentExpression"
+        },
+        "length": 7,
+        "start": 282,
+        "type": "ExpressionStatement"
+      },
+      {
+        "expression": {
+          "left": {
+            "length": 1,
+            "name": "x",
+            "start": 290,
+            "type": "Identifier"
+          },
+          "length": 6,
+          "operator": "^=",
+          "right": {
+            "length": 1,
+            "radix": 10,
+            "raw": "6",
+            "start": 295,
+            "type": "IntegerLiteral",
+            "value": 6
+          },
+          "start": 290,
+          "type": "AssignmentExpression"
+        },
+        "length": 7,
+        "start": 290,
+        "type": "ExpressionStatement"
+      },
+      {
+        "expression": {
+          "left": {
+            "length": 1,
+            "name": "x",
+            "start": 298,
+            "type": "Identifier"
+          },
+          "length": 7,
+          "operator": "<<=",
+          "right": {
+            "length": 1,
+            "radix": 10,
+            "raw": "1",
+            "start": 304,
+            "type": "IntegerLiteral",
+            "value": 1
+          },
+          "start": 298,
+          "type": "AssignmentExpression"
+        },
+        "length": 8,
+        "start": 298,
+        "type": "ExpressionStatement"
+      },
+      {
+        "expression": {
+          "left": {
+            "length": 1,
+            "name": "x",
+            "start": 307,
+            "type": "Identifier"
+          },
+          "length": 7,
+          "operator": ">>=",
+          "right": {
+            "length": 1,
+            "radix": 10,
+            "raw": "1",
+            "start": 313,
+            "type": "IntegerLiteral",
+            "value": 1
+          },
+          "start": 307,
+          "type": "AssignmentExpression"
+        },
+        "length": 8,
+        "start": 307,
+        "type": "ExpressionStatement"
+      },
+      {
+        "exported": false,
+        "immutable": true,
+        "initializer": {
+          "left": {
+            "denominator": 10,
+            "length": 3,
+            "numerator": 15,
+            "raw": "1.5",
+            "start": 324,
+            "type": "DecimalLiteral"
+          },
+          "length": 10,
+          "operator": "+",
+          "right": {
+            "denominator": 100,
+            "length": 4,
+            "numerator": 25,
+            "raw": "0.25",
+            "start": 330,
+            "type": "DecimalLiteral"
+          },
+          "start": 324,
+          "type": "BinaryExpression"
+        },
+        "kind": "let",
+        "length": 19,
+        "name": {
+          "length": 1,
+          "name": "h",
+          "start": 320,
+          "type": "Identifier"
+        },
+        "start": 316,
+        "type": "VariableDeclaration",
+        "typeAnnotation": null
+      },
+      {
+        "exported": false,
+        "immutable": true,
+        "initializer": {
+          "left": {
+            "left": {
+              "left": {
+                "length": 3,
+                "radix": 16,
+                "raw": "$FF",
+                "start": 344,
+                "type": "IntegerLiteral",
+                "value": 255
+              },
+              "length": 10,
+              "operator": "+",
+              "right": {
+                "length": 4,
+                "radix": 16,
+                "raw": "0xFF",
+                "start": 350,
+                "type": "IntegerLiteral",
+                "value": 255
+              },
+              "start": 344,
+              "type": "BinaryExpression"
+            },
+            "length": 19,
+            "operator": "+",
+            "right": {
+              "length": 6,
+              "radix": 2,
+              "raw": "0b1010",
+              "start": 357,
+              "type": "IntegerLiteral",
+              "value": 10
+            },
+            "start": 344,
+            "type": "BinaryExpression"
+          },
+          "length": 27,
+          "operator": "+",
+          "right": {
+            "length": 5,
+            "radix": 10,
+            "raw": "1_000",
+            "start": 366,
+            "type": "IntegerLiteral",
+            "value": 1000
+          },
+          "start": 344,
+          "type": "BinaryExpression"
+        },
+        "kind": "let",
+        "length": 36,
+        "name": {
+          "length": 1,
+          "name": "i",
+          "start": 340,
+          "type": "Identifier"
+        },
+        "start": 336,
+        "type": "VariableDeclaration",
+        "typeAnnotation": null
+      },
+      {
+        "exported": false,
+        "immutable": true,
+        "initializer": {
+          "length": 4,
+          "start": 381,
+          "type": "StringLiteral",
+          "value": "hi"
+        },
+        "kind": "let",
+        "length": 13,
+        "name": {
+          "length": 1,
+          "name": "j",
+          "start": 377,
+          "type": "Identifier"
+        },
+        "start": 373,
+        "type": "VariableDeclaration",
+        "typeAnnotation": null
+      },
+      {
+        "exported": false,
+        "immutable": true,
+        "initializer": {
+          "length": 31,
+          "parts": [
+            {
+              "length": 3,
+              "start": 396,
+              "type": "TemplateText",
+              "value": "HP "
+            },
+            {
+              "expression": {
+                "length": 2,
+                "name": "hp",
+                "start": 401,
+                "type": "Identifier"
+              },
+              "length": 7,
+              "start": 399,
+              "type": "TemplateField",
+              "width": {
+                "length": 1,
+                "radix": 10,
+                "raw": "3",
+                "start": 404,
+                "type": "IntegerLiteral",
+                "value": 3
+              }
+            },
+            {
+              "length": 4,
+              "start": 406,
+              "type": "TemplateText",
+              "value": " of "
+            },
+            {
+              "expression": {
+                "length": 3,
+                "name": "max",
+                "start": 412,
+                "type": "Identifier"
+              },
+              "length": 6,
+              "start": 410,
+              "type": "TemplateField",
+              "width": null
+            },
+            {
+              "length": 1,
+              "start": 416,
+              "type": "TemplateText",
+              "value": " "
+            },
+            {
+              "expression": {
+                "left": {
+                  "length": 1,
+                  "name": "a",
+                  "start": 419,
+                  "type": "Identifier"
+                },
+                "length": 5,
+                "operator": "+",
+                "right": {
+                  "length": 1,
+                  "radix": 10,
+                  "raw": "1",
+                  "start": 423,
+                  "type": "IntegerLiteral",
+                  "value": 1
+                },
+                "start": 419,
+                "type": "BinaryExpression"
+              },
+              "length": 8,
+              "start": 417,
+              "type": "TemplateField",
+              "width": null
+            }
+          ],
+          "start": 395,
+          "type": "TemplateLiteral"
+        },
+        "kind": "let",
+        "length": 40,
+        "name": {
+          "length": 1,
+          "name": "k",
+          "start": 391,
+          "type": "Identifier"
+        },
+        "start": 387,
+        "type": "VariableDeclaration",
+        "typeAnnotation": null
+      },
+      {
+        "exported": false,
+        "immutable": true,
+        "initializer": {
+          "length": 24,
+          "properties": [
+            {
+              "key": "control",
+              "length": 14,
+              "start": 438,
+              "type": "RecordProperty",
+              "value": {
+                "length": 5,
+                "name": "Label",
+                "start": 447,
+                "type": "Identifier"
+              }
+            },
+            {
+              "key": "n",
+              "length": 4,
+              "start": 454,
+              "type": "RecordProperty",
+              "value": {
+                "length": 1,
+                "radix": 10,
+                "raw": "1",
+                "start": 457,
+                "type": "IntegerLiteral",
+                "value": 1
+              }
+            }
+          ],
+          "start": 436,
+          "type": "RecordLiteral"
+        },
+        "kind": "let",
+        "length": 33,
+        "name": {
+          "length": 1,
+          "name": "l",
+          "start": 432,
+          "type": "Identifier"
+        },
+        "start": 428,
+        "type": "VariableDeclaration",
+        "typeAnnotation": null
+      },
+      {
+        "exported": false,
+        "immutable": true,
+        "initializer": {
+          "elements": [
+            {
+              "length": 1,
+              "radix": 10,
+              "raw": "1",
+              "start": 471,
+              "type": "IntegerLiteral",
+              "value": 1
+            },
+            {
+              "length": 1,
+              "radix": 10,
+              "raw": "2",
+              "start": 474,
+              "type": "IntegerLiteral",
+              "value": 2
+            },
+            {
+              "length": 1,
+              "radix": 10,
+              "raw": "3",
+              "start": 477,
+              "type": "IntegerLiteral",
+              "value": 3
+            }
+          ],
+          "length": 10,
+          "start": 470,
+          "type": "ArrayLiteral"
+        },
+        "kind": "let",
+        "length": 19,
+        "name": {
+          "length": 1,
+          "name": "m",
+          "start": 466,
+          "type": "Identifier"
+        },
+        "start": 462,
+        "type": "VariableDeclaration",
+        "typeAnnotation": null
+      },
+      {
+        "exported": false,
+        "immutable": true,
+        "initializer": {
+          "left": {
+            "args": [
+              {
+                "length": 3,
+                "start": 496,
+                "type": "StringLiteral",
+                "value": "x"
+              }
+            ],
+            "callee": {
+              "compileTime": true,
+              "length": 5,
+              "name": "fact",
+              "start": 490,
+              "type": "Identifier"
+            },
+            "length": 10,
+            "start": 490,
+            "type": "CallExpression"
+          },
+          "length": 32,
+          "operator": "+",
+          "right": {
+            "args": [
+              {
+                "length": 1,
+                "radix": 10,
+                "raw": "2",
+                "start": 511,
+                "type": "IntegerLiteral",
+                "value": 2
+              },
+              {
+                "length": 7,
+                "name": "seconds",
+                "start": 514,
+                "type": "Identifier"
+              }
+            ],
+            "callee": {
+              "compileTime": true,
+              "length": 7,
+              "name": "frames",
+              "start": 503,
+              "type": "Identifier"
+            },
+            "length": 19,
+            "start": 503,
+            "type": "CallExpression"
+          },
+          "start": 490,
+          "type": "BinaryExpression"
+        },
+        "kind": "let",
+        "length": 41,
+        "name": {
+          "length": 1,
+          "name": "n",
+          "start": 486,
+          "type": "Identifier"
+        },
+        "start": 482,
+        "type": "VariableDeclaration",
+        "typeAnnotation": null
+      },
+      {
+        "exported": false,
+        "immutable": true,
+        "initializer": {
+          "alternate": {
+            "alternate": {
+              "length": 1,
+              "radix": 10,
+              "raw": "0",
+              "start": 574,
+              "type": "IntegerLiteral",
+              "value": 0
+            },
+            "consequent": {
+              "length": 1,
+              "name": "b",
+              "start": 563,
+              "type": "Identifier"
+            },
+            "length": 25,
+            "start": 552,
+            "test": {
+              "left": {
+                "length": 1,
+                "name": "b",
+                "start": 555,
+                "type": "Identifier"
+              },
+              "length": 5,
+              "operator": ">",
+              "right": {
+                "length": 1,
+                "name": "a",
+                "start": 559,
+                "type": "Identifier"
+              },
+              "start": 555,
+              "type": "BinaryExpression"
+            },
+            "type": "ConditionalExpression"
+          },
+          "consequent": {
+            "length": 1,
+            "name": "a",
+            "start": 543,
+            "type": "Identifier"
+          },
+          "length": 45,
+          "start": 532,
+          "test": {
+            "left": {
+              "length": 1,
+              "name": "a",
+              "start": 535,
+              "type": "Identifier"
+            },
+            "length": 5,
+            "operator": ">",
+            "right": {
+              "length": 1,
+              "name": "b",
+              "start": 539,
+              "type": "Identifier"
+            },
+            "start": 535,
+            "type": "BinaryExpression"
+          },
+          "type": "ConditionalExpression"
+        },
+        "kind": "let",
+        "length": 54,
+        "name": {
+          "length": 1,
+          "name": "o",
+          "start": 528,
+          "type": "Identifier"
+        },
+        "start": 524,
+        "type": "VariableDeclaration",
+        "typeAnnotation": null
+      },
+      {
+        "exported": false,
+        "immutable": true,
+        "initializer": {
+          "left": {
+            "left": {
+              "args": [
+                {
+                  "length": 1,
+                  "name": "x",
+                  "start": 590,
+                  "type": "Identifier"
+                }
+              ],
+              "callee": {
+                "length": 2,
+                "name": "u8",
+                "start": 587,
+                "type": "Identifier"
+              },
+              "length": 5,
+              "start": 587,
+              "type": "CallExpression"
+            },
+            "length": 27,
+            "operator": "+",
+            "right": {
+              "args": [
+                {
+                  "length": 5,
+                  "radix": 16,
+                  "raw": "$D020",
+                  "start": 608,
+                  "type": "IntegerLiteral",
+                  "value": 53280
+                }
+              ],
+              "callee": {
+                "length": 12,
+                "object": {
+                  "length": 6,
+                  "name": "memory",
+                  "start": 595,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 4,
+                  "name": "read",
+                  "start": 603,
+                  "type": "Identifier"
+                },
+                "start": 595,
+                "type": "MemberExpression"
+              },
+              "length": 19,
+              "start": 595,
+              "type": "CallExpression"
+            },
+            "start": 587,
+            "type": "BinaryExpression"
+          },
+          "length": 41,
+          "operator": "+",
+          "right": {
+            "length": 11,
+            "object": {
+              "length": 4,
+              "name": "port",
+              "start": 617,
+              "type": "Identifier"
+            },
+            "property": {
+              "length": 5,
+              "name": "write",
+              "start": 623,
+              "type": "Identifier"
+            },
+            "start": 617,
+            "type": "MemberExpression"
+          },
+          "start": 587,
+          "type": "BinaryExpression"
+        },
+        "kind": "let",
+        "length": 50,
+        "name": {
+          "length": 1,
+          "name": "p",
+          "start": 583,
+          "type": "Identifier"
+        },
+        "start": 579,
+        "type": "VariableDeclaration",
+        "typeAnnotation": null
+      },
+      {
+        "exported": false,
+        "immutable": true,
+        "initializer": {
+          "length": 1,
+          "name": "a",
+          "start": 641,
+          "type": "Identifier"
+        },
+        "kind": "let",
+        "length": 16,
+        "name": {
+          "length": 1,
+          "name": "q",
+          "start": 634,
+          "type": "Identifier"
+        },
+        "start": 630,
+        "type": "VariableDeclaration",
+        "typeAnnotation": null
+      },
+      {
+        "exported": false,
+        "immutable": true,
+        "initializer": {
+          "elements": [
+            {
+              "elements": [
+                {
+                  "length": 1,
+                  "radix": 10,
+                  "raw": "1",
+                  "start": 657,
+                  "type": "IntegerLiteral",
+                  "value": 1
+                },
+                {
+                  "length": 1,
+                  "radix": 10,
+                  "raw": "2",
+                  "start": 660,
+                  "type": "IntegerLiteral",
+                  "value": 2
+                }
+              ],
+              "length": 6,
+              "start": 656,
+              "type": "ArrayLiteral"
+            },
+            {
+              "elements": [
+                {
+                  "length": 1,
+                  "radix": 10,
+                  "raw": "3",
+                  "start": 665,
+                  "type": "IntegerLiteral",
+                  "value": 3
+                }
+              ],
+              "length": 3,
+              "start": 664,
+              "type": "ArrayLiteral"
+            }
+          ],
+          "length": 13,
+          "start": 655,
+          "type": "ArrayLiteral"
+        },
+        "kind": "let",
+        "length": 22,
+        "name": {
+          "length": 1,
+          "name": "r",
+          "start": 651,
+          "type": "Identifier"
+        },
+        "start": 647,
+        "type": "VariableDeclaration",
+        "typeAnnotation": null
+      },
+      {
+        "exported": false,
+        "immutable": true,
+        "initializer": {
+          "left": {
+            "length": 1,
+            "name": "a",
+            "start": 678,
+            "type": "Identifier"
+          },
+          "length": 6,
+          "operator": "==",
+          "right": {
+            "length": 1,
+            "name": "b",
+            "start": 683,
+            "type": "Identifier"
+          },
+          "start": 678,
+          "type": "BinaryExpression"
+        },
+        "kind": "let",
+        "length": 15,
+        "name": {
+          "length": 1,
+          "name": "s",
+          "start": 674,
+          "type": "Identifier"
+        },
+        "start": 670,
+        "type": "VariableDeclaration",
+        "typeAnnotation": null
+      },
+      {
+        "exported": false,
+        "immutable": true,
+        "initializer": {
+          "left": {
+            "length": 1,
+            "name": "a",
+            "start": 694,
+            "type": "Identifier"
+          },
+          "length": 10,
+          "operator": "*",
+          "right": {
+            "left": {
+              "length": 1,
+              "name": "b",
+              "start": 699,
+              "type": "Identifier"
+            },
+            "length": 5,
+            "operator": "+",
+            "right": {
+              "length": 1,
+              "name": "c",
+              "start": 703,
+              "type": "Identifier"
+            },
+            "start": 699,
+            "type": "BinaryExpression"
+          },
+          "start": 694,
+          "type": "BinaryExpression"
+        },
+        "kind": "let",
+        "length": 20,
+        "name": {
+          "length": 1,
+          "name": "t",
+          "start": 690,
+          "type": "Identifier"
+        },
+        "start": 686,
+        "type": "VariableDeclaration",
+        "typeAnnotation": null
+      },
+      {
+        "exported": false,
+        "immutable": true,
+        "initializer": {
+          "args": [
+            {
+              "length": 14,
+              "properties": [
+                {
+                  "key": "label",
+                  "length": 10,
+                  "start": 730,
+                  "type": "RecordProperty",
+                  "value": {
+                    "length": 3,
+                    "start": 737,
+                    "type": "StringLiteral",
+                    "value": "x"
+                  }
+                }
+              ],
+              "start": 728,
+              "type": "RecordLiteral"
+            }
+          ],
+          "callee": {
+            "length": 12,
+            "object": {
+              "length": 4,
+              "name": "i18n",
+              "start": 715,
+              "type": "Identifier"
+            },
+            "property": {
+              "length": 6,
+              "name": "format",
+              "start": 721,
+              "type": "Identifier"
+            },
+            "start": 715,
+            "type": "MemberExpression"
+          },
+          "length": 28,
+          "start": 715,
+          "type": "CallExpression"
+        },
+        "kind": "let",
+        "length": 37,
+        "name": {
+          "length": 1,
+          "name": "u",
+          "start": 711,
+          "type": "Identifier"
+        },
+        "start": 707,
+        "type": "VariableDeclaration",
+        "typeAnnotation": null
+      },
+      {
+        "exported": false,
+        "immutable": true,
+        "initializer": {
+          "argument": {
+            "argument": {
+              "length": 1,
+              "name": "a",
+              "start": 756,
+              "type": "Identifier"
+            },
+            "length": 2,
+            "operator": "-",
+            "start": 755,
+            "type": "UnaryExpression"
+          },
+          "length": 4,
+          "operator": "-",
+          "start": 753,
+          "type": "UnaryExpression"
+        },
+        "kind": "let",
+        "length": 14,
+        "name": {
+          "length": 1,
+          "name": "v",
+          "start": 749,
+          "type": "Identifier"
+        },
+        "start": 745,
+        "type": "VariableDeclaration",
+        "typeAnnotation": null
+      }
+    ],
+    "length": 760,
+    "start": 0,
+    "type": "Program"
+  },
+  "diagnostics": []
+}

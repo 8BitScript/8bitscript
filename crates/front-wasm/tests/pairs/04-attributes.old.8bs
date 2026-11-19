@@ -1,0 +1,6 @@
+// rows: hardware address, loop unrolling, counted for
+@address($D020) let border: volatile<u8>;
+function clear(): void {
+  @unroll for (let i: u8 = 0; i < 4; i++) { border = i; }
+  for (let j: u8 = 1; j <= 8; j++) { border = j; }
+}

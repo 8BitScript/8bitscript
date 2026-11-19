@@ -1,0 +1,15 @@
+[package]
+name = "diagnostics"
+description = "Diagnostic record, codes and source-kind helpers for the front-end port"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+syntax = { path = "../syntax" }
+
+[dev-dependencies]
+serde_json = "1"
+oracle = { path = "../oracle" }

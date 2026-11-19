@@ -159,6 +159,8 @@ export interface BuildOptions {
    * would is refused by name, the same way data under a pinned array is,
    * instead of reading a string literal back as a glyph. */
   reservedRanges?: { start: number; end: number; label: string }[];
+  /** Called synchronously with each stage's value as the build reaches it (`wasm-input`, `bytes`, `size-report`, `error`). Absent: no extra work. */
+  dump?: (stage: string, value: unknown, key?: string) => void;
 }
 
 /** One named piece of the module `options.report` breaks a build's own size down into — mirrors mos/index.ts's own SizeReportEntry. */
@@ -236,6 +238,13 @@ function containsWaitFrame(statements: IrStatement[]): boolean {
 
 /** Lowers `ir` to WebAssembly, writes `outFile`, and returns the bytes. */
 export async function build(ir: IrProgram, options: BuildOptions): Promise<BuildResult> {
+  const result = await buildModule(ir, options);
+  if (options.dump && !result.ok) options.dump('error', `${result.error}\n`);
+  return result;
+}
+
+async function buildModule(ir: IrProgram, options: BuildOptions): Promise<BuildResult> {
+  const { dump } = options;
   const entryFn = ir.functions.find((fn) => fn.name === ir.entry);
   if (!entryFn) return { ok: false, error: `the linked entry point '${ir.entry}' names no function in ir.functions` };
 
@@ -243,7 +252,8 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   // reach — see linker/optimize.mjs's optimizeReachable (prune, fold,
   // prune) and mos/index.ts's identical call right after its own
   // equivalent check.
-  const { functions, globals } = optimizeReachable(ir);
+  const { functions, globals, remarks } = optimizeReachable(ir);
+  if (dump) dump('wasm-input', { entry: ir.entry, functions, globals, strings: ir.strings ?? [], remarks });
 
   // Every non-pinned scalar global gets a wasm global-section entry,
   // addressed by declaration order — no allocator, no budget, unlike the
@@ -510,6 +520,7 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   const sections = [typeSection, importSection, functionSection, memorySection, globalSection, exportSection, codeSection, dataSection]
     .filter((s): s is number[] => s !== null);
   const bytes = assembleModule(sections);
+  if (dump) dump('bytes', bytes);
 
   await mkdir(dirname(options.outFile), { recursive: true });
   await writeFile(options.outFile, bytes);
@@ -531,6 +542,7 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
     const functionTotal = functionEntries.reduce((a, e) => a + e.bytes, 0);
     const entries = [...functionEntries, { name: '(module sections & framing: type/import/function/memory/global/export, data, preamble)', bytes: bytes.length - functionTotal }];
     sizeReport = entries.filter((e) => e.bytes > 0).sort((a, b) => b.bytes - a.bytes);
+    if (dump) dump('size-report', sizeReport);
   }
 
   return { ok: true, bytes, ...(sizeReport ? { sizeReport } : {}) };

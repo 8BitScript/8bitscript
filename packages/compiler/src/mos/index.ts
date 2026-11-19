@@ -67,6 +67,8 @@ export interface BuildOptions {
   debug?: boolean;
   /** Every source file's own text, keyed the same way provenance.ts's `SourceSpan.file` names it (module.file — linker/index.mjs) — how the debug map resolves an offset into a line/column and a listing line reads back the source text it names. Only read when `debug` is true; a build with no debug info needs no source text kept around after linking. */
   sources?: Map<string, string>;
+  /** Called synchronously with each stage's value as the build reaches it (`backend-input`, `link`, `bytes`, `size-report`, `error`). Absent: the build does no extra work. The caller owns any writing; nothing here touches the dump. */
+  dump?: (stage: string, value: unknown, key?: string) => void;
 }
 
 /** One named piece of the program `options.report` breaks a build's own size down into — a function, an inlined callee that now lives inside one, or a fixed-cost bucket (wait-frame setup vs the per-frame routine, the BASIC stub, …). Sorted largest first; every entry's `bytes` sums to the real, linked `bytes.length`. */
@@ -647,6 +649,13 @@ function collectStringIndexes(node: unknown, out: Set<number>): void {
 
 /** Lowers `ir` to machine code, writes `outFile`, and returns the bytes and a size report. */
 export async function build(ir: IrProgram, options: BuildOptions): Promise<BuildResult> {
+  const result = await buildProgram(ir, options);
+  if (options.dump && !result.ok) options.dump('error', `${result.error}\n`);
+  return result;
+}
+
+async function buildProgram(ir: IrProgram, options: BuildOptions): Promise<BuildResult> {
+  const { dump } = options;
   resetLowerLabels();
   resetRelaxLabels();
   const budgets = ZP_BUDGETS[options.machine];
@@ -700,8 +709,9 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   // the program — waitFrame()'s routine is its caller — so the pruner is
   // told its name and keeps it when the program touches its state.
   const hookSync = FRAME_SYNC[options.machine];
+  const hookSyncName = 'frameHook' in hookSync ? hookSync.frameHook : undefined;
   const { functions, globals, remarks } = optimizeReachable(ir, {
-    frameHook: 'frameHook' in hookSync ? hookSync.frameHook : undefined,
+    frameHook: hookSyncName,
   });
 
   // Every function's own file, from ir.functions — before optimizeReachable
@@ -711,6 +721,30 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   // (see provenance.ts and lower/index.ts's block()).
   const originFiles = new Map<string, string>();
   for (const fn of ir.functions) if (typeof fn.file === 'string') originFiles.set(fn.name, fn.file);
+
+  const linkedHook = hookSyncName ? ir.functions.find((fn) => fn.name === hookSyncName) : undefined;
+  const hookUsed = linkedHook
+    ? pruneUnreachable(ir).functions.some((fn) => fn.name === hookSyncName) || frameHookWanted(linkedHook, functions, globals)
+    : false;
+  if (dump) {
+    dump('backend-input', {
+      machine: options.machine,
+      hardware: options.hardware,
+      frameRate: options.frameRate,
+      report: Boolean(options.report),
+      debug: Boolean(options.debug),
+      remarks: Boolean(options.remarks),
+      entry: ir.entry,
+      functions,
+      globals,
+      optRemarks: remarks,
+      strings: ir.strings ?? [],
+      nativeSources: ir.nativeSources ?? [],
+      chrPatches: ir.chrPatches ?? [],
+      originFiles,
+      frameHook: { name: hookSyncName ?? null, used: hookUsed },
+    });
+  }
 
   const cycle = findCallCycle(functions);
   if (cycle) return { ok: false, error: `recursion isn't lowered yet: ${cycle.join(' -> ')} -> ${cycle[0]} calls itself, directly or through another function` };
@@ -1104,10 +1138,6 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
   // VIC-20's, which nothing calls). One pruned because nothing does either
   // — no raster list committed, or a raster branch folded away by #fact —
   // is not this failure.
-  const linkedHook = frameHookName ? ir.functions.find((fn) => fn.name === frameHookName) : undefined;
-  const hookUsed = linkedHook
-    ? pruneUnreachable(ir).functions.some((fn) => fn.name === frameHookName) || frameHookWanted(linkedHook, functions, globals)
-    : false;
   if (frameHookName && !frameHookLabel && hookUsed) {
     return {
       ok: false,
@@ -1303,6 +1333,7 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
     zp: localsCursor - zpBudget.zpOrigin,
   });
   if (!linked.ok) return { ok: false, error: linked.error };
+  if (dump) dump('link', { symbols: [...linked.symbols], layout: linked.layout, memory: linked.memory });
 
   const body = new Uint8Array(stub.length + linked.bytes.length);
   body.set(stub, 0);
@@ -1321,6 +1352,7 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
     return { ok: false, error: error instanceof Error ? error.message : String(error) };
   }
 
+  if (dump) dump('bytes', bytes);
   await mkdir(dirname(options.outFile), { recursive: true });
   await writeFile(options.outFile, bytes);
 
@@ -1352,6 +1384,7 @@ export async function build(ir: IrProgram, options: BuildOptions): Promise<Build
       ...native.entries,
     );
     sizeReport = entries.filter((e) => e.bytes > 0).sort((a, b) => b.bytes - a.bytes);
+    if (dump) dump('size-report', sizeReport);
   }
 
   let listing: ListingLine[] | undefined;

@@ -1,6 +1,6 @@
 [package]
 name = "xtask"
-description = "Repo automation: oracle compare (roundtrip in a later unit)"
+description = "Repo automation: oracle compare and the backend-input roundtrip"
 edition.workspace = true
 version.workspace = true
 license.workspace = true
@@ -9,4 +9,5 @@ publish.workspace = true
 [dependencies]
 mos = { path = "../crates/mos" }
 oracle = { path = "../crates/oracle" }
-serde_json = "1"
+mos-ir = { path = "../crates/mos-ir" }
+serde_json = { version = "1", features = ["float_roundtrip"] }

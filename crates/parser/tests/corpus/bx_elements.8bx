@@ -1,0 +1,15 @@
+<Item label="one" n={1} flag />;
+<MenuBar title='single' on.press={handler(1)} {rest}>
+    some raw text, don't lex // this or "that"
+    {title}
+    <Item label="a">nested {count + 1} text</Item>
+    < Spaced
+    a > b
+</MenuBar>;
+<>fragment <b>x</b>   {/* gone */} {}</>;
+<Ui.Panel a={1}></Ui.Panel>
+{
+    <Item />;
+    let y = c ? <A /> : <B />;
+    let z = <A>é {n}</A>;
+}

@@ -1,0 +1,91 @@
+{
+  "body": [
+    {
+      "length": 28,
+      "source": {
+        "length": 17,
+        "start": 219,
+        "type": "StringLiteral",
+        "value": "@8bitscript/text"
+      },
+      "specifiers": [
+        {
+          "length": 4,
+          "name": "text",
+          "start": 238,
+          "type": "Identifier"
+        }
+      ],
+      "start": 215,
+      "type": "ImportDeclaration",
+      "usePath": true
+    },
+    {
+      "allowsChildren": false,
+      "body": {
+        "body": [
+          {
+            "expression": {
+              "args": [
+                {
+                  "length": 1,
+                  "radix": 10,
+                  "raw": "0",
+                  "start": 285,
+                  "type": "IntegerLiteral",
+                  "value": 0
+                },
+                {
+                  "length": 14,
+                  "start": 288,
+                  "type": "StringLiteral",
+                  "value": "Hello World!"
+                }
+              ],
+              "callee": {
+                "length": 11,
+                "object": {
+                  "length": 4,
+                  "name": "text",
+                  "start": 273,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 5,
+                  "name": "print",
+                  "start": 279,
+                  "type": "Identifier"
+                },
+                "start": 273,
+                "type": "MemberExpression"
+              },
+              "length": 30,
+              "start": 273,
+              "type": "CallExpression"
+            },
+            "length": 31,
+            "start": 273,
+            "type": "ExpressionStatement"
+          }
+        ],
+        "length": 39,
+        "start": 267,
+        "type": "BlockStatement"
+      },
+      "exported": true,
+      "length": 61,
+      "name": {
+        "length": 5,
+        "name": "Hello",
+        "start": 259,
+        "type": "Identifier"
+      },
+      "params": [],
+      "start": 245,
+      "type": "ComponentDeclaration"
+    }
+  ],
+  "length": 307,
+  "start": 0,
+  "type": "Program"
+}

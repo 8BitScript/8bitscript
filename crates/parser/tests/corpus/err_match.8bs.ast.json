@@ -1,0 +1,150 @@
+{
+  "ast": {
+    "body": [
+      {
+        "alternate": null,
+        "consequent": {
+          "expression": {
+            "args": [],
+            "callee": {
+              "length": 1,
+              "name": "a",
+              "start": 186,
+              "type": "Identifier"
+            },
+            "length": 3,
+            "start": 186,
+            "type": "CallExpression"
+          },
+          "length": 4,
+          "start": 186,
+          "type": "ExpressionStatement"
+        },
+        "length": 23,
+        "start": 171,
+        "test": {
+          "left": {
+            "length": 1,
+            "name": "x",
+            "start": 177,
+            "type": "Identifier"
+          },
+          "length": 1,
+          "operator": "==",
+          "right": {
+            "length": 1,
+            "radix": 10,
+            "raw": "1",
+            "start": 181,
+            "type": "IntegerLiteral",
+            "value": 1
+          },
+          "start": 181,
+          "type": "BinaryExpression"
+        },
+        "type": "IfStatement"
+      }
+    ],
+    "length": 243,
+    "start": 0,
+    "type": "Program"
+  },
+  "diagnostics": [
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "match compares a name or path; bind the value first: let v = …;",
+      "severity": "error",
+      "start": 6
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "match compares a name or path; bind the value first: let v = …;",
+      "severity": "error",
+      "start": 28
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "match compares a name or path; bind the value first: let v = …;",
+      "severity": "error",
+      "start": 53
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 5,
+      "message": "a match needs at least one arm",
+      "severity": "error",
+      "start": 70
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "'_' must be the last arm",
+      "severity": "error",
+      "start": 92
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 3,
+      "message": "expected a pattern, found '1.5'",
+      "severity": "error",
+      "start": 123
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "expected '=>', found 'a'",
+      "severity": "error",
+      "start": 148
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 1,
+      "message": "expected an expression, found '}'",
+      "severity": "error",
+      "start": 169
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 5,
+      "message": "match compares a name or path; bind the value first: let v = …;",
+      "severity": "error",
+      "start": 203
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 3,
+      "message": "expected ',', found 'let'",
+      "severity": "error",
+      "start": 232
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 3,
+      "message": "expected a pattern, found 'let'",
+      "severity": "error",
+      "start": 232
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 0,
+      "message": "expected '}', found end of file",
+      "severity": "error",
+      "start": 242
+    }
+  ]
+}
