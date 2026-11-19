@@ -10,7 +10,6 @@ use crate::basic_stub::basic_stub;
 use crate::build::Machine;
 use crate::chr_nes::NativeSource;
 use crate::prg::prg_bytes;
-use crate::unported;
 use serde::{Deserialize, Serialize};
 
 /// Tile patterns a `.8bg` module lowered onto the NES CHR-ROM.
@@ -105,14 +104,14 @@ impl MachineImage {
         load: i64,
         body: &[u8],
         code_start: i64,
-        _extras: &ImageExtras,
+        extras: &ImageExtras,
     ) -> Result<Vec<u8>, String> {
         match self.kind {
             ImageKind::Commodore | ImageKind::C64 => Ok(prg_bytes(load, body)),
             ImageKind::Raw => Ok(raw::file(body)),
             ImageKind::Cart(size) => Ok(cart::file(size, load, body, code_start)),
             ImageKind::Atari8 => Ok(atari8::file(load, body, code_start)),
-            ImageKind::Nes => Err(unported("NES.file")),
+            ImageKind::Nes => nes::file(load, body, code_start, extras),
         }
     }
 }
@@ -178,9 +177,27 @@ mod tests {
     }
 
     #[test]
-    fn nes_file_is_unported_until_its_unit_lands() {
-        let err = NES.file(0x8000, &[], 0x8000, &ImageExtras::default());
-        assert_eq!(err, Err("unported: NES.file".to_string()));
+    fn nes_file_needs_chr_and_the_sheet_load_address() {
+        let none = ImageExtras::default();
+        let err = NES.file(0x8000, &[], 0x8000, &none).unwrap_err();
+        assert!(err.starts_with("the NES has no character ROM"), "{err}");
+        let err = NES.file(0x4000, &[], 0x4000, &none).unwrap_err();
+        assert!(err.contains("$4000"), "{err}");
         assert_eq!(NES.prelude(0x8000).unwrap().code_start, 0x8000);
+        let extras = ImageExtras {
+            native_sources: vec![NativeSource {
+                path: "t.s".into(),
+                text: ".section .chr_rom,\"a\"\n.byte 1, 2".into(),
+            }],
+            chr_patches: Some(vec![ChrPatch {
+                tile: 1,
+                bytes: vec![9],
+            }]),
+        };
+        let f = NES.file(0x8000, &[0xea], 0x8000, &extras).unwrap();
+        assert_eq!(f.len(), 16 + 32768 + 8192);
+        assert_eq!(&f[..8], &[0x4e, 0x45, 0x53, 0x1a, 2, 1, 0, 0]);
+        assert_eq!(&f[16 + 32768..][..3], &[1, 2, 0]);
+        assert_eq!(f[16 + 32768 + 16], 9);
     }
 }
