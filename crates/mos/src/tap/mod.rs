@@ -22,7 +22,7 @@ pub enum Replay {
     Match,
     /// JSON pointer to the first difference, the JS value and the Rust value there.
     Mismatch(String, Value, Value),
-    /// The port is not there yet (`unported:`), so the call proves nothing.
+    /// The function is not replayed yet, so the call proves nothing.
     Skip,
 }
 
@@ -157,9 +157,12 @@ mod tests {
     }
 
     #[test]
-    fn every_tapped_function_has_a_replay_and_stubs_skip() {
+    fn every_tapped_function_has_a_replay_and_the_stubs_skip() {
         let mut counters = Counters::default();
-        for name in TAPPED.into_iter().filter(|n| *n != "link") {
+        for name in TAPPED
+            .into_iter()
+            .filter(|n| !matches!(*n, "link" | "lower"))
+        {
             assert_eq!(
                 replay(name, &json!({}), &mut counters),
                 Some(Replay::Skip),

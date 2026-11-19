@@ -53,7 +53,7 @@ pub struct PinnedSymbol {
 
 /// `link/index.ts:31`. Each `?` field is an `Option`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct LinkInput {
     /// Where the code section starts.
     pub code_origin: i64,

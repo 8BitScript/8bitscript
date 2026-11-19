@@ -60,9 +60,11 @@ const cases = [
   ['err: macro no endm', [{ path: 'a.s', text: chr('.macro m\n.byte 1') }], 4],
   ['err: macro no name', [{ path: 'a.s', text: '.macro' }], 4],
   ['err: recursion', [{ path: 'a.s', text: chr('.macro m\nm\n.endm\nm') }], 4],
-  ['err: nesting just ok', [{ path: 'a.s', text: chr('.macro a\n.byte 1\n.endm\n.macro b\na\n.endm\n.macro c\nb\n.endm\nc') }], 4],
+  ['nested macros expand', [{ path: 'a.s', text: chr('.macro a\n.byte 1\n.endm\n.macro b\na\n.endm\n.macro c\nb\n.endm\nc') }], 4],
   ['err: oversize', [{ path: 'a.s', text: chr('.space 5') }], 4],
-  ['err: oversize exact fits', [{ path: 'a.s', text: chr('.space 4') }], 4],
+  ['oversize boundary: exact size fits', [{ path: 'a.s', text: chr('.space 4') }], 4],
+  ['err: negative size, no bytes defined', [{ path: 'a.s', text: chr('') }], -1],
+  ['err: negative size, bytes defined', [{ path: 'a.s', text: chr('.byte 1') }], -1],
   ['err: first source wins', [{ path: 'a.s', text: 'bad' }, { path: 'b.s', text: 'worse' }], 4],
 ];
 

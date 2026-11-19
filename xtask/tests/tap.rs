@@ -148,7 +148,7 @@ fn the_binary_replays_with_the_real_stubs() {
         &base,
         "p/main/c64",
         "1-0.jsonl",
-        &[json!({"seq": 0, "fn": "lower", "args": [], "result": {}})],
+        &[json!({"seq": 0, "fn": "allocate", "args": [], "result": {}})],
     );
     let out = Command::new(env!("CARGO_BIN_EXE_xtask"))
         .args(["tap", base.to_str().unwrap()])

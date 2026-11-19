@@ -63,7 +63,7 @@ impl Lowerer<'_> {
     /// A 16-bit value into a zero-page pair; returns the pair's address.
     ///
     /// # Errors
-    /// A `LowerError` text, or the `unported:` text of a method not ported yet.
+    /// A `LowerError` text.
     pub fn expr16(&mut self, node: &Expr) -> Result<i64, String> {
         if has_type(node) {
             require16_bit(expr_type(node), &format!("'{}'", expr_kind(node)))?;
@@ -143,7 +143,7 @@ impl Lowerer<'_> {
     /// A 16-bit destination's own value, accepting either width.
     ///
     /// # Errors
-    /// A `LowerError` text, or the `unported:` text of a method not ported yet.
+    /// A `LowerError` text.
     pub fn expr_to16(&mut self, node: &Expr) -> Result<i64, String> {
         let Some(ty) = expr_type(node) else {
             return Err(format!(
@@ -182,7 +182,7 @@ impl Lowerer<'_> {
     /// A 16-bit value stored straight into the pair at `address`/`address+1`.
     ///
     /// # Errors
-    /// A `LowerError` text, or the `unported:` text of a method not ported yet.
+    /// A `LowerError` text.
     pub fn store16_into(&mut self, node: &Expr, address: i64) -> Result<(), String> {
         let typed = expr_type(node).is_some();
         let narrow_signed = typed
@@ -300,7 +300,7 @@ impl Lowerer<'_> {
     /// Addition, subtraction, multiplication, bitwise and shift at 16 bits.
     ///
     /// # Errors
-    /// A `LowerError` text, or the `unported:` text of a method not ported yet.
+    /// A `LowerError` text.
     pub fn binop16(&mut self, node: &Expr) -> Result<i64, String> {
         let Expr::Binop(b) = node else {
             return Err("binop16: not a binary expression".to_string());
@@ -339,7 +339,7 @@ impl Lowerer<'_> {
     /// `&`, `|` and `^` at 16 bits, a byte at a time.
     ///
     /// # Errors
-    /// A `LowerError` text, or the `unported:` text of a method not ported yet.
+    /// A `LowerError` text.
     pub fn bitwise16(&mut self, node: &Expr) -> Result<i64, String> {
         let Expr::Binop(b) = node else {
             return Err("bitwise16: not a binary expression".to_string());
@@ -380,7 +380,7 @@ impl Lowerer<'_> {
     /// `left + right` / `left - right` at 16 bits, straight into `target`.
     ///
     /// # Errors
-    /// A `LowerError` text, or the `unported:` text of a method not ported yet.
+    /// A `LowerError` text.
     pub fn add_sub16_into(&mut self, node: &Expr, target: i64) -> Result<(), String> {
         let Expr::Binop(b) = node else {
             return Err("addSub16Into: not a binary expression".to_string());
@@ -427,7 +427,7 @@ impl Lowerer<'_> {
     /// A 16-bit shift by a compile-time amount.
     ///
     /// # Errors
-    /// A `LowerError` text, or the `unported:` text of a method not ported yet.
+    /// A `LowerError` text.
     pub fn shift16(&mut self, node: &Expr) -> Result<i64, String> {
         let Expr::Binop(b) = node else {
             return Err("shift16: not a binary expression".to_string());
@@ -486,7 +486,7 @@ impl Lowerer<'_> {
     /// A string's length byte, through its pointer.
     ///
     /// # Errors
-    /// A `LowerError` text, or the `unported:` text of a method not ported yet.
+    /// A `LowerError` text.
     pub fn string_length(&mut self, node: &Expr) -> Result<(), String> {
         let Expr::StringLength(s) = node else {
             return Err("stringLength: not a string length".to_string());
@@ -502,7 +502,7 @@ impl Lowerer<'_> {
     /// A string's byte at an index, skipping the length byte.
     ///
     /// # Errors
-    /// A `LowerError` text, or the `unported:` text of a method not ported yet.
+    /// A `LowerError` text.
     pub fn string_byte(&mut self, node: &Expr) -> Result<(), String> {
         let Expr::StringByte(s) = node else {
             return Err("stringByte: not a string byte".to_string());
@@ -536,7 +536,7 @@ impl Lowerer<'_> {
     /// `base + index` in a zero-page pointer, for an index too wide for Y.
     ///
     /// # Errors
-    /// A `LowerError` text, or the `unported:` text of a method not ported yet.
+    /// A `LowerError` text.
     pub fn array_pointer(&mut self, label: &str, index: &Expr, offset: i64) -> Result<i64, String> {
         let pointer = self
             .locals
@@ -559,7 +559,7 @@ impl Lowerer<'_> {
     /// `name[index] = value`, 1-byte elements.
     ///
     /// # Errors
-    /// A `LowerError` text, or the `unported:` text of a method not ported yet.
+    /// A `LowerError` text.
     pub fn store_index(&mut self, node: &Stmt) -> Result<(), String> {
         let Stmt::StoreIndex(n) = node else {
             return Err("storeIndex: not an index store".to_string());
@@ -624,7 +624,7 @@ impl Lowerer<'_> {
     /// `name[index] = value`, 2-byte elements.
     ///
     /// # Errors
-    /// A `LowerError` text, or the `unported:` text of a method not ported yet.
+    /// A `LowerError` text.
     pub fn store_index16(&mut self, node: &Stmt, name: &str) -> Result<(), String> {
         let Stmt::StoreIndex(StoreIndex { index, value, .. }) = node else {
             return Err("storeIndex16: not an index store".to_string());
@@ -688,7 +688,7 @@ impl Lowerer<'_> {
     /// `base + 2 * index` in a zero-page pointer, for 2-byte elements Y cannot reach.
     ///
     /// # Errors
-    /// A `LowerError` text, or the `unported:` text of a method not ported yet.
+    /// A `LowerError` text.
     pub fn array_pointer16(&mut self, label: &str, index: &Expr) -> Result<i64, String> {
         let pointer = self.locals.alloc16(&format!(
             "'{label}'s own address plus a doubled 16-bit index"
@@ -715,7 +715,7 @@ impl Lowerer<'_> {
     /// The index straight into Y.
     ///
     /// # Errors
-    /// A `LowerError` text, or the `unported:` text of a method not ported yet.
+    /// A `LowerError` text.
     pub fn index_into_y(&mut self, node: &Expr) -> Result<(), String> {
         if let Some(value) = const_value(node) {
             self.emit([imm("LDY", mask8(value))]);
@@ -739,7 +739,7 @@ impl Lowerer<'_> {
     /// An index expression, either width, into A.
     ///
     /// # Errors
-    /// A `LowerError` text, or the `unported:` text of a method not ported yet.
+    /// A `LowerError` text.
     pub fn index_value(&mut self, node: &Expr) -> Result<(), String> {
         let width = match expr_type(node) {
             Some(t) if !t.is_empty() => storage_bytes(Some(t)),
@@ -758,7 +758,7 @@ impl Lowerer<'_> {
     /// An array read of a 1-byte element.
     ///
     /// # Errors
-    /// A `LowerError` text, or the `unported:` text of a method not ported yet.
+    /// A `LowerError` text.
     pub fn index_read(&mut self, node: &Expr) -> Result<(), String> {
         let Expr::Index(n) = node else {
             return Err("indexRead: not an index expression".to_string());
@@ -784,7 +784,7 @@ impl Lowerer<'_> {
     /// An array read of a 2-byte element; returns the result pair.
     ///
     /// # Errors
-    /// A `LowerError` text, or the `unported:` text of a method not ported yet.
+    /// A `LowerError` text.
     pub fn index_read16(&mut self, node: &Expr) -> Result<i64, String> {
         let Expr::Index(n) = node else {
             return Err("indexRead16: not an index expression".to_string());
@@ -830,7 +830,7 @@ impl Lowerer<'_> {
     /// Every argument into the callee's own slot, then `JSR`.
     ///
     /// # Errors
-    /// A `LowerError` text, or the `unported:` text of a method not ported yet.
+    /// A `LowerError` text.
     pub fn call_site(&mut self, node: &Call) -> Result<(), String> {
         let functions = self.functions;
         let Some(target) = functions.get(&node.name) else {
