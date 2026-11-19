@@ -47,7 +47,7 @@ import { sourceKindOf } from '../source/index.mjs';
 import { parseMediaModule, elaborateMedia, isMediaKind } from '../media/index.mjs';
 import { applyCatalogCharset, isCatalogFile } from '../i18n/index.mjs';
 import { lower } from '../ir/index.mjs';
-import { findImports, resolveSpecifier, nativeSourcesBeside } from '../resolver/index.mjs';
+import { findImports, pathFormSpecifiers, resolveSpecifier, nativeSourcesBeside, withPathForm } from '../resolver/index.mjs';
 import { Codes, diagnostic } from '../diagnostics/index.mjs';
 import { formatMessage, isI18nPackageFile } from '../i18n/index.mjs';
 import { storageBytes, resolveIntegerType } from '../types/index.mjs';
@@ -170,8 +170,8 @@ function loadGraph(entryText, entryFile, diagnostics, sources, options) {
   // pass two to report, once, against the IR's import record.
   for (let i = 0; i < modules.length; i += 1) {
     const module = modules[i];
-    for (const { specifier } of findImports(module.tokens)) {
-      const resolved = resolveSpecifier(specifier, module.file, options);
+    for (const { specifier, pathForm } of findImports(module.tokens)) {
+      const resolved = resolveSpecifier(specifier, module.file, withPathForm(options, pathForm));
       if (resolved?.diagnostics) diagnostics.push(...resolved.diagnostics.filter((d) => !diagnostics.includes(d)));
       if (!resolved || resolved.code || resolved.path === null) continue;
       const key = canonical(resolved.path);
@@ -187,8 +187,9 @@ function loadGraph(entryText, entryFile, diagnostics, sources, options) {
   }
   // Every import that names an exported component now points at it.
   for (const module of modules) {
+    const pathForms = pathFormSpecifiers(module.tokens);
     bindImportedComponents(module.bound, (specifier) => {
-      const resolved = resolveSpecifier(specifier, module.file, options);
+      const resolved = resolveSpecifier(specifier, module.file, withPathForm(options, pathForms.has(specifier)));
       if (!resolved || resolved.code || resolved.path === null) return null;
       return byPath.get(canonical(resolved.path))?.bound ?? null;
     });
@@ -199,7 +200,7 @@ function loadGraph(entryText, entryFile, diagnostics, sources, options) {
   for (let i = 0; i < modules.length; i += 1) {
     const module = modules[i];
     for (const imp of module.ir.imports) {
-      const resolved = resolveSpecifier(imp.source, module.file, options);
+      const resolved = resolveSpecifier(imp.source, module.file, withPathForm(options, imp.pathForm));
       if (!resolved) {
         diagnostics.push(diagnostic(
           Codes.NOT_COMPILABLE,

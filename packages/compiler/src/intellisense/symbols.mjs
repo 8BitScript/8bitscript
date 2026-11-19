@@ -43,9 +43,9 @@ import { isMediaKind } from '../media/kinds.mjs';
  * @returns {{ path: string, conditional: boolean, machine?: string } | null}
  */
 export function resolveModuleFile(specifier, fromFile, options = {}) {
-  const { checkout = null, machine = null, importAliases = null } = options;
+  const { checkout = null, machine = null, importAliases = null, pathForm = false } = options;
   if (!fromFile) return null;
-  const resolverOptions = { checkout, ...(importAliases ? { importAliases } : {}) };
+  const resolverOptions = { checkout, ...(importAliases ? { importAliases } : {}), ...(pathForm ? { pathForm: true } : {}) };
   const plain = resolveSpecifier(specifier, fromFile, resolverOptions);
   if (plain?.code) return null;
   if (plain?.path) return { path: plain.path, conditional: false };
@@ -70,9 +70,9 @@ export function resolveModuleFile(specifier, fromFile, options = {}) {
  * @returns {{ conditional: false, path: string } | { conditional: true, branches: { machine: string, path: string }[] } | null}
  */
 export function resolvePortableModule(specifier, fromFile, options = {}) {
-  const { checkout = null, importAliases = null } = options;
+  const { checkout = null, importAliases = null, pathForm = false } = options;
   if (!fromFile) return null;
-  const resolverOptions = { checkout, ...(importAliases ? { importAliases } : {}) };
+  const resolverOptions = { checkout, ...(importAliases ? { importAliases } : {}), ...(pathForm ? { pathForm: true } : {}) };
   const plain = resolveSpecifier(specifier, fromFile, resolverOptions);
   if (plain?.code) return null;
   if (plain?.path) return { conditional: false, path: plain.path };
@@ -94,7 +94,7 @@ export function resolvePortableModule(specifier, fromFile, options = {}) {
  *
  * @param {string} text
  * @param {string|null} file
- * @param {{ sourceKind?: string|null, checkout?: string|null, machine?: string|null, importAliases?: Record<string, string>|null }} [options]
+ * @param {{ sourceKind?: string|null, checkout?: string|null, machine?: string|null, importAliases?: Record<string, string>|null, pathForm?: boolean }} [options]
  *   `machine`: the machine a target-dependent import should be read for
  *   — the file's own twin, or the project's single target (see
  *   resolveModuleFile); without one, the first in `8bs targets` order.

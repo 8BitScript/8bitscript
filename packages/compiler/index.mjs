@@ -14,7 +14,7 @@ import { parse } from './src/parser/index.mjs';
 import { check } from './src/checker/index.mjs';
 import { foldCompileTime } from './src/fold/index.mjs';
 import { lower } from './src/ir/index.mjs';
-import { resolveImports, resolveSpecifier } from './src/resolver/index.mjs';
+import { pathFormSpecifiers, resolveImports, resolveSpecifier, withPathForm } from './src/resolver/index.mjs';
 import { sourceKindOf } from './src/source/index.mjs';
 import { applyCatalogCharset, isCatalogFile } from './src/i18n/index.mjs';
 import { bind, bindImportedComponents } from './src/binder/index.mjs';
@@ -26,6 +26,7 @@ export { tokenize, TokenKind, KEYWORDS, TYPE_NAMES } from './src/lexer/index.mjs
 export { parse, normalizeBxText } from './src/parser/index.mjs';
 export { NodeType, walk } from './src/ast/index.mjs';
 export { check } from './src/checker/index.mjs';
+export { scopeLookup, scopeStoreTarget, scopeTargetOf, walkScopes } from './src/checker/scopes.mjs';
 export { bind, bindImports, bindImportedComponents, componentOf, SymbolKind, resolveSymbol } from './src/binder/index.mjs';
 export { foldCompileTime, DURATION_CLOCKS, DURATION_UNITS, SYSTEMS, DEFINE_NAME, defineKind } from './src/fold/index.mjs';
 export {
@@ -107,8 +108,9 @@ export function analyze(text, file = '<unknown>', options = {}) {
   // checked against `component MenuBar`. With it off, an imported name
   // used as an element is valid but unknown, and nothing is said.
   if (options.resolveImports) {
+    const pathForms = pathFormSpecifiers(tokens);
     bindImportedComponents(bound, (specifier) => {
-      const resolved = resolveSpecifier(specifier, file, options);
+      const resolved = resolveSpecifier(specifier, file, withPathForm(options, pathForms.has(specifier)));
       if (!resolved || resolved.code || resolved.path === null) return null;
       let other;
       try {

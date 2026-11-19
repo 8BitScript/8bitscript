@@ -228,6 +228,9 @@ export const Codes = {
   AUD_UNKNOWN_INSTRUMENT: '8BS2215',
   // The program's samples and songs do not fit the audio driver's data bank.
   AUD_BANK_FULL: '8BS2216',
+  // A path-form `use` names a module that exists with two or more source
+  // extensions (`geo.8bs` and `geo.8bx`): the resolver will not guess.
+  AMBIGUOUS_IMPORT: '8BS2217',
 
   NOT_COMPILABLE: '8BS3001',
   NOT_ON_THIS_TARGET: '8BS3002',
