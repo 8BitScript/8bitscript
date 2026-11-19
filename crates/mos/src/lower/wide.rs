@@ -14,17 +14,8 @@ use super::{
 };
 use crate::asm::assemble::Half;
 use crate::asm::encode::AddressingMode;
+use crate::data::{array_label, string_label};
 use crate::types::storage_bytes;
-
-/// `arrayLabel(name)` (`mos/data.ts:41`).
-fn array_label(name: &str) -> String {
-    format!("__8bs_arr_{name}")
-}
-
-/// `stringLabel(index)` (`mos/data.ts:36`).
-fn string_label(index: i64) -> String {
-    format!("__8bs_str_{index}")
-}
 
 /// `value & 0xffff` as JS computes it (ToInt32 first).
 fn mask16(value: i64) -> i64 {
