@@ -455,8 +455,8 @@ test('completion after object. lists the merged members and annotates the machin
       position: positionAt(text, text.indexOf('screen::\n') + 8),
     });
     assert.deepEqual(completion.result.map((i) => [i.label, i.detail]), [
-      ['blank', 'screen.blank()'],
-      ['touch', 'screen.touch() -> bool — web only'],
+      ['blank', 'screen::blank()'],
+      ['touch', 'screen::touch() -> bool — web only'],
     ]);
   });
 });
