@@ -1,0 +1,16 @@
+const LIMIT: u8 = 7;
+fn m(x: u8, p: bool) {
+    match x {
+        0 | 1 => { go(); }
+        2..=5 => run(),
+        -1 => stop(),
+        -3..=-2 | LIMIT => { }
+        mode::A | 9..=limits::TOP => { a(); b(); },
+        _ => other()
+    }
+    match p { true => a(), false => b() }
+    match x { _ => only() }
+    match config.level { 1 => x(), 2 => { y(); } }
+    match x { 1 => y(), _ => { z(); } }
+    match x { 1 => { one(); } 2 => two() }
+}

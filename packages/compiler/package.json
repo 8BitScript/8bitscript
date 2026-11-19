@@ -26,7 +26,8 @@
   },
   "files": [
     "index.mjs",
-    "src"
+    "src",
+    "wasm"
   ],
   "scripts": {
     "prepack": "tsc -p tsconfig.publish.json",

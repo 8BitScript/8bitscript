@@ -1,0 +1,9 @@
+function main(): void { let x = 1; }
+import { a, b } from "./geo.8bs";
+export const MAX = 9;
+namespace Color { const RED = 2; }
+export function f() {}
+let ok = 1;
+function = 3;
+mod M { function f() {} export function g() {} a b c; fn ok() {} }
+#[unroll]

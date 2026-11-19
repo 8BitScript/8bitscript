@@ -1,0 +1,137 @@
+{
+  "body": [
+    {
+      "allowsChildren": true,
+      "body": {
+        "body": [
+          {
+            "attributes": [],
+            "children": [],
+            "length": 8,
+            "name": "slot",
+            "selfClosing": true,
+            "start": 33,
+            "type": "BxElement"
+          }
+        ],
+        "length": 16,
+        "start": 27,
+        "type": "BlockStatement"
+      },
+      "exported": false,
+      "length": 43,
+      "name": {
+        "length": 5,
+        "name": "Frame",
+        "start": 10,
+        "type": "Identifier"
+      },
+      "params": [
+        {
+          "defaultValue": null,
+          "length": 9,
+          "name": {
+            "length": 5,
+            "name": "title",
+            "start": 16,
+            "type": "Identifier"
+          },
+          "optional": false,
+          "start": 16,
+          "type": "Parameter",
+          "typeAnnotation": {
+            "length": 2,
+            "name": "u8",
+            "start": 23,
+            "type": "TypeReference",
+            "typeArguments": []
+          }
+        }
+      ],
+      "start": 0,
+      "type": "ComponentDeclaration"
+    },
+    {
+      "allowsChildren": false,
+      "body": {
+        "body": [
+          {
+            "alternate": null,
+            "consequent": {
+              "body": [
+                {
+                  "attributes": [],
+                  "children": [],
+                  "length": 8,
+                  "name": "slot",
+                  "selfClosing": true,
+                  "start": 81,
+                  "type": "BxElement"
+                }
+              ],
+              "length": 12,
+              "start": 79,
+              "type": "BlockStatement"
+            },
+            "length": 22,
+            "start": 69,
+            "test": {
+              "length": 4,
+              "start": 73,
+              "type": "BooleanLiteral",
+              "value": true
+            },
+            "type": "IfStatement"
+          }
+        ],
+        "length": 30,
+        "start": 63,
+        "type": "BlockStatement"
+      },
+      "exported": false,
+      "length": 49,
+      "name": {
+        "length": 6,
+        "name": "Nested",
+        "start": 54,
+        "type": "Identifier"
+      },
+      "params": [],
+      "start": 44,
+      "type": "ComponentDeclaration"
+    },
+    {
+      "allowsChildren": false,
+      "body": {
+        "body": [
+          {
+            "attributes": [],
+            "children": [],
+            "length": 5,
+            "name": "A",
+            "selfClosing": true,
+            "start": 117,
+            "type": "BxElement"
+          }
+        ],
+        "length": 13,
+        "start": 111,
+        "type": "BlockStatement"
+      },
+      "exported": false,
+      "length": 30,
+      "name": {
+        "length": 4,
+        "name": "Bare",
+        "start": 104,
+        "type": "Identifier"
+      },
+      "params": [],
+      "start": 94,
+      "type": "ComponentDeclaration"
+    }
+  ],
+  "length": 125,
+  "start": 0,
+  "type": "Program"
+}

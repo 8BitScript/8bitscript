@@ -34,7 +34,7 @@ jobs:
         run: |
           if [ "$EVENT" != "pull_request" ]; then
             echo "run=true" >> "$GITHUB_OUTPUT"
-          elif git diff --name-only "$BASE...$HEAD" | grep -qE '^(crates/|xtask/|Cargo\.toml$|Cargo\.lock$|rust-toolchain|\.cargo/|\.github/workflows/rust\.yml$)'; then
+          elif git diff --name-only "$BASE...$HEAD" | grep -qE '^(crates/|xtask/|Cargo\.toml$|Cargo\.lock$|rust-toolchain|\.cargo/|packages/compiler/src/(lexer|parser)/|\.github/workflows/rust\.yml$)'; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
             echo "run=false" >> "$GITHUB_OUTPUT"
@@ -57,6 +57,11 @@ jobs:
         if: steps.changes.outputs.run == 'true'
       - run: scripts/t
         if: steps.changes.outputs.run == 'true'
+      # The 1 MB stack test only compiles in release (debug frames are far
+      # larger), so nextest above skips it.
+      - name: Parser stack test (release)
+        if: steps.changes.outputs.run == 'true'
+        run: cargo test -p parser --release --locked --test stack
       # The jsnum fixtures come from Node; they must match what the
       # compiler sources produce. The generator needs no installed packages.
       - uses: actions/setup-node@v5
@@ -68,4 +73,46 @@ jobs:
         if: steps.changes.outputs.run == 'true'
         run: |
           node crates/jsnum/tests/gen-fixtures.mjs
+          node crates/front-wasm/tests/make-pairs.mjs
           git diff --exit-code -- crates
+
+  # The committed front.wasm must be what the source builds, byte for byte,
+  # and two builds in different target directories must agree.
+  wasm:
+    name: Wasm
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Detect wasm inputs
+        id: changes
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ "$EVENT" != "pull_request" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          elif git diff --name-only "$BASE...$HEAD" | grep -qE '^(crates/|xtask/|Cargo\.toml$|Cargo\.lock$|rust-toolchain|packages/compiler/wasm/|packages/compiler/src/(lexer|parser)/|\.github/workflows/rust\.yml$)'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "No wasm inputs changed; nothing to compare."
+          fi
+      - name: Install toolchain
+        if: steps.changes.outputs.run == 'true'
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+        if: steps.changes.outputs.run == 'true'
+      - name: Committed front.wasm matches a rebuild
+        if: steps.changes.outputs.run == 'true'
+        run: |
+          cargo xtask wasm --out "$RUNNER_TEMP/front.wasm"
+          cmp "$RUNNER_TEMP/front.wasm" packages/compiler/wasm/front.wasm
+      - name: A second build in another target directory is identical
+        if: steps.changes.outputs.run == 'true'
+        run: |
+          CARGO_TARGET_DIR="$RUNNER_TEMP/target2" cargo xtask wasm --out "$RUNNER_TEMP/front2.wasm"
+          cmp "$RUNNER_TEMP/front2.wasm" packages/compiler/wasm/front.wasm

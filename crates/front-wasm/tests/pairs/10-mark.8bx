@@ -1,0 +1,6 @@
+use self::mark::mark;
+use @8bitscript::graphics::graphics;
+
+pub component Mark() {
+    graphics::place(mark, 120, 0);
+}

@@ -40,6 +40,12 @@ pub enum TokenKind {
     BxClosingTagOpen,
     #[serde(rename = "bxText")]
     BxText,
+    /// `assert!`, `assert_eq!`, `assert_ne!`, `panic!` (syntax spec 5; new in P3-03).
+    #[serde(rename = "macro")]
+    Macro,
+    /// `@scope` right after `use` (syntax spec 5; new in P3-03).
+    #[serde(rename = "scope")]
+    Scope,
 }
 
 /// `kind` of a template part (`lexer/index.mjs:324-348`).

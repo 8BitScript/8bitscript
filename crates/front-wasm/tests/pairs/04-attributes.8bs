@@ -1,0 +1,6 @@
+// rows: hardware address, loop unrolling, counted for
+#[address($D020)] let mut border: volatile<u8>;
+fn clear() {
+    #[unroll] for i: u8 in 0..4 { border = i; }
+    for j: u8 in 1..=8 { border = j; }
+}

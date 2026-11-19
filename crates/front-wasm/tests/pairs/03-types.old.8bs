@@ -1,0 +1,17 @@
+// rows: array type, array literal, other generic types, record literal, string, template, numbers
+let table: array<u8, 16>;
+let grid: array<array<u8, 4>, 4>;
+let nums: array<u8, 3> = [1, 2, 3];
+let v: volatile<u8>;
+let p: ptr<u8>;
+let s: string<16> = "plain";
+let t: string<16> = 'it\'s';
+let r = { x: 1, y: 2 };
+let msg = `HP ${hp:3} of ${max}`;
+let n1 = 12;
+let n2 = $FF;
+let n3 = 0xFF;
+let n4 = %1010;
+let n5 = 0b1010;
+let n6 = 1_000;
+let n7 = 1.5;
