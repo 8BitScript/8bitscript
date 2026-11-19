@@ -484,3 +484,57 @@ test('8bs build prints the stale-config line and exits 1', () => {
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+// ---- same-stem modules ---------------------------------------------------------
+
+const IMPORT_MENUBAR = 'import { f } from "./menubar";\nexport function g(): void { f(); }\n';
+const LIB = 'export function f(): void {}\n';
+
+test('a stem that exists as .8bs and .8bx keeps the string path; a unique stem gets the :: path', async () => {
+  const dir = project({
+    'main.8bs': IMPORT_MENUBAR + 'import { h } from "./solo";\n',
+    'menubar.8bs': LIB,
+    'menubar.8bx': 'export function f(): void { <A />; }\n',
+    'solo.8bs': 'export function h(): void {}\n',
+  });
+  try {
+    const { code } = await run(dir);
+    assert.equal(code, 0);
+    const text = readFileSync(join(dir, 'main.8bs'), 'utf8');
+    assert.match(text, /^use "\.\/menubar"::f;$/m);
+    assert.match(text, /^use self::solo::h;$/m);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('an .8bx file importing its same-stem .8bs by extension keeps the string path', async () => {
+  const dir = project({
+    'menubar.8bs': LIB,
+    'menubar.8bx': 'import { f } from "./menubar.8bs";\nexport function g(): void { <A />; f(); }\n',
+  });
+  try {
+    const { code } = await run(dir);
+    assert.equal(code, 0);
+    assert.match(readFileSync(join(dir, 'menubar.8bx'), 'utf8'), /^use "\.\/menubar\.8bs"::f;$/m);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('--check reports a same-stem file as convertible without writing it', async () => {
+  const dir = project({ 'main.8bs': IMPORT_MENUBAR, 'menubar.8bs': LIB, 'menubar.8bx': LIB });
+  try {
+    const { code, lines } = await run(dir, '--check');
+    assert.equal(code, 0);
+    assert.ok(lines.some((l) => /would convert .*main\.8bs/.test(l)));
+    assert.equal(readFileSync(join(dir, 'main.8bs'), 'utf8'), IMPORT_MENUBAR);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('migrateText takes the predicate: true keeps the string, false gives the path', () => {
+  assert.match(migrateText(IMPORT_MENUBAR, { sameStem: () => true }).text, /^use "\.\/menubar"::f;$/m);
+  assert.match(migrateText(IMPORT_MENUBAR, { sameStem: () => false }).text, /^use self::menubar::f;$/m);
+});

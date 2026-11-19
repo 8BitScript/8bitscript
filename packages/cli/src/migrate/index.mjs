@@ -95,11 +95,29 @@ function proves(oldAst, text, file, sourceKind) {
   }
 }
 
+const SOURCE_EXTENSIONS = ['.8bs', '.8bx', '.8bg', '.8ba'];
+
+/**
+ * The predicate migrateText takes: true when a relative specifier's module stem
+ * exists under more than one source extension next to `file`. `use self::m::x`
+ * would then be ambiguous (8BS2217), so the printer keeps the string path.
+ *
+ * @param {string} file
+ * @returns {(specifier: string) => boolean}
+ */
+export function sameStemIn(file) {
+  return (specifier) => {
+    if (!specifier.startsWith('./') && !specifier.startsWith('../')) return false;
+    const stem = resolve(dirname(file), specifier).replace(/\.(?:8bs|8bx|8bg|8ba)$/, '');
+    return SOURCE_EXTENSIONS.filter((ext) => existsSync(stem + ext)).length > 1;
+  };
+}
+
 /**
  * Convert one old-syntax text and prove the result.
  *
  * @param {string} text
- * @param {{ file?: string, sourceKind?: '.8bs'|'.8bx', aliasHeads?: string[] }} [options]
+ * @param {{ file?: string, sourceKind?: '.8bs'|'.8bx', aliasHeads?: string[], sameStem?: (specifier: string) => boolean }} [options]
  * @returns {{ status: 'converted' | 'already-new' | 'failed' | 'different', text?: string, message?: string }}
  */
 export function migrateText(text, options = {}) {
@@ -120,7 +138,7 @@ export function migrateText(text, options = {}) {
   }
   let printed;
   try {
-    printed = printProgram(parsed.ast, lexed.tokens, text, { aliasHeads: options.aliasHeads ?? [] });
+    printed = printProgram(parsed.ast, lexed.tokens, text, { aliasHeads: options.aliasHeads ?? [], sameStem: options.sameStem });
   } catch (error) {
     if (error instanceof UnsupportedError) return { status: 'failed', message: error.message };
     throw error;
@@ -212,7 +230,7 @@ export async function migrate(args, io = {}) {
     for (const file of files) {
       const text = readFileSync(file, 'utf8');
       const sourceKind = extname(file);
-      const result = migrateText(text, { file, sourceKind, aliasHeads: opts.aliasHeads });
+      const result = migrateText(text, { file, sourceKind, aliasHeads: opts.aliasHeads, sameStem: sameStemIn(file) });
       if (result.status === 'already-new') {
         totals.alreadyNew += 1;
         out(`already new syntax ${show(file)}`);
@@ -231,7 +249,7 @@ export async function migrate(args, io = {}) {
     const files = roots.flatMap((r) => collect(r, wanted)).filter((f) => !isExcluded(f));
     for (const file of files) {
       const text = readFileSync(file, 'utf8');
-      const result = convertFile(text, (body, sourceKind) => migrateText(body, { file, sourceKind, aliasHeads: opts.aliasHeads }));
+      const result = convertFile(text, (body, sourceKind) => migrateText(body, { file, sourceKind, aliasHeads: opts.aliasHeads, sameStem: sameStemIn(file) }));
       for (const failure of result.failures) record(`${show(file)}:${failure.line}`, failure.status, failure.message);
       if (result.converted > 0 || result.unchanged > 0) {
         totals.converted += result.converted;
