@@ -52,7 +52,7 @@ test('a % is only the modulo operator now: %11111111 is no binary literal', () =
   // operator `%` then the number 11111111, and the parser rejects the leading `%`.
   const toks = tokenize('let e: u8 = %11111111;', 't').tokens.map((t) => t.text);
   assert.deepEqual(toks.slice(4, 7), ['=', '%', '11111111']);
-  assert.ok(codes('let e: u8 = %11111111;').length > 0, 'not accepted as a number');
+  assert.deepEqual(codes('let e: u8 = %11111111;'), ['8BS1101', '8BS1101', '8BS1101']);
 });
 
 test('shipped bug: modulo is not a binary literal', () => {

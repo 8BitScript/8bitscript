@@ -214,6 +214,23 @@ test('hover explains #fact(...) and a key inside it, and nowhere else', () => {
   assert.match(getHoverInfo('let video: utinyint = 1;', 5).markdown, /\*\*video\*\* — variable/, 'not a key outside the call: the variable');
 });
 
+test('hover on a #fact key reads the dotted spelling too', () => {
+  const text = 'let x: utinyint = #fact(video.columns);';
+  for (const word of ['video', 'columns']) {
+    const info = getHoverInfo(text, text.indexOf(word) + 1);
+    assert.match(info.markdown, /\*\*video\.columns\*\*/, word);
+    assert.match(info.markdown, /Cells across the text grid/, word);
+    assert.equal(info.start, text.indexOf('video.columns'), word);
+    assert.equal(info.length, 'video.columns'.length, word);
+  }
+  const run = getHoverInfo('let x: bool = #fact(memory.banked);', 24);
+  assert.match(run.markdown, /settled at run time/);
+});
+
+test('an unknown dotted #fact key has no hover', () => {
+  assert.equal(getHoverInfo('let x: utinyint = #fact(video.nope);', 26), null, 'not a key the compiler knows');
+});
+
 // The hover names the canonical dotted key; the range covers the `::` spelling typed.
 test('hover on a #fact key reads the `::` spelling', () => {
   const text = 'let x: utinyint = #fact(video::columns);';
