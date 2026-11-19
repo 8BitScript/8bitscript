@@ -501,7 +501,7 @@ test('a stem that exists as .8bs and .8bx keeps the string path; a unique stem g
     const { code } = await run(dir);
     assert.equal(code, 0);
     const text = readFileSync(join(dir, 'main.8bs'), 'utf8');
-    assert.match(text, /^use "\.\/menubar"::f;$/m);
+    assert.match(text, /^use "\.\/menubar\.8bs"::f;$/m);
     assert.match(text, /^use self::solo::h;$/m);
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -550,6 +550,6 @@ test('--check reports a same-stem file as convertible without writing it', async
 });
 
 test('migrateText takes the predicate: true keeps the string, false gives the path', () => {
-  assert.match(migrateText(IMPORT_MENUBAR, { sameStem: () => true }).text, /^use "\.\/menubar"::f;$/m);
+  assert.match(migrateText(IMPORT_MENUBAR, { sameStem: () => true }).text, /^use "\.\/menubar\.8bs"::f;$/m);
   assert.match(migrateText(IMPORT_MENUBAR, { sameStem: () => false }).text, /^use self::menubar::f;$/m);
 });
