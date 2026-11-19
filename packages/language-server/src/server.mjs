@@ -79,8 +79,8 @@ export function staleConfigPath(dir) {
 }
 
 /**
- * Walk upward from `dir` looking for 8bitscript.config.8bs (or an older
- * name), so a document opened from src/ (or deeper) still finds its
+ * Walk upward from `dir` looking for 8bitscript.config.ts (or the older
+ * 8bs.config.ts), so a document opened from src/ (or deeper) still finds its
  * project's config. Stops at the filesystem root.
  */
 function findConfigPath(dir) {
