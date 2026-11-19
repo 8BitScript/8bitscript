@@ -12,6 +12,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "bx"
+version = "0.0.0"
+dependencies = [
+ "diagnostics",
+ "indexmap",
+ "jsnum",
+ "sema",
+ "serde",
+ "serde_json",
+ "syntax",
+]
+
+[[package]]
 name = "diagnostics"
 version = "0.0.0"
 dependencies = [
@@ -26,6 +39,38 @@ name = "equivalent"
 version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "00d174d5400e5e8fd687ad1049e2f578285fa914201b1af7e8b112a4546bd826"
+
+[[package]]
+name = "fold"
+version = "0.0.0"
+dependencies = [
+ "diagnostics",
+ "indexmap",
+ "jsnum",
+ "serde",
+ "serde_json",
+ "syntax",
+]
+
+[[package]]
+name = "front"
+version = "0.0.0"
+dependencies = [
+ "bx",
+ "diagnostics",
+ "fold",
+ "i18n",
+ "indexmap",
+ "jsnum",
+ "lexer",
+ "lower",
+ "parser",
+ "resolver",
+ "sema",
+ "serde",
+ "serde_json",
+ "syntax",
+]
 
 [[package]]
 name = "front-wasm"
@@ -44,6 +89,20 @@ name = "hashbrown"
 version = "0.17.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc504fe2f9b84a"
+
+[[package]]
+name = "i18n"
+version = "0.0.0"
+dependencies = [
+ "diagnostics",
+ "indexmap",
+ "jsnum",
+ "lexer",
+ "parser",
+ "serde",
+ "serde_json",
+ "syntax",
+]
 
 [[package]]
 name = "indexmap"
@@ -78,6 +137,20 @@ version = "0.0.0"
 dependencies = [
  "diagnostics",
  "oracle",
+ "serde",
+ "serde_json",
+ "syntax",
+]
+
+[[package]]
+name = "lower"
+version = "0.0.0"
+dependencies = [
+ "diagnostics",
+ "indexmap",
+ "jsnum",
+ "mos-ir",
+ "sema",
  "serde",
  "serde_json",
  "syntax",
@@ -181,6 +254,31 @@ name = "regex-syntax"
 version = "0.8.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d902046e6a28a1e4c3cab97258a0ce11e994903f01c2d97a9447a0b3df85f4f6"
+
+[[package]]
+name = "resolver"
+version = "0.0.0"
+dependencies = [
+ "diagnostics",
+ "i18n",
+ "indexmap",
+ "jsnum",
+ "serde",
+ "serde_json",
+ "syntax",
+]
+
+[[package]]
+name = "sema"
+version = "0.0.0"
+dependencies = [
+ "diagnostics",
+ "indexmap",
+ "jsnum",
+ "serde",
+ "serde_json",
+ "syntax",
+]
 
 [[package]]
 name = "serde"
