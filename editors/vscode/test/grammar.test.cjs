@@ -271,8 +271,8 @@ test('the icon theme covers the rest of a project, not only the four pillars', (
       assert.ok(read(section.fileExtensions[supporting]).includes(accent), `.${supporting} does not carry the .${pillar} accent ${accent}`);
     }
   }
-  assert.equal(defs.fileNames['8bitscript.config.ts'], '_8bs_dark', 'a project config wears the language own 8');
-  assert.equal(defs.light.fileNames['8bitscript.config.ts'], '_8bs_light');
+  assert.equal(defs.fileNames['8bitscript.config.8bs'], '_8bs_dark', 'a project config wears the language own 8');
+  assert.equal(defs.light.fileNames['8bitscript.config.8bs'], '_8bs_light');
   // The old names still load, and still keep the icon rather than falling
   // back to a bare file icon for a project that has not renamed yet.
   assert.equal(defs.fileNames['8bitscript.config.ts'], '_8bs_dark');
@@ -367,7 +367,9 @@ async function loadBx() {
 const SAMPLE = `component Player(name: string) {
     state health: utinyint = 100;
     let a: [utinyint; 4];
-    if (health < 50 && a[0] << 2 > 3) { damage(1); }
+    if health < 50 && a[0] << 2 > 3 {
+        damage(1);
+    }
 }
 pub fn draw() {
     <MenuBar row={0} width={40} wide>
@@ -375,8 +377,10 @@ pub fn draw() {
         {open && <MenuItem label="EDIT" />}
         <Text>Hello World!</Text>
     </MenuBar>;
-    <Box>{c ? <A /> : <B />}</Box>;
-    return <>{on ? <A /> : <slot />}</>;
+    <Box>
+        {if c { <A /> } else { <B /> }}
+    </Box>;
+    return <>{if on { <A /> } else { <slot /> }}</>;
 }
 `;
 
@@ -401,13 +405,12 @@ test('the 8bx grammar colours components, tags, props, children and expressions 
   assert.equal(scopeOf('&&', 1), 'keyword.operator.ternary', 'inside {…} between tags');
   assert.equal(scopeOf('Hello World!'), 'meta.tag', 'text is plain, inside its tag');
   assert.equal(scopeOf('MenuBar', 1), 'entity.name.tag.component', 'the closing tag is the same tag');
-  assert.equal(scopeOf('?'), 'keyword.operator.ternary');
-  assert.ok(tokens.some(([text, scope]) => text === ':' && scope === 'keyword.operator.ternary'), 'the ternary\'s colon, not a type separator');
+  assert.equal(scopeOf('if', 1), 'keyword.control', 'an if expression inside {…} between tags');
+  assert.equal(scopeOf('else'), 'keyword.control', 'its else');
   assert.ok(tokens.some(([text, scope]) => text === ':' && scope === 'punctuation.separator.type'), 'the parameter\'s colon still is one');
   assert.equal(scopeOf('slot'), 'entity.name.tag.component');
   // And nothing 8BitScript already had is disturbed: `<` is still the
-  // operator in a comparison, a shift, and a generic.
-  assert.equal(scopeOf('<', 0), 'keyword.operator', 'array<…>');
+  // operator in a comparison and a shift.
   assert.equal(scopeOf('<', 0), 'keyword.operator', 'health < 50');
   assert.equal(scopeOf('<<'), 'keyword.operator');
   assert.equal(scopeOf('&&', 0), 'keyword.operator', 'outside a tag, the 8bs operator');

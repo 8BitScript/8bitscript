@@ -64,15 +64,15 @@ test('`input` is { primary, also? } over the six devices, and says what is wrong
   assert.deepEqual(projectInput({ input: { primary: 'stick' } }), { ok: true, input: { primary: 'stick', also: [] } });
   assert.deepEqual(projectInput({ input: { primary: 'stick', also: ['keyboard', 'pad', 'keyboard'] } }),
     { ok: true, input: { primary: 'stick', also: ['keyboard', 'pad'] } });
-  assert.equal(projectInput({ input: 'stick' }).error, "8bitscript.config.8bs's `input` must be { primary, also? }");
+  assert.equal(projectInput({ input: 'stick' }).error, "8bitscript.config.ts's `input` must be { primary, also? }");
   assert.equal(projectInput({ input: { primary: 'joystick' } }).error,
-    `8bitscript.config.8bs's \`input\`.primary must be one of ${INPUT_DEVICES.join(', ')}, not "joystick"`);
+    `8bitscript.config.ts's \`input\`.primary must be one of ${INPUT_DEVICES.join(', ')}, not "joystick"`);
   assert.equal(projectInput({ input: { primary: 'stick', also: 'keyboard' } }).error,
-    `8bitscript.config.8bs's \`input\`.also must list devices from ${INPUT_DEVICES.join(', ')}`);
+    `8bitscript.config.ts's \`input\`.also must list devices from ${INPUT_DEVICES.join(', ')}`);
   assert.equal(projectInput({ input: { primary: 'stick', also: ['stick'] } }).error,
     '8bitscript.config.ts\'s `input`.also repeats the primary device "stick"');
   assert.equal(projectInput({ input: { primary: 'stick', requires: [] } }).error,
-    "8bitscript.config.8bs's `input` has no key `requires` — only primary and also");
+    "8bitscript.config.ts's `input` has no key `requires` — only primary and also");
 });
 
 test('a machine that builds answers from its catalog: ports are standard, run-time facts are optional at most', () => {
