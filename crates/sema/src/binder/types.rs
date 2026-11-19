@@ -96,10 +96,9 @@ mod scope_of {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Prop {
-    /// `p.name?.name`: absent when the parameter has no name.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub name: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none", with = "node_id_opt")]
+    pub name: String,
+    /// Always written, `null` for an untyped parameter (R3.3).
+    #[serde(default, with = "node_id_opt")]
     pub type_annotation: Option<NodeId>,
     pub optional: bool,
     /// `p.defaultValue ?? null`: always written, `null` when there is none (R3.3).
@@ -264,6 +263,7 @@ mod tests {
         assert!(json.contains("\"allowsChildren\":true"));
         assert!(json.contains("\"target\":null"));
         assert!(json.contains("\"source\":null"));
+        assert!(json.contains("\"typeAnnotation\":null"));
         assert!(json.contains("\"defaultValue\":null"));
         assert!(json.contains("\"members\":1"));
         assert!(json.contains("\"state\":[\"count\"]"));
