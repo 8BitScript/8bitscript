@@ -1,4 +1,4 @@
-//! Port of mos/index.ts (`:98-647`): the machine tables and the helpers `build()` uses.
+//! Port of mos/index.ts (the machine tables and the helpers `build()` uses).
 
 use indexmap::{IndexMap, IndexSet};
 use mos_ir::{Function, HardwareBuild, Stmt};
@@ -9,9 +9,9 @@ use crate::asm::assemble::{Directive, Operand};
 use crate::asm::encode::{AddressingMode, instruction_bytes};
 use crate::build::Machine;
 use crate::walk::{Flow, Node, visit_body};
-use crate::zp::ZpHole;
+use crate::zp::{Budget, ZpHole};
 
-/// `CpuVariant` (`index.ts:98`): the instruction-set variant of a machine.
+/// `CpuVariant`: the instruction-set variant of a machine.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CpuVariant {
     pub core: &'static str,
@@ -46,7 +46,7 @@ const fn cpu(
 }
 
 /// The instruction-set variant each machine runs, in the literal order of
-/// `CPU` (`index.ts:111`). Data, not logic (T2).
+/// `CPU`. Data, not logic (T2).
 pub static CPU: [(Machine, CpuVariant); 18] = [
     (Machine::Vic20, cpu("6502", true, NONE, false)),
     (Machine::Pet, cpu("6502", true, NONE, false)),
@@ -85,20 +85,12 @@ pub fn cpu_of(machine: Machine) -> &'static CpuVariant {
         .map_or(&CPU[0].1, |(_, v)| v)
 }
 
-/// `CHRGET_BYTES` (`index.ts:219`).
+/// `CHRGET_BYTES`.
 const CHRGET_BYTES: f64 = 24.0;
 
-/// A zero-page budget (`ZpBudget`, `index.ts:393`): `zp_ceiling` is exclusive,
-/// `holes` is empty when the JS has none.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ZpBudget {
-    pub zp_origin: i64,
-    pub zp_ceiling: i64,
-    pub holes: Vec<ZpHole>,
-}
-
-const fn budget(zp_origin: i64, zp_ceiling: i64) -> ZpBudget {
-    ZpBudget {
+/// A zero-page budget with no holes (the JS omits `holes` then).
+const fn budget(zp_origin: i64, zp_ceiling: i64) -> Budget {
+    Budget {
         zp_origin,
         zp_ceiling,
         holes: Vec::new(),
@@ -106,7 +98,7 @@ const fn budget(zp_origin: i64, zp_ceiling: i64) -> ZpBudget {
 }
 
 /// The machines `ZP_BUDGETS` has a row for, in its literal key order (the
-/// refusal text of `build()` lists them, `index.ts:651`).
+/// refusal text of `build()` lists them).
 pub static ZP_BUDGET_MACHINES: [Machine; 18] = [
     Machine::Pet,
     Machine::C64,
@@ -129,10 +121,10 @@ pub static ZP_BUDGET_MACHINES: [Machine; 18] = [
 ];
 
 /// Per machine, `(polite, owned)`: the budget a program that returns to BASIC
-/// may take, and the one a program that never does may take (`ZP_BUDGETS`,
-/// `index.ts:397`). `None` for a machine with no row.
+/// may take, and the one a program that never does may take (`ZP_BUDGETS`).
+/// `None` for a machine with no row.
 #[must_use]
-pub fn zp_budgets(machine: Machine) -> Option<(ZpBudget, ZpBudget)> {
+pub fn zp_budgets(machine: Machine) -> Option<(Budget, Budget)> {
     // PET_ZP_BUDGET, PET_OWNED_ZP_BUDGET, VIC20_ZP_BUDGET, C128_ZP_BUDGET,
     // MEGA65_ZP_BUDGET and OWNED_ZP: `$02`-`$100` (`$0A` on the C128).
     let pet = || budget(0x02, 0x100);
@@ -145,7 +137,7 @@ pub fn zp_budgets(machine: Machine) -> Option<(ZpBudget, ZpBudget)> {
         Machine::C128 => (budget(0x0a, 0x100), budget(0x0a, 0x100)),
         Machine::Cx16 => (
             budget(0x22, 0x80),
-            ZpBudget {
+            Budget {
                 zp_origin: 0x22,
                 zp_ceiling: 0x100,
                 holes: vec![ZpHole {
@@ -163,11 +155,10 @@ pub fn zp_budgets(machine: Machine) -> Option<(ZpBudget, ZpBudget)> {
 }
 
 /// The machines whose program borrows the zero page it uses and gives it back
-/// (`BORROWS_ZERO_PAGE`, `index.ts:386`).
+/// (`BORROWS_ZERO_PAGE`).
 pub static BORROWS_ZERO_PAGE: [Machine; 2] = [Machine::Pet, Machine::Vic20];
 
-/// The machines with a waitFrame() runtime of their own (`RASTER_MACHINES`,
-/// `index.ts:389`).
+/// The machines with a waitFrame() runtime of their own (`RASTER_MACHINES`).
 pub static RASTER_MACHINES: [Machine; 17] = [
     Machine::C64,
     Machine::Vic20,
@@ -189,10 +180,10 @@ pub static RASTER_MACHINES: [Machine; 17] = [
 ];
 
 /// The CHRGET hole a machine sheet names with `memory.chrget`, when it falls
-/// inside `budget` (`chrgetZpHoles`, `index.ts:442`). `typeof chrget !==
+/// inside `budget` (`chrgetZpHoles`). `typeof chrget !==
 /// 'number'` is `Value::is_number`.
 #[must_use]
-pub fn chrget_zp_holes(facts: &IndexMap<String, Value>, budget: &ZpBudget) -> Vec<ZpHole> {
+pub fn chrget_zp_holes(facts: &IndexMap<String, Value>, budget: &Budget) -> Vec<ZpHole> {
     let Some(chrget) = facts.get("memory.chrget").and_then(Value::as_f64) else {
         return Vec::new();
     };
@@ -208,7 +199,7 @@ pub fn chrget_zp_holes(facts: &IndexMap<String, Value>, budget: &ZpBudget) -> Ve
 }
 
 /// The file extension a build for this machine and hardware produces
-/// (`outputExtension`, `index.ts:452`).
+/// (`outputExtension`).
 #[must_use]
 pub fn output_extension(machine: Machine, hardware: Option<&HardwareBuild>) -> String {
     if let Some(output) = hardware.and_then(|h| h.output.as_deref())
@@ -224,7 +215,7 @@ pub fn output_extension(machine: Machine, hardware: Option<&HardwareBuild>) -> S
 }
 
 /// Every name `body` (or anything nested under it) calls, in first-seen order
-/// (`collectCallNames`, `index.ts:475`).
+/// (`collectCallNames`).
 pub fn collect_call_names(body: &[Stmt], out: &mut IndexSet<String>) {
     visit_body(body, &mut |node| {
         if let Some(call) = node.as_call() {
@@ -235,8 +226,7 @@ pub fn collect_call_names(body: &[Stmt], out: &mut IndexSet<String>) {
 }
 
 /// The first call cycle found in `functions`' own call graph, as the chain of
-/// names involved, or `None` if the graph is a DAG (`findCallCycle`,
-/// `index.ts:495`).
+/// names involved, or `None` if the graph is a DAG (`findCallCycle`).
 #[must_use]
 pub fn find_call_cycle(functions: &[Function]) -> Option<Vec<String>> {
     let mut callees: IndexMap<String, IndexSet<String>> = IndexMap::new();
@@ -315,7 +305,7 @@ fn label_def(name: &str) -> Directive {
 }
 
 /// Zeroes `[origin, end)`, the RAM window mutable arrays were placed in on a
-/// machine whose image is a ROM (`clearRam`, `index.ts:542`).
+/// machine whose image is a ROM (`clearRam`).
 #[must_use]
 pub fn clear_ram(origin: i64, end: i64) -> Vec<Directive> {
     let size = end - origin;
@@ -361,8 +351,7 @@ pub fn clear_ram(origin: i64, end: i64) -> Vec<Directive> {
     out
 }
 
-/// Copies `size` bytes from the label `from` into RAM at `to` (`copyToRam`,
-/// `index.ts:587`).
+/// Copies `size` bytes from the label `from` into RAM at `to` (`copyToRam`).
 #[must_use]
 pub fn copy_to_ram(from: &str, to: i64, size: i64, tag: &str) -> Vec<Directive> {
     let mut out = Vec::new();
@@ -398,25 +387,25 @@ pub fn copy_to_ram(from: &str, to: i64, size: i64, tag: &str) -> Vec<Directive> 
     out
 }
 
-/// `RTS` (`index.ts:609`).
+/// `RTS`.
 #[must_use]
 pub fn rts() -> Directive {
     ins("RTS", AddressingMode::Implied, None)
 }
 
-/// `ldaImm` (`index.ts:610`).
+/// `ldaImm`.
 #[must_use]
 pub fn lda_imm(v: i64) -> Directive {
     ins("LDA", AddressingMode::Immediate, value(v))
 }
 
-/// `staZp` (`index.ts:611`).
+/// `staZp`.
 #[must_use]
 pub fn sta_zp(address: i64) -> Directive {
     ins("STA", AddressingMode::Zeropage, value(address))
 }
 
-/// A directive list's own byte length (`directiveBytes`, `index.ts:614`).
+/// A directive list's own byte length (`directiveBytes`).
 #[must_use]
 pub fn directive_bytes(program: &[Directive]) -> i64 {
     let mut total = 0;
@@ -430,7 +419,7 @@ pub fn directive_bytes(program: &[Directive]) -> i64 {
     total
 }
 
-/// One named piece of a build's size report (`SizeReportEntry`, `index.ts:84`).
+/// One named piece of a build's size report (`SizeReportEntry`).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct SizeReportEntry {
     pub name: String,
@@ -445,7 +434,7 @@ pub struct SizePart<'a> {
 }
 
 /// The size entries of one function, merged by origin in first-seen order
-/// (`functionSizeEntries`, `index.ts:624`). A non-entry function appends a
+/// (`functionSizeEntries`). A non-entry function appends a
 /// one-byte `RTS` after its body.
 #[must_use]
 pub fn function_size_entries(
@@ -468,7 +457,7 @@ pub fn function_size_entries(
         .collect()
 }
 
-/// Every string-literal slot `body` uses (`collectStringIndexes`, `index.ts:636`).
+/// Every string-literal slot `body` uses (`collectStringIndexes`).
 pub fn collect_string_indexes(body: &[Stmt], out: &mut IndexSet<i64>) {
     visit_body(body, &mut |node| {
         if let Node::Expr(mos_ir::Expr::String(s)) = node {
