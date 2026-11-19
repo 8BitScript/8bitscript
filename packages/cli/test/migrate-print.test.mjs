@@ -246,6 +246,11 @@ test('comments: multi-line tables keep their line grouping and comments', () => 
   );
 });
 
+test('.8bx: an element with a text child keeps that text verbatim, on one line', () => {
+  const src = 'export function draw(): void {\n  <Text>Hello World!</Text>;\n  <B>a <C /> b</B>;\n}';
+  assert.equal(conv(src, { sourceKind: '.8bx' }), 'pub fn draw() {\n    <Text>Hello World!</Text>;\n    <B>a <C /> b</B>;\n}\n');
+});
+
 test('.8bx: components, state, elements, attributes, children', () => {
   const src = [
     'import { text } from "@8bitscript/text";',
@@ -268,15 +273,10 @@ test('.8bx: components, state, elements, attributes, children', () => {
     '    state sel: utinyint = 0;',
     '    <Item label="a" on={sel} {extra} bare />;',
     '    <Frame>',
-    '        hello   world',
-    '        {if sel == 0 { <A /> } else { <B /> }}',
-    '        {}',
-    '        <Inner k="v"></Inner>',
-    '    </Frame>;',
+    '    hello   world',
+    '    {if sel == 0 { <A /> } else { <B /> }} {} <Inner k="v"></Inner></Frame>;',
     '    <></>;',
-    '    <>',
-    '        x',
-    '    </>;',
+    '    <>x</>;',
     '}',
     '',
   ].join('\n'));

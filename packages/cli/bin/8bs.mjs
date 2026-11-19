@@ -28,7 +28,7 @@ async function finish(code) {
   process.exit(code);
 }
 
-const IMPLEMENTED = new Set(['check', 'lsp', 'doctor', 'build', 'run', 'boot', 'setup', 'targets', 'project', 'conform', 'controller']);
+const IMPLEMENTED = new Set(['check', 'lsp', 'doctor', 'build', 'run', 'boot', 'setup', 'targets', 'project', 'conform', 'controller', 'migrate']);
 const PLANNED = ['dev'];
 
 const usage = () => `Usage: 8bs <command> [options]
@@ -184,6 +184,20 @@ Implemented:
                                /opt/commander-x16 (--repair fixes a broken
                                launcher, --update rebuilds the pair —
                                docs/setup/cx16.md)
+  migrate [paths] [--check] [--embedded] [--fences] [--all] [--alias @lib]
+                               One-time converter to the new syntax:
+                               rewrites .8bs/.8bx files in place, each
+                               proved equal to the old tree by the new
+                               front end before it is written. --embedded
+                               takes the programs inside JS/TS sources (tests,
+                               generators, scripts)
+                               (a template literal or a ['...'].join('\\n')
+                               array; \${expr} is kept), --fences the
+                               \`\`\`8bs fences in Markdown, --all all three.
+                               --check writes nothing and exits 1 on any
+                               difference or failure. A literal it cannot
+                               convert is listed and left alone. This
+                               command is removed after the switch.
   lsp [--stdio]                Start the language server on stdio
 
 Planned, not implemented:
@@ -268,6 +282,11 @@ if (command === 'conform') {
 if (command === 'controller') {
   const { controller } = await import('../src/controller.mjs');
   await finish(await controller(rest));
+}
+
+if (command === 'migrate') {
+  const { migrate } = await import('../src/migrate/index.mjs');
+  await finish(await migrate(rest));
 }
 
 if (command === 'targets') {
