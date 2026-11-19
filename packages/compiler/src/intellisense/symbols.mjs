@@ -380,7 +380,7 @@ export function symbolAt(module, offset) {
 function inUsePath(tokens, index) {
   for (let i = index - 1; i >= 0; i--) {
     const t = tokens[i];
-    if (t.text === ';' || t.text === '}' && tokens[i - 1]?.text === ';') return false;
+    if (t.text === ';' || (t.text === '}' && tokens[i - 1]?.text === ';')) return false;
     if (t.kind === TokenKind.Keyword && t.text === 'use') return true;
   }
   return false;

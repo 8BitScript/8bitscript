@@ -562,6 +562,21 @@ test('a machine twin of the other extension counts: m.8bs beside m.nes.8bx keeps
   }
 });
 
+test('stems that differ only in case count as one stem: Mark.8bx beside mark.8bg keeps the string path', async () => {
+  const dir = project({
+    'main.8bs': 'import { m } from "./mark.8bg";\nexport function g(): void { m(); }\n',
+    'Mark.8bx': LIB,
+    'mark.8bg': LIB,
+  });
+  try {
+    const { code } = await run(dir);
+    assert.equal(code, 0);
+    assert.match(readFileSync(join(dir, 'main.8bs'), 'utf8'), /^use "\.\/mark\.8bg"::m;$/m);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('--check reports a same-stem file as convertible without writing it', async () => {
   const dir = project({ 'main.8bs': IMPORT_MENUBAR, 'menubar.8bs': LIB, 'menubar.8bx': LIB });
   try {

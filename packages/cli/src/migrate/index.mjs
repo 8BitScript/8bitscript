@@ -103,6 +103,7 @@ function proves(oldAst, text, file, sourceKind) {
  * would then be ambiguous (8BS2217), so the printer keeps the string path.
  * An extension counts as present when the plain file or a machine, tag or
  * locale twin of it exists (the resolver's variantsPresent), as twins count there.
+ * Stems are compared case-folded.
  *
  * @param {string} file
  * @returns {(specifier: string) => boolean}
@@ -110,8 +111,24 @@ function proves(oldAst, text, file, sourceKind) {
 export function sameStemIn(file) {
   return (specifier) => {
     if (!specifier.startsWith('./') && !specifier.startsWith('../')) return false;
-    const stem = stripSourceExtension(resolve(dirname(file), specifier));
-    const present = (ext) => existsSync(stem + ext) || variantsPresent(stem + ext).length > 0;
+    const target = stripSourceExtension(resolve(dirname(file), specifier));
+    const dir = dirname(target);
+    // Stems that differ only in case are one stem: on a case-insensitive file
+    // system (macOS, Windows) the compiler's probes find both, and 8BS2217 follows.
+    const folded = basename(target).toLowerCase();
+    let entries;
+    try {
+      entries = readdirSync(dir);
+    } catch {
+      return false;
+    }
+    const stems = new Set(
+      entries.filter((e) => e.toLowerCase().startsWith(`${folded}.`)).map((e) => e.slice(0, folded.length)),
+    );
+    const present = (ext) => [...stems].some((stem) => {
+      const path = join(dir, stem + ext);
+      return existsSync(path) || variantsPresent(path).length > 0;
+    });
     return SOURCE_EXTENSIONS.filter(present).length > 1;
   };
 }
