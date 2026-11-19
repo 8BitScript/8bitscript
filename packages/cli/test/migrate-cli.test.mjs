@@ -487,7 +487,7 @@ test('8bs build prints the stale-config line and exits 1', () => {
 
 // ---- same-stem modules ---------------------------------------------------------
 
-const IMPORT_MENUBAR = 'import { f } from "./menubar";\nexport function g(): void { f(); }\n';
+const IMPORT_MENUBAR = 'import { f } from "./menubar.8bs";\nexport function g(): void { f(); }\n';
 const LIB = 'export function f(): void {}\n';
 
 test('a stem that exists as .8bs and .8bx keeps the string path; a unique stem gets the :: path', async () => {
@@ -517,6 +517,21 @@ test('an .8bx file importing its same-stem .8bs by extension keeps the string pa
     const { code } = await run(dir);
     assert.equal(code, 0);
     assert.match(readFileSync(join(dir, 'menubar.8bx'), 'utf8'), /^use "\.\/menubar\.8bs"::f;$/m);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('a machine twin of the other extension counts: m.8bs beside m.nes.8bx keeps the string path', async () => {
+  const dir = project({
+    'main.8bs': 'import { f } from "./m.8bs";\nexport function g(): void { f(); }\n',
+    'm.8bs': LIB,
+    'm.nes.8bx': LIB,
+  });
+  try {
+    const { code } = await run(dir);
+    assert.equal(code, 0);
+    assert.match(readFileSync(join(dir, 'main.8bs'), 'utf8'), /^use "\.\/m\.8bs"::f;$/m);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

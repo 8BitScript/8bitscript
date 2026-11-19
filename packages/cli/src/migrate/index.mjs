@@ -17,6 +17,7 @@
 // `--check` writes nothing and exits 1 on any difference or failure.
 import { existsSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { basename, dirname, extname, join, relative, resolve, sep } from 'node:path';
+import { SOURCE_EXTENSIONS, stripSourceExtension, variantsPresent } from '@8bitscript/compiler';
 import { check as proveEqual, parse as parseNew, tokenize as tokenizeNew } from '@8bitscript/compiler/front';
 import { convertEmbedded, convertFences } from './embedded.mjs';
 import { tokenize } from './legacy/lexer.mjs';
@@ -95,12 +96,12 @@ function proves(oldAst, text, file, sourceKind) {
   }
 }
 
-const SOURCE_EXTENSIONS = ['.8bs', '.8bx', '.8bg', '.8ba'];
-
 /**
  * The predicate migrateText takes: true when a relative specifier's module stem
  * exists under more than one source extension next to `file`. `use self::m::x`
  * would then be ambiguous (8BS2217), so the printer keeps the string path.
+ * An extension counts as present when the plain file or a machine, tag or
+ * locale twin of it exists (the resolver's variantsPresent), as twins count there.
  *
  * @param {string} file
  * @returns {(specifier: string) => boolean}
@@ -108,8 +109,9 @@ const SOURCE_EXTENSIONS = ['.8bs', '.8bx', '.8bg', '.8ba'];
 export function sameStemIn(file) {
   return (specifier) => {
     if (!specifier.startsWith('./') && !specifier.startsWith('../')) return false;
-    const stem = resolve(dirname(file), specifier).replace(/\.(?:8bs|8bx|8bg|8ba)$/, '');
-    return SOURCE_EXTENSIONS.filter((ext) => existsSync(stem + ext)).length > 1;
+    const stem = stripSourceExtension(resolve(dirname(file), specifier));
+    const present = (ext) => existsSync(stem + ext) || variantsPresent(stem + ext).length > 0;
+    return SOURCE_EXTENSIONS.filter(present).length > 1;
   };
 }
 
@@ -249,6 +251,7 @@ export async function migrate(args, io = {}) {
     const files = roots.flatMap((r) => collect(r, wanted)).filter((f) => !isExcluded(f));
     for (const file of files) {
       const text = readFileSync(file, 'utf8');
+      // Embedded programs and fences have no file of their own: the predicate looks beside the host file.
       const result = convertFile(text, (body, sourceKind) => migrateText(body, { file, sourceKind, aliasHeads: opts.aliasHeads, sameStem: sameStemIn(file) }));
       for (const failure of result.failures) record(`${show(file)}:${failure.line}`, failure.status, failure.message);
       if (result.converted > 0 || result.unchanged > 0) {
