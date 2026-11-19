@@ -373,7 +373,7 @@ export function prepareCatalog(options = {}) {
       ok: false,
       diagnostics: [diagnostic(
         Codes.CATALOG,
-        `'${CATALOG_SPECIFIER}' needs a message catalog (src/i18n/<locale>.8bs, or i18n.catalog in 8bitscript.config.8bs)`,
+        `'${CATALOG_SPECIFIER}' needs a message catalog (src/i18n/<locale>.8bs, or i18n.catalog in 8bitscript.config.ts)`,
         options.fromFile ?? '<unknown>', 0, 0,
       )],
     };
@@ -472,7 +472,7 @@ export function resolveCatalogSpecifier(specifier, fromFile, options = {}) {
     if (!catalogDir) {
       return {
         code: Codes.CATALOG,
-        message: `'${CATALOG_SPECIFIER}' needs a message catalog (src/i18n/<locale>.8bs, or i18n.catalog in 8bitscript.config.8bs)`,
+        message: `'${CATALOG_SPECIFIER}' needs a message catalog (src/i18n/<locale>.8bs, or i18n.catalog in 8bitscript.config.ts)`,
       };
     }
     options.i18n = {

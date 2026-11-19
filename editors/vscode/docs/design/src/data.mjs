@@ -1,5 +1,5 @@
 // Fixture data for the prototypes: the real Vegas Nights programs (see its
-// 8bitscript.config.8bs) with the extra fields the redesign adds to a program
+// 8bitscript.config.ts) with the extra fields the redesign adds to a program
 // — a title, a description, a group and `define` inputs. Everything here is
 // illustrative: the reasons a runtime is unavailable, the run times, the
 // frame rates. The README says which fields are proposals.

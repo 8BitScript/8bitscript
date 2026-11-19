@@ -1,5 +1,5 @@
 // Values a build is handed: `--define NAME=VALUE` on the command line, a
-// program's `define: { NAME: value }` in 8bitscript.config.8bs, and the
+// program's `define: { NAME: value }` in 8bitscript.config.ts, and the
 // `#define("NAME", default)` the program reads them with (the compiler's
 // fold pass, packages/compiler/src/fold/index.mjs). This file is the CLI's
 // half: parsing what a person typed, validating what a config declares,
