@@ -18,7 +18,7 @@ import { existsSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, resolve as resolvePath } from 'node:path';
 
 import { Codes, diagnostic } from '../diagnostics/index.mjs';
-import { TokenKind } from '../lexer/index.mjs';
+import { TokenKind } from '../front/index.mjs';
 import { resolveCatalogSpecifier } from '../i18n/index.mjs';
 import { aliasedSubpath, isPathForm, longestAliasPrefix, resolveImportAliases } from './import-aliases.mjs';
 import {

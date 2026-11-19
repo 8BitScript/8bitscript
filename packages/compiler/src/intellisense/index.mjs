@@ -25,12 +25,12 @@
 // itself.
 import { readFileSync, statSync } from 'node:fs';
 
-import { isOperandToken, tokenize, TokenKind } from '../lexer/index.mjs';
+import { isOperandToken, tokenize, TokenKind } from '../front/index.mjs';
 import { PRIMITIVE_INTEGER_TYPES, resolveIntegerType } from '../types/index.mjs';
 import { DURATION_CLOCKS, DURATION_UNITS, SYSTEMS } from '../fold/index.mjs';
 import { FACTS } from '../fold/facts.mjs';
 import { SymbolKind } from '../binder/index.mjs';
-import { machineOfVariant } from '../resolver/index.mjs';
+import { findImports, machineOfVariant } from '../resolver/index.mjs';
 import { MACHINES, sourceKindOf } from '../source/index.mjs';
 import { isMediaKind } from '../media/kinds.mjs';
 import {
@@ -104,9 +104,9 @@ const CONSTRUCT_DOCS = {
       '',
       'Text that lives in the program image — ROM on a cartridge, the `.prg` on a Commodore, a data segment on the web — written as a literal: `"TICK"`. A `string` parameter receives one; `s.length` is its byte count and `s[i]` its i-th character (ASCII), so a loop can put it on screen one cell at a time.',
       '',
-      'Only the portable character set is allowed — space, `0`-`9`, `A`-`Z`, `a`-`z`, and `! , - . : ?` — and at most 255 of them. A backtick string with `${...}` fields, `\`TICK ${ticks:1}\``, is a template: `text.print(cell, ...)` lays it out at compile time into one `print` per run of text and one `printNumber(cell, value, width)` per field.',
+      'Only the portable character set is allowed — space, `0`-`9`, `A`-`Z`, `a`-`z`, and `! , - . : ?` — and at most 255 of them. A backtick string with `${...}` fields, `\`TICK ${ticks:1}\``, is a template: `text::print(cell, ...)` lays it out at compile time into one `print` per run of text and one `printNumber(cell, value, width)` per field.',
       '',
-      '`const Label: string = "..."` names constant text. `let name: string<8>` is text that changes: 8 characters of RAM behind a length byte — the shape a literal has, so it goes wherever a `string` goes. `name = "..."` or `name = other` copies at runtime, cut to the capacity (a literal that does not fit is a diagnostic); `name.length` and `name[i]` read it. There is no concatenation.',
+      '`const Label: string = "..."` names constant text. `let mut name: string<8>` is text that changes: 8 characters of RAM behind a length byte — the shape a literal has, so it goes wherever a `string` goes. `name = "..."` or `name = other` copies at runtime, cut to the capacity (a literal that does not fit is a diagnostic); `name.length` and `name[i]` read it. There is no concatenation.',
     ].join('\n'),
   },
   volatile: {
@@ -138,9 +138,9 @@ const CONSTRUCT_DOCS = {
       '',
       'A fixed-size array of N values of type T, read and written one element at a time: `a[i]`, `a[i] = v`. `a.length` is N, a number 8bitscript fills in.',
       '',
-      '`let a: array<T, N>` is N values in RAM (zero until written, or `= [..]`); `const Table: array<T, N> = [..]` is N values of data in the program, never in RAM; `@address(0x0400) let screenRam: array<T, N>` is N cells of hardware. N is a literal or a `const`, and the size is part of the type, so memory usage is predictable — no hidden allocation or resizing.',
+      '`let mut a: array<T, N>` is N values in RAM (zero until written, or `= [..]`); `const Table: array<T, N> = [..]` is N values of data in the program, never in RAM; `#[address(0x0400)] let mut screenRam: array<T, N>` is N cells of hardware. N is a literal or a `const`, and the size is part of the type, so memory usage is predictable — no hidden allocation or resizing.',
       '',
-      'A function takes one the same way — `function pick(t: array<u8, 4>, i: u8)` — and the call passes the array by name: the address of its first element, with nothing copied and no length traveling alongside it, since `t.length` is folded from the type. An array parameter is read-only and has no default.',
+      'A function takes one the same way — `fn pick(t: array<u8, 4>, i: u8)` — and the call passes the array by name: the address of its first element, with nothing copied and no length traveling alongside it, since `t.length` is folded from the type. An array parameter is read-only and has no default.',
     ].join('\n'),
   },
   asm6502: {
@@ -158,7 +158,7 @@ const CONSTRUCT_DOCS = {
   address: {
     summary: 'Binds a declaration to a specific memory address.',
     markdown: [
-      '**@address(location)**',
+      '**#[address(location)]**',
       '',
       'Binds a declaration to a specific memory address.',
       '',
@@ -182,7 +182,7 @@ const FRAMES_DOC = [
 const SYSTEM_DOC = [
   '**#system()**',
   '',
-  'Compile-time: the machine this build is for, as a number. Compare it with the names `@8bitscript/system` exports — `if (#system() == System.NES) { ... }` — and the other machines\' branches fold away in the generated code. Takes no arguments: the build already knows which machine.',
+  'Compile-time: the machine this build is for, as a number. Compare it with the names `@8bitscript/system` exports — `if #system() == System::NES { ... }` — and the other machines\' branches fold away in the generated code. Takes no arguments: the build already knows which machine.',
   '',
   `The machines, in the order \`8bs build --target\` lists them: ${[...SYSTEMS.keys()].map((name) => `\`${name}\``).join(', ')}. With no machine in hand — \`8bs check\`, this editor — the call is valid and target-dependent, like a \`.<machine>.8bs\` file.`,
   '',
@@ -261,13 +261,13 @@ const WAITFRAME_DOC = [
   '',
   'Frames arrive at this project\'s configured `frameRate` (`8bitscript.config.8bs`, default 60) on every target, whatever the real hardware refreshes at — on the 6502 machines it waits on the video chip\'s own vertical blank, on the web it waits on the page\'s frame clock. Pair it with `#frames(...)` to count time: `#frames(0.5, seconds)` is how many `waitFrame()` calls make half a second.',
   '',
-  'Takes no arguments and returns nothing. Reserved: a variable, function, parameter, or import named `waitFrame` is a compile error.',
+  'Takes no arguments and returns nothing. Reserved: a variable, fn, parameter, or `use` name `waitFrame` is a compile error.',
 ].join('\n');
 
-/** `memory.read`/`memory.write`: the one namespace the compiler recognizes itself. */
+/** `memory::read`/`memory::write`: the one mod the compiler recognizes itself. */
 const MEMORY_DOCS = {
   write: [
-    '**memory.write(address, value)**',
+    '**memory::write(address, value)**',
     '',
     'Writes one byte directly to the target machine\'s address space.',
     '',
@@ -276,7 +276,7 @@ const MEMORY_DOCS = {
     'Prefer a machine API such as `screen` when one exists for what you are trying to do.',
   ].join('\n'),
   read: [
-    '**memory.read(address)**',
+    '**memory::read(address)**',
     '',
     'Reads one byte directly from the target machine\'s address space.',
     '',
@@ -288,16 +288,19 @@ const MEMORY_DOCS = {
 
 const PORT_DOCS = {
   write: [
-    '**port.write(port, value)**',
+    '**port::write(port, value)**',
     '',
-    'Writes one byte to a CPU I/O port (`OUT` on the Z80). Memory-mapped machines have no ports — use `memory.write`.',
+    'Writes one byte to a CPU I/O port (`OUT` on the Z80). Memory-mapped machines have no ports — use `memory::write`.',
   ].join('\n'),
   read: [
-    '**port.read(port)**',
+    '**port::read(port)**',
     '',
-    'Reads one byte from a CPU I/O port (`IN` on the Z80). Memory-mapped machines have no ports — use `memory.read`.',
+    'Reads one byte from a CPU I/O port (`IN` on the Z80). Memory-mapped machines have no ports — use `memory::read`.',
   ].join('\n'),
 };
+
+/** The separator before a `mod` member (`screen::blank`) or a record field (`p.x`). */
+const isMemberSeparator = (token) => token?.text === '::' || token?.text === '.';
 
 const TYPE_CONSTRUCTOR_NAMES = ['array', 'ptr', 'volatile'];
 
@@ -306,47 +309,57 @@ function tokenIndexAt(tokens, offset) {
   return tokens.findIndex((t) => offset >= t.start && offset <= t.start + t.length);
 }
 
-// ---- member hover/completion for a named import's exports -----------------
+// ---- member hover/completion for a name a `use` brings in ------------------
 //
-// The pieces below let `screen.blank(...)` hover and `screen.bl|` complete,
+// The pieces below let `screen::blank(...)` hover and `screen::bl|` complete,
 // for exactly the shape that makes it possible without a binder: a name
-// bound by `import { X } from "specifier"` in *this* file, where `specifier`
-// resolves (see resolveModuleFile) to a real `.8bs` file on disk whose own
-// declarations can be read the same token-level way the rest of this module
-// already reads the current file.
+// bound by `use path::{X};` in *this* file, where the path resolves (see
+// resolveModuleFile) to a real `.8bs` file on disk whose own declarations
+// can be read the same token-level way the rest of this module already
+// reads the current file.
 
 /**
- * Every `import { a, b as c } from "specifier"` binding in `tokens`, as
- * `{ imported, local, specifier }`. Token-level and tolerant, like
- * resolver/index.mjs's findImports — a syntax error elsewhere in the file
- * must not stop an import earlier in it from being understood. A bare
- * `import "specifier"` binds no names, so it contributes nothing here.
+ * Every name a `use` brings in, as `{ imported, local, specifier, pathForm }`:
+ * `use self::geo::{a, b as c};` binds `a` and `c`, `use geo::a;` binds `a`.
+ * `specifier` is what the parser puts in `ImportDeclaration.source` (the
+ * same run `findImports` reads) and `pathForm` is true for a path (not a
+ * string) head, so the resolver searches the source extensions. Token-level
+ * and tolerant, like resolver/index.mjs's findImports — a syntax error
+ * elsewhere in the file must not stop a `use` earlier in it from being
+ * understood.
  */
 function findImportBindings(tokens) {
   const bindings = [];
-  for (let i = 0; i < tokens.length; i += 1) {
-    if (tokens[i].kind !== TokenKind.Keyword || tokens[i].text !== 'import') continue;
-    if (tokens[i + 1]?.text !== '{') continue;
-
-    const names = [];
-    let j = i + 2;
-    while (j < tokens.length && tokens[j].text !== '}') {
-      if (tokens[j].kind === TokenKind.Identifier) {
-        const imported = tokens[j].text;
-        let local = imported;
-        if (tokens[j + 1]?.kind === TokenKind.Keyword && tokens[j + 1].text === 'as' && tokens[j + 2]?.kind === TokenKind.Identifier) {
-          local = tokens[j + 2].text;
-          j += 2;
-        }
-        names.push({ imported, local });
-      }
+  const found = findImports(tokens);
+  const significant = tokens.filter((t) => t.kind !== TokenKind.Comment);
+  for (let i = 0; i < significant.length; i += 1) {
+    if (significant[i].kind !== TokenKind.Keyword || significant[i].text !== 'use') continue;
+    const run = [];
+    let j = i + 1;
+    while (j < significant.length && significant[j].text !== ';') {
+      run.push(significant[j]);
       j += 1;
     }
-    while (j < tokens.length && tokens[j].text !== 'from' && tokens[j].text !== ';') j += 1;
-    const source = tokens[j]?.text === 'from' ? tokens[j + 1] : null;
-    if (source?.kind === TokenKind.String) {
-      const specifier = source.text.slice(1, -1);
-      for (const name of names) bindings.push({ ...name, specifier });
+    const entry = found.find((f) => f.start >= run[0]?.start && f.start <= (run.at(-1)?.start ?? -1));
+    if (!entry) continue;
+    const open = run.findIndex((t) => t.text === '{');
+    if (open === -1) {
+      // `use p::name;` / `use p::name as local;`
+      const last = run.at(-1);
+      const aliased = run.at(-2)?.text === 'as' && run.at(-3)?.kind === TokenKind.Identifier;
+      if (last?.kind !== TokenKind.Identifier) continue;
+      bindings.push({ imported: aliased ? run.at(-3).text : last.text, local: last.text, specifier: entry.specifier, pathForm: Boolean(entry.pathForm) });
+      continue;
+    }
+    for (let k = open + 1; k < run.length; k += 1) {
+      if (run[k].kind !== TokenKind.Identifier) continue;
+      let local = run[k].text;
+      const imported = local;
+      if (run[k + 1]?.text === 'as' && run[k + 2]?.kind === TokenKind.Identifier) {
+        local = run[k + 2].text;
+        k += 2;
+      }
+      bindings.push({ imported, local, specifier: entry.specifier, pathForm: Boolean(entry.pathForm) });
     }
   }
   return bindings;
@@ -361,7 +374,7 @@ function commentText(token) {
 
 /**
  * The doc comment immediately before `declIndex` (an optional leading
- * `export` skipped over first, so a comment above `export function` still
+ * `pub` skipped over first, so a comment above `pub fn` still
  * attaches) — every contiguous `//`/`/* *\/` token with no blank line
  * between it and the declaration, or between it and the next comment up.
  * `null` when nothing is that tightly bound: a comment separated by a blank
@@ -369,7 +382,7 @@ function commentText(token) {
  */
 function leadingDoc(tokens, declIndex, text) {
   let anchor = declIndex;
-  if (tokens[anchor - 1]?.kind === TokenKind.Keyword && tokens[anchor - 1].text === 'export') anchor -= 1;
+  if (tokens[anchor - 1]?.kind === TokenKind.Keyword && tokens[anchor - 1].text === 'pub') anchor -= 1;
 
   let cursor = tokens[anchor].start;
   let k = anchor - 1;
@@ -394,8 +407,8 @@ function trailingDoc(tokens, index, text) {
 }
 
 /**
- * `function name(params): ReturnType { ...` starting at `tokens[i]` (the
- * `function` keyword) — its name, rendered signature, and the index of its
+ * `fn name(params) -> ReturnType { ...` starting at `tokens[i]` (the
+ * `fn` keyword) — its name, rendered signature, and the index of its
  * own opening `{` (left unconsumed: the caller's generic brace tracking
  * walks the body, so nothing inside it is mistaken for another member).
  * `null` if `tokens[i]` is not actually shaped like a function declaration.
@@ -417,8 +430,8 @@ function readFunctionSignature(tokens, i, text) {
   const params = text.slice(openParen.start + 1, closeParen.start).replace(/\s+/g, ' ').trim();
 
   let k = j + 1;
-  let returnType = 'void';
-  if (tokens[k]?.text === ':') {
+  let returnType = null;
+  if (tokens[k]?.text === '->') {
     const typeStart = tokens[k + 1]?.start;
     k += 1;
     while (tokens[k] && tokens[k].text !== '{') k += 1;
@@ -432,7 +445,7 @@ function readFunctionSignature(tokens, i, text) {
   return {
     kind: 'function',
     name: nameToken.text,
-    signature: `${nameToken.text}(${params}): ${returnType}`,
+    signature: returnType ? `${nameToken.text}(${params}) -> ${returnType}` : `${nameToken.text}(${params})`,
     bodyIndex: k,
   };
 }
@@ -468,13 +481,13 @@ function readConstSignature(tokens, i, text) {
 }
 
 /**
- * Every top-level `namespace` that `text` (a whole module file, one hop
+ * Every top-level `mod` that `text` (a whole module file, one hop
  * away through an import, not the document being edited) declares, as
  * `Map<namespaceName, Map<memberName, MemberInfo>>`.
  *
- * Only namespaces, because that is the only shape a hardware API's module
- * exports today — `export namespace screen { ... }`, never a bare top-level
- * `export function`/`export const` (every package's src/ follows this; see
+ * Only mods, because that is the only shape a hardware API's module
+ * exports today — `pub mod screen { ... }`, never a bare top-level
+ * `pub fn`/`pub const` (every package's src/ follows this; see
  * the intellisense tests) — and a bare `import { x } from "..."` binding an
  * unrecognized name already falls through to "no member info" honestly, the
  * same as any other name this module cannot explain.
@@ -499,7 +512,7 @@ export function scanModule(text) {
   while (i < tokens.length) {
     const token = tokens[i];
 
-    if (!container && depth === 0 && token.kind === TokenKind.Keyword && token.text === 'namespace') {
+    if (!container && depth === 0 && token.kind === TokenKind.Keyword && token.text === 'mod') {
       const nameToken = tokens[i + 1];
       if (nameToken?.kind === TokenKind.Identifier && tokens[i + 2]?.text === '{') {
         const members = new Map();
@@ -511,7 +524,7 @@ export function scanModule(text) {
       }
     }
 
-    if (container && depth === container.depth && token.kind === TokenKind.Keyword && token.text === 'function') {
+    if (container && depth === container.depth && token.kind === TokenKind.Keyword && token.text === 'fn') {
       const info = readFunctionSignature(tokens, i, text);
       if (info) {
         info.doc = leadingDoc(tokens, i, text);
@@ -665,8 +678,8 @@ function mergeNamespace(name, branches) {
  */
 function memberMarkdown(objectName, member, context) {
   const heading = member.kind === 'function'
-    ? `**${objectName}.${member.signature}**`
-    : `**${objectName}.${member.signature}**${member.value ? ` = ${member.value}` : ''}`;
+    ? `**${objectName}::${member.signature}**`
+    : `**${objectName}::${member.signature}**${member.value ? ` = ${member.value}` : ''}`;
   const lines = [heading, ''];
 
   if (!context.portable) {
@@ -699,7 +712,7 @@ function memberMarkdown(objectName, member, context) {
   }
 
   for (const [machine, signature] of member.dissent) {
-    lines.push(`On ${machine}: \`${objectName}.${signature}\``, '');
+    lines.push(`On ${machine}: \`${objectName}::${signature}\``, '');
   }
 
   if (context.portable) {
@@ -730,7 +743,7 @@ function memberMarkdown(objectName, member, context) {
 function importedNamespace(tokens, local, fromFile, resolverOptions = {}, machine = null) {
   const binding = findImportBindings(tokens).find((b) => b.local === local);
   if (!binding) return null;
-  const resolved = resolvePortableModule(binding.specifier, fromFile, resolverOptions);
+  const resolved = resolvePortableModule(binding.specifier, fromFile, { ...resolverOptions, pathForm: binding.pathForm });
   if (!resolved) return null;
 
   if (!resolved.conditional) {
@@ -846,7 +859,7 @@ function hoverAt(tokens, offset, text, filePath, resolverOptions = {}, machine =
     return { start: token.start, length: token.length, markdown: CONSTRUCT_DOCS.asm6502.markdown };
   }
 
-  if (token.kind === TokenKind.Decorator && token.text.slice(1) === 'address') {
+  if (token.kind === TokenKind.Identifier && token.text === 'address' && tokens[index - 1]?.text === '#[') {
     return { start: token.start, length: token.length, markdown: CONSTRUCT_DOCS.address.markdown };
   }
 
@@ -860,7 +873,7 @@ function hoverAt(tokens, offset, text, filePath, resolverOptions = {}, machine =
   if (token.kind === TokenKind.Identifier) {
     const dot = tokens[index - 1];
     const object = tokens[index - 2];
-    if (dot?.text === '.' && object?.kind === TokenKind.Identifier) {
+    if (isMemberSeparator(dot) && object?.kind === TokenKind.Identifier) {
       const namespace = importedNamespace(outerTokens, object.text, filePath, resolverOptions, machine.machine);
       const member = namespace?.members.get(token.text);
       if (member) {
@@ -876,10 +889,10 @@ function hoverAt(tokens, offset, text, filePath, resolverOptions = {}, machine =
   if (token.kind === TokenKind.Identifier && (token.text === 'read' || token.text === 'write')) {
     const dot = tokens[index - 1];
     const object = tokens[index - 2];
-    if (dot?.text === '.' && object?.kind === TokenKind.Identifier && object.text === 'memory') {
+    if (isMemberSeparator(dot) && object?.kind === TokenKind.Identifier && object.text === 'memory') {
       return { start: token.start, length: token.length, markdown: MEMORY_DOCS[token.text] };
     }
-    if (dot?.text === '.' && object?.kind === TokenKind.Identifier && object.text === 'port') {
+    if (isMemberSeparator(dot) && object?.kind === TokenKind.Identifier && object.text === 'port') {
       return { start: token.start, length: token.length, markdown: PORT_DOCS[token.text] };
     }
   }
@@ -1041,7 +1054,7 @@ function isDurationUnitPosition(tokens, offset) {
 
 /**
  * The object name right before the cursor, when the cursor sits right after
- * its `.` — `screen.|` or `screen.bl|` — both `null` and `object` come back
+ * its `::` (or `.`) — `screen::|` or `screen::bl|` — both `null` and `object` come back
  * `undefined`/absent when it does not, e.g. `#fact(video.col|)`, which
  * isFactKeyPosition already claims first in completionsAt so this is never
  * reached for it.
@@ -1050,7 +1063,7 @@ function memberPosition(tokens, offset) {
   const { before, i } = contextIndex(tokens, offset);
   const dot = before[i];
   const object = before[i - 1];
-  return dot?.text === '.' && object?.kind === TokenKind.Identifier ? object.text : null;
+  return isMemberSeparator(dot) && object?.kind === TokenKind.Identifier ? object.text : null;
 }
 
 /**

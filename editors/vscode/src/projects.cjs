@@ -25,13 +25,11 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-// 8bitscript.config.8bs is the current name; 8bitscript.config.ts (0.4.0
-// through 0.22.x) and the older 8bs.config.ts (every project through
-// 0.3.0) still mark a project so existing ones keep working. Checked in
-// this order — the same order as the CLI's own loader
-// (packages/cli/src/config.mjs), so a directory with more than one is
-// one project under the newest name, never two.
-const CONFIG_FILENAMES = ['8bitscript.config.8bs', '8bitscript.config.ts', '8bs.config.ts'];
+// 8bitscript.config.ts is the current name; the older 8bs.config.ts (every
+// project through 0.3.0) still marks a project. Checked in this order, the
+// same as the CLI's own loader (packages/cli/src/config.mjs), so a directory
+// with more than one is one project under the newest name, never two.
+const CONFIG_FILENAMES = ['8bitscript.config.ts', '8bs.config.ts'];
 
 // The canonical name, for messages that talk about the file in the abstract.
 const CONFIG_FILE = CONFIG_FILENAMES[0];

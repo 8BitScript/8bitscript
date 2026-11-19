@@ -139,12 +139,6 @@ test('findImports equals the parsed import sources', () => {
   assert.deepEqual(findImports(tokens).map((i) => i.specifier), sources);
 });
 
-test('findImports still reads the old import syntax', async () => {
-  const old = await import('../src/lexer/index.mjs');
-  const src = 'import { a } from "./geo.8bs";\nimport "./raw.8bs";';
-  assert.deepEqual(findImports(old.tokenize(src, 't.8bs').tokens).map((i) => i.specifier), ['./geo.8bs', './raw.8bs']);
-});
-
 const PATH = { pathForm: true };
 const tree = (files) => {
   const root = mkdtempSync(join(tmpdir(), '8bs-flip-'));
@@ -196,15 +190,13 @@ test('resolver: alias path form searches too, and resolveImports reports on the 
   assert.equal(src.slice(found[0].start, found[0].start + found[0].length), 'self::missing');
 });
 
-test('old import syntax: an extensionless relative or alias specifier is still not resolved', () => {
-  const root = tree({ 'src/main.8bs': '', 'src/geo.8bs': '', 'src/lib/rules.8bs': '' });
+test('old import syntax is the old-syntax error (E21), not a resolved import', () => {
+  const root = tree({ 'src/main.8bs': '', 'src/geo.8bs': '' });
   const from = join(root, 'src', 'main.8bs');
-  const importAliases = { '@lib': join(root, 'src', 'lib') };
   assert.equal(resolveSpecifier('./geo', from), null);
-  assert.equal(resolveSpecifier('@lib/rules', from, { importAliases }), null);
   const oldText = 'import { f } from "./geo";\nexport function main(): void { f(); }\n';
   const { diagnostics } = link(oldText, from);
-  assert.ok(diagnostics.some((d) => d.code === '8BS3001'), JSON.stringify(diagnostics.map((d) => d.code)));
+  assert.ok(diagnostics.some((d) => /8bs migrate/.test(d.message)), JSON.stringify(diagnostics.map((d) => d.code)));
 });
 
 test('pathFormSpecifiers and withPathForm: only a use run is a path form', () => {

@@ -9,8 +9,7 @@
 // implementation.
 import { readFileSync } from 'node:fs';
 
-import { tokenize } from './src/lexer/index.mjs';
-import { parse } from './src/parser/index.mjs';
+import { parse, tokenize } from './src/front/index.mjs';
 import { check } from './src/checker/index.mjs';
 import { foldCompileTime } from './src/fold/index.mjs';
 import { lower } from './src/ir/index.mjs';
@@ -22,11 +21,9 @@ import { checkBx } from './src/bx/check.mjs';
 import { elaborateBx } from './src/bx/elaborate.mjs';
 import { analyzeMedia, isMediaKind } from './src/media/index.mjs';
 
-export { tokenize, TokenKind, KEYWORDS, TYPE_NAMES } from './src/lexer/index.mjs';
-export { parse, normalizeBxText } from './src/parser/index.mjs';
+export { tokenize, parse, TokenKind, KEYWORDS, TYPE_NAMES, normalizeBxText } from './src/front/index.mjs';
 export { NodeType, walk } from './src/ast/index.mjs';
 export { check } from './src/checker/index.mjs';
-export { scopeLookup, scopeStoreTarget, scopeTargetOf, walkScopes } from './src/checker/scopes.mjs';
 export { bind, bindImports, bindImportedComponents, componentOf, SymbolKind, resolveSymbol } from './src/binder/index.mjs';
 export { foldCompileTime, DURATION_CLOCKS, DURATION_UNITS, SYSTEMS, DEFINE_NAME, defineKind } from './src/fold/index.mjs';
 export {

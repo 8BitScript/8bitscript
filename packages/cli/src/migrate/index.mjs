@@ -17,9 +17,10 @@
 // `--check` writes nothing and exits 1 on any difference or failure.
 import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { basename, extname, join, relative, resolve, sep } from 'node:path';
-import { parse, tokenize } from '@8bitscript/compiler';
 import { check as proveEqual, parse as parseNew, tokenize as tokenizeNew } from '@8bitscript/compiler/front';
 import { convertEmbedded, convertFences } from './embedded.mjs';
+import { tokenize } from './legacy/lexer.mjs';
+import { parse } from './legacy/parser.mjs';
 import { UnsupportedError, printProgram } from './print.mjs';
 
 const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'target', '.changeset', '.fleet-out', 'coverage']);

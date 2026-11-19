@@ -34,8 +34,7 @@
 //     assembly should prefer names unlikely to collide.
 import { readFileSync, realpathSync } from 'node:fs';
 
-import { tokenize } from '../lexer/index.mjs';
-import { parse } from '../parser/index.mjs';
+import { parse, tokenize } from '../front/index.mjs';
 import { check } from '../checker/index.mjs';
 import { foldCompileTime } from '../fold/index.mjs';
 import { FACTS, factConstName } from '../fold/facts.mjs';
@@ -627,7 +626,7 @@ function bindImports(modules, diagnostics) {
         if (imp.module.decls.get(spec.imported) !== true) {
           diagnostics.push(diagnostic(
             Codes.NO_SUCH_EXPORT,
-            `'${spec.imported}' is not exported by '${imp.source}'`,
+            `'${spec.imported}' is not pub in '${imp.source}'`,
             module.file, spec.start, spec.length,
           ));
           continue;
@@ -867,20 +866,20 @@ function rewriteExpression(expr, scope, module, diagnostics) {
       if (!result.namespaceFound) {
         diagnostics.push(diagnostic(
           Codes.UNRESOLVED_NAME,
-          `cannot find namespace '${expr.namespace}'`,
+          `cannot find mod '${expr.namespace}'`,
           module.file, expr.start ?? 0, expr.length ?? 0,
         ));
       } else if (!result.memberFound) {
         diagnostics.push(diagnostic(
           Codes.NO_SUCH_EXPORT,
-          `'${expr.member}' is not a function in namespace '${expr.namespace}'`,
+          `'${expr.member}' is not a fn in mod '${expr.namespace}'`,
           module.file, expr.start ?? 0, expr.length ?? 0,
         ));
       } else {
         // Once resolved, a namespace call IS a plain call — same shape the
         // rest of the pipeline (and both backends) already understand.
         expr.kind = 'call';
-        expr.original = `${expr.namespace}.${expr.member}`;
+        expr.original = `${expr.namespace}::${expr.member}`;
         expr.name = result.targetModule.rename.get(result.value);
         delete expr.namespace;
         delete expr.member;
@@ -931,7 +930,7 @@ function rewriteExpression(expr, scope, module, diagnostics) {
       if (!result.namespaceFound) {
         diagnostics.push(diagnostic(
           Codes.UNRESOLVED_NAME,
-          `cannot find namespace '${expr.namespace}'`,
+          `cannot find mod '${expr.namespace}'`,
           module.file, expr.start ?? 0, expr.length ?? 0,
         ));
       } else if (!result.memberFound) {
@@ -1181,22 +1180,22 @@ function checkEntryExports(module) {
   const namespaces = (module.ir.namespaces ?? []).filter((ns) => ns.exported);
 
   for (const g of globals) {
-    at(g, `the entry module may export only its entry function; '${g.name}' is a global`);
+    at(g, `the entry module may pub only its entry fn; '${g.name}' is a global`);
   }
   for (const ns of namespaces) {
-    at(ns, `the entry module may export only its entry function; '${ns.name}' is a namespace`);
+    at(ns, `the entry module may pub only its entry fn; '${ns.name}' is a mod`);
   }
   if (functions.length === 0) {
     if (globals.length === 0 && namespaces.length === 0) {
-      at({}, 'the entry module exports nothing; export exactly one function to be the program');
+      at({}, 'the entry module has nothing pub; make exactly one fn pub to be the program');
     } else {
-      at({}, 'the entry module exports no function; export exactly one to be the program');
+      at({}, 'the entry module has no pub fn; make exactly one pub to be the program');
     }
     return { name: null, diagnostics };
   }
   if (functions.length > 1) {
     for (const fn of functions) {
-      at(fn, `the entry module must export exactly one function, its entry point; '${fn.name}' is one of ${functions.length}`);
+      at(fn, `the entry module must have exactly one pub fn, its entry point; '${fn.name}' is one of ${functions.length}`);
     }
     return { name: null, diagnostics };
   }

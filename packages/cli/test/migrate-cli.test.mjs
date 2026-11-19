@@ -413,3 +413,20 @@ test('E20 over the converted corpus: no immutable let is ever assigned', () => {
   }
   assert.deepEqual(violations, []);
 });
+
+// ---- F-01b: the old front end lives only here, and the config name ---------------
+
+test('the legacy lexer and parser still read the old syntax for migrate', async () => {
+  const { tokenize } = await import('../src/migrate/legacy/lexer.mjs');
+  const { parse } = await import('../src/migrate/legacy/parser.mjs');
+  const src = 'import { a } from "./geo.8bs";\nexport namespace m { function f(): void {} }\n';
+  const { tokens } = tokenize(src, 't.8bs');
+  const { ast, diagnostics } = parse(tokens, src, 't.8bs');
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(ast.body.map((n) => n.type), ['ImportDeclaration', 'NamespaceDeclaration']);
+});
+
+test('CONFIG_FILENAMES names 8bitscript.config.ts and 8bs.config.ts only', async () => {
+  const { CONFIG_FILENAMES } = await import('../src/config.mjs');
+  assert.deepEqual(CONFIG_FILENAMES, ['8bitscript.config.ts', '8bs.config.ts']);
+});
