@@ -1,0 +1,173 @@
+{
+  "body": [
+    {
+      "length": 38,
+      "source": {
+        "length": 11,
+        "start": 135,
+        "type": "StringLiteral",
+        "value": "./geo.8bs"
+      },
+      "specifiers": [
+        {
+          "length": 1,
+          "name": "a",
+          "start": 118,
+          "type": "Identifier"
+        },
+        {
+          "imported": "b",
+          "length": 1,
+          "name": "c",
+          "start": 121,
+          "type": "Identifier"
+        }
+      ],
+      "start": 109,
+      "type": "ImportDeclaration"
+    },
+    {
+      "length": 37,
+      "source": {
+        "length": 18,
+        "start": 166,
+        "type": "StringLiteral",
+        "value": "../src/index.8bs"
+      },
+      "specifiers": [
+        {
+          "length": 1,
+          "name": "d",
+          "start": 157,
+          "type": "Identifier"
+        }
+      ],
+      "start": 148,
+      "type": "ImportDeclaration"
+    },
+    {
+      "length": 62,
+      "source": {
+        "length": 25,
+        "start": 222,
+        "type": "StringLiteral",
+        "value": "@8bitscript/c64/sprites"
+      },
+      "specifiers": [
+        {
+          "imported": "sprites",
+          "length": 7,
+          "name": "hardware",
+          "start": 195,
+          "type": "Identifier"
+        }
+      ],
+      "start": 186,
+      "type": "ImportDeclaration"
+    },
+    {
+      "length": 43,
+      "source": {
+        "length": 21,
+        "start": 270,
+        "type": "StringLiteral",
+        "value": "@lib/game/rules.8bs"
+      },
+      "specifiers": [
+        {
+          "length": 1,
+          "name": "e",
+          "start": 258,
+          "type": "Identifier"
+        },
+        {
+          "length": 1,
+          "name": "f",
+          "start": 261,
+          "type": "Identifier"
+        }
+      ],
+      "start": 249,
+      "type": "ImportDeclaration"
+    },
+    {
+      "length": 24,
+      "source": {
+        "length": 5,
+        "start": 311,
+        "type": "StringLiteral",
+        "value": "foo"
+      },
+      "specifiers": [
+        {
+          "length": 1,
+          "name": "g",
+          "start": 302,
+          "type": "Identifier"
+        }
+      ],
+      "start": 293,
+      "type": "ImportDeclaration"
+    },
+    {
+      "length": 40,
+      "source": {
+        "length": 21,
+        "start": 336,
+        "type": "StringLiteral",
+        "value": "./number-values.8bs"
+      },
+      "specifiers": [
+        {
+          "length": 1,
+          "name": "h",
+          "start": 327,
+          "type": "Identifier"
+        }
+      ],
+      "start": 318,
+      "type": "ImportDeclaration"
+    },
+    {
+      "length": 34,
+      "source": {
+        "length": 12,
+        "start": 380,
+        "type": "StringLiteral",
+        "value": "./mark.8bg"
+      },
+      "specifiers": [
+        {
+          "length": 4,
+          "name": "mark",
+          "start": 368,
+          "type": "Identifier"
+        }
+      ],
+      "start": 359,
+      "type": "ImportDeclaration"
+    },
+    {
+      "length": 32,
+      "source": {
+        "length": 11,
+        "start": 414,
+        "type": "StringLiteral",
+        "value": "./geo.8bs"
+      },
+      "specifiers": [
+        {
+          "length": 3,
+          "name": "one",
+          "start": 403,
+          "type": "Identifier"
+        }
+      ],
+      "start": 394,
+      "type": "ImportDeclaration"
+    }
+  ],
+  "length": 427,
+  "start": 0,
+  "type": "Program"
+}

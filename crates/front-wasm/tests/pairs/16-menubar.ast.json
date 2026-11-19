@@ -1,0 +1,244 @@
+{
+  "body": [
+    {
+      "length": 27,
+      "source": {
+        "length": 13,
+        "start": 458,
+        "type": "StringLiteral",
+        "value": "./menubar"
+      },
+      "specifiers": [
+        {
+          "length": 7,
+          "name": "menubar",
+          "start": 473,
+          "type": "Identifier"
+        }
+      ],
+      "start": 454,
+      "type": "ImportDeclaration",
+      "usePath": true
+    },
+    {
+      "allowsChildren": true,
+      "body": {
+        "body": [
+          {
+            "expression": {
+              "args": [
+                {
+                  "length": 3,
+                  "name": "row",
+                  "start": 559,
+                  "type": "Identifier"
+                },
+                {
+                  "length": 5,
+                  "name": "width",
+                  "start": 564,
+                  "type": "Identifier"
+                }
+              ],
+              "callee": {
+                "length": 14,
+                "object": {
+                  "length": 7,
+                  "name": "menubar",
+                  "start": 544,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 5,
+                  "name": "begin",
+                  "start": 553,
+                  "type": "Identifier"
+                },
+                "start": 544,
+                "type": "MemberExpression"
+              },
+              "length": 26,
+              "start": 544,
+              "type": "CallExpression"
+            },
+            "length": 27,
+            "start": 544,
+            "type": "ExpressionStatement"
+          },
+          {
+            "attributes": [],
+            "children": [],
+            "length": 8,
+            "name": "slot",
+            "selfClosing": true,
+            "start": 576,
+            "type": "BxElement"
+          },
+          {
+            "expression": {
+              "args": [],
+              "callee": {
+                "length": 12,
+                "object": {
+                  "length": 7,
+                  "name": "menubar",
+                  "start": 590,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 3,
+                  "name": "end",
+                  "start": 599,
+                  "type": "Identifier"
+                },
+                "start": 590,
+                "type": "MemberExpression"
+              },
+              "length": 14,
+              "start": 590,
+              "type": "CallExpression"
+            },
+            "length": 15,
+            "start": 590,
+            "type": "ExpressionStatement"
+          }
+        ],
+        "length": 69,
+        "start": 538,
+        "type": "BlockStatement"
+      },
+      "exported": true,
+      "length": 124,
+      "name": {
+        "length": 7,
+        "name": "MenuBar",
+        "start": 497,
+        "type": "Identifier"
+      },
+      "params": [
+        {
+          "defaultValue": null,
+          "length": 13,
+          "name": {
+            "length": 3,
+            "name": "row",
+            "start": 505,
+            "type": "Identifier"
+          },
+          "optional": false,
+          "start": 505,
+          "type": "Parameter",
+          "typeAnnotation": {
+            "length": 8,
+            "name": "utinyint",
+            "start": 510,
+            "type": "TypeReference",
+            "typeArguments": []
+          }
+        },
+        {
+          "defaultValue": null,
+          "length": 16,
+          "name": {
+            "length": 5,
+            "name": "width",
+            "start": 520,
+            "type": "Identifier"
+          },
+          "optional": false,
+          "start": 520,
+          "type": "Parameter",
+          "typeAnnotation": {
+            "length": 9,
+            "name": "usmallint",
+            "start": 527,
+            "type": "TypeReference",
+            "typeArguments": []
+          }
+        }
+      ],
+      "start": 483,
+      "type": "ComponentDeclaration"
+    },
+    {
+      "allowsChildren": false,
+      "body": {
+        "body": [
+          {
+            "expression": {
+              "args": [
+                {
+                  "length": 5,
+                  "name": "label",
+                  "start": 667,
+                  "type": "Identifier"
+                }
+              ],
+              "callee": {
+                "length": 13,
+                "object": {
+                  "length": 7,
+                  "name": "menubar",
+                  "start": 653,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 4,
+                  "name": "item",
+                  "start": 662,
+                  "type": "Identifier"
+                },
+                "start": 653,
+                "type": "MemberExpression"
+              },
+              "length": 20,
+              "start": 653,
+              "type": "CallExpression"
+            },
+            "length": 21,
+            "start": 653,
+            "type": "ExpressionStatement"
+          }
+        ],
+        "length": 29,
+        "start": 647,
+        "type": "BlockStatement"
+      },
+      "exported": true,
+      "length": 67,
+      "name": {
+        "length": 8,
+        "name": "MenuItem",
+        "start": 623,
+        "type": "Identifier"
+      },
+      "params": [
+        {
+          "defaultValue": null,
+          "length": 13,
+          "name": {
+            "length": 5,
+            "name": "label",
+            "start": 632,
+            "type": "Identifier"
+          },
+          "optional": false,
+          "start": 632,
+          "type": "Parameter",
+          "typeAnnotation": {
+            "length": 6,
+            "name": "string",
+            "start": 639,
+            "type": "TypeReference",
+            "typeArguments": []
+          }
+        }
+      ],
+      "start": 609,
+      "type": "ComponentDeclaration"
+    }
+  ],
+  "length": 677,
+  "start": 0,
+  "type": "Program"
+}

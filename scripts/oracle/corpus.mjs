@@ -5,7 +5,16 @@
 // whatever directory the checkout lives in, so nothing here lets a path leak
 // into a hash.
 //
-//   node scripts/oracle/corpus.mjs [--sha-only] --out <dir> [--jobs <n>] [--only <text>]
+//   node scripts/oracle/corpus.mjs [--sha-only | --dump] --out <dir> [--jobs <n>] [--only <text>] [--tap <dir>]
+//
+// With --dump, every build also writes its stage dumps (8bs build
+// --dump-stages) under `<out>/<project>/<program>/<target>/`, each project's
+// release matrix under `<out>/<project>/release/<output file>/`, and the front
+// end of every source file under `<out>/fe/<tokpath>/` (frontend.mjs).
+// sha256.txt is the same file with or without --dump.
+//
+// With --tap, every build also records the inputs and outputs of the tapped
+// 6502 back end functions under <tap dir>/<corpus id>/ (scripts/oracle/mos-tap).
 //
 // The corpus is the in-repo projects (every directory under packages/ with an
 // 8bitscript.config.8bs or .ts) plus the game repos pinned in
@@ -16,13 +25,16 @@ import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir, availableParallelism } from 'node:os';
 import { dirname, join, relative, resolve, sep } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+
+import { dumpFrontend, findSources, rootsFor } from './frontend.mjs';
 import { promisify } from 'node:util';
 
 const run = promisify(execFile);
 
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const CLI = join(ROOT, 'packages', 'cli', 'bin', '8bs.mjs');
+const TAP_REGISTER = join(ROOT, 'scripts', 'oracle', 'mos-tap', 'register.mjs');
 const CONFIG_NAMES = new Set(['8bitscript.config.8bs', '8bitscript.config.ts']);
 const BUILD_TIMEOUT_MS = 300000;
 const GIT_CANDIDATES = ['/usr/bin/git', '/usr/local/bin/git', '/opt/homebrew/bin/git'];
@@ -101,23 +113,65 @@ function cliArgs(extra, checkout) {
   return checkout ? [CLI, ...extra, '--checkout', checkout] : [CLI, ...extra];
 }
 
+/** The environment of a build child: a dump directory set in the caller's environment must not leak in. */
+export function childEnv(env = process.env) {
+  const rest = { ...env };
+  delete rest.EIGHTBS_DUMP_STAGES;
+  return rest;
+}
+
+/** The `--dump-stages <dir>` arguments, or none when the run does not dump. */
+export function dumpArgs(dumpDir) {
+  return dumpDir ? ['--dump-stages', dumpDir] : [];
+}
+
 async function projectInfo(project) {
   const { stdout } = await run(process.execPath, cliArgs(['project', '--json'], project.checkout), {
-    cwd: project.dir, maxBuffer: 64 * 1024 * 1024, timeout: BUILD_TIMEOUT_MS,
+    cwd: project.dir, env: childEnv(), maxBuffer: 64 * 1024 * 1024, timeout: BUILD_TIMEOUT_MS,
   });
   return JSON.parse(stdout);
 }
 
-async function buildOne(project, { program, target }) {
+/**
+ * The environment of one build. With a tap directory the build loads the tap's
+ * resolve hook and records into `<tapDir>/<id>`; without one it is `base` as is.
+ */
+export function buildEnv(base, tapDir, id, project) {
+  if (!tapDir) return base;
+  const options = `${base.NODE_OPTIONS ?? ''} --import=${pathToFileURL(TAP_REGISTER).href}`.trim();
+  return {
+    ...base,
+    NODE_OPTIONS: options,
+    EIGHTBS_MOS_TAP: join(tapDir, ...id.split('/')),
+    EIGHTBS_MOS_TAP_ROOTS: JSON.stringify({ toolchain: ROOT, project: project.dir }),
+  };
+}
+
+async function buildOne(project, { program, target }, out, tapDir) {
   const id = `${project.id}/${program}/${target}`;
-  const args = cliArgs(['build', '--target', target, '--program', program], project.checkout);
+  const dumpDir = out ? join(out, project.id, program, target) : null;
+  const args = cliArgs(['build', '--target', target, '--program', program, ...dumpArgs(dumpDir)], project.checkout);
   try {
     const { stdout } = await run(process.execPath, args, {
       cwd: project.dir, maxBuffer: 64 * 1024 * 1024, timeout: BUILD_TIMEOUT_MS,
+      env: buildEnv(childEnv(), tapDir, id, project),
     });
     const file = builtPath(stdout);
     if (!file) return { id, error: 'no "built <path>" line in the output' };
     return { id, sha: sha256Of(readFileSync(file)) };
+  } catch (err) {
+    const text = `${err.stderr ?? ''}${err.stdout ?? ''}`.trim().split('\n').slice(0, 5).join('\n');
+    return { id, error: text || String(err.message) };
+  }
+}
+
+/** The project's whole release matrix, its stage dumps under `<out>/<project>/release/`. */
+async function releaseOne(project, out) {
+  const id = `${project.id}/release`;
+  const args = cliArgs(['build', '--release', ...dumpArgs(join(out, project.id, 'release'))], project.checkout);
+  try {
+    await run(process.execPath, args, { cwd: project.dir, env: childEnv(), maxBuffer: 64 * 1024 * 1024, timeout: BUILD_TIMEOUT_MS });
+    return { id };
   } catch (err) {
     const text = `${err.stderr ?? ''}${err.stdout ?? ''}`.trim().split('\n').slice(0, 5).join('\n');
     return { id, error: text || String(err.message) };
@@ -153,8 +207,23 @@ function cloneGame(game, dest) {
   if (head !== game.sha) throw new Error(`${game.name}: checked out ${head}, expected ${game.sha}`);
 }
 
+/** The source files whose front end is dumped: this checkout, and each game's `src/`. */
+export function frontendGroups(projects) {
+  const groups = [{ files: findSources(ROOT), roots: rootsFor(ROOT) }];
+  for (const project of projects.filter((p) => p.checkout)) {
+    groups.push({ files: findSources(join(project.dir, 'src')), roots: rootsFor(ROOT, project.dir), id: project.id });
+  }
+  return groups;
+}
+
+/** Removes what an earlier dump left for the selected projects (and the front end), so runs never mix. */
+export function clearDumps(out, selected, withFrontend) {
+  for (const project of selected) rmSync(join(out, project.id), { recursive: true, force: true });
+  if (withFrontend) rmSync(join(out, 'fe'), { recursive: true, force: true });
+}
+
 export function parseArgs(argv) {
-  const options = { out: null, jobs: Math.min(4, availableParallelism()), only: null, shaOnly: true };
+  const options = { out: null, jobs: Math.min(4, availableParallelism()), only: null, shaOnly: true, dump: false, tap: null };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     const value = () => {
@@ -162,12 +231,15 @@ export function parseArgs(argv) {
       return argv[++i];
     };
     if (arg === '--sha-only') options.shaOnly = true;
+    else if (arg === '--dump') options.dump = true;
     else if (arg === '--out') options.out = resolve(value());
     else if (arg === '--jobs') options.jobs = Math.max(1, Number.parseInt(value(), 10) || 1);
     else if (arg === '--only') options.only = value();
+    else if (arg === '--tap') options.tap = resolve(value());
     else throw new Error(`unknown argument ${arg}`);
   }
   if (!options.out) throw new Error('--out <dir> is required');
+  if (options.dump && argv.includes('--sha-only')) throw new Error('--dump and --sha-only exclude each other');
   return options;
 }
 
@@ -175,6 +247,7 @@ async function main() {
   const options = parseArgs(process.argv.slice(2));
   const corpus = JSON.parse(readFileSync(join(ROOT, 'oracle', 'corpus.json'), 'utf8'));
   rmSync(join(options.out, 'sha256.txt'), { force: true });
+  if (options.tap) rmSync(options.tap, { recursive: true, force: true });
   const scratch = mkdtempSync(join(tmpdir(), 'oracle-corpus-'));
   try {
     const projects = findProjects(join(ROOT, 'packages')).map((p) => ({ ...p, checkout: null }));
@@ -184,6 +257,7 @@ async function main() {
       projects.push({ id: game.name, dir, checkout: ROOT });
     }
     const selected = selectProjects(projects, options.only);
+    if (options.dump) clearDumps(options.out, selected, !options.only);
 
     // Builds of one project and target share dist/.8bs-last-<target>.json, so
     // they run one after another; different targets and projects overlap.
@@ -192,7 +266,7 @@ async function main() {
       for (const build of requireBuilds(project, await projectInfo(project))) {
         const key = `${project.id}\0${build.target}`;
         if (!queues.has(key)) queues.set(key, []);
-        queues.get(key).push(() => buildOne(project, build));
+        queues.get(key).push(() => buildOne(project, build, options.dump ? options.out : null, options.tap));
       }
     }
     const batches = [...queues.values()].map((queue) => async () => {
@@ -201,8 +275,12 @@ async function main() {
       return done;
     });
     const results = (await pool(batches, options.jobs)).flat();
+    // Release matrices come after every other build: they share dist/ with them.
+    const releases = options.dump
+      ? await pool(selected.map((project) => () => releaseOne(project, options.out)), options.jobs)
+      : [];
 
-    const failures = results.filter((r) => r.error);
+    const failures = [...results, ...releases].filter((r) => r.error);
     for (const f of failures) process.stderr.write(`FAIL ${f.id}\n${f.error}\n`);
     if (failures.length > 0) {
       process.stderr.write(`corpus: ${failures.length} of ${results.length} builds failed\n`);
@@ -212,6 +290,10 @@ async function main() {
     mkdirSync(options.out, { recursive: true });
     writeFileSync(join(options.out, 'sha256.txt'), formatSha(results));
     process.stdout.write(`corpus: ${results.length} builds ok\n`);
+    if (options.dump && !options.only) {
+      const written = dumpFrontend(frontendGroups(projects), options.out);
+      process.stdout.write(`corpus: front end dumped, ${written} files\n`);
+    }
   } finally {
     rmSync(scratch, { recursive: true, force: true });
   }

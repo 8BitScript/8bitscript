@@ -1,0 +1,14 @@
+// rows: memory and ports, casts, logic and bitwise, increment, conditional, compile-time calls, inline assembly
+fn f() {
+    memory::write(1, 2);
+    port::x(3);
+    let a = u8(x);
+    let b = !c && d || e;
+    let m = ~x & y | z ^ w;
+    x += 1;
+    y -= 1;
+    let t = if c { 1 } else { 2 };
+    let w = #frames(2, seconds);
+    #fact("x");
+    asm6502 { lda #1 }
+}

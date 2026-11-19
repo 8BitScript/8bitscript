@@ -1,0 +1,878 @@
+{
+  "body": [
+    {
+      "length": 41,
+      "source": {
+        "length": 17,
+        "start": 234,
+        "type": "StringLiteral",
+        "value": "@8bitscript/text"
+      },
+      "specifiers": [
+        {
+          "length": 4,
+          "name": "text",
+          "start": 254,
+          "type": "Identifier"
+        },
+        {
+          "length": 9,
+          "name": "TextColor",
+          "start": 260,
+          "type": "Identifier"
+        }
+      ],
+      "start": 230,
+      "type": "ImportDeclaration",
+      "usePath": true
+    },
+    {
+      "allowsChildren": false,
+      "body": {
+        "body": [
+          {
+            "exported": false,
+            "immutable": true,
+            "initializer": {
+              "args": [],
+              "callee": {
+                "length": 13,
+                "object": {
+                  "length": 4,
+                  "name": "text",
+                  "start": 333,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 7,
+                  "name": "columns",
+                  "start": 339,
+                  "type": "Identifier"
+                },
+                "start": 333,
+                "type": "MemberExpression"
+              },
+              "length": 15,
+              "start": 333,
+              "type": "CallExpression"
+            },
+            "kind": "let",
+            "length": 41,
+            "name": {
+              "length": 7,
+              "name": "columns",
+              "start": 312,
+              "type": "Identifier"
+            },
+            "start": 308,
+            "type": "VariableDeclaration",
+            "typeAnnotation": {
+              "length": 9,
+              "name": "usmallint",
+              "start": 321,
+              "type": "TypeReference",
+              "typeArguments": []
+            }
+          },
+          {
+            "exported": false,
+            "immutable": true,
+            "initializer": {
+              "left": {
+                "left": {
+                  "args": [],
+                  "callee": {
+                    "length": 10,
+                    "object": {
+                      "length": 4,
+                      "name": "text",
+                      "start": 376,
+                      "type": "Identifier"
+                    },
+                    "property": {
+                      "length": 4,
+                      "name": "rows",
+                      "start": 382,
+                      "type": "Identifier"
+                    },
+                    "start": 376,
+                    "type": "MemberExpression"
+                  },
+                  "length": 12,
+                  "start": 376,
+                  "type": "CallExpression"
+                },
+                "length": 16,
+                "operator": "-",
+                "right": {
+                  "length": 1,
+                  "radix": 10,
+                  "raw": "1",
+                  "start": 391,
+                  "type": "IntegerLiteral",
+                  "value": 1
+                },
+                "start": 376,
+                "type": "BinaryExpression"
+              },
+              "length": 27,
+              "operator": "*",
+              "right": {
+                "length": 7,
+                "name": "columns",
+                "start": 396,
+                "type": "Identifier"
+              },
+              "start": 376,
+              "type": "BinaryExpression"
+            },
+            "kind": "let",
+            "length": 50,
+            "name": {
+              "length": 3,
+              "name": "row",
+              "start": 358,
+              "type": "Identifier"
+            },
+            "start": 354,
+            "type": "VariableDeclaration",
+            "typeAnnotation": {
+              "length": 9,
+              "name": "usmallint",
+              "start": 363,
+              "type": "TypeReference",
+              "typeArguments": []
+            }
+          },
+          {
+            "expression": {
+              "args": [
+                {
+                  "length": 15,
+                  "object": {
+                    "length": 9,
+                    "name": "TextColor",
+                    "start": 424,
+                    "type": "Identifier"
+                  },
+                  "property": {
+                    "length": 4,
+                    "name": "CYAN",
+                    "start": 435,
+                    "type": "Identifier"
+                  },
+                  "start": 424,
+                  "type": "MemberExpression"
+                }
+              ],
+              "callee": {
+                "length": 14,
+                "object": {
+                  "length": 4,
+                  "name": "text",
+                  "start": 409,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 8,
+                  "name": "setColor",
+                  "start": 415,
+                  "type": "Identifier"
+                },
+                "start": 409,
+                "type": "MemberExpression"
+              },
+              "length": 31,
+              "start": 409,
+              "type": "CallExpression"
+            },
+            "length": 32,
+            "start": 409,
+            "type": "ExpressionStatement"
+          },
+          {
+            "expression": {
+              "args": [
+                {
+                  "length": 4,
+                  "start": 463,
+                  "type": "BooleanLiteral",
+                  "value": true
+                }
+              ],
+              "callee": {
+                "length": 16,
+                "object": {
+                  "length": 4,
+                  "name": "text",
+                  "start": 446,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 10,
+                  "name": "setReverse",
+                  "start": 452,
+                  "type": "Identifier"
+                },
+                "start": 446,
+                "type": "MemberExpression"
+              },
+              "length": 22,
+              "start": 446,
+              "type": "CallExpression"
+            },
+            "length": 23,
+            "start": 446,
+            "type": "ExpressionStatement"
+          },
+          {
+            "expression": {
+              "args": [
+                {
+                  "length": 3,
+                  "name": "row",
+                  "start": 485,
+                  "type": "Identifier"
+                },
+                {
+                  "length": 7,
+                  "name": "columns",
+                  "start": 490,
+                  "type": "Identifier"
+                },
+                {
+                  "length": 2,
+                  "radix": 10,
+                  "raw": "32",
+                  "start": 499,
+                  "type": "IntegerLiteral",
+                  "value": 32
+                }
+              ],
+              "callee": {
+                "length": 10,
+                "object": {
+                  "length": 4,
+                  "name": "text",
+                  "start": 474,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 4,
+                  "name": "fill",
+                  "start": 480,
+                  "type": "Identifier"
+                },
+                "start": 474,
+                "type": "MemberExpression"
+              },
+              "length": 28,
+              "start": 474,
+              "type": "CallExpression"
+            },
+            "length": 29,
+            "start": 474,
+            "type": "ExpressionStatement"
+          },
+          {
+            "expression": {
+              "args": [
+                {
+                  "left": {
+                    "length": 3,
+                    "name": "row",
+                    "start": 520,
+                    "type": "Identifier"
+                  },
+                  "length": 7,
+                  "operator": "+",
+                  "right": {
+                    "length": 1,
+                    "radix": 10,
+                    "raw": "1",
+                    "start": 526,
+                    "type": "IntegerLiteral",
+                    "value": 1
+                  },
+                  "start": 520,
+                  "type": "BinaryExpression"
+                },
+                {
+                  "length": 7,
+                  "start": 529,
+                  "type": "StringLiteral",
+                  "value": "READY"
+                }
+              ],
+              "callee": {
+                "length": 11,
+                "object": {
+                  "length": 4,
+                  "name": "text",
+                  "start": 508,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 5,
+                  "name": "print",
+                  "start": 514,
+                  "type": "Identifier"
+                },
+                "start": 508,
+                "type": "MemberExpression"
+              },
+              "length": 29,
+              "start": 508,
+              "type": "CallExpression"
+            },
+            "length": 30,
+            "start": 508,
+            "type": "ExpressionStatement"
+          },
+          {
+            "expression": {
+              "args": [
+                {
+                  "left": {
+                    "length": 3,
+                    "name": "row",
+                    "start": 555,
+                    "type": "Identifier"
+                  },
+                  "length": 7,
+                  "operator": "+",
+                  "right": {
+                    "length": 1,
+                    "radix": 10,
+                    "raw": "9",
+                    "start": 561,
+                    "type": "IntegerLiteral",
+                    "value": 9
+                  },
+                  "start": 555,
+                  "type": "BinaryExpression"
+                },
+                {
+                  "length": 12,
+                  "start": 564,
+                  "type": "StringLiteral",
+                  "value": "DAW MODULE"
+                }
+              ],
+              "callee": {
+                "length": 11,
+                "object": {
+                  "length": 4,
+                  "name": "text",
+                  "start": 543,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 5,
+                  "name": "print",
+                  "start": 549,
+                  "type": "Identifier"
+                },
+                "start": 543,
+                "type": "MemberExpression"
+              },
+              "length": 34,
+              "start": 543,
+              "type": "CallExpression"
+            },
+            "length": 35,
+            "start": 543,
+            "type": "ExpressionStatement"
+          },
+          {
+            "alternate": null,
+            "consequent": {
+              "body": [
+                {
+                  "expression": {
+                    "args": [
+                      {
+                        "left": {
+                          "length": 3,
+                          "name": "row",
+                          "start": 621,
+                          "type": "Identifier"
+                        },
+                        "length": 8,
+                        "operator": "+",
+                        "right": {
+                          "length": 2,
+                          "radix": 10,
+                          "raw": "22",
+                          "start": 627,
+                          "type": "IntegerLiteral",
+                          "value": 22
+                        },
+                        "start": 621,
+                        "type": "BinaryExpression"
+                      },
+                      {
+                        "length": 14,
+                        "start": 631,
+                        "type": "StringLiteral",
+                        "value": "NO SOUND YET"
+                      }
+                    ],
+                    "callee": {
+                      "length": 11,
+                      "object": {
+                        "length": 4,
+                        "name": "text",
+                        "start": 609,
+                        "type": "Identifier"
+                      },
+                      "property": {
+                        "length": 5,
+                        "name": "print",
+                        "start": 615,
+                        "type": "Identifier"
+                      },
+                      "start": 609,
+                      "type": "MemberExpression"
+                    },
+                    "length": 37,
+                    "start": 609,
+                    "type": "CallExpression"
+                  },
+                  "length": 38,
+                  "start": 609,
+                  "type": "ExpressionStatement"
+                }
+              ],
+              "length": 54,
+              "start": 599,
+              "type": "BlockStatement"
+            },
+            "length": 70,
+            "start": 583,
+            "test": {
+              "left": {
+                "length": 7,
+                "name": "columns",
+                "start": 586,
+                "type": "Identifier"
+              },
+              "length": 12,
+              "operator": ">",
+              "right": {
+                "length": 2,
+                "radix": 10,
+                "raw": "48",
+                "start": 596,
+                "type": "IntegerLiteral",
+                "value": 48
+              },
+              "start": 586,
+              "type": "BinaryExpression"
+            },
+            "type": "IfStatement"
+          },
+          {
+            "expression": {
+              "args": [
+                {
+                  "left": {
+                    "left": {
+                      "length": 3,
+                      "name": "row",
+                      "start": 670,
+                      "type": "Identifier"
+                    },
+                    "length": 13,
+                    "operator": "+",
+                    "right": {
+                      "length": 7,
+                      "name": "columns",
+                      "start": 676,
+                      "type": "Identifier"
+                    },
+                    "start": 670,
+                    "type": "BinaryExpression"
+                  },
+                  "length": 18,
+                  "operator": "-",
+                  "right": {
+                    "length": 2,
+                    "radix": 10,
+                    "raw": "13",
+                    "start": 686,
+                    "type": "IntegerLiteral",
+                    "value": 13
+                  },
+                  "start": 670,
+                  "type": "BinaryExpression"
+                },
+                {
+                  "length": 6,
+                  "start": 690,
+                  "type": "StringLiteral",
+                  "value": "GRID"
+                }
+              ],
+              "callee": {
+                "length": 11,
+                "object": {
+                  "length": 4,
+                  "name": "text",
+                  "start": 658,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 5,
+                  "name": "print",
+                  "start": 664,
+                  "type": "Identifier"
+                },
+                "start": 658,
+                "type": "MemberExpression"
+              },
+              "length": 39,
+              "start": 658,
+              "type": "CallExpression"
+            },
+            "length": 40,
+            "start": 658,
+            "type": "ExpressionStatement"
+          },
+          {
+            "expression": {
+              "args": [
+                {
+                  "left": {
+                    "left": {
+                      "length": 3,
+                      "name": "row",
+                      "start": 721,
+                      "type": "Identifier"
+                    },
+                    "length": 13,
+                    "operator": "+",
+                    "right": {
+                      "length": 7,
+                      "name": "columns",
+                      "start": 727,
+                      "type": "Identifier"
+                    },
+                    "start": 721,
+                    "type": "BinaryExpression"
+                  },
+                  "length": 17,
+                  "operator": "-",
+                  "right": {
+                    "length": 1,
+                    "radix": 10,
+                    "raw": "8",
+                    "start": 737,
+                    "type": "IntegerLiteral",
+                    "value": 8
+                  },
+                  "start": 721,
+                  "type": "BinaryExpression"
+                },
+                {
+                  "length": 7,
+                  "name": "columns",
+                  "start": 740,
+                  "type": "Identifier"
+                },
+                {
+                  "length": 1,
+                  "radix": 10,
+                  "raw": "3",
+                  "start": 749,
+                  "type": "IntegerLiteral",
+                  "value": 3
+                }
+              ],
+              "callee": {
+                "length": 17,
+                "object": {
+                  "length": 4,
+                  "name": "text",
+                  "start": 703,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 11,
+                  "name": "printNumber",
+                  "start": 709,
+                  "type": "Identifier"
+                },
+                "start": 703,
+                "type": "MemberExpression"
+              },
+              "length": 48,
+              "start": 703,
+              "type": "CallExpression"
+            },
+            "length": 49,
+            "start": 703,
+            "type": "ExpressionStatement"
+          },
+          {
+            "expression": {
+              "args": [
+                {
+                  "left": {
+                    "left": {
+                      "length": 3,
+                      "name": "row",
+                      "start": 769,
+                      "type": "Identifier"
+                    },
+                    "length": 13,
+                    "operator": "+",
+                    "right": {
+                      "length": 7,
+                      "name": "columns",
+                      "start": 775,
+                      "type": "Identifier"
+                    },
+                    "start": 769,
+                    "type": "BinaryExpression"
+                  },
+                  "length": 17,
+                  "operator": "-",
+                  "right": {
+                    "length": 1,
+                    "radix": 10,
+                    "raw": "5",
+                    "start": 785,
+                    "type": "IntegerLiteral",
+                    "value": 5
+                  },
+                  "start": 769,
+                  "type": "BinaryExpression"
+                },
+                {
+                  "length": 3,
+                  "start": 788,
+                  "type": "StringLiteral",
+                  "value": "X"
+                }
+              ],
+              "callee": {
+                "length": 11,
+                "object": {
+                  "length": 4,
+                  "name": "text",
+                  "start": 757,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 5,
+                  "name": "print",
+                  "start": 763,
+                  "type": "Identifier"
+                },
+                "start": 757,
+                "type": "MemberExpression"
+              },
+              "length": 35,
+              "start": 757,
+              "type": "CallExpression"
+            },
+            "length": 36,
+            "start": 757,
+            "type": "ExpressionStatement"
+          },
+          {
+            "expression": {
+              "args": [
+                {
+                  "left": {
+                    "left": {
+                      "length": 3,
+                      "name": "row",
+                      "start": 816,
+                      "type": "Identifier"
+                    },
+                    "length": 13,
+                    "operator": "+",
+                    "right": {
+                      "length": 7,
+                      "name": "columns",
+                      "start": 822,
+                      "type": "Identifier"
+                    },
+                    "start": 816,
+                    "type": "BinaryExpression"
+                  },
+                  "length": 17,
+                  "operator": "-",
+                  "right": {
+                    "length": 1,
+                    "radix": 10,
+                    "raw": "4",
+                    "start": 832,
+                    "type": "IntegerLiteral",
+                    "value": 4
+                  },
+                  "start": 816,
+                  "type": "BinaryExpression"
+                },
+                {
+                  "args": [],
+                  "callee": {
+                    "length": 10,
+                    "object": {
+                      "length": 4,
+                      "name": "text",
+                      "start": 835,
+                      "type": "Identifier"
+                    },
+                    "property": {
+                      "length": 4,
+                      "name": "rows",
+                      "start": 841,
+                      "type": "Identifier"
+                    },
+                    "start": 835,
+                    "type": "MemberExpression"
+                  },
+                  "length": 12,
+                  "start": 835,
+                  "type": "CallExpression"
+                },
+                {
+                  "length": 1,
+                  "radix": 10,
+                  "raw": "3",
+                  "start": 849,
+                  "type": "IntegerLiteral",
+                  "value": 3
+                }
+              ],
+              "callee": {
+                "length": 17,
+                "object": {
+                  "length": 4,
+                  "name": "text",
+                  "start": 798,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 11,
+                  "name": "printNumber",
+                  "start": 804,
+                  "type": "Identifier"
+                },
+                "start": 798,
+                "type": "MemberExpression"
+              },
+              "length": 53,
+              "start": 798,
+              "type": "CallExpression"
+            },
+            "length": 54,
+            "start": 798,
+            "type": "ExpressionStatement"
+          },
+          {
+            "expression": {
+              "args": [
+                {
+                  "length": 5,
+                  "start": 874,
+                  "type": "BooleanLiteral",
+                  "value": false
+                }
+              ],
+              "callee": {
+                "length": 16,
+                "object": {
+                  "length": 4,
+                  "name": "text",
+                  "start": 857,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 10,
+                  "name": "setReverse",
+                  "start": 863,
+                  "type": "Identifier"
+                },
+                "start": 857,
+                "type": "MemberExpression"
+              },
+              "length": 23,
+              "start": 857,
+              "type": "CallExpression"
+            },
+            "length": 24,
+            "start": 857,
+            "type": "ExpressionStatement"
+          },
+          {
+            "expression": {
+              "args": [
+                {
+                  "length": 16,
+                  "object": {
+                    "length": 9,
+                    "name": "TextColor",
+                    "start": 901,
+                    "type": "Identifier"
+                  },
+                  "property": {
+                    "length": 5,
+                    "name": "WHITE",
+                    "start": 912,
+                    "type": "Identifier"
+                  },
+                  "start": 901,
+                  "type": "MemberExpression"
+                }
+              ],
+              "callee": {
+                "length": 14,
+                "object": {
+                  "length": 4,
+                  "name": "text",
+                  "start": 886,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 8,
+                  "name": "setColor",
+                  "start": 892,
+                  "type": "Identifier"
+                },
+                "start": 886,
+                "type": "MemberExpression"
+              },
+              "length": 32,
+              "start": 886,
+              "type": "CallExpression"
+            },
+            "length": 33,
+            "start": 886,
+            "type": "ExpressionStatement"
+          }
+        ],
+        "length": 619,
+        "start": 302,
+        "type": "BlockStatement"
+      },
+      "exported": true,
+      "length": 648,
+      "name": {
+        "length": 12,
+        "name": "DawStatusBar",
+        "start": 287,
+        "type": "Identifier"
+      },
+      "params": [],
+      "start": 273,
+      "type": "ComponentDeclaration"
+    }
+  ],
+  "length": 922,
+  "start": 0,
+  "type": "Program"
+}

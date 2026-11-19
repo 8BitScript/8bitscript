@@ -1,0 +1,4 @@
+// rows: keyword as a name
+let loop: u8 = 1;
+let in: u8 = 2;
+let mod: u8 = 3;

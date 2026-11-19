@@ -1,0 +1,12 @@
+struct P { x: u8 }
+enum Color { Red, Green }
+impl P { fn go() {} }
+trait T;
+static N: u8 = 1;
+type A = u8;
+let v = struct;
+mod m {
+    struct Q;
+    fn ok() {}
+}
+let after = 1;

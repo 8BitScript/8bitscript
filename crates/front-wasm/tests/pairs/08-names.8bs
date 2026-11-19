@@ -1,0 +1,4 @@
+// rows: keyword as a name
+let mut r#loop: u8 = 1;
+let mut r#in: u8 = 2;
+let mut r#mod: u8 = 3;
