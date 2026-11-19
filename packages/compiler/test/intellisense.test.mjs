@@ -361,7 +361,7 @@ test('completion after object. offers every member, function and constant alike'
   });
 });
 
-test('completion detail spells the member path with `::`', { todo: 'F-01b: completion detail uses `::`' }, () => {
+test('completion detail spells the member path with `::`', () => {
   withFiles({ 'registers.8bs': REGISTERS }, (dir) => {
     const file = join(dir, 'main.8bs');
     const text = 'use self::registers::Registers;\nRegisters::bl';
@@ -511,7 +511,7 @@ test('completion after object. lists the merged members, a subset member annotat
   });
 });
 
-test('merged-member completion details spell the path with `::`', { todo: 'F-01b: completion detail uses `::`' }, () => {
+test('merged-member completion details spell the path with `::`', () => {
   withFiles(CONDITIONAL_PACKAGE, (dir) => {
     const text = 'use @t::hw::screen;\nscreen::';
     const items = getCompletions(text, text.length, { path: join(dir, 'main.8bs') });

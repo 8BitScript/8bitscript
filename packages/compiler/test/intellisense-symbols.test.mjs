@@ -120,7 +120,7 @@ test('hover follows an import to its declaration in the other file, and says whe
   });
 });
 
-test('hover on the last segment of a `use` path is the imported variable', { todo: 'F-01b: hover reads `use` specifiers' }, () => {
+test('hover on the last segment of a `use` path is the imported variable', () => {
   withFiles({ 'bar.8bs': BAR, 'Menu.8bx': MENU, 'main.8bs': MAIN }, (dir) => {
     const specifier = getHoverInfo(MAIN, at(MAIN, 'bar::opened', 6), { path: join(dir, 'main.8bs') });
     assert.match(specifier.markdown, /\*\*opened\*\* — variable/);
