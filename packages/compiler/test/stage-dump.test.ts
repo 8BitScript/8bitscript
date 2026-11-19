@@ -40,7 +40,7 @@ test('link() emits tokens, ast, module-ir, diagnostics and linked-ir in order', 
 
 test('link() stops at diagnostics when the program does not link', () => {
   const rec = recorder();
-  const result = link('export function main(): void {\n    nope();\n}\n', FILE, { machine: 'web', dump: rec.dump });
+  const result = link('pub fn main() {\n    nope();\n}\n', FILE, { machine: 'web', dump: rec.dump });
   assert.equal(result.ir, null);
   assert.equal(rec.stages().at(-1), 'diagnostics');
   assert.equal(rec.stages().includes('linked-ir'), false);
@@ -223,7 +223,7 @@ test('wasm stages: size-report only with report, and a failing build matches wit
 });
 
 test('link() gives the same result with and without dump, for good and failing programs', () => {
-  const bad = 'export function main(): void {\n    nope();\n}\n';
+  const bad = 'pub fn main() {\n    nope();\n}\n';
   for (const [text, file] of [[HELLO, FILE], [bad, '/virtual/bad.8bs']] as const) {
     const plain = link(text, file, { machine: 'web' });
     const rec = recorder();

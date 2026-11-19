@@ -26,18 +26,18 @@ const CHECKOUT = join(HERE, '..', '..', '..');
 
 const TARGETS = ['vic20', 'c64', 'pet', 'c128', 'atari8', 'nes', 'cx16', 'mega65', 'web', 'plus4', 'oric', 'apple2', 'bbc', 'atari5200', 'lynx', 'pce', 'supervision', 'atari2600', 'atari7800', 'gb', 'gbc', 'sms', 'gamegear', 'sg1000', 'msx', 'coleco', 'spectrum', 'cpc', 'coco', 'vectrex', 'odyssey2', 'channelf'];
 
-const PROGRAM = `import { raster, Slot } from "@8bitscript/raster";
+const PROGRAM = `use @8bitscript::raster::{raster, Slot};
 
-const HAS_RASTER: bool = #fact(video.raster);
-let added: bool = false;
+const HAS_RASTER: bool = #fact(video::raster);
+let mut added: bool = false;
 
-export function main(): void {
-    if (HAS_RASTER) {
-        raster.clear();
-        added = raster.at(0, Slot.BORDER, 2);
-        raster.enable();
+pub fn main() {
+    if HAS_RASTER {
+        raster::clear();
+        added = raster::at(0, Slot::BORDER, 2);
+        raster::enable();
     }
-    while (true) {
+    loop {
         waitFrame();
     }
 }
@@ -48,24 +48,24 @@ export function main(): void {
 // with the import and the branch deleted outright emit the same number of
 // bytes — the stub layer and the folded-false branch are pruned away, not
 // carried along inert.
-const PLAIN = `export function main(): void {
-    while (true) {
+const PLAIN = `pub fn main() {
+    loop {
         waitFrame();
     }
 }
 `;
 
-const GUARDED = `import { raster, Slot } from "@8bitscript/raster";
+const GUARDED = `use @8bitscript::raster::{raster, Slot};
 
-const HAS_RASTER: bool = #fact(video.raster);
+const HAS_RASTER: bool = #fact(video::raster);
 
-export function main(): void {
-    if (HAS_RASTER) {
-        raster.clear();
-        raster.at(0, Slot.BORDER, 2);
-        raster.enable();
+pub fn main() {
+    if HAS_RASTER {
+        raster::clear();
+        raster::at(0, Slot::BORDER, 2);
+        raster::enable();
     }
-    while (true) {
+    loop {
         waitFrame();
     }
 }

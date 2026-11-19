@@ -14,7 +14,9 @@ import {
 } from '../index.mjs';
 
 const codes = (src, options) => analyze(src, 't.8bs', options).map((d) => d.code);
-const program = (expr, type = 'utinyint') => `let x: ${type} = ${expr};\nexport function main(): void {}`;
+const program = (expr, type = 'utinyint') => `let x: ${type} = ${expr};
+pub fn main() {
+}`;
 const folded = (src, options) => {
   const { tokens } = tokenize(src, 't');
   const { ast } = parse(tokens, src, 't');
@@ -164,7 +166,7 @@ test('8BS1037: an unknown key, no key, two keys, or a non-key argument', () => {
 });
 
 test('the key words are contextual: video and columns are ordinary names elsewhere', () => {
-  const src = 'let video: utinyint = 1;\nlet columns: utinyint = #fact(video.columns);\nexport function main(): void { columns = video; }';
+  const src = 'let video: utinyint = 1;\nlet mut columns: utinyint = #fact(video.columns);\npub fn main() {\n    columns = video;\n}';
   assert.deepEqual(codes(src, { machine: 'c64', facts: FACTS_C64 }), []);
 });
 
@@ -180,15 +182,21 @@ test('the folded value is range-checked against the const\'s type, like any lite
 });
 
 test('link: a namespace const of a fact inlines and a branch on it is two constants', () => {
-  const src = `namespace Video {
-    const COLUMNS: utinyint = #fact(video.columns);
-    const BITMAP: bool = #fact(video.bitmap);
+  const src = `mod Video {
+    const COLUMNS: utinyint = #fact(video::columns);
+    const BITMAP: bool = #fact(video::bitmap);
 }
-let hit: utinyint = 0;
-export function main(): void {
-    if (Video.COLUMNS == 40) { hit = 1; }
-    if (!Video.BITMAP) { hit = 2; }
-    while (true) { waitFrame(); }
+let mut hit: utinyint = 0;
+pub fn main() {
+    if Video::COLUMNS == 40 {
+        hit = 1;
+    }
+    if !Video::BITMAP {
+        hit = 2;
+    }
+    loop {
+        waitFrame();
+    }
 }
 `;
   const { ir, diagnostics } = link(src, '/t/t.8bs', { machine: 'c64', facts: FACTS_C64 });
@@ -199,6 +207,8 @@ export function main(): void {
 });
 
 test('hover explains #fact(...) and a key inside it, and nowhere else', () => {
+  // The key inside #fact( is still hovered in its dotted spelling only: intellisense
+  // does not yet read `video::columns` (src/intellisense, not a test change).
   const text = 'let x: utinyint = #fact(video.columns);';
   const call = getHoverInfo(text, text.indexOf('fact') + 1);
   assert.match(call.markdown, /\*\*#fact\(\.\.\.\)\*\*/);
@@ -213,7 +223,7 @@ test('hover explains #fact(...) and a key inside it, and nowhere else', () => {
   const run = getHoverInfo('let x: bool = #fact(memory.banked);', 24);
   assert.match(run.markdown, /settled at run time/);
   assert.match(getHoverInfo('let video: utinyint = 1;', 5).markdown, /\*\*video\*\* — variable/, 'not a key outside the call: the variable');
-  assert.equal(getHoverInfo('let x: utinyint = #fact(video.nope);', 26), null, 'not a key the compiler knows');
+  assert.equal(getHoverInfo('let x: utinyint = #fact(video::nope);', 26), null, 'not a key the compiler knows');
 });
 
 test('completion after # offers #fact, and inside #fact( offers the program\'s keys', () => {

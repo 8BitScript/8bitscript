@@ -39,13 +39,13 @@ async function buildDebug(src: string, main: string, extra: Partial<BuildOptions
 }
 
 test('source -> instruction mapping: a real build maps score += 1 to LDA/ADC/STA-or-INC with the right file, line, and function', async () => {
-  const src = `let score: utinyint = 0;
+  const src = `let mut score: utinyint = 0;
 
-function updateScore(): void {
+fn updateScore() {
     score += 1;
 }
 
-export function main(): void {
+pub fn main() {
     updateScore();
 }
 `;
@@ -73,9 +73,9 @@ export function main(): void {
 });
 
 test('multiple modules: an imported function\'s own file shows up in the debug map, distinct from the entry\'s', async () => {
-  const src = `import { bump } from "./helper.8bs";
+  const src = `use self::helper::bump;
 
-export function main(): void {
+pub fn main() {
     bump();
 }
 `;
@@ -85,7 +85,12 @@ export function main(): void {
   try {
     const { writeFile } = await import('node:fs/promises');
     const mainPath = join(scratch, 'game.8bs');
-    await writeFile(join(scratch, 'helper.8bs'), `let counter: utinyint = 0;\n\nexport function bump(): void {\n    counter += 1;\n}\n`);
+    await writeFile(join(scratch, 'helper.8bs'), `let mut counter: utinyint = 0;
+
+pub fn bump() {
+    counter += 1;
+}
+`);
     const linked = link(src, mainPath, { machine: 'pet', facts: resolved.hardware.facts });
     assert.deepEqual(linked.diagnostics, []);
     assert.ok(linked.ir);
@@ -107,7 +112,12 @@ export function main(): void {
 });
 
 test('artifact offsets: address (CPU) and artifactOffset (into the linked image) are different numbers, related by codeOrigin', async () => {
-  const src = `let score: utinyint = 0;\n\nexport function main(): void {\n    score += 1;\n}\n`;
+  const src = `let mut score: utinyint = 0;
+
+pub fn main() {
+    score += 1;
+}
+`;
   const { debugJson, result } = await buildDebug(src, '/virtual/game.8bs');
   assert.ok(debugJson.instructions.length > 0);
   for (const instr of debugJson.instructions) {
@@ -124,7 +134,13 @@ test('artifact offsets: address (CPU) and artifactOffset (into the linked image)
 });
 
 test('determinism: building the same program twice produces the same debug map, aside from nothing variable at all', async () => {
-  const src = `let score: utinyint = 0;\n\nexport function main(): void {\n    score += 1;\n    score += 1;\n}\n`;
+  const src = `let mut score: utinyint = 0;
+
+pub fn main() {
+    score += 1;
+    score += 1;
+}
+`;
   const a = await buildDebug(src, '/virtual/game.8bs');
   const b = await buildDebug(src, '/virtual/game.8bs');
   assert.deepEqual(a.debugJson, b.debugJson);
@@ -132,7 +148,9 @@ test('determinism: building the same program twice produces the same debug map, 
 });
 
 test('a release build (debug not requested) writes no .lst/.debug.json and returns neither field', async () => {
-  const src = `export function main(): void {\n}\n`;
+  const src = `pub fn main() {
+}
+`;
   const resolved = resolveHardware(loadCatalog('pet'), { profile: '3032' });
   assert.ok(resolved.ok, resolved.ok ? '' : resolved.error);
   const linked = link(src, '/virtual/game.8bs', { machine: 'pet', facts: resolved.hardware.facts });

@@ -38,20 +38,20 @@ async function petBytes(files, entry) {
 
 // The callee: three run-time values into three cells, so the arguments are
 // real loads and stores and nothing here folds to a constant.
-const DRAW = `export let cursor: utinyint = 0;
-export function drawTile(row: utinyint, col: utinyint, exponent: utinyint): void {
-    memory.write(0x8000 + cursor, row);
-    memory.write(0x8001 + cursor, col);
-    memory.write(0x8002 + cursor, exponent);
+const DRAW = `pub let mut cursor: utinyint = 0;
+pub fn drawTile(row: utinyint, col: utinyint, exponent: utinyint) {
+    memory::write(0x8000 + cursor, row);
+    memory::write(0x8001 + cursor, col);
+    memory::write(0x8002 + cursor, exponent);
     cursor = cursor + 3;
 }
 `;
 
 // The program: three sites, each with the values a loop produces, one of
 // them with the props spelled in a different order.
-const DIRECT = `import { drawTile, cursor } from "./draw.8bs";
-export function main(): void {
-    for (let i: utinyint = 0; i < 16; i++) {
+const DIRECT = `use self::draw::{drawTile, cursor};
+pub fn main() {
+    for i: utinyint in 0..16 {
         drawTile(i >> 2, i & 3, cursor);
         drawTile(i, 1, cursor + 1);
     }
@@ -63,12 +63,12 @@ test('a component forwarding run-time props to a call costs nothing: the same by
   const direct = await petBytes({ 'draw.8bs': DRAW, 'main.8bs': DIRECT }, 'main.8bs');
   const wrapped = await petBytes({
     'draw.8bs': DRAW,
-    'main.8bx': `import { drawTile, cursor } from "./draw.8bs";
+    'main.8bx': `use self::draw::{drawTile, cursor};
 component Tile(row: utinyint, col: utinyint, exponent: utinyint) {
     drawTile(row, col, exponent);
 }
-export function main(): void {
-    for (let i: utinyint = 0; i < 16; i++) {
+pub fn main() {
+    for i: utinyint in 0..16 {
         <Tile row={i >> 2} col={i & 3} exponent={cursor} />;
         <Tile exponent={cursor + 1} row={i} col={1} />;
     }
@@ -84,15 +84,15 @@ test('the same across an import boundary — the component in its own .8bx, the 
   const direct = await petBytes({ 'draw.8bs': DRAW, 'main.8bs': DIRECT }, 'main.8bs');
   const wrapped = await petBytes({
     'draw.8bs': DRAW,
-    'Tile.8bx': `import { drawTile } from "./draw.8bs";
-export component Tile(row: utinyint, col: utinyint, exponent: utinyint) {
+    'Tile.8bx': `use self::draw::drawTile;
+pub component Tile(row: utinyint, col: utinyint, exponent: utinyint) {
     drawTile(row, col, exponent);
 }
 `,
-    'main.8bs': `import { cursor } from "./draw.8bs";
-import { Tile } from "./Tile.8bx";
-export function main(): void {
-    for (let i: utinyint = 0; i < 16; i++) {
+    'main.8bs': `use self::draw::cursor;
+use self::Tile::Tile;
+pub fn main() {
+    for i: utinyint in 0..16 {
         Tile(i >> 2, i & 3, cursor);
         Tile(i, 1, cursor + 1);
     }
@@ -105,39 +105,39 @@ export function main(): void {
 });
 
 test('a `return f(x);` delegate in .8bs costs nothing either — the shape 2048\'s rng.range() warned was +8 bytes', async () => {
-  const lib = `export let seed: utinyint = 7;
-export function next(): utinyint {
+  const lib = `pub let mut seed: utinyint = 7;
+pub fn next() -> utinyint {
     seed = seed * 5 + 1;
     return seed;
 }
-export function range(bound: utinyint): utinyint {
+pub fn range(bound: utinyint) -> utinyint {
     return next() % bound;
 }
 `;
   const direct = await petBytes({
     'random.8bs': lib,
-    'main.8bs': `import { range, seed } from "./random.8bs";
-export function main(): void {
-    for (let i: utinyint = 0; i < 16; i++) {
-        memory.write(0x8000 + i, range(seed));
-        memory.write(0x8100 + i, range(10));
+    'main.8bs': `use self::random::{range, seed};
+pub fn main() {
+    for i: utinyint in 0..16 {
+        memory::write(0x8000 + i, range(seed));
+        memory::write(0x8100 + i, range(10));
     }
 }
 `,
   }, 'main.8bs');
   const delegated = await petBytes({
     'random.8bs': lib,
-    'rng.8bs': `import { range as inner } from "./random.8bs";
-export function range(bound: utinyint): utinyint {
+    'rng.8bs': `use self::random::{range as inner};
+pub fn range(bound: utinyint) -> utinyint {
     return inner(bound);
 }
 `,
-    'main.8bs': `import { seed } from "./random.8bs";
-import { range } from "./rng.8bs";
-export function main(): void {
-    for (let i: utinyint = 0; i < 16; i++) {
-        memory.write(0x8000 + i, range(seed));
-        memory.write(0x8100 + i, range(10));
+    'main.8bs': `use self::random::seed;
+use self::rng::range;
+pub fn main() {
+    for i: utinyint in 0..16 {
+        memory::write(0x8000 + i, range(seed));
+        memory::write(0x8100 + i, range(10));
     }
 }
 `,
@@ -153,12 +153,12 @@ test('the wrapper was not free before: a forwarder that passes a global through 
   const direct = await petBytes({ 'draw.8bs': DRAW, 'main.8bs': DIRECT }, 'main.8bs');
   const wrapped = await petBytes({
     'draw.8bs': DRAW,
-    'main.8bx': `import { drawTile, cursor } from "./draw.8bs";
+    'main.8bx': `use self::draw::{drawTile, cursor};
 component Tile(row: utinyint, col: utinyint) {
     drawTile(row, col, cursor);
 }
-export function main(): void {
-    for (let i: utinyint = 0; i < 16; i++) {
+pub fn main() {
+    for i: utinyint in 0..16 {
         <Tile row={i >> 2} col={i & 3} />;
         <Tile row={i} col={1} />;
     }

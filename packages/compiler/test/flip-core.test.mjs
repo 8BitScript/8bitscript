@@ -93,7 +93,7 @@ test('E20: a let named in an asm6502 body is not a user store, and an import is 
 });
 
 test('E20: an old-syntax tree is never reported', () => {
-  const src = 'let x: u8 = 0;\nexport function main(): void { x = 1; }';
+  const src = 'let mut x: u8 = 0;\npub fn main() {\n    x = 1;\n}';
   // The old parser does not set `immutable`.
   const ast = { type: 'Program', body: [
     { type: 'VariableDeclaration', kind: 'let', name: { type: 'Identifier', name: 'x', start: 4, length: 1 } },
@@ -194,7 +194,7 @@ test('old import syntax is the old-syntax error (E21), not a resolved import', (
   const root = tree({ 'src/main.8bs': '', 'src/geo.8bs': '' });
   const from = join(root, 'src', 'main.8bs');
   assert.equal(resolveSpecifier('./geo', from), null);
-  const oldText = 'import { f } from "./geo";\nexport function main(): void { f(); }\n';
+  const oldText = 'import { f } from "./geo.8bs";\nexport function main(): void {\n    f();\n}\n';
   const { diagnostics } = link(oldText, from);
   assert.ok(diagnostics.some((d) => /8bs migrate/.test(d.message)), JSON.stringify(diagnostics.map((d) => d.code)));
 });

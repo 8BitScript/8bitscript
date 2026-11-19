@@ -33,21 +33,26 @@ const PACKAGE = {
     name: '@t/p',
     '8bitscript': { entry: './src/index.8bs', exports: { './screen': './src/screen.8bs', './text': './src/text.8bs' } },
   },
-  'node_modules/@t/p/src/index.8bs': '@address(0xD020)\nexport let borderColor: volatile<u8>;\n',
+  'node_modules/@t/p/src/index.8bs': '#[address(0xD020)] pub let mut borderColor: volatile<u8>;\n',
   'node_modules/@t/p/src/screen.8bs': [
-    'import { borderColor } from "./index.8bs";',
-    'export namespace screen {',
-    '    function setColors(border: u8, background: u8): void { borderColor = border & 15; }',
+    'use self::index::borderColor;',
+    'pub mod screen {',
+    '    fn setColors(border: u8, background: u8) {',
+    '        borderColor = border & 15;',
+    '    }',
     '}',
   ].join('\n'),
-  'node_modules/@t/p/src/text.8bs': 'export namespace text {\n    const CELL_COUNT: u16 = 1000;\n}\n',
+  'node_modules/@t/p/src/text.8bs': 'pub mod text {\n    const CELL_COUNT: u16 = 1000;\n}\n',
 };
 
 const CONSUMER = [
-  'import { screen } from "@t/p/screen";',
-  'import { text } from "@t/p/text";',
-  'let cells: u16 = 0;',
-  'export function main(): void { screen.setColors(6, 0); cells = text.CELL_COUNT; }',
+  'use @t::p::screen::screen;',
+  'use @t::p::text::text;',
+  'let mut cells: u16 = 0;',
+  'pub fn main() {',
+  '    screen::setColors(6, 0);',
+  '    cells = text::CELL_COUNT;',
+  '}',
 ].join('\n');
 
 test('a package subpath resolves through the "8bitscript".exports map', () => {
@@ -80,13 +85,13 @@ test('a program importing subpaths links, and the subpath module reaches the pac
 test('an unscoped package takes a subpath too', () => {
   const files = {
     'node_modules/p/package.json': { name: 'p', '8bitscript': { entry: './index.8bs', exports: { './lib': './lib.8bs' } } },
-    'node_modules/p/index.8bs': 'export let a: u8 = 1;',
-    'node_modules/p/lib.8bs': 'export let b: u8 = 2;',
+    'node_modules/p/index.8bs': 'pub let mut a: u8 = 1;',
+    'node_modules/p/lib.8bs': 'pub let mut b: u8 = 2;',
   };
   withFiles(files, (dir) => {
     const entry = join(dir, 'main.8bs');
     assert.ok(resolveSpecifier('p/lib', entry).path.endsWith(join('p', 'lib.8bs')));
-    const { ir, diagnostics } = link('import { b } from "p/lib";\nlet x: u8 = 0;\nexport function main(): void { x = b; }', entry);
+    const { ir, diagnostics } = link('use p::lib::b;\nlet mut x: u8 = 0;\npub fn main() {\n    x = b;\n}', entry);
     assert.deepEqual(diagnostics, []);
     assert.ok(ir.globals.some((g) => g.name === 'b'));
   });
@@ -95,7 +100,7 @@ test('an unscoped package takes a subpath too', () => {
 test('the exported file follows the system-specific filename rule', () => {
   const files = {
     ...PACKAGE,
-    'node_modules/@t/p/src/screen.nes.8bs': 'export namespace screen {\n    function setColors(border: u8, background: u8): void {}\n}\n',
+    'node_modules/@t/p/src/screen.nes.8bs': 'pub mod screen {\n    fn setColors(border: u8, background: u8) {\n    }\n}\n',
   };
   withFiles(files, (dir) => {
     const entry = join(dir, 'main.8bs');
@@ -116,11 +121,11 @@ test('a subpath the package does not export is 8BS2011, naming what it does expo
     assert.equal(resolved.code, '8BS2011');
     assert.match(resolved.message, /'@t\/p' does not export '\.\/sprites' \(exports: \.\/screen, \.\/text\)/);
     // Through the linker, on the import's span.
-    const program = 'import { sprites } from "@t/p/sprites";\nexport function main(): void {}';
+    const program = 'use @t::p::sprites::sprites;\npub fn main() {\n}';
     const { ir, diagnostics } = link(program, entry);
     assert.equal(ir, null);
     assert.deepEqual(diagnostics.map((d) => d.code), ['8BS2011']);
-    assert.equal(program.slice(diagnostics[0].start, diagnostics[0].start + diagnostics[0].length), 'import { sprites } from "@t/p/sprites";');
+    assert.equal(program.slice(diagnostics[0].start, diagnostics[0].start + diagnostics[0].length), 'use @t::p::sprites::sprites;');
     // And through `8bs check` / the editor, which resolve without a machine.
     assert.deepEqual(analyze(program, entry, { resolveImports: true }).map((d) => d.code), ['8BS2011']);
   });
@@ -129,7 +134,7 @@ test('a subpath the package does not export is 8BS2011, naming what it does expo
 test('a package with no exports field offers no subpaths at all', () => {
   const files = {
     'node_modules/@t/q/package.json': { name: '@t/q', '8bitscript': { entry: './index.8bs' } },
-    'node_modules/@t/q/index.8bs': 'export let a: u8 = 1;',
+    'node_modules/@t/q/index.8bs': 'pub let mut a: u8 = 1;',
   };
   withFiles(files, (dir) => {
     const resolved = resolveSpecifier('@t/q/anything', join(dir, 'main.8bs'));
@@ -188,7 +193,7 @@ test('a package\'s native sources ride along with its subpaths', () => {
     assert.equal(resolved.native.length, 1);
     assert.ok(resolved.native[0].endsWith(join('native', 'font.s')));
     const { ir, diagnostics } = link(
-      'import { screen } from "@t/p/screen";\nexport function main(): void { screen.setColors(1, 2); }',
+      'use @t::p::screen::screen;\npub fn main() {\n    screen::setColors(1, 2);\n}',
       entry, { machine: 'nes' },
     );
     assert.deepEqual(diagnostics, []);
@@ -203,7 +208,7 @@ test('a package\'s native sources ride along with its subpaths', () => {
 
 const PORTABLE = {
   ...PACKAGE,
-  'node_modules/@t/p/src/screen.nes.8bs': 'export namespace screen {\n    function setColors(border: u8, background: u8): void {}\n}\n',
+  'node_modules/@t/p/src/screen.nes.8bs': 'pub mod screen {\n    fn setColors(border: u8, background: u8) {\n    }\n}\n',
   'node_modules/@t/screen/package.json': {
     name: '@t/screen',
     '8bitscript': { entry: { c64: '@t/p/screen', nes: '@t/p/screen' } },
@@ -212,13 +217,13 @@ const PORTABLE = {
   'node_modules/@t/screen/node_modules/@t/p/package.json': PACKAGE['node_modules/@t/p/package.json'],
   'node_modules/@t/screen/node_modules/@t/p/src/index.8bs': PACKAGE['node_modules/@t/p/src/index.8bs'],
   'node_modules/@t/screen/node_modules/@t/p/src/screen.8bs': PACKAGE['node_modules/@t/p/src/screen.8bs'],
-  'node_modules/@t/screen/node_modules/@t/p/src/screen.nes.8bs': 'export namespace screen {\n    function setColors(border: u8, background: u8): void {}\n}\n',
+  'node_modules/@t/screen/node_modules/@t/p/src/screen.nes.8bs': 'pub mod screen {\n    fn setColors(border: u8, background: u8) {\n    }\n}\n',
 };
 
 test('a conditional entry may delegate to another package\'s subpath', () => {
   withFiles(PORTABLE, (dir) => {
     const entry = join(dir, 'main.8bs');
-    const program = 'import { screen } from "@t/screen";\nexport function main(): void { screen.setColors(6, 0); }';
+    const program = 'use @t::screen::screen;\npub fn main() {\n    screen::setColors(6, 0);\n}';
     const c64 = link(program, entry, { machine: 'c64' });
     assert.deepEqual(c64.diagnostics, []);
     assert.equal(c64.ir.globals.find((g) => g.name === 'borderColor').address, 0xd020);

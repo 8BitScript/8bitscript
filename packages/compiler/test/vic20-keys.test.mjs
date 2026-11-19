@@ -16,7 +16,7 @@ const VICE_VIC20 = '/opt/homebrew/share/vice/VIC20';
 
 const tableOf = (file) => {
   const text = readFileSync(join(VIC20_SRC, file), 'utf8');
-  const body = text.slice(text.indexOf('export namespace Key'));
+  const body = text.slice(text.indexOf('pub mod Key'));
   return new Map([...body.matchAll(/const (\w+): utinyint = (\d+);/g)].map(([, name, v]) => [name, Number(v)]));
 };
 const KEY = tableOf('keys.8bs');
@@ -88,8 +88,16 @@ test('the four directions and RETURN are the values @8bitscript/vic20/input reli
 // pet-keys.test.mjs checks PIA1's ports for the PET.
 test('keyboard.scan() drives VIA2 port B then reads port A, and input.poll() runs it before reading joystick-right', () => {
   const src = [
-    'import { input } from "./input.8bs";',
-    'export function main(): void { while (true) { waitFrame(); input.poll(); if (input.left()) { memory.write(0x8000, 1); } } }',
+    'use self::input::input;',
+    'pub fn main() {',
+    '    loop {',
+    '        waitFrame();',
+    '        input::poll();',
+    '        if input::left() {',
+    '            memory::write(0x8000, 1);',
+    '        }',
+    '    }',
+    '}',
   ].join('\n');
   const entry = join(VIC20_SRC, 'phantom-entry.8bs'); // does not exist: only its directory resolves the relative imports
   const { ir, diagnostics } = link(src, entry, { machine: 'vic20' });

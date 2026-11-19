@@ -1619,13 +1619,13 @@ test('--size still names inlined callees and splits wait-frame setup from the pe
   // The path is still a real file in the examples package so the import
   // specifiers below resolve exactly the way they do for a real project.
   const main = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'examples', 'hello-world', 'src', 'hello-world.8bs');
-  const src = `import { screen } from "@8bitscript/screen";
-import { text } from "@8bitscript/text";
+  const src = `use @8bitscript::screen::screen;
+use @8bitscript::text::text;
 
-export function main(): void {
-    screen.blank();
-    text.print(0, "Hello World!");
-    while (true) {
+pub fn main() {
+    screen::blank();
+    text::print(0, "Hello World!");
+    loop {
         waitFrame();
     }
 }
