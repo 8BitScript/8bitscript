@@ -52,7 +52,7 @@ async function execute(body, { layout = 'unexpanded', twin = TWIN } = {}) {
   try {
     // The twin names its geometry by package; a copy in a scratch directory
     // names it by path, which is also how the 8K map is chosen.
-    await writeFile(join(dir, 'twin.8bs'), twin.replace('@8bitscript/vic20/geometry', where.geometry));
+    await writeFile(join(dir, 'twin.8bs'), twin.replace('use @8bitscript::vic20::geometry::Video;', `use ${JSON.stringify(where.geometry)}::Video;`));
     const source = `use self::twin::graphics;
 use ${JSON.stringify(where.geometry)}::Video;
 
@@ -377,15 +377,15 @@ function broken(from, to) {
 
 const MUTATIONS = [
   ['color() stores the color unmasked', 'ink[slot] = c & 0x07;', 'ink[slot] = c;', 'color'],
-  ['blanking leaves the color RAM alone', '                    memory.write(Video::COLOR + cell, INK); // not left in the ink it was drawn in\n', '', 'color'],
-  ['blanking leaves the color RAM alone (hide)', '                    memory.write(Video::COLOR + cell, INK); // not left in the ink it was drawn in\n', '', 'hide'],
-  ['the pool takes one byte too many', 'if (end > POOL) {', 'if (end > POOL + 1) {', 'pool'],
-  ['the pool is one byte short', 'if (end > POOL) {', 'if (end >= POOL) {', 'pool'],
-  ['clipping is gone', 'if (c < Video.COLUMNS && r < Video.ROWS) {', 'if (true) {', 'clip'],
+  ['blanking leaves the color RAM alone', '                    memory::write(Video::COLOR + cell, INK); // not left in the ink it was drawn in\n', '', 'color'],
+  ['blanking leaves the color RAM alone (hide)', '                    memory::write(Video::COLOR + cell, INK); // not left in the ink it was drawn in\n', '', 'hide'],
+  ['the pool takes one byte too many', 'if end > POOL {', 'if end > POOL + 1 {', 'pool'],
+  ['the pool is one byte short', 'if end > POOL {', 'if end >= POOL {', 'pool'],
+  ['clipping is gone', 'if c < Video::COLUMNS && r < Video::ROWS {', 'if true {', 'clip'],
   ['setFrame does not clamp', '            n = frames[slot] - 1;', '            n = n;', 'frames'],
-  ['animate(false) does not pause', '    function animate(slot: utinyint, on: bool): void {\n        if (slot >= SLOTS) {\n            return;\n        }\n        paused[slot] = 1;', '    function animate(slot: utinyint, on: bool): void {\n        if (slot >= SLOTS) {\n            return;\n        }\n        paused[slot] = 0;', 'frames'],
+  ['animate(false) does not pause', '    fn animate(slot: utinyint, on: bool) {\n        if slot >= SLOTS {\n            return;\n        }\n        paused[slot] = 1;', '    fn animate(slot: utinyint, on: bool) {\n        if slot >= SLOTS {\n            return;\n        }\n        paused[slot] = 0;', 'frames'],
   ['hide forgets to blank', '        seen[slot] = 0;\n        moved[slot] = 1;', '        seen[slot] = 0;', 'hide'],
-  ['slots past MAX are not refused', '    function place(slot: utinyint, x: usmallint, y: usmallint): void {\n        if (slot >= SLOTS) {\n            return;\n        }', '    function place(slot: utinyint, x: usmallint, y: usmallint): void {', 'bounds'],
+  ['slots past MAX are not refused', '    fn place(slot: utinyint, x: usmallint, y: usmallint) {\n        if slot >= SLOTS {\n            return;\n        }', '    fn place(slot: utinyint, x: usmallint, y: usmallint) {', 'bounds'],
 ];
 
 for (const [what, from, to, name] of MUTATIONS) {

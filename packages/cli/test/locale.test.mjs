@@ -75,7 +75,7 @@ test('resolveLocale: nearest wins — the override, the target\'s, the project\'
   assert.deepEqual(resolveLocale({ locale: 'de', targets: { pet: { locale: 'fr' } } }, { target: 'pet', override: 'es' }), { ok: true, locale: 'es' });
   const bad = resolveLocale({ locale: 'pet' }, { target: 'pet' });
   assert.equal(bad.ok, false);
-  assert.match(bad.error, /8bitscript\.config\.8bs's locale: 'pet' is a machine's name/);
+  assert.match(bad.error, /8bitscript\.config\.ts's locale: 'pet' is a machine's name/);
   const badTarget = resolveLocale({ targets: { pet: { locale: 8 } } }, { target: 'pet' });
   assert.match(badTarget.error, /targets\.pet\.locale: a locale is a name in quotes, got 8/);
   const tag = resolveLocale({}, { target: 'atari8', override: 'on', tags: ['on'] });

@@ -76,7 +76,7 @@ test('project --json describes the programs, their display fields, and the defin
   const info = JSON.parse(result.stdout);
   assert.equal(info.version, 1);
   assert.equal(info.hasConfig, true);
-  assert.match(info.configPath, /8bitscript\.config\.8bs$/);
+  assert.match(info.configPath, /8bitscript\.config\.ts$/);
   assert.equal(info.configError, null);
   assert.equal(info.targetsListed, true);
   assert.deepEqual(info.targets.map((t) => t.id), ['pet', 'c64']);

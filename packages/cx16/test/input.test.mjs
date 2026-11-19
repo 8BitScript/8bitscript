@@ -44,14 +44,14 @@ test('the probe links clean for the X16, and every answer is a real function in 
 });
 
 test('poll() calls joystick_scan, kbd_scan and joystick_get, and or\'s START into confirm', () => {
-  const body = SOURCE.slice(SOURCE.indexOf('function poll'), SOURCE.indexOf('function left'));
+  const body = SOURCE.slice(SOURCE.indexOf('fn poll'), SOURCE.indexOf('fn left'));
   assert.match(body, /jsr \$FF53/, 'joystick_scan — IRQ is off, so poll() must query the pads');
   assert.match(body, /jsr \$FF9F/, 'kbd_scan — joy0 only updates when the keyboard is scanned');
   assert.match(body, /jsr \$FF56/, 'joystick_get');
   assert.match(body, /lda #0/, 'joy0 is the keyboard joystick: Enter is START');
   assert.match(body, /lda #1/, 'joy1 is SNES port 1');
   assert.match(body, /lda #2/, 'joy2 is SNES port 2');
-  assert.match(SOURCE, /held = held \| Edge\.CONFIRM/);
+  assert.match(SOURCE, /held = held \| Edge::CONFIRM/);
   assert.match(SOURCE, /const START: utinyint = 16;/);
   assert.doesNotMatch(SOURCE, /stay false/);
 });

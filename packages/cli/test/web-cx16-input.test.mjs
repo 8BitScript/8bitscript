@@ -166,7 +166,7 @@ test("the X16 input twin's key byte is the byte the page writes, behind text.cx1
   assert.equal(colorBase, LAYOUT.colorBase, 'the colour plane is where the page reads it');
   assert.equal(colorBase + cells, LAYOUT.inputOffset, 'the input byte is one plane past the colour plane');
   // The twin's own formula, text.CELL_COUNT * 2 + 2, with the 2 being the text twin's CHAR_BASE.
-  assert.match(INPUT_TWIN, /memory\.read\(text\.CELL_COUNT \* 2 \+ 2\)/);
+  assert.match(INPUT_TWIN, /memory::read\(text::CELL_COUNT \* 2 \+ 2\)/);
   assert.equal(cells * 2 + charBase, LAYOUT.inputOffset);
   assert.equal(LAYOUT.inputOffset, 8514, 'on the stock 76x56 grid');
 });
@@ -185,7 +185,7 @@ test("the X16 wasm build's pointer is the page's pointer block: a cell, and a pr
   const at = LAYOUT.pointerOffset;
   assert.ok(at > 0, 'the stock X16 has a mouse, so the layout carries the block');
   assert.equal(at, LAYOUT.inputOffset + 837, 'the offset the twin spells: input + 4 + 192 + 640 + 1');
-  assert.match(INPUT_TWIN, /text\.CELL_COUNT \* 2 \+ 839/);
+  assert.match(INPUT_TWIN, /text::CELL_COUNT \* 2 \+ 839/);
   const ROW = 11;
   const COL = 7;
   const mem = await runWithKeys([

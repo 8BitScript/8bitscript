@@ -256,7 +256,7 @@ test('over one pass of the table (every byte once), every outcome of table.range
 
 test('table.bits(k) is the top k bits of the next table byte', async () => {
   const memory = await runWeb(drawing(`use ${JSON.stringify(TABLE)}::table;`, 'table::seed(9);', 'table::bits(5)', 100));
-  const source = (await readFile(TABLE, 'utf8')).match(/const TABLE: [utinyint; 256] = \[([\s\S]*?)\];/)[1];
+  const source = (await readFile(TABLE, 'utf8')).match(/const TABLE: \[utinyint; 256\] = \[([\s\S]*?)\];/)[1];
   const bytes = source.split(',').map((s) => s.trim()).filter(Boolean).map(Number);
   assert.deepEqual(Array.from(memory.slice(OUT, OUT + 100)), Array.from({ length: 100 }, (_, i) => bytes[(9 + i) % 256] >> 3));
 });

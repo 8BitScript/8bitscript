@@ -74,12 +74,12 @@ test('with no machine in hand, the program checks clean', () => {
 // factConstName() spells it, and every machine's stock sheet — and every
 // non-default hardware value's — folds into it without a range error.
 
-const sheet = [...index.matchAll(/const ([A-Z_]+): ([a-z]+) = #fact\(([a-z.A-Z]+)\);/g)]
-  .map(([, name, type, key]) => ({ name, type, key }));
+const sheet = [...index.matchAll(/const ([A-Z_]+): ([a-z]+) = #fact\(([a-z:A-Z]+)\);/g)]
+  .map(([, name, type, key]) => ({ name, type, key: key.replace('::', '.') }));
 const namespaceOf = (key) => {
-  const at = index.indexOf(`#fact(${key})`);
+  const at = index.indexOf(`#fact(${key.replace('.', '::')})`);
   const before = index.slice(0, at);
-  return before.match(/export namespace (\w+) \{(?![\s\S]*export namespace)/)?.[1];
+  return before.match(/pub mod (\w+) \{(?![\s\S]*pub mod)/)?.[1];
 };
 
 test('every program fact is one const on the sheet, in the namespace and with the name the compiler spells', () => {

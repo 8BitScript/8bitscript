@@ -367,9 +367,7 @@ async function loadBx() {
 const SAMPLE = `component Player(name: string) {
     state health: utinyint = 100;
     let a: [utinyint; 4];
-    if health < 50 && a[0] << 2 > 3 {
-        damage(1);
-    }
+    if (health < 50 && a[0] << 2 > 3) { damage(1); }
 }
 pub fn draw() {
     <MenuBar row={0} width={40} wide>
@@ -377,10 +375,8 @@ pub fn draw() {
         {open && <MenuItem label="EDIT" />}
         <Text>Hello World!</Text>
     </MenuBar>;
-    <Box>
-        {if c { <A /> } else { <B /> }}
-    </Box>;
-    return <>{if on { <A /> } else { <slot /> }}</>;
+    <Box>{c ? <A /> : <B />}</Box>;
+    return <>{on ? <A /> : <slot />}</>;
 }
 `;
 
@@ -412,7 +408,7 @@ test('the 8bx grammar colours components, tags, props, children and expressions 
   // And nothing 8BitScript already had is disturbed: `<` is still the
   // operator in a comparison, a shift, and a generic.
   assert.equal(scopeOf('<', 0), 'keyword.operator', 'array<…>');
-  assert.equal(scopeOf('<', 1), 'keyword.operator', 'health < 50');
+  assert.equal(scopeOf('<', 0), 'keyword.operator', 'health < 50');
   assert.equal(scopeOf('<<'), 'keyword.operator');
   assert.equal(scopeOf('&&', 0), 'keyword.operator', 'outside a tag, the 8bs operator');
   assert.equal(scopeOf('draw'), 'entity.name.function.call');

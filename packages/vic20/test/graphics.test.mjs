@@ -75,7 +75,7 @@ use self::h::other;
 
 const FILL = 'XXXXXXXXXXXXXXXXXXXXXX';
 
-const STATIC = `${IMPORTS};
+const STATIC = `${IMPORTS}
 pub fn main() {
     screen::blank();
     text::print(66, "${FILL}");
@@ -95,7 +95,7 @@ pub fn main() {
 // column and second row are off the screen), then to the middle. Text is
 // printed after the corner placement: on 8K the cell after the screen's
 // last is where the program begins.
-const MOVE = `${IMPORTS};
+const MOVE = `${IMPORTS}
 pub fn main() {
     let mut n: utinyint = 0;
     screen::blank();
@@ -128,7 +128,7 @@ pub fn main() {
 }
 `;
 
-const ANIMATE = `${IMPORTS};
+const ANIMATE = `${IMPORTS}
 pub fn main() {
     screen::blank();
     graphics::place(spin, 80, 40);

@@ -54,8 +54,8 @@ test('the shell and the DAW module are present as source modules', () => {
   assert.ok(existsSync(join(SRC, 'chime.8ba')));
   assert.ok(existsSync(join(SRC, 'chime.wav')));
   const studio = readFileSync(join(SRC, 'studio.8bs'), 'utf8');
-  assert.match(studio, /from "\.\/daw\/daw\.8bs"/);
-  assert.match(studio, /from "\.\/mark\.8bg"/);
+  assert.match(studio, /use self::daw::daw::daw;/);
+  assert.match(studio, /use self::mark::mark;/);
   assert.match(studio, /from "\.\/chime\.8ba"/);
   assert.doesNotMatch(studio, /from "@8bitscript\/ui\/menu"/);
   assert.doesNotMatch(studio, /@8bitscript\/input/);

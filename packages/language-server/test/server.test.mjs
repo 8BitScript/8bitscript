@@ -262,7 +262,7 @@ test('textDocument/hover on port.write shows the port I/O docs', async () => {
     });
 
     assert.ok(response.result);
-    assert.match(response.result.contents.value, /port.write/);
+    assert.match(response.result.contents.value, /port::write/);
     assert.match(response.result.contents.value, /OUT/);
   });
 });
@@ -417,7 +417,7 @@ test('hover on a portable member shows the API every machine agrees on, with no 
       textDocument: { uri },
       position: positionAt(text, text.indexOf('blank') + 2),
     });
-    assert.match(hover.result.contents.value, /\*\*screen::blank\(\): void\*\*/);
+    assert.match(hover.result.contents.value, /\*\*screen::blank\(\)\*\*/);
     assert.match(hover.result.contents.value, /Blanks the screen\./);
     assert.ok(!hover.result.contents.value.includes('Shown as implemented'), 'the one-machine footer is gone');
     assert.ok(!hover.result.contents.value.includes('Available on'));
@@ -455,8 +455,8 @@ test('completion after object. lists the merged members and annotates the machin
       position: positionAt(text, text.indexOf('screen::\n') + 8),
     });
     assert.deepEqual(completion.result.map((i) => [i.label, i.detail]), [
-      ['blank', 'screen::blank(): void'],
-      ['touch', 'screen::touch(): bool — web only'],
+      ['blank', 'screen.blank()'],
+      ['touch', 'screen.touch() -> bool — web only'],
     ]);
   });
 });
@@ -990,7 +990,7 @@ test('textDocument/hover explains a named import\'s own namespace member', async
       });
 
       assert.ok(response.result);
-      assert.match(response.result.contents.value, /\*\*screen::blank\(border: u8 = 0, background: u8 = 0\): void\*\*/);
+      assert.match(response.result.contents.value, /\*\*screen::blank\(border: u8 = 0, background: u8 = 0\)\*\*/);
       assert.match(response.result.contents.value, /Every cell blank, both colors black\./);
     });
   } finally {
@@ -1036,7 +1036,7 @@ test('textDocument/completion offers a named import\'s members after a dot', asy
       const blank = response.result.find((item) => item.label === 'blank');
       assert.equal(blank.kind, LSP_COMPLETION_KIND.Function);
       assert.equal(blank.documentation.kind, 'markdown');
-      assert.match(blank.documentation.value, /\*\*screen::blank\(\): void\*\*/);
+      assert.match(blank.documentation.value, /\*\*screen::blank\(\)\*\*/);
     });
   } finally {
     await rm(projectDir, { recursive: true, force: true });
@@ -1051,13 +1051,13 @@ test('start() resolves @8bitscript/* through a checkout when given one', () => {
 
 // ---- the old .8bs config name ------------------------------------------------
 
-test('staleConfigPath finds an old 8bitscript.config.ts only when no current config is above', async () => {
+test('staleConfigPath finds an old 8bitscript.config.8bs only when no current config is above', async () => {
   const { staleConfigPath } = await import('../src/server.mjs');
   const dir = await mkdtemp(join(tmpdir(), '8bs-ls-stale-'));
   try {
     await mkdir(join(dir, 'src'), { recursive: true });
-    await writeFile(join(dir, '8bitscript.config.ts'), 'export default {};\n');
-    assert.equal(staleConfigPath(join(dir, 'src')), join(dir, '8bitscript.config.ts'));
+    await writeFile(join(dir, '8bitscript.config.8bs'), 'export default {};\n');
+    assert.equal(staleConfigPath(join(dir, 'src')), join(dir, '8bitscript.config.8bs'));
     await writeFile(join(dir, '8bitscript.config.ts'), 'export default {};\n');
     assert.equal(staleConfigPath(join(dir, 'src')), null);
   } finally {
