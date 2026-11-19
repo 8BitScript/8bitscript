@@ -1,6 +1,6 @@
 // Every screen code 0..255 in the set the machine boots in. See charsetdump.8bs.
-use self::charsetdump::run;
+import { run } from "./charsetdump.8bs";
 
-pub fn main() {
+export function main(): void {
     run(false);
 }

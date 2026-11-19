@@ -53,12 +53,12 @@
 // anything that needs many independent values wants a PRNG seeded once
 // from here. Nothing here is a source of cryptographic randomness, on this
 // chip or on POKEY's.
-use self::index::{sidRegisters, voice3Oscillator};
+import { sidRegisters, voice3Oscillator } from "./index.8bs";
 
-pub mod random {
+export namespace random {
     // Claims voice 3: fastest-clocked noise, silenced. See the header for
     // why this must run before anything else touches $D418.
-    fn begin() {
+    function begin(): void {
         sidRegisters[14] = 0xFF; // voice 3 frequency, low byte
         sidRegisters[15] = 0xFF; // voice 3 frequency, high byte — fastest LFSR clock
         sidRegisters[18] = 0x80; // voice 3 control: noise waveform, gate off
@@ -66,14 +66,14 @@ pub mod random {
     }
 
     // One byte from the oscillator, 0-255.
-    fn byte() -> utinyint {
+    function byte(): utinyint {
         return voice3Oscillator;
     }
 
     // Two bytes as one 16-bit value. See the header: the two reads are
     // consecutive shifts of one register, close together in time, so this
     // is wider than `byte()` but not twice as random.
-    fn word() -> usmallint {
+    function word(): usmallint {
         let high: usmallint = voice3Oscillator;
         let low: usmallint = voice3Oscillator;
         return high * 256 + low;

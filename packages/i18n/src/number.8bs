@@ -16,10 +16,10 @@
 // template, pays nothing for it. text.printNumber is the field for a HUD
 // counter that must not shift columns; this is the number for a total
 // the player reads.
-use @8bitscript::text::text;
-use self::index::Locale;
+import { text } from "@8bitscript/text";
+import { Locale } from "./index.8bs";
 
-const PLACES: [usmallint; 5] = [10000, 1000, 100, 10, 1];
+const PLACES: array<usmallint, 5> = [10000, 1000, 100, 10, 1];
 
 // Written for a small zero-page frame — the 6502 backend keeps every
 // local and parameter of the deepest call chain in zero page, so a local
@@ -33,43 +33,43 @@ const PLACES: [usmallint; 5] = [10000, 1000, 100, 10, 1];
 // +11 of RAM on the PET, +202 and +11 on the unexpanded VIC-20, +194 and
 // +9 on the C64 — @8bitscript/text's fill() and putChar() linked beside
 // its place(), and the separator's own loop.
-pub mod number {
-    fn print(cell: usmallint, value: usmallint, width: utinyint) {
+export namespace number {
+    function print(cell: usmallint, value: usmallint, width: utinyint): void {
         // How many digits: the first place the value reaches, high to
         // low — one digit for 0-9, so a zero prints as one "0".
-        let mut remaining: utinyint = 1;
-        let mut i: utinyint = 0;
-        while i < 4 {
-            if remaining == 1 && value >= PLACES[i] {
+        let remaining: utinyint = 1;
+        let i: utinyint = 0;
+        while (i < 4) {
+            if (remaining == 1 && value >= PLACES[i]) {
                 remaining = 5 - i;
             }
-            i += 1;
+            i++;
         }
         // Five digits at most, so at most one separator, and only when
         // there is a fourth digit: the number's width is one more then.
         i = remaining;
-        if remaining > 3 {
+        if (remaining > 3) {
             i = remaining + 1;
         }
-        if width > i {
-            text::fill(cell, width - i, 32);
+        if (width > i) {
+            text.fill(cell, width - i, 32);
             cell = cell + (width - i);
         }
         i = 5 - remaining; // the first place printed
-        while i < 5 {
-            let mut digit: utinyint = 48; // '0'
-            while value >= PLACES[i] {
+        while (i < 5) {
+            let digit: utinyint = 48; // '0'
+            while (value >= PLACES[i]) {
                 value = value - PLACES[i];
-                digit += 1;
+                digit++;
             }
-            text::putChar(cell, digit);
-            cell += 1;
-            remaining -= 1;
-            if remaining == 3 {
-                text::putChar(cell, Locale::GROUP);
-                cell += 1;
+            text.putChar(cell, digit);
+            cell++;
+            remaining--;
+            if (remaining == 3) {
+                text.putChar(cell, Locale.GROUP);
+                cell++;
             }
-            i += 1;
+            i++;
         }
     }
 }

@@ -1,78 +1,79 @@
-use self::geometry::Video;
+import { Video } from "./geometry.8bs";
 
-fn asciiToScreenCode(code: utinyint) -> utinyint {
-    if code >= 97 && code < 123 {
+function asciiToScreenCode(code: utinyint): utinyint {
+    if (code >= 97 && code < 123) {
         return code - 96;
     }
     return code;
 }
 
-let mut ink: utinyint = 1;
+let ink: utinyint = 1;
 
-pub mod text {
-    const CELL_COUNT: usmallint = Video::CELL_COUNT;
-    const COLUMNS: utinyint = Video::COLUMNS;
-    const ROWS: utinyint = Video::ROWS;
+export namespace text {
+    const CELL_COUNT: usmallint = Video.CELL_COUNT;
+    const COLUMNS: utinyint = Video.COLUMNS;
+    const ROWS: utinyint = Video.ROWS;
 
-    fn columns() -> utinyint {
-        return text::COLUMNS;
+    function columns(): utinyint {
+        return text.COLUMNS;
     }
 
-    fn rows() -> utinyint {
-        return text::ROWS;
+    function rows(): utinyint {
+        return text.ROWS;
     }
 
-    fn releaseCursor() {
+    function releaseCursor(): void {
     }
 
-    fn setReverse(on: bool) {
+    function setReverse(on: bool): void {
     }
 
-    fn setColor(color: utinyint) {
+    function setColor(color: utinyint): void {
         ink = color;
     }
 
-    fn putChar(cell: usmallint, code: utinyint) {
-        memory::write(49152 + cell, asciiToScreenCode(code));
+    function putChar(cell: usmallint, code: utinyint): void {
+        memory.write(49152 + cell, asciiToScreenCode(code));
     }
 
-    fn putColor(cell: usmallint, color: utinyint) {
+    function putColor(cell: usmallint, color: utinyint): void {
     }
 
-    fn print(cell: usmallint, s: string) {
-        for i: utinyint in 0..s.length {
-            text::putChar(cell + i, s[i]);
+    function print(cell: usmallint, s: string): void {
+        for (let i: utinyint = 0; i < s.length; i++) {
+            text.putChar(cell + i, s[i]);
         }
     }
 
-    fn fill(cell: usmallint, count: usmallint, code: utinyint) {
-        for i: usmallint in 0..count {
-            text::putChar(cell + i, code);
+
+    function fill(cell: usmallint, count: usmallint, code: utinyint): void {
+        for (let i: usmallint = 0; i < count; i++) {
+            text.putChar(cell + i, code);
         }
     }
 
-    fn printNumber(cell: usmallint, value: usmallint, width: utinyint) {
-        let mut n: usmallint = value;
-        let mut i: utinyint = width;
-        while i > 0 {
+    function printNumber(cell: usmallint, value: usmallint, width: utinyint): void {
+        let n: usmallint = value;
+        let i: utinyint = width;
+        while (i > 0) {
             i = i - 1;
-            let mut digit: utinyint = 0;
-            let mut place: usmallint = 1;
-            let mut w: utinyint = 0;
-            while w < i {
+            let digit: utinyint = 0;
+            let place: usmallint = 1;
+            let w: utinyint = 0;
+            while (w < i) {
                 place = place * 10;
                 w = w + 1;
             }
-            while n >= place {
+            while (n >= place) {
                 n = n - place;
                 digit = digit + 1;
             }
-            text::putChar(cell + i, 48 + digit);
+            text.putChar(cell + i, 48 + digit);
         }
     }
 }
 
-pub mod TextColor {
+export namespace TextColor {
     const BLACK: utinyint = 0;
     const WHITE: utinyint = 1;
     const RED: utinyint = 2;

@@ -28,12 +28,12 @@
 // pushes. Port 2 shares the column lines, which a scan only drives for the
 // length of `keyboard.scan()`. Paddles and the 1351 mouse are the SID's
 // two A/D lines (`paddleX`/`paddleY` in ./index.8bs), not this file.
-use self::index::{cia1PortA, cia1PortB};
+import { cia1PortA, cia1PortB } from "./index.8bs";
 
 // The last scan: index 0 port 1, index 1 port 2; bits as in `Joystick`.
-let mut state: [utinyint; 2];
+let state: array<utinyint, 2>;
 
-pub mod Joystick {
+export namespace Joystick {
     const PORT_1: utinyint = 0;
     const PORT_2: utinyint = 1;
     const UP: utinyint = 1;
@@ -43,36 +43,36 @@ pub mod Joystick {
     const FIRE: utinyint = 16;
 }
 
-pub mod joystick {
+export namespace joystick {
     // Read both ports into the snapshot. Once a frame, after keyboard.scan().
-    fn scan() {
+    function scan(): void {
         cia1PortA = 0xFF;
         state[0] = (cia1PortB ^ 0xFF) & 0x1F;
         state[1] = (cia1PortA ^ 0xFF) & 0x1F;
     }
 
     // The five switches of one port as `Joystick.*` bits, 1 = pushed.
-    fn bits(port: utinyint) -> utinyint {
+    function bits(port: utinyint): utinyint {
         return state[port];
     }
 
-    fn up(port: utinyint) -> bool {
-        return (state[port] & Joystick::UP) != 0;
+    function up(port: utinyint): bool {
+        return (state[port] & Joystick.UP) != 0;
     }
 
-    fn down(port: utinyint) -> bool {
-        return (state[port] & Joystick::DOWN) != 0;
+    function down(port: utinyint): bool {
+        return (state[port] & Joystick.DOWN) != 0;
     }
 
-    fn left(port: utinyint) -> bool {
-        return (state[port] & Joystick::LEFT) != 0;
+    function left(port: utinyint): bool {
+        return (state[port] & Joystick.LEFT) != 0;
     }
 
-    fn right(port: utinyint) -> bool {
-        return (state[port] & Joystick::RIGHT) != 0;
+    function right(port: utinyint): bool {
+        return (state[port] & Joystick.RIGHT) != 0;
     }
 
-    fn fire(port: utinyint) -> bool {
-        return (state[port] & Joystick::FIRE) != 0;
+    function fire(port: utinyint): bool {
+        return (state[port] & Joystick.FIRE) != 0;
     }
 }

@@ -1,13 +1,13 @@
 // Dutch — index.8bs's twin for `--locale nl`. CLDR nl: decimal ",",
 // group "." (1.234,5).
-pub mod Locale {
+export namespace Locale {
     const DECIMAL: utinyint = 44; // ','
-    const GROUP: utinyint = 46; // '.'
+    const GROUP: utinyint = 46;   // '.'
 }
 
-pub mod i18n {
+export namespace i18n {
     // Interpolate {name} slots in a catalog string. Folded at every
     // call site; the body is never linked on a retro build.
-    fn format(template: string) {
+    function format(template: string): void {
     }
 }

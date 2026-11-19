@@ -23,7 +23,7 @@
 // xpet's 8032 model loads. The US business keyboard is wired to the same
 // matrix in every reference consulted, but has not been checked here.
 
-pub mod Key {
+export namespace Key {
     // row 0
     const DIGIT_2: utinyint = 0;
     const DIGIT_5: utinyint = 1;

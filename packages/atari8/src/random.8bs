@@ -40,18 +40,18 @@
 // reproducible in principle and unpredictable in practice — the same as on
 // the machine, for a program's purposes, but not a source of cryptographic
 // randomness on either. Nothing here is.
-use self::index::randomRegister;
+import { randomRegister } from "./index.8bs";
 
-pub mod random {
+export namespace random {
     // One byte from the counter, 0-255.
-    fn byte() -> utinyint {
+    function byte(): utinyint {
         return randomRegister;
     }
 
     // Two bytes as one 16-bit value. See the header: the two reads are
     // consecutive states of one shift register, close together in time, so
     // this is wider than `byte()` but not twice as random.
-    fn word() -> usmallint {
+    function word(): usmallint {
         let high: usmallint = randomRegister;
         let low: usmallint = randomRegister;
         return high * 256 + low;

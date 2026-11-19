@@ -18,13 +18,13 @@
 // more, 8BS2216), sixteen handles at most.
 const SLOTS: utinyint = 16;
 const BANK_LAST: utinyint = 255;
-let mut bank: [u8; 256];
-let mut base: [u8; 16];
-let mut size: [u8; 16];
-let mut kinds: [u8; 16];
+let bank: array<u8, 256>;
+let base: array<u8, 16>;
+let size: array<u8, 16>;
+let kinds: array<u8, 16>;
 // The cold scalars live in one RAM array, not as globals: every scalar global takes a byte of zero
 // page, and on the X16 that page is what the deepest call chain of the game has to fit in.
-let mut cold: [u8; 6];
+let cold: array<u8, 6>;
 const USED: utinyint = 0;
 const BINDING: utinyint = 1;
 const SPEED: utinyint = 2;
@@ -32,35 +32,35 @@ const ROWS: utinyint = 3;
 const REPEAT: utinyint = 4;
 
 // The sequencer: which song, where its next event is, and the row and frame it is at.
-let mut current: utinyint = 255;
-let mut at: utinyint = 0;
-let mut left: utinyint = 0;
-let mut row: utinyint = 0;
-let mut tick: utinyint = 0;
-let mut rowsLeft: utinyint = 0;
+let current: utinyint = 255;
+let at: utinyint = 0;
+let left: utinyint = 0;
+let row: utinyint = 0;
+let tick: utinyint = 0;
+let rowsLeft: utinyint = 0;
 
 // The note a STARTED event began.
-let mut noteNumber: utinyint = 0;
-let mut noteWave: utinyint = 0;
-let mut noteVolume: utinyint = 15;
-let mut noteDecay: utinyint = 0;
+let noteNumber: utinyint = 0;
+let noteWave: utinyint = 0;
+let noteVolume: utinyint = 15;
+let noteDecay: utinyint = 0;
 
 // Run the current row: a note that has used its rows ends, a note that starts on this row begins.
-fn enter() -> utinyint {
-    let mut result: utinyint = 0;
-    if rowsLeft != 0 {
+function enter(): utinyint {
+    let result: utinyint = 0;
+    if (rowsLeft != 0) {
         rowsLeft = rowsLeft - 1;
-        if rowsLeft == 0 {
+        if (rowsLeft == 0) {
             result = 2;
         }
     }
-    if left != 0 && bank[at] == row {
+    if (left != 0 && bank[at] == row) {
         let packed: utinyint = bank[at + 2];
         noteNumber = bank[at + 1];
         noteWave = packed & 3;
-        noteVolume = packed >> 2 & 15;
+        noteVolume = (packed >> 2) & 15;
         rowsLeft = bank[at + 3];
-        if rowsLeft == 0 {
+        if (rowsLeft == 0) {
             rowsLeft = 1;
         }
         noteDecay = bank[at + 4];
@@ -71,39 +71,39 @@ fn enter() -> utinyint {
     return result;
 }
 
-pub mod songs {
+export namespace songs {
     const NOTHING: utinyint = 0;
     const STARTED: utinyint = 1;
     const ENDED: utinyint = 2;
     const FINISHED: utinyint = 3;
 
     // The media bind functions call this once for each byte of a handle's data, in order.
-    fn bind(kind: utinyint, slot: utinyint, index: utinyint, value: utinyint) {
-        if slot >= SLOTS {
+    function bind(kind: utinyint, slot: utinyint, index: utinyint, value: utinyint): void {
+        if (slot >= SLOTS) {
             return;
         }
-        if cold[BINDING] != slot {
+        if (cold[BINDING] != slot) {
             cold[BINDING] = slot;
             base[slot] = cold[USED];
         }
-        if index >= BANK_LAST - base[slot] {
+        if (index >= BANK_LAST - base[slot]) {
             return;
         }
         bank[base[slot] + index] = value;
     }
 
     // ...and then once for the handle: its kind (0 sample, 1 song) and how many bytes it has.
-    fn meta(kind: utinyint, slot: utinyint, length: utinyint) {
-        if slot >= SLOTS {
+    function meta(kind: utinyint, slot: utinyint, length: utinyint): void {
+        if (slot >= SLOTS) {
             return;
         }
-        if cold[BINDING] != slot {
+        if (cold[BINDING] != slot) {
             base[slot] = cold[USED];
         }
         cold[BINDING] = 255;
         let room: utinyint = BANK_LAST - base[slot];
-        let mut fits: utinyint = length;
-        if fits > room {
+        let fits: utinyint = length;
+        if (fits > room) {
             fits = room;
         }
         size[slot] = fits;
@@ -111,60 +111,60 @@ pub mod songs {
         cold[USED] = base[slot] + fits;
     }
 
-    fn isSong(slot: utinyint) -> bool {
+    function isSong(slot: utinyint): bool {
         return slot < SLOTS && size[slot] >= 4 && kinds[slot] == 1;
     }
 
-    fn isSample(slot: utinyint) -> bool {
+    function isSample(slot: utinyint): bool {
         return slot < SLOTS && size[slot] >= 2 && kinds[slot] == 0;
     }
 
     // A sample's two bytes: its waveform and its note.
-    fn sampleWave(slot: utinyint) -> utinyint {
+    function sampleWave(slot: utinyint): utinyint {
         return bank[base[slot]];
     }
 
-    fn sampleNote(slot: utinyint) -> utinyint {
+    function sampleNote(slot: utinyint): utinyint {
         return bank[base[slot] + 1];
     }
 
-    fn active() -> bool {
+    function active(): bool {
         return current != 255;
     }
 
-    fn note() -> utinyint {
+    function note(): utinyint {
         return noteNumber;
     }
 
-    fn wave() -> utinyint {
+    function wave(): utinyint {
         return noteWave;
     }
 
-    fn volume() -> utinyint {
+    function volume(): utinyint {
         return noteVolume;
     }
 
-    fn decay() -> utinyint {
+    function decay(): utinyint {
         return noteDecay;
     }
 
     // Begin `slot` (a song). `loop` says whether the caller wants it repeated: it repeats only if the
     // song says so too (`loop false` in the `.8ba` file makes a one-shot even for audio.music).
-    fn start(slot: utinyint, r#loop: bool) -> utinyint {
-        if !songs::isSong(slot) {
+    function start(slot: utinyint, loop: bool): utinyint {
+        if (!songs.isSong(slot)) {
             return 0;
         }
         current = slot;
         let b: utinyint = base[slot];
         cold[SPEED] = bank[b + 1];
-        if cold[SPEED] == 0 {
+        if (cold[SPEED] == 0) {
             cold[SPEED] = 1;
         }
         cold[ROWS] = bank[b + 2];
         left = bank[b + 3];
         at = b + 4;
         cold[REPEAT] = 0;
-        if r#loop && (bank[b] & 1) != 0 {
+        if (loop && (bank[b] & 1) != 0) {
             cold[REPEAT] = 1;
         }
         row = 0;
@@ -173,26 +173,26 @@ pub mod songs {
         return enter();
     }
 
-    fn stop() {
+    function stop(): void {
         current = 255;
         rowsLeft = 0;
     }
 
     // Once a frame while a song plays.
-    fn step() -> utinyint {
-        if current == 255 {
+    function step(): utinyint {
+        if (current == 255) {
             return 0;
         }
         tick = tick + 1;
-        if tick < cold[SPEED] {
+        if (tick < cold[SPEED]) {
             return 0;
         }
         tick = 0;
         row = row + 1;
-        if row < cold[ROWS] {
+        if (row < cold[ROWS]) {
             return enter();
         }
-        if cold[REPEAT] == 0 {
+        if (cold[REPEAT] == 0) {
             current = 255;
             rowsLeft = 0;
             return 3;
@@ -203,8 +203,8 @@ pub mod songs {
         rowsLeft = 0;
         at = base[current] + 4;
         left = bank[base[current] + 3];
-        let mut result: utinyint = enter();
-        if result == 0 && sounded {
+        let result: utinyint = enter();
+        if (result == 0 && sounded) {
             result = 2;
         }
         return result;

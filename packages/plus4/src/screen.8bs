@@ -1,47 +1,47 @@
-use self::index::{tedBackground, tedBorder};
-use self::geometry::Video;
+import { tedBackground, tedBorder } from "./index.8bs";
+import { Video } from "./geometry.8bs";
 
-pub mod screen {
-    fn setColors(border: u8, background: u8) {
+export namespace screen {
+    function setColors(border: u8, background: u8): void {
         tedBorder = border;
         tedBackground = background;
     }
 
-    fn blank(border: utinyint = BorderColor::BLACK, background: utinyint = BackgroundColor::BLACK) {
-        if border != BorderColor::KEEP {
-            screen::setBorder(border);
+    function blank(border: utinyint = BorderColor.BLACK, background: utinyint = BackgroundColor.BLACK): void {
+        if (border != BorderColor.KEEP) {
+            screen.setBorder(border);
         }
-        if background != BackgroundColor::KEEP {
-            screen::setBackground(background);
+        if (background != BackgroundColor.KEEP) {
+            screen.setBackground(background);
         }
-        for i: utinyint in 0..250 {
-            memory::write(0x0C00 + i, 32);
-            memory::write(0x0C00 + i + 250, 32);
-            memory::write(0x0C00 + i + 500, 32);
-            memory::write(0x0C00 + i + 750, 32);
-            memory::write(0x0800 + i, 0x71);
-            memory::write(0x0800 + i + 250, 0x71);
-            memory::write(0x0800 + i + 500, 0x71);
-            memory::write(0x0800 + i + 750, 0x71);
+        for (let i: utinyint = 0; i < 250; i++) {
+            memory.write(0x0C00 + i, 32);
+            memory.write(0x0C00 + i + 250, 32);
+            memory.write(0x0C00 + i + 500, 32);
+            memory.write(0x0C00 + i + 750, 32);
+            memory.write(0x0800 + i, 0x71);
+            memory.write(0x0800 + i + 250, 0x71);
+            memory.write(0x0800 + i + 500, 0x71);
+            memory.write(0x0800 + i + 750, 0x71);
         }
     }
 
-    fn setBackground(background: u8) {
+    function setBackground(background: u8): void {
         tedBackground = background;
     }
 
-    fn setBorder(border: u8) {
+    function setBorder(border: u8): void {
         tedBorder = border;
     }
 
     const RESIZABLE: bool = false;
 
-    fn resized() -> bool {
+    function resized(): bool {
         return false;
     }
 }
 
-pub mod BorderColor {
+export namespace BorderColor {
     const BLACK: utinyint = 0;
     const WHITE: utinyint = 0x71;
     const RED: utinyint = 0x22;
@@ -53,7 +53,7 @@ pub mod BorderColor {
     const KEEP: utinyint = 255;
 }
 
-pub mod BackgroundColor {
+export namespace BackgroundColor {
     const BLACK: utinyint = 0;
     const WHITE: utinyint = 0x71;
     const RED: utinyint = 0x22;

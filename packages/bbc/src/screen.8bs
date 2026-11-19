@@ -1,29 +1,29 @@
-use self::geometry::Video;
+import { Video } from "./geometry.8bs";
 
-pub mod screen {
-    fn setColors(border: u8, background: u8) {
+export namespace screen {
+    function setColors(border: u8, background: u8): void {
     }
 
-    fn blank(border: utinyint = BorderColor::BLACK, background: utinyint = BackgroundColor::BLACK) {
-        for cell: usmallint in 0..Video::CELL_COUNT {
-            memory::write(31744 + cell, 32);
+    function blank(border: utinyint = BorderColor.BLACK, background: utinyint = BackgroundColor.BLACK): void {
+        for (let cell: usmallint = 0; cell < Video.CELL_COUNT; cell++) {
+            memory.write(31744 + cell, 32);
         }
     }
 
-    fn setBackground(background: u8) {
+    function setBackground(background: u8): void {
     }
 
-    fn setBorder(border: u8) {
+    function setBorder(border: u8): void {
     }
 
     const RESIZABLE: bool = false;
 
-    fn resized() -> bool {
+    function resized(): bool {
         return false;
     }
 }
 
-pub mod BorderColor {
+export namespace BorderColor {
     const BLACK: utinyint = 0;
     const WHITE: utinyint = 1;
     const RED: utinyint = 2;
@@ -35,7 +35,7 @@ pub mod BorderColor {
     const KEEP: utinyint = 255;
 }
 
-pub mod BackgroundColor {
+export namespace BackgroundColor {
     const BLACK: utinyint = 0;
     const WHITE: utinyint = 1;
     const RED: utinyint = 2;

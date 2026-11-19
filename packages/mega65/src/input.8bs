@@ -32,10 +32,10 @@
 // **No mouse.** This package's hardware catalog has no options at all yet,
 // so `input.mouse` is false and there is nothing to detect. A 1351 on a
 // MEGA65 would be the C64's driver against these same registers.
-use self::index::{cia1PortA, cia1PortB, cia1DirectionA, cia1DirectionB};
+import { cia1PortA, cia1PortB, cia1DirectionA, cia1DirectionB } from "./index.8bs";
 
 // The C64 matrix's codes, for the keys this file maps.
-mod Key {
+namespace Key {
     const RETURN: utinyint = 1;
     const CURSOR_RIGHT: utinyint = 2; // shifted: cursor left
     const CURSOR_DOWN: utinyint = 7; // shifted: cursor up
@@ -44,12 +44,12 @@ mod Key {
     const STOP: utinyint = 63; // RUN/STOP
 }
 
-const COLUMN_SELECT: [utinyint; 8] = [254, 253, 251, 247, 239, 223, 191, 127];
-const ROW_BIT: [utinyint; 8] = [1, 2, 4, 8, 16, 32, 64, 128];
+const COLUMN_SELECT: array<utinyint, 8> = [254, 253, 251, 247, 239, 223, 191, 127];
+const ROW_BIT: array<utinyint, 8> = [1, 2, 4, 8, 16, 32, 64, 128];
 
-let mut matrix: [utinyint; 8];
+let matrix: array<utinyint, 8>;
 
-mod Edge {
+namespace Edge {
     const LEFT: utinyint = 1;
     const RIGHT: utinyint = 2;
     const UP: utinyint = 4;
@@ -58,18 +58,19 @@ mod Edge {
     const CANCEL: utinyint = 32;
 }
 
-let mut held: utinyint = 0;
-let mut before: utinyint = 0;
-let mut began: utinyint = 0;
+let held: utinyint = 0;
+let before: utinyint = 0;
+let began: utinyint = 0;
 
 // Is this key down in the last scan?
-fn keyDown(key: utinyint) -> bool {
+function keyDown(key: utinyint): bool {
     return (matrix[key >> 3] & ROW_BIT[key & 7]) != 0;
 }
 
-pub mod input {
+export namespace input {
+
     // Nothing to set up: no pointer to give a ceiling to.
-    fn begin() {
+    function begin(): void {
         // One poll before the program's first, so the edge detector starts
         // from what is actually held rather than from nothing. `before` is
         // zero until something fills it, and an edge is "held now, not held
@@ -78,13 +79,13 @@ pub mod input {
         // machine: RETURN held at start-up (CIA1 row read $02 on the first
         // frame, the stick clear) surfaced as a phantom confirm() that no
         // one pressed, and the joystick example counted it.
-        input::poll();
+        input.poll();
     }
 
-    fn poll() {
+    function poll(): void {
         cia1DirectionA = 0xFF;
         cia1DirectionB = 0x00;
-        for column: utinyint in 0..8 {
+        for (let column: utinyint = 0; column < 8; column++) {
             cia1PortA = COLUMN_SELECT[column];
             matrix[column] = cia1PortB ^ 0xFF;
         }
@@ -96,88 +97,88 @@ pub mod input {
         before = held;
         held = 0;
 
-        let shifted: bool = keyDown(Key::SHIFT_LEFT) || keyDown(Key::SHIFT_RIGHT);
-        if keyDown(Key::CURSOR_RIGHT) {
-            if shifted {
-                held = held | Edge::LEFT;
+        let shifted: bool = keyDown(Key.SHIFT_LEFT) || keyDown(Key.SHIFT_RIGHT);
+        if (keyDown(Key.CURSOR_RIGHT)) {
+            if (shifted) {
+                held = held | Edge.LEFT;
             } else {
-                held = held | Edge::RIGHT;
+                held = held | Edge.RIGHT;
             }
         }
-        if keyDown(Key::CURSOR_DOWN) {
-            if shifted {
-                held = held | Edge::UP;
+        if (keyDown(Key.CURSOR_DOWN)) {
+            if (shifted) {
+                held = held | Edge.UP;
             } else {
-                held = held | Edge::DOWN;
+                held = held | Edge.DOWN;
             }
         }
-        if keyDown(Key::RETURN) {
-            held = held | Edge::CONFIRM;
+        if (keyDown(Key.RETURN)) {
+            held = held | Edge.CONFIRM;
         }
-        if keyDown(Key::STOP) {
-            held = held | Edge::CANCEL;
+        if (keyDown(Key.STOP)) {
+            held = held | Edge.CANCEL;
         }
 
         // The stick in port 2: up 1, down 2, left 4, right 8, fire 16.
-        if (stick & 4) != 0 {
-            held = held | Edge::LEFT;
+        if ((stick & 4) != 0) {
+            held = held | Edge.LEFT;
         }
-        if (stick & 8) != 0 {
-            held = held | Edge::RIGHT;
+        if ((stick & 8) != 0) {
+            held = held | Edge.RIGHT;
         }
-        if (stick & 1) != 0 {
-            held = held | Edge::UP;
+        if ((stick & 1) != 0) {
+            held = held | Edge.UP;
         }
-        if (stick & 2) != 0 {
-            held = held | Edge::DOWN;
+        if ((stick & 2) != 0) {
+            held = held | Edge.DOWN;
         }
-        if (stick & 16) != 0 {
-            held = held | Edge::CONFIRM;
+        if ((stick & 16) != 0) {
+            held = held | Edge.CONFIRM;
         }
 
         began = held & (before ^ 0xFF);
     }
 
-    fn left() -> bool {
-        return (began & Edge::LEFT) != 0;
+    function left(): bool {
+        return (began & Edge.LEFT) != 0;
     }
 
-    fn right() -> bool {
-        return (began & Edge::RIGHT) != 0;
+    function right(): bool {
+        return (began & Edge.RIGHT) != 0;
     }
 
-    fn up() -> bool {
-        return (began & Edge::UP) != 0;
+    function up(): bool {
+        return (began & Edge.UP) != 0;
     }
 
-    fn down() -> bool {
-        return (began & Edge::DOWN) != 0;
+    function down(): bool {
+        return (began & Edge.DOWN) != 0;
     }
 
-    fn confirm() -> bool {
-        return (began & Edge::CONFIRM) != 0;
+    function confirm(): bool {
+        return (began & Edge.CONFIRM) != 0;
     }
 
-    fn cancel() -> bool {
-        return (began & Edge::CANCEL) != 0;
+    function cancel(): bool {
+        return (began & Edge.CANCEL) != 0;
     }
 
-    fn pointer() -> bool {
+    function pointer(): bool {
         return false;
     }
 
-    fn pointerCell() -> usmallint {
+    function pointerCell(): usmallint {
         return 0;
     }
 
-    fn pointerButton() -> bool {
+    function pointerButton(): bool {
         return false;
     }
 }
 
 // Compile-time names for the confirm control, interpolated into catalogs
 // as {control} / {other}. OR / ODER lives in the catalog, not here.
-pub mod Input {
+export namespace Input {
     const CONFIRM_LABEL: string = "RETURN";
     const ALT_CONFIRM_LABEL: string = "FIRE";
     const CONFIRM_LABELS: string = "RETURN OR FIRE";

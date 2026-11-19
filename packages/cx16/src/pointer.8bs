@@ -35,41 +35,42 @@
 // turns it back on without re-centering (mouse_config $FF, size left
 // as-is), so a program that hides for one frame — the pointer example's
 // cancel — gets the arrow back on the next without a jump.
-use self::mouse::mouse;
+import { mouse } from "./mouse.8bs";
 
-const HAS_MOUSE: bool = #fact(input::mouse);
+const HAS_MOUSE: bool = #fact(input.mouse);
 
-let mut hidden: bool = false;
+let hidden: bool = false;
 
-pub mod pointer {
-    const DRAWS: bool = #fact(input::mouse);
+export namespace pointer {
 
-    fn begin() {
-        if HAS_MOUSE {
+    const DRAWS: bool = #fact(input.mouse);
+
+    function begin(): void {
+        if (HAS_MOUSE) {
             // input.begin() has usually already done this; mouse.begin()
             // is skipped the second time so the pointer is not re-centered.
-            mouse::begin();
+            mouse.begin();
         }
     }
 
-    fn setColor(color: utinyint) {
-        if HAS_MOUSE {
+    function setColor(color: utinyint): void {
+        if (HAS_MOUSE) {
             // The firmware pointer is black and white; see the header.
         }
     }
 
-    fn update() {
-        if HAS_MOUSE {
-            if hidden {
-                mouse::show();
+    function update(): void {
+        if (HAS_MOUSE) {
+            if (hidden) {
+                mouse.show();
                 hidden = false;
             }
         }
     }
 
-    fn hide() {
-        if HAS_MOUSE {
-            mouse::hide();
+    function hide(): void {
+        if (HAS_MOUSE) {
+            mouse.hide();
             hidden = true;
         }
     }

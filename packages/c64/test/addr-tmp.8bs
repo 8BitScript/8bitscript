@@ -1,7 +1,8 @@
-#[address(0x06C0)] let mut shared: utinyint = 2;
-pub fn main() {
+@address(0x06C0)
+let shared: utinyint = 2;
+export function main(): void {
     shared = shared + 1;
-    loop {
+    while (true) {
         waitFrame();
     }
 }

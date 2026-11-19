@@ -7,14 +7,14 @@
 // entropy.c64.8bs and entropy.atari8.8bs — which is what entropy.test.mjs
 // checks: the hardware modules' `random_byte` on those two, the LCG's
 // `random_next` on the other seven, never both.
-use super::src::entropy::entropy;
+import { entropy } from "../src/entropy.8bs";
 
-let mut picked: utinyint = 0;
+let picked: utinyint = 0;
 
-pub fn main() {
-    entropy::begin();
-    entropy::tick();
-    picked = entropy::next();
-    picked = entropy::range(6);
-    picked = entropy::bits(3);
+export function main(): void {
+    entropy.begin();
+    entropy.tick();
+    picked = entropy.next();
+    picked = entropy.range(6);
+    picked = entropy.bits(3);
 }

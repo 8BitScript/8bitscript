@@ -40,13 +40,13 @@ Without composition, a program is one `.8bs` file:
 *src/hello-world.8bs*
 
 ```8bs
-use @8bitscript::screen::screen;
-use @8bitscript::text::text;
+import { screen } from "@8bitscript/screen";
+import { text } from "@8bitscript/text";
 
-pub fn main() {
-    screen::blank();
-    text::print(0, "Hello World!");
-    text::releaseCursor();
+export function main(): void {
+    screen.blank();
+    text.print(0, "Hello World!");
+    text.releaseCursor();
 }
 ```
 
@@ -55,24 +55,24 @@ With composition, the greeting becomes a component in its own `.8bx` file, and t
 *src/Hello.8bx*
 
 ```8bx
-use @8bitscript::text::text;
+import { text } from "@8bitscript/text";
 
-pub component Hello() {
-    text::print(0, "Hello World!");
+export component Hello() {
+    text.print(0, "Hello World!");
 }
 ```
 
 *src/hbx.8bs — the program*
 
 ```8bs
-use @8bitscript::screen::screen;
-use self::Hello::Hello;
-use @8bitscript::text::text;
+import { screen } from "@8bitscript/screen";
+import { Hello } from "./Hello.8bx";
+import { text } from "@8bitscript/text";
 
-pub fn main() {
-    screen::blank();
+export function main(): void {
+    screen.blank();
     Hello();
-    text::releaseCursor();
+    text.releaseCursor();
 }
 ```
 

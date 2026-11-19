@@ -87,19 +87,24 @@ const SHAPES_ADDRESS: usmallint = 0xE400;
 const BITMAP_ADDRESS: usmallint = 0xE000;
 
 // The screen matrix: 1000 screen codes, cell 0 top-left.
-#[address(SCREEN_ADDRESS)] pub let mut screenRam: [u8; 1000];
+@address(SCREEN_ADDRESS)
+export let screenRam: array<u8, 1000>;
 // Color RAM: the low nybble of each byte is that cell's color.
-#[address(COLOR_ADDRESS)] pub let mut colorRam: [u8; 1000];
+@address(COLOR_ADDRESS)
+export let colorRam: array<u8, 1000>;
 // Sprite n's shape block: the VIC reads shape data from bank + 64 * pointer.
-#[address(SPRITE_POINTERS_ADDRESS)] pub let mut spritePointers: [u8; 8];
+@address(SPRITE_POINTERS_ADDRESS)
+export let spritePointers: array<u8, 8>;
 // The shape blocks, one array: block b's 63 bytes start at 64 * (b - 144).
-#[address(SHAPES_ADDRESS)] pub let mut spriteShapes: [u8; 7104];
+@address(SHAPES_ADDRESS)
+export let spriteShapes: array<u8, 7104>;
 // The bitmap, in bitmap mode: 8000 bytes, cell by cell (8 bytes a cell,
 // 40 cells a row — see @8bitscript/c64/bitmap's offset()). The same RAM
 // as the screen matrix and the shape blocks above.
-#[address(BITMAP_ADDRESS)] pub let mut bitmapRam: [u8; 8000];
+@address(BITMAP_ADDRESS)
+export let bitmapRam: array<u8, 8000>;
 
-pub mod Video {
+export namespace Video {
     const BANK: usmallint = 0xC000; // VIC bank 3, selected through CIA2 port A bits 0-1 (= %00)
     const SCREEN: usmallint = SCREEN_ADDRESS; // screen matrix: one screen code per cell
     const COLOR: usmallint = COLOR_ADDRESS; // color RAM: one nybble per cell, same cell index, never moves
@@ -116,7 +121,7 @@ pub mod Video {
 }
 
 // Bitmap mode's layout, in the same bank; see the header.
-pub mod Bitmap {
+export namespace Bitmap {
     const ADDRESS: usmallint = BITMAP_ADDRESS; // 8000 bytes, bank + $2000
     const BYTES: usmallint = 8000;
     const WIDTH: usmallint = 320; // pixels, hi-res

@@ -8,7 +8,7 @@
 // the display differs from the 40-column machines. Verified on screen under
 // `xpet -model 8032` — see packages/pet/AGENTS.md.
 
-pub mod Video {
+export namespace Video {
     const COLUMNS: utinyint = 80;
     const ROWS: utinyint = 25;
     const CELL_COUNT: usmallint = 2000; // COLUMNS * ROWS: $8000-$87CF

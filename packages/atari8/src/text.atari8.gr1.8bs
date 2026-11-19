@@ -8,10 +8,10 @@
 // color), so a reverse space is a solid `$FF` glyph and a reverse digit
 // is an inverted copy of 0-9 punched into unused slots — black holes
 // in a colored block, which is how 2048's tiles read.
-use self::index::cursorInhibit;
-use self::screen::{ensurePlayfield, screenRam};
+import { cursorInhibit } from "./index.8bs";
+import { ensurePlayfield, screenRam } from "./screen.8bs";
 
-pub mod TextColor {
+export namespace TextColor {
     const BLACK: utinyint = 0;
     const WHITE: utinyint = 1;
     const RED: utinyint = 2;
@@ -22,51 +22,51 @@ pub mod TextColor {
     const YELLOW: utinyint = 7;
 }
 
-fn atasciiToInternal(code: utinyint) -> utinyint {
-    if code < 32 {
+function atasciiToInternal(code: utinyint): utinyint {
+    if (code < 32) {
         return code + 64;
     }
-    if code < 96 {
+    if (code < 96) {
         return code - 32;
     }
     return code;
 }
 
-let mut currentReverse: bool = false;
-let mut currentColor: utinyint = 0;
+let currentReverse: bool = false;
+let currentColor: utinyint = 0;
 
-const INVERT_DIGIT: [utinyint; 10] = [2, 3, 4, 5, 6, 7, 10, 11, 15, 27];
+const INVERT_DIGIT: array<utinyint, 10> = [2, 3, 4, 5, 6, 7, 10, 11, 15, 27];
 const SOLID: utinyint = 63;
 
-fn colorBits(color: utinyint) -> utinyint {
-    if color == TextColor::CYAN {
+function colorBits(color: utinyint): utinyint {
+    if (color == TextColor.CYAN) {
         return 1;
     }
-    if color == TextColor::BLUE {
+    if (color == TextColor.BLUE) {
         return 1;
     }
-    if color == TextColor::GREEN {
+    if (color == TextColor.GREEN) {
         return 2;
     }
-    if color == TextColor::YELLOW {
+    if (color == TextColor.YELLOW) {
         return 3;
     }
-    if color == TextColor::RED {
+    if (color == TextColor.RED) {
         return 3;
     }
-    if color == TextColor::PURPLE {
+    if (color == TextColor.PURPLE) {
         return 3;
     }
     return 0;
 }
 
-fn glyphOf(code: utinyint) -> utinyint {
-    if currentReverse {
-        if code == 32 {
+function glyphOf(code: utinyint): utinyint {
+    if (currentReverse) {
+        if (code == 32) {
             return SOLID;
         }
-        if code >= 48 {
-            if code <= 57 {
+        if (code >= 48) {
+            if (code <= 57) {
                 return INVERT_DIGIT[code - 48];
             }
         }
@@ -74,87 +74,87 @@ fn glyphOf(code: utinyint) -> utinyint {
     return atasciiToInternal(code) & 63;
 }
 
-fn toInternal(code: utinyint) -> utinyint {
-    return glyphOf(code) | currentColor << 6;
+function toInternal(code: utinyint): utinyint {
+    return glyphOf(code) | (currentColor << 6);
 }
 
-fn prepare() {
+function prepare(): void {
     ensurePlayfield();
     cursorInhibit = 1;
 }
 
-fn place(cell: usmallint, code: utinyint) {
+function place(cell: usmallint, code: utinyint): void {
     screenRam[cell] = toInternal(code);
 }
 
-const DIGIT_PLACES: [usmallint; 5] = [10000, 1000, 100, 10, 1];
+const DIGIT_PLACES: array<usmallint, 5> = [10000, 1000, 100, 10, 1];
 
-pub mod text {
+export namespace text {
     const CELL_COUNT: usmallint = 480; // 20 columns x 24 rows
     const COLUMNS: utinyint = 20;
     const ROWS: utinyint = 24;
 
-    fn columns() -> utinyint {
-        return text::COLUMNS;
+    function columns(): utinyint {
+        return text.COLUMNS;
     }
 
-    fn rows() -> utinyint {
-        return text::ROWS;
+    function rows(): utinyint {
+        return text.ROWS;
     }
 
-    fn putChar(cell: usmallint, code: utinyint) {
+    function putChar(cell: usmallint, code: utinyint): void {
         prepare();
         screenRam[cell] = toInternal(code);
     }
 
-    fn putColor(cell: usmallint, color: utinyint) {
+    function putColor(cell: usmallint, color: utinyint): void {
         prepare();
-        screenRam[cell] = screenRam[cell] & 63 | colorBits(color) << 6;
+        screenRam[cell] = (screenRam[cell] & 63) | (colorBits(color) << 6);
     }
 
-    fn setColor(color: utinyint) {
+    function setColor(color: utinyint): void {
         currentColor = colorBits(color);
     }
 
-    fn setReverse(on: bool) {
+    function setReverse(on: bool): void {
         currentReverse = on;
     }
 
-    fn releaseCursor() {
+    function releaseCursor(): void {
     }
 
-    fn print(cell: usmallint, s: string) {
+    function print(cell: usmallint, s: string): void {
         prepare();
-        for i: utinyint in 0..s.length {
+        for (let i: utinyint = 0; i < s.length; i++) {
             place(cell + i, s[i]);
         }
     }
 
-    fn fill(cell: usmallint, count: usmallint, code: utinyint) {
+    function fill(cell: usmallint, count: usmallint, code: utinyint): void {
         prepare();
-        for i: usmallint in 0..count {
+        for (let i: usmallint = 0; i < count; i++) {
             place(cell + i, code);
         }
     }
 
-    fn printNumber(cell: usmallint, value: usmallint, width: utinyint) {
+    function printNumber(cell: usmallint, value: usmallint, width: utinyint): void {
         prepare();
-        let mut k: utinyint = width;
-        if k < DIGIT_PLACES.length {
+        let k: utinyint = width;
+        if (k < DIGIT_PLACES.length) {
             k = DIGIT_PLACES.length;
         }
-        while k > 0 {
-            let mut digit: utinyint = 48;
-            if k <= DIGIT_PLACES.length {
-                while value >= DIGIT_PLACES[DIGIT_PLACES.length - k] {
+        while (k > 0) {
+            let digit: utinyint = 48;
+            if (k <= DIGIT_PLACES.length) {
+                while (value >= DIGIT_PLACES[DIGIT_PLACES.length - k]) {
                     value = value - DIGIT_PLACES[DIGIT_PLACES.length - k];
-                    digit += 1;
+                    digit++;
                 }
             }
-            if k <= width {
+            if (k <= width) {
                 place(cell + width - k, digit);
             }
-            k -= 1;
+            k--;
         }
     }
 }

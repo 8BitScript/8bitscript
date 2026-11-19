@@ -29,7 +29,7 @@
 
 // One bit per thing a program can ask about, so a frame's input is one
 // byte and an edge is one AND. The page's side is web-layout.mjs's InputEdge.
-mod Edge {
+namespace Edge {
     const LEFT: utinyint = 1;
     const RIGHT: utinyint = 2;
     const UP: utinyint = 4;
@@ -42,9 +42,9 @@ const INPUT_BYTE: usmallint = 2002; // agreementFor(40x25).inputOffset
 
 // What is held now, what was held at the last poll, and what began this
 // frame — `now & ~last`, written with the XOR the language has.
-let mut held: utinyint = 0;
-let mut before: utinyint = 0;
-let mut began: utinyint = 0;
+let held: utinyint = 0;
+let before: utinyint = 0;
+let began: utinyint = 0;
 
 // Whether this build has a mouse — the 1351 fitted with
 // `--hardware port1=mouse1351`, as natively. Stock, none, and the page
@@ -53,89 +53,90 @@ let mut began: utinyint = 0;
 // reads SID's POT registers on this rail, so the page hands the program the
 // position a driver would have integrated. The browser's own cursor is the
 // arrow (./pointer.c64.web.8bs draws nothing).
-const HAS_MOUSE: bool = #fact(input::mouse);
+const HAS_MOUSE: bool = #fact(input.mouse);
 // agreementFor(40x25).pointerOffset: past the raster list that ends the
 // stock C64 agreement (INPUT_BYTE + 4 + 192).
 const POINTER_BYTE: usmallint = 2198;
 
-let mut pointerHere: bool = false;
-let mut pointerX: usmallint = 0;
-let mut pointerY: usmallint = 0;
-let mut buttonHeld: bool = false;
-let mut buttonBefore: bool = false;
+let pointerHere: bool = false;
+let pointerX: usmallint = 0;
+let pointerY: usmallint = 0;
+let buttonHeld: bool = false;
+let buttonBefore: bool = false;
 
-pub mod input {
+export namespace input {
+
     // Once, at start-up, before the first poll(). One poll before the
     // program's first, so the edge detector starts from what is actually held
     // rather than from nothing: without it, a key already down when the
     // program starts reads as a fresh press on frame one.
-    fn begin() {
-        input::poll();
+    function begin(): void {
+        input.poll();
     }
 
     // Read the page's snapshot and work out what began this frame. Once a
     // frame, right after waitFrame().
-    fn poll() {
+    function poll(): void {
         before = held;
-        held = memory::read(INPUT_BYTE);
-        if HAS_MOUSE {
-            pointerHere = memory::read(POINTER_BYTE) != 0;
+        held = memory.read(INPUT_BYTE);
+        if (HAS_MOUSE) {
+            pointerHere = memory.read(POINTER_BYTE) != 0;
             buttonBefore = buttonHeld;
-            buttonHeld = (memory::read(POINTER_BYTE + 1) & 1) != 0;
-            pointerX = memory::read(POINTER_BYTE + 3);
-            pointerX = pointerX << 8 | memory::read(POINTER_BYTE + 2);
-            pointerY = memory::read(POINTER_BYTE + 5);
-            pointerY = pointerY << 8 | memory::read(POINTER_BYTE + 4);
+            buttonHeld = (memory.read(POINTER_BYTE + 1) & 1) != 0;
+            pointerX = memory.read(POINTER_BYTE + 3);
+            pointerX = (pointerX << 8) | memory.read(POINTER_BYTE + 2);
+            pointerY = memory.read(POINTER_BYTE + 5);
+            pointerY = (pointerY << 8) | memory.read(POINTER_BYTE + 4);
         }
         began = held & (before ^ 0xFF);
     }
 
     // The four directions, each true only on the frame its press began.
-    fn left() -> bool {
-        return (began & Edge::LEFT) != 0;
+    function left(): bool {
+        return (began & Edge.LEFT) != 0;
     }
 
-    fn right() -> bool {
-        return (began & Edge::RIGHT) != 0;
+    function right(): bool {
+        return (began & Edge.RIGHT) != 0;
     }
 
-    fn up() -> bool {
-        return (began & Edge::UP) != 0;
+    function up(): bool {
+        return (began & Edge.UP) != 0;
     }
 
-    fn down() -> bool {
-        return (began & Edge::DOWN) != 0;
+    function down(): bool {
+        return (began & Edge.DOWN) != 0;
     }
 
     // RETURN.
-    fn confirm() -> bool {
-        return (began & Edge::CONFIRM) != 0;
+    function confirm(): bool {
+        return (began & Edge.CONFIRM) != 0;
     }
 
     // RUN/STOP.
-    fn cancel() -> bool {
-        return (began & Edge::CANCEL) != 0;
+    function cancel(): bool {
+        return (began & Edge.CANCEL) != 0;
     }
 
     // True once the page has written a position, and only on a build with a mouse.
-    fn pointer() -> bool {
-        if HAS_MOUSE {
+    function pointer(): bool {
+        if (HAS_MOUSE) {
             return pointerHere;
         }
         return false;
     }
 
     // Where it is, as a flat cell index.
-    fn pointerCell() -> usmallint {
-        if HAS_MOUSE {
+    function pointerCell(): usmallint {
+        if (HAS_MOUSE) {
             return (pointerY >> 3) * 40 + (pointerX >> 3);
         }
         return 0;
     }
 
     // The left button (a tap too), on the frame its press began.
-    fn pointerButton() -> bool {
-        if HAS_MOUSE {
+    function pointerButton(): bool {
+        if (HAS_MOUSE) {
             return buttonHeld && !buttonBefore;
         }
         return false;
@@ -144,7 +145,7 @@ pub mod input {
 
 // Compile-time names for the confirm control, interpolated into catalogs
 // as {control} / {other}. The wasm build has the keyboard's RETURN only.
-pub mod Input {
+export namespace Input {
     const CONFIRM_LABEL: string = "RETURN";
     const ALT_CONFIRM_LABEL: string = "RETURN";
     const CONFIRM_LABELS: string = "RETURN";

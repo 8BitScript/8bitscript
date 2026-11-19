@@ -38,56 +38,56 @@
 // them), STEPS animation steps each. `bind()` and `meta()` are called by
 // the compiler's generated binders before main() runs; a program never
 // calls them.
-use @8bitscript::sprites::sprites;
-use @8bitscript::system::Video;
-use @8bitscript::web::charset::charset;
+import { sprites } from "@8bitscript/sprites";
+import { Video } from "@8bitscript/system";
+import { charset } from "@8bitscript/web/charset";
 
 const SLOTS: utinyint = 8;
 const STEPS: utinyint = 8;
 const BYTES: utinyint = 64; // a picture's row bytes: STEPS glyphs of eight
-let mut counts: [u8; 8]; // steps in this picture's animation
-let mut every: [u8; 8]; // update() calls between steps
-let mut tick: [u8; 8]; // update() calls since the last step
-let mut step: [u8; 8]; // the step on show
-let mut held: [u8; 8]; // 1: automatic stepping paused
-let mut animated: utinyint = 0; // pictures with more than one step
-let mut started: bool = false;
+let counts: array<u8, 8>;  // steps in this picture's animation
+let every: array<u8, 8>;   // update() calls between steps
+let tick: array<u8, 8>;    // update() calls since the last step
+let step: array<u8, 8>;    // the step on show
+let held: array<u8, 8>;    // 1: automatic stepping paused
+let animated: utinyint = 0; // pictures with more than one step
+let started: bool = false;
 
-fn ensure() {
-    if !started {
-        sprites::begin(SLOTS);
+function ensure(): void {
+    if (!started) {
+        sprites.begin(SLOTS);
         started = true;
     }
 }
 
 // The character code of a picture's step: glyph (slot << 3) + step of the table.
-fn codeOf(slot: utinyint, frame: utinyint) -> utinyint {
-    return charset::FIRST + (slot << 3) + frame;
+function codeOf(slot: utinyint, frame: utinyint): utinyint {
+    return charset.FIRST + (slot << 3) + frame;
 }
 
-pub mod graphics {
+export namespace graphics {
     // The portable contract (index.8bs): what this machine answers.
     const MAX: utinyint = 8;
     const FRAMES: utinyint = 8;
-    const WIDTH: utinyint = sprites::WIDTH; // one cell, an 8×8 bitmap
-    const HEIGHT: utinyint = sprites::HEIGHT;
-    const COLORS: utinyint = 1; // the glyph's one ink
-    const RECOLORS: bool = Video::COLOR_PER_CELL; // color() tints the cell
-    const STEP_X: utinyint = sprites::STEP_X;
-    const STEP_Y: utinyint = sprites::STEP_Y;
-    const RESTORES: bool = sprites::RESTORES; // false: what a picture covers is lost
-    const TRANSPARENT: bool = false; // a cell is drawn whole
+    const WIDTH: utinyint = sprites.WIDTH;       // one cell, an 8×8 bitmap
+    const HEIGHT: utinyint = sprites.HEIGHT;
+    const COLORS: utinyint = 1;                  // the glyph's one ink
+    const RECOLORS: bool = Video.COLOR_PER_CELL; // color() tints the cell
+    const STEP_X: utinyint = sprites.STEP_X;
+    const STEP_Y: utinyint = sprites.STEP_Y;
+    const RESTORES: bool = sprites.RESTORES;     // false: what a picture covers is lost
+    const TRANSPARENT: bool = false;             // a cell is drawn whole
 
     // Row (index & 7) of step (index >> 3) of picture `slot`, straight into the glyph table.
-    fn bind(slot: utinyint, index: utinyint, value: utinyint) {
-        if slot >= SLOTS || index >= BYTES {
+    function bind(slot: utinyint, index: utinyint, value: utinyint): void {
+        if (slot >= SLOTS || index >= BYTES) {
             return;
         }
-        charset::setRow(codeOf(slot, index >> 3), index & 7, value);
+        charset.setRow(codeOf(slot, index >> 3), index & 7, value);
     }
 
-    fn meta(slot: utinyint, frameCount: utinyint, interval: utinyint, kind: utinyint, width: utinyint, height: utinyint) {
-        if slot >= SLOTS {
+    function meta(slot: utinyint, frameCount: utinyint, interval: utinyint, kind: utinyint, width: utinyint, height: utinyint): void {
+        if (slot >= SLOTS) {
             return;
         }
         counts[slot] = frameCount;
@@ -95,82 +95,82 @@ pub mod graphics {
         tick[slot] = 0;
         step[slot] = 0;
         held[slot] = 0;
-        if frameCount > 1 {
+        if (frameCount > 1) {
             animated = animated + 1;
         }
     }
 
-    fn place(slot: utinyint, x: usmallint, y: usmallint) {
-        if slot >= SLOTS {
+    function place(slot: utinyint, x: usmallint, y: usmallint): void {
+        if (slot >= SLOTS) {
             return;
         }
         ensure();
-        sprites::setShape(slot, codeOf(slot, step[slot]));
-        sprites::place(slot, x, y);
+        sprites.setShape(slot, codeOf(slot, step[slot]));
+        sprites.place(slot, x, y);
     }
 
-    fn hide(slot: utinyint) {
-        if slot >= SLOTS {
+    function hide(slot: utinyint): void {
+        if (slot >= SLOTS) {
             return;
         }
         ensure();
-        sprites::hide(slot);
+        sprites.hide(slot);
     }
 
-    fn setFrame(slot: utinyint, frame: utinyint) {
-        if slot >= SLOTS {
+    function setFrame(slot: utinyint, frame: utinyint): void {
+        if (slot >= SLOTS) {
             return;
         }
         ensure();
-        if frame >= counts[slot] {
+        if (frame >= counts[slot]) {
             frame = counts[slot];
-            if frame > 0 {
+            if (frame > 0) {
                 frame = frame - 1;
             }
         }
         step[slot] = frame;
         tick[slot] = 0;
-        sprites::setShape(slot, codeOf(slot, frame));
+        sprites.setShape(slot, codeOf(slot, frame));
     }
 
-    fn animate(slot: utinyint, on: bool) {
-        if slot >= SLOTS {
+    function animate(slot: utinyint, on: bool): void {
+        if (slot >= SLOTS) {
             return;
         }
         held[slot] = 1;
-        if on {
+        if (on) {
             held[slot] = 0;
         }
     }
 
-    fn color(slot: utinyint, c: utinyint) {
-        if slot >= SLOTS {
+    function color(slot: utinyint, c: utinyint): void {
+        if (slot >= SLOTS) {
             return;
         }
         ensure();
-        sprites::setColor(slot, c);
+        sprites.setColor(slot, c);
     }
 
-    fn update() {
-        if !started {
+    function update(): void {
+        if (!started) {
             return;
         }
-        if animated > 0 {
-            for i: utinyint in 0..SLOTS {
-                if counts[i] > 1 && held[i] == 0 {
+        if (animated > 0) {
+            for (let i: utinyint = 0; i < SLOTS; i++) {
+                if (counts[i] > 1 && held[i] == 0) {
                     tick[i] = tick[i] + 1;
-                    if tick[i] >= every[i] {
+                    if (tick[i] >= every[i]) {
                         tick[i] = 0;
-                        let mut next: utinyint = step[i] + 1;
-                        if next >= counts[i] {
+                        let next: utinyint = step[i] + 1;
+                        if (next >= counts[i]) {
                             next = 0;
                         }
                         step[i] = next;
-                        sprites::setShape(i, codeOf(i, next));
+                        sprites.setShape(i, codeOf(i, next));
                     }
                 }
             }
         }
-        sprites::update();
+        sprites.update();
     }
 }

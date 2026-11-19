@@ -15,81 +15,99 @@
 // `$3E00` (32 bytes, inside the same 1K so ANTIC never wraps it), screen
 // RAM at `$3E20` (480 cells, ending at `$3FFF`). `$4000` is left alone —
 // that is the 130XE bank window `@8bitscript/atari8/banks` probes.
-use self::index::{borderColor, borderColorShadow, backgroundColor, backgroundColorShadow, textColor, textColorShadow, cursorInhibit};
+import {
+    borderColor, borderColorShadow, backgroundColor, backgroundColorShadow,
+    textColor, textColorShadow, cursorInhibit,
+} from "./index.8bs";
 
 // COLPF0 / COLPF3 and their OS shadows — GR.0 never writes these, so they
 // are not in index.8bs. COLPF1/2/BK are textColor/backgroundColor/borderColor.
-#[address(0xD016)] let mut colpf0: volatile<u8>;
-#[address(0xD019)] let mut colpf3: volatile<u8>;
-#[address(0x02C4)] let mut color0: volatile<u8>;
-#[address(0x02C7)] let mut color3: volatile<u8>;
+@address(0xD016)
+let colpf0: volatile<u8>;
+@address(0xD019)
+let colpf3: volatile<u8>;
+@address(0x02C4)
+let color0: volatile<u8>;
+@address(0x02C7)
+let color3: volatile<u8>;
 
-#[address(0xD409)] let mut chbase: volatile<u8>;
-#[address(0x02F4)] let mut chbas: volatile<u8>;
+@address(0xD409)
+let chbase: volatile<u8>;
+@address(0x02F4)
+let chbas: volatile<u8>;
 
-#[address(0xD402)] let mut dlistl: volatile<u8>;
-#[address(0xD403)] let mut dlisth: volatile<u8>;
-#[address(0x0230)] let mut sdlstl: volatile<u8>;
-#[address(0x0231)] let mut sdlsth: volatile<u8>;
+@address(0xD402)
+let dlistl: volatile<u8>;
+@address(0xD403)
+let dlisth: volatile<u8>;
+@address(0x0230)
+let sdlstl: volatile<u8>;
+@address(0x0231)
+let sdlsth: volatile<u8>;
 
-#[address(0xD400)] let mut dmactl: volatile<u8>;
-#[address(0x022F)] let mut sdmctl: volatile<u8>;
+@address(0xD400)
+let dmactl: volatile<u8>;
+@address(0x022F)
+let sdmctl: volatile<u8>;
 
-#[address(0x3C00)] let mut charsetRam: [u8; 512];
-#[address(0x3E00)] let mut displayList: [u8; 32];
-#[address(0x3E20)] pub let mut screenRam: [u8; 480];
+@address(0x3C00)
+let charsetRam: array<u8, 512>;
+@address(0x3E00)
+let displayList: array<u8, 32>;
+@address(0x3E20)
+export let screenRam: array<u8, 480>;
 
 const ROM_CHARSET: usmallint = 0xE000;
 // Internal codes 0-9 are ATASCII '0'-'9' minus 32. The inverted copies
 // sit in slots the portable set never prints: not space, not digits,
 // not A-Z, not `! , - . : ?`, and not the parentheses Copyright pokes
 // as ASCII 40/41 (internal 8/9).
-const INVERT_DIGIT: [utinyint; 10] = [2, 3, 4, 5, 6, 7, 10, 11, 15, 27];
+const INVERT_DIGIT: array<utinyint, 10> = [2, 3, 4, 5, 6, 7, 10, 11, 15, 27];
 
-let mut playfieldReady: bool = false;
+let playfieldReady: bool = false;
 
-fn writeDisplayList() {
+function writeDisplayList(): void {
     displayList[0] = 0x70;
     displayList[1] = 0x70;
     displayList[2] = 0x70;
     displayList[3] = 0x46; // LMS + ANTIC 6
     displayList[4] = 0x20; // screen lo
     displayList[5] = 0x3E; // screen hi
-    let mut i: utinyint = 0;
-    while i < 23 {
+    let i: utinyint = 0;
+    while (i < 23) {
         displayList[6 + i] = 0x06;
-        i += 1;
+        i++;
     }
     displayList[29] = 0x41; // JVB
     displayList[30] = 0x00;
     displayList[31] = 0x3E;
 }
 
-fn copyCharset() {
-    let mut i: usmallint = 0;
-    while i < 512 {
-        charsetRam[i] = memory::read(ROM_CHARSET + i);
-        i += 1;
+function copyCharset(): void {
+    let i: usmallint = 0;
+    while (i < 512) {
+        charsetRam[i] = memory.read(ROM_CHARSET + i);
+        i++;
     }
-    let mut d: utinyint = 0;
-    while d < 10 {
+    let d: utinyint = 0;
+    while (d < 10) {
         let src: usmallint = (16 + d) * 8;
         let dest: usmallint = INVERT_DIGIT[d] * 8;
-        let mut row: utinyint = 0;
-        while row < 8 {
+        let row: utinyint = 0;
+        while (row < 8) {
             charsetRam[dest + row] = charsetRam[src + row] ^ 255;
-            row += 1;
+            row++;
         }
-        d += 1;
+        d++;
     }
-    let mut row: utinyint = 0;
-    while row < 8 {
+    let row: utinyint = 0;
+    while (row < 8) {
         charsetRam[504 + row] = 255;
-        row += 1;
+        row++;
     }
 }
 
-fn applyPalette() {
+function applyPalette(): void {
     // Four hues `text.setColor` can pick, matching the portable names
     // as closely as four GTIA registers allow. WHITE/BLACK share PF0,
     // CYAN/BLUE share PF1, GREEN is PF2, YELLOW/RED/PURPLE share PF3.
@@ -103,7 +121,7 @@ fn applyPalette() {
     colpf3 = 0x34;
 }
 
-fn pointAntic() {
+function pointAntic(): void {
     sdlstl = 0x00;
     sdlsth = 0x3E;
     dlistl = 0x00;
@@ -116,8 +134,8 @@ fn pointAntic() {
 
 // Called from `text.prepare` as well as from blank/setColors, so a
 // program that prints before it blanks still gets a display list.
-pub fn ensurePlayfield() {
-    if playfieldReady {
+export function ensurePlayfield(): void {
+    if (playfieldReady) {
         return;
     }
     playfieldReady = true;
@@ -128,13 +146,13 @@ pub fn ensurePlayfield() {
     cursorInhibit = 1;
 }
 
-fn writeColbk(value: u8) {
+function writeColbk(value: u8): void {
     borderColorShadow = value;
     borderColor = value;
 }
 
-pub mod screen {
-    fn setColors(border: u8, background: u8) {
+export namespace screen {
+    function setColors(border: u8, background: u8): void {
         ensurePlayfield();
         // Border first so a subsequent background write is what COLBK
         // keeps — ANTIC 6 cannot split the two.
@@ -144,29 +162,29 @@ pub mod screen {
         cursorInhibit = 1;
     }
 
-    fn blank(border: utinyint = BorderColor::BLACK, background: utinyint = BackgroundColor::BLACK) {
-        if border != BorderColor::KEEP {
-            screen::setBorder(border);
+    function blank(border: utinyint = BorderColor.BLACK, background: utinyint = BackgroundColor.BLACK): void {
+        if (border != BorderColor.KEEP) {
+            screen.setBorder(border);
         }
-        if background != BackgroundColor::KEEP {
-            screen::setBackground(background);
+        if (background != BackgroundColor.KEEP) {
+            screen.setBackground(background);
         }
         cursorInhibit = 1;
-        let mut cell: usmallint = 0;
-        while cell < 480 {
+        let cell: usmallint = 0;
+        while (cell < 480) {
             screenRam[cell] = 0;
-            cell += 1;
+            cell++;
         }
     }
 
-    fn setBackground(background: u8) {
+    function setBackground(background: u8): void {
         ensurePlayfield();
         writeColbk(background);
         applyPalette();
         cursorInhibit = 1;
     }
 
-    fn setBorder(border: u8) {
+    function setBorder(border: u8): void {
         ensurePlayfield();
         writeColbk(border);
         applyPalette();
@@ -175,12 +193,12 @@ pub mod screen {
 
     const RESIZABLE: bool = false;
 
-    fn resized() -> bool {
+    function resized(): bool {
         return false;
     }
 }
 
-pub mod BorderColor {
+export namespace BorderColor {
     const BLACK: utinyint = 0x00;
     const WHITE: utinyint = 0x0E;
     const RED: utinyint = 0x34;
@@ -192,7 +210,7 @@ pub mod BorderColor {
     const KEEP: utinyint = 255;
 }
 
-pub mod BackgroundColor {
+export namespace BackgroundColor {
     const BLACK: utinyint = 0x00;
     const WHITE: utinyint = 0x0E;
     const RED: utinyint = 0x34;

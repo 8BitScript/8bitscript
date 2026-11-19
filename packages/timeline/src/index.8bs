@@ -44,42 +44,42 @@
 // 256 for any other n. Cue a non-power-of-two rhythm from `at()` and
 // `after()` with `frame()` if the beat has to be exact past frame 255.
 
-let mut frameCount: usmallint = 0;
+let frameCount: usmallint = 0;
 
-pub mod timeline {
+export namespace timeline {
     // Frame 0 is now.
-    fn start() {
+    function start(): void {
         frameCount = 0;
     }
 
     // One frame has passed. Once per waitFrame().
-    fn tick() {
+    function tick(): void {
         frameCount = frameCount + 1;
     }
 
     // Frames since start().
-    fn frame() -> usmallint {
+    function frame(): usmallint {
         return frameCount;
     }
 
     // True on exactly that frame.
-    fn at(f: usmallint) -> bool {
+    function at(f: usmallint): bool {
         return frameCount == f;
     }
 
     // True from that frame on.
-    fn after(f: usmallint) -> bool {
+    function after(f: usmallint): bool {
         return frameCount >= f;
     }
 
     // True on frames a up to, not including, b.
-    fn between(a: usmallint, b: usmallint) -> bool {
+    function between(a: usmallint, b: usmallint): bool {
         return frameCount >= a && frameCount < b;
     }
 
     // True once every n frames, from frame 0 — see the header for the
     // 8-bit remainder.
-    fn every(n: utinyint) -> bool {
+    function every(n: utinyint): bool {
         let low: utinyint = frameCount & 0xFF;
         return low % n == 0;
     }

@@ -1,15 +1,15 @@
-pub mod pointer {
+export namespace pointer {
     const DRAWS: bool = false;
 
-    fn begin() {
+    function begin(): void {
     }
 
-    fn setColor(color: utinyint) {
+    function setColor(color: utinyint): void {
     }
 
-    fn update() {
+    function update(): void {
     }
 
-    fn hide() {
+    function hide(): void {
     }
 }

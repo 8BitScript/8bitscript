@@ -23,11 +23,11 @@
 // measurement first gave a value half of what the CRTC's own R0 register
 // implies and did not survive a multi-entry placement check).
 
-pub mod Slot {
-    const BORDER: utinyint = 0; // refused here: the PET has no border register
+export namespace Slot {
+    const BORDER: utinyint = 0;     // refused here: the PET has no border register
     const BACKGROUND: utinyint = 1; // refused here: the PET has no background register
-    const SCROLL_X: utinyint = 2; // refused here: no horizontal scroll register
-    const CHARSET: utinyint = 3; // 0 = graphics ($0C), 1 = text ($0E)
+    const SCROLL_X: utinyint = 2;   // refused here: no horizontal scroll register
+    const CHARSET: utinyint = 3;    // 0 = graphics ($0C), 1 = text ($0E)
 }
 
 // The list as the program built it: (line, value) pairs — slot is always
@@ -35,10 +35,10 @@ pub mod Slot {
 // unit every rasterline file's setValue() takes, so a program that reads
 // raster.STRIDE before the byte offset it needs gets the right answer
 // whether or not this file stores it that way internally.
-let mut entryLine: [utinyint; 16];
-let mut entryValue: [utinyint; 16];
-let mut entryCount: utinyint = 0;
-let mut listDirty: bool = false;
+let entryLine: array<utinyint, 16>;
+let entryValue: array<utinyint, 16>;
+let entryCount: utinyint = 0;
+let listDirty: bool = false;
 
 // The plan the hook reads. Pinned at fixed addresses — same reason the
 // 3032's plan is: an asm6502 block cannot name a global (globals are
@@ -46,11 +46,14 @@ let mut listDirty: bool = false;
 // parameters/locals. $0200-$03FF is the PET's OS workspace
 // (packages/pet/AGENTS.md's own memory map) — dead RAM once a
 // waitFrame() program owns the machine.
-#[address(0x0200)] let mut planOuter: [utinyint; 16]; // outer-pass count: see the hook's own cycle accounting
-#[address(0x0210)] let mut planFine: [utinyint; 16]; // fine-step count after the outer passes
-#[address(0x0220)] let mut planValue: [utinyint; 16]; // $0C or $0E
-let mut planCount: utinyint = 0;
-let mut enabled: bool = false;
+@address(0x0200)
+let planOuter: array<utinyint, 16>; // outer-pass count: see the hook's own cycle accounting
+@address(0x0210)
+let planFine: array<utinyint, 16>;  // fine-step count after the outer passes
+@address(0x0220)
+let planValue: array<utinyint, 16>; // $0C or $0E
+let planCount: utinyint = 0;
+let enabled: bool = false;
 
 // One PICTURE line is LINE_CYCLES CPU cycles: 50, matching the CRTC's own
 // R0=49 register (50 character times per horizontal scan line, at 1 cycle
@@ -143,16 +146,16 @@ const BETWEEN_ENTRIES: usmallint = 31;
 // for the same reason BETWEEN_ENTRIES recounts to 33, not 31 — see above.
 const FIRST_ENTRY: usmallint = 39;
 
-pub mod raster {
+export namespace raster {
     const ENTRIES: utinyint = 16;
-    const STRIDE: utinyint = 2; // bytes per entry: line, value
-    const LINES: utinyint = 200; // Video.ROWS (25) * 8
+    const STRIDE: utinyint = 2;    // bytes per entry: line, value
+    const LINES: utinyint = 200;   // Video.ROWS (25) * 8
     const FINE_SCROLL: bool = false;
-    const COLORS: bool = false; // no border or background register
+    const COLORS: bool = false;    // no border or background register
     const CHARSET: bool = true;
     const FRAME_COUNTER: bool = false; // no video-frame counter: the PET driver runs with interrupts off and syncs on the CB1 retrace flag
 
-    fn clear() {
+    function clear(): void {
         entryCount = 0;
         listDirty = true;
     }
@@ -161,11 +164,11 @@ pub mod raster {
     // graphics, 1 text). False, and nothing added, if the line is past
     // the picture, the slot is not CHARSET, the list is full, or the
     // line is above the last entry's.
-    fn at(line: utinyint, slot: utinyint, value: utinyint) -> bool {
-        if line >= raster::LINES || slot != Slot::CHARSET || entryCount >= raster::ENTRIES {
+    function at(line: utinyint, slot: utinyint, value: utinyint): bool {
+        if (line >= raster.LINES || slot != Slot.CHARSET || entryCount >= raster.ENTRIES) {
             return false;
         }
-        if entryCount > 0 && line < entryLine[entryCount - 1] {
+        if (entryCount > 0 && line < entryLine[entryCount - 1]) {
             return false;
         }
         entryLine[entryCount] = line;
@@ -177,12 +180,12 @@ pub mod raster {
 
     // In order: the same as `at`, at a line above the last entry's — the
     // entries below it slid down a place.
-    fn insert(line: utinyint, slot: utinyint, value: utinyint) -> bool {
-        if line >= raster::LINES || slot != Slot::CHARSET || entryCount >= raster::ENTRIES {
+    function insert(line: utinyint, slot: utinyint, value: utinyint): bool {
+        if (line >= raster.LINES || slot != Slot.CHARSET || entryCount >= raster.ENTRIES) {
             return false;
         }
-        let mut offset: utinyint = entryCount;
-        while offset > 0 && entryLine[offset - 1] > line {
+        let offset: utinyint = entryCount;
+        while (offset > 0 && entryLine[offset - 1] > line) {
             entryLine[offset] = entryLine[offset - 1];
             entryValue[offset] = entryValue[offset - 1];
             offset = offset - 1;
@@ -194,46 +197,46 @@ pub mod raster {
         return true;
     }
 
-    fn count() -> utinyint {
+    function count(): utinyint {
         return entryCount;
     }
 
     // Hand the list to the frame runtime: live from the next waitFrame().
     // Every target cycle, every delta, every outer/fine decomposition is
     // worked out here — the hook does none of it.
-    fn commit() {
-        let mut previous: usmallint = 0;
-        for i: utinyint in 0..entryCount {
-            let mut target: usmallint = ORIGIN_CYCLES;
+    function commit(): void {
+        let previous: usmallint = 0;
+        for (let i: utinyint = 0; i < entryCount; i++) {
+            let target: usmallint = ORIGIN_CYCLES;
             target = target + entryLine[i] * LINE_CYCLES;
-            let mut overhead: usmallint = BETWEEN_ENTRIES;
-            if i == 0 {
+            let overhead: usmallint = BETWEEN_ENTRIES;
+            if (i == 0) {
                 overhead = FIRST_ENTRY;
             }
-            let mut delay: usmallint = 0;
-            if target > previous + overhead {
+            let delay: usmallint = 0;
+            if (target > previous + overhead) {
                 delay = target - previous - overhead;
             }
             previous = target;
 
-            let mut outer: utinyint = 0;
-            while delay >= OUTER_CYCLES {
+            let outer: utinyint = 0;
+            while (delay >= OUTER_CYCLES) {
                 delay = delay - OUTER_CYCLES;
                 outer = outer + 1;
             }
-            let mut fine: utinyint = 0;
-            while delay >= FINE_STEP && fine < 255 {
+            let fine: utinyint = 0;
+            while (delay >= FINE_STEP && fine < 255) {
                 delay = delay - FINE_STEP;
                 fine = fine + 1;
             }
             planOuter[i] = outer;
             planFine[i] = fine;
             planValue[i] = 0x0C;
-            if entryValue[i] != 0 {
+            if (entryValue[i] != 0) {
                 planValue[i] = 0x0E;
             }
         }
-        if enabled {
+        if (enabled) {
             planCount = entryCount;
         } else {
             planCount = 0;
@@ -246,15 +249,15 @@ pub mod raster {
     // with no commit, when the list has not changed since the last one.
     // `entry >> 1` rather than `entry / 2`: this backend has no divide,
     // and STRIDE is a power of two so a shift is exact.
-    fn setValue(entry: utinyint, value: utinyint) -> bool {
-        if (entry & 1) != 0 || entry >= entryCount * 2 {
+    function setValue(entry: utinyint, value: utinyint): bool {
+        if ((entry & 1) != 0 || entry >= entryCount * 2) {
             return false;
         }
         let index: utinyint = entry >> 1;
         entryValue[index] = value;
-        if !listDirty {
+        if (!listDirty) {
             planValue[index] = 0x0C;
-            if value != 0 {
+            if (value != 0) {
                 planValue[index] = 0x0E;
             }
         }
@@ -264,16 +267,16 @@ pub mod raster {
     // No video-frame counter (the PET driver runs with interrupts off and syncs on the CB1 retrace flag): a count of
     // waitFrame() returns would miss every frame a slow loop skips, so frame()
     // answers 0 and FRAME_COUNTER says so. Count your own waitFrame() calls.
-    fn frame() -> utinyint {
+    function frame(): utinyint {
         return 0;
     }
 
-    fn enable() {
+    function enable(): void {
         enabled = true;
-        raster::commit();
+        raster.commit();
     }
 
-    fn disable() {
+    function disable(): void {
         enabled = false;
         planCount = 0;
     }
@@ -285,12 +288,12 @@ pub mod raster {
 // but the top of a frame it counts cycles that were never spent. Ends in
 // an explicit `return;` so the linker keeps it a function (mos/index.ts
 // refuses a build where the hook was inlined away).
-pub fn petRasterFrame() {
-    let mut n: utinyint = planCount;
-    if n == 0 {
+export function petRasterFrame(): void {
+    let n: utinyint = planCount;
+    if (n == 0) {
         return;
     }
-    let mut outerTemp: utinyint = 0; // the asm block's own outer-pass counter; frameOperand resolves this local to its zp slot
+    let outerTemp: utinyint = 0; // the asm block's own outer-pass counter; frameOperand resolves this local to its zp slot
     asm6502 {
         ldx #0
     entry:

@@ -1,18 +1,18 @@
-use @8bitscript::screen::screen;
-use @8bitscript::audio::audio;
-use @8bitscript::graphics::graphics;
-use self::Walk::Walk;
-use self::chime::chime;
-use self::mark::mark;
+import { screen } from "@8bitscript/screen";
+import { audio } from "@8bitscript/audio";
+import { graphics } from "@8bitscript/graphics";
+import { Walk } from "./Walk.8bx";
+import { chime } from "./chime.8ba";
+import { mark } from "./mark.8bg";
 
-pub fn main() {
-    screen::blank();
+export function main(): void {
+    screen.blank();
     Walk();
-    graphics::place(mark, 120, 0);
-    audio::play(chime);
-    loop {
+    graphics.place(mark, 120, 0);
+    audio.play(chime);
+    while (true) {
         waitFrame();
-        graphics::update();
-        audio::update();
+        graphics.update();
+        audio.update();
     }
 }

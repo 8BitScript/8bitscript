@@ -3,16 +3,16 @@
 // the left pixel) and named by its index. The compiler's twin rule
 // resolves this file for PET builds, `shapes.c64.8bs` for the C64, and
 // `shapes.8bs` — an ASCII 'O' — everywhere else.
-use @8bitscript::sprites::sprites;
+import { sprites } from "@8bitscript/sprites";
 
-pub mod shapes {
+export namespace shapes {
     const ACTOR: utinyint = 1;
 
     //     .##.
     //     #..#
     //     #..#
     //     .##.
-    fn begin() {
-        sprites::defineShape(shapes::ACTOR, 6, 9, 9, 6);
+    function begin(): void {
+        sprites.defineShape(shapes.ACTOR, 6, 9, 9, 6);
     }
 }

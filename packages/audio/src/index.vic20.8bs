@@ -1,17 +1,17 @@
 // @8bitscript/audio on the VIC-20: three squares plus noise. One volume. A song plays on the
 // soprano (or the noise voice for a noise note); songs.8bs holds the bank and the sequencer.
-use @8bitscript::vic20::sound::sound;
-use self::songs::songs;
+import { sound } from "@8bitscript/vic20/sound";
+import { songs } from "./songs.8bs";
 
-let mut sfxLeft: utinyint = 0;
+let sfxLeft: utinyint = 0;
 // True once the program has asked for a song (audio.play or audio.music of one). Nothing but
 // those two calls assigns it, so in a program that never plays a song the linker's optimizer
 // inlines it as false, every `songsOn` test below folds away, and the sequencer and its 256-byte
 // bank are not linked at all: a program that only plays tones pays nothing for songs.
-let mut songsOn: bool = false;
+let songsOn: bool = false;
 // The frames a song note has left to sound (0: it holds for its rows).
-let mut decayLeft: utinyint = 0;
-let mut ready: bool = false;
+let decayLeft: utinyint = 0;
+let ready: bool = false;
 
 // The soprano voice's 7-bit divisor for the .8ba notes C3..B5 (index 36..71,
 // C0 = 0, A4 = 57). The soprano is the finest of the three squares: its
@@ -22,7 +22,7 @@ let mut ready: bool = false;
 // quarter-tone, so that is where the range stops. A PAL machine's clock is
 // 8% faster, so every note plays about a semitone and a half sharp there:
 // the table is the NTSC one.
-const DIVISOR: [u8; 36] = [
+const DIVISOR: array<u8, 36> = [
     122, 115, 109, 103, 97, 92, 86, 82, 77, 73, 69, 65,
     61, 58, 54, 51, 48, 46, 43, 41, 38, 36, 34, 32,
     31, 29, 27, 26, 24, 23, 22, 20, 19, 18, 17, 16,
@@ -30,12 +30,12 @@ const DIVISOR: [u8; 36] = [
 
 // Notes outside C3..B5 move by whole octaves into it: the pitch class
 // survives, the octave does not.
-fn periodOf(note: utinyint) -> utinyint {
-    let mut n: utinyint = note;
-    while n < 36 {
+function periodOf(note: utinyint): utinyint {
+    let n: utinyint = note;
+    while (n < 36) {
         n = n + 12;
     }
-    while n > 71 {
+    while (n > 71) {
         n = n - 12;
     }
     return DIVISOR[n - 36];
@@ -43,13 +43,13 @@ fn periodOf(note: utinyint) -> utinyint {
 
 // The volume the game asked for (0..15), the volume sounding now, and how much
 // a plucked tone loses a frame (0 for a plain tone).
-let mut level: utinyint = 15;
-let mut shown: utinyint = 15;
-let mut fade: utinyint = 0;
+let level: utinyint = 15;
+let shown: utinyint = 15;
+let fade: utinyint = 0;
 
-fn ensure() {
-    if !ready {
-        sound::volume(level);
+function ensure(): void {
+    if (!ready) {
+        sound.volume(level);
         ready = true;
     }
 }
@@ -57,26 +57,26 @@ fn ensure() {
 // Noise is the fourth channel; every pitched waveform plays on the soprano (voice 2), whose
 // divisor is the finest. The VIC's three tones are all squares, so triangle and saw are the same
 // square here.
-fn voiceOf(code: utinyint) -> utinyint {
-    if code == 1 {
+function voiceOf(code: utinyint): utinyint {
+    if (code == 1) {
         return 3;
     }
     return 2;
 }
 
 // The volume a note of `vol` (0..15) plays at under the game's level: level * vol / 16, rounded up.
-fn scaled(vol: utinyint) -> utinyint {
+function scaled(vol: utinyint): utinyint {
     let product: utinyint = level * vol;
-    return product + 15 >> 4;
+    return (product + 15) >> 4;
 }
 
 // How much a note of `volume` loses a frame to be gone in `frames`: volume / frames, rounded up.
-fn stepOf(volume: utinyint, frames: utinyint) -> utinyint {
-    let mut rest: utinyint = volume;
-    let mut step: utinyint = 0;
-    while rest > 0 {
+function stepOf(volume: utinyint, frames: utinyint): utinyint {
+    let rest: utinyint = volume;
+    let step: utinyint = 0;
+    while (rest > 0) {
         step = step + 1;
-        if rest > frames {
+        if (rest > frames) {
             rest = rest - frames;
         } else {
             rest = 0;
@@ -87,114 +87,114 @@ fn stepOf(volume: utinyint, frames: utinyint) -> utinyint {
 
 // Start the note the sequencer says begins: the volume is the chip's one volume, so it is set
 // for the note; a note with a decay is walked down by update().
-fn startNote() {
+function startNote(): void {
     ensure();
-    let vol: utinyint = scaled(songs::volume());
-    sound::quiet();
+    let vol: utinyint = scaled(songs.volume());
+    sound.quiet();
     shown = vol;
-    sound::volume(vol);
-    sound::tone(voiceOf(songs::wave()), periodOf(songs::note()));
+    sound.volume(vol);
+    sound.tone(voiceOf(songs.wave()), periodOf(songs.note()));
     fade = 0;
-    decayLeft = songs::decay();
-    if decayLeft != 0 {
+    decayLeft = songs.decay();
+    if (decayLeft != 0) {
         fade = stepOf(vol, decayLeft);
     }
 }
 
 // Do what the sequencer says.
-fn apply(event: utinyint) {
-    if event == 1 {
+function apply(event: utinyint): void {
+    if (event == 1) {
         startNote();
-    } else if event == 2 {
-        sound::quiet();
+    } else if (event == 2) {
+        sound.quiet();
         decayLeft = 0;
         fade = 0;
-    } else if event == 3 {
-        sound::quiet();
+    } else if (event == 3) {
+        sound.quiet();
         decayLeft = 0;
         fade = 0;
         shown = level;
-        sound::volume(level);
+        sound.volume(level);
     }
 }
 
 // One frame of a song that is playing: a note's decay, then the sequencer's next step.
-fn songFrame() {
-    if !songs::active() {
+function songFrame(): void {
+    if (!songs.active()) {
         return;
     }
-    if decayLeft != 0 {
+    if (decayLeft != 0) {
         decayLeft = decayLeft - 1;
-        if decayLeft == 0 {
-            sound::quiet();
+        if (decayLeft == 0) {
+            sound.quiet();
             fade = 0;
-        } else if fade != 0 {
-            if shown > fade {
+        } else if (fade != 0) {
+            if (shown > fade) {
                 shown = shown - fade;
             } else {
                 shown = 0;
             }
-            sound::volume(shown);
+            sound.volume(shown);
         }
     }
-    apply(songs::step());
+    apply(songs.step());
 }
 
-pub mod audio {
+export namespace audio {
     // The playable notes (the .8ba index, C0 = 0, A4 = 57): C3..B5, where
     // the soprano's 7-bit divisor keeps the pitch within half a semitone.
     const NOTE_LOW: utinyint = 36;
     const NOTE_HIGH: utinyint = 71;
 
-    fn bind(kind: utinyint, slot: utinyint, index: utinyint, value: utinyint) {
-        songs::bind(kind, slot, index, value);
+    function bind(kind: utinyint, slot: utinyint, index: utinyint, value: utinyint): void {
+        songs.bind(kind, slot, index, value);
     }
 
-    fn meta(kind: utinyint, slot: utinyint, length: utinyint, a: utinyint, b: utinyint, c: utinyint) {
-        songs::meta(kind, slot, length);
+    function meta(kind: utinyint, slot: utinyint, length: utinyint, a: utinyint, b: utinyint, c: utinyint): void {
+        songs.meta(kind, slot, length);
         ensure();
     }
 
     // One tone on the soprano for `frames` calls of update(), then quiet.
     // Replaces whatever tone is sounding. Nothing blocks.
-    fn tone(note: utinyint, frames: utinyint) {
+    function tone(note: utinyint, frames: utinyint): void {
         ensure();
-        if songsOn {
-            songs::stop();
+        if (songsOn) {
+            songs.stop();
         }
         decayLeft = 0;
         fade = 0;
         shown = level;
-        sound::volume(level);
-        sound::tone(2, periodOf(note));
+        sound.volume(level);
+        sound.tone(2, periodOf(note));
         sfxLeft = frames;
-        if frames == 0 {
+        if (frames == 0) {
             sfxLeft = 1;
         }
     }
 
     // Stop now: the tone, the sample and the song, and put the volume back.
-    fn silence() {
-        if songsOn {
-            songs::stop();
+    function silence(): void {
+        if (songsOn) {
+            songs.stop();
         }
-        sound::quiet();
+        sound.quiet();
         sfxLeft = 0;
         fade = 0;
         decayLeft = 0;
         shown = level;
-        if ready {
-            sound::volume(level);
+        if (ready) {
+            sound.volume(level);
         }
     }
 
     // True while a tone, a sample or a song is sounding (a song's rests count).
-    fn busy() -> bool {
-        if sfxLeft != 0 {
+    function busy(): bool {
+        if (sfxLeft != 0) {
             return true;
         }
-        if songsOn {
-            return songs::active();
+        if (songsOn) {
+            return songs.active();
         }
         return false;
     }
@@ -203,98 +203,98 @@ pub mod audio {
     // the maximum is the maximum.
     const LEVEL_MAX: utinyint = 15;
 
-    fn setLevel(amount: utinyint) {
+    function setLevel(amount: utinyint): void {
         level = amount;
-        if level > 15 {
+        if (level > 15) {
             level = 15;
         }
         shown = level;
         fade = 0;
         ensure();
-        sound::volume(level);
+        sound.volume(level);
     }
 
     // A plucked tone: the chip has no envelope, so the volume is walked down a
     // step a frame (in update) until it reaches 0 on the last frame.
-    fn blip(note: utinyint, frames: utinyint) {
+    function blip(note: utinyint, frames: utinyint): void {
         ensure();
-        if songsOn {
-            songs::stop();
+        if (songsOn) {
+            songs.stop();
         }
         decayLeft = 0;
-        let mut span: utinyint = frames;
-        if span == 0 {
+        let span: utinyint = frames;
+        if (span == 0) {
             span = 1;
         }
-        let mut rest: utinyint = level;
+        let rest: utinyint = level;
         fade = 0;
-        while rest > 0 {
+        while (rest > 0) {
             fade = fade + 1;
-            if rest > span {
+            if (rest > span) {
                 rest = rest - span;
             } else {
                 rest = 0;
             }
         }
         shown = level;
-        sound::volume(level);
-        sound::tone(2, periodOf(note));
+        sound.volume(level);
+        sound.tone(2, periodOf(note));
         sfxLeft = span;
     }
 
     // A sample plays its fallback note for eight frames; a song plays once, from its start to its
     // last row, and is silent after. A new sound replaces whatever is sounding.
-    fn play(slot: utinyint) {
-        if songs::isSong(slot) {
+    function play(slot: utinyint): void {
+        if (songs.isSong(slot)) {
             songsOn = true;
             ensure();
             sfxLeft = 0;
-            apply(songs::start(slot, false));
+            apply(songs.start(slot, false));
             return;
         }
-        if !songs::isSample(slot) {
+        if (!songs.isSample(slot)) {
             return;
         }
         ensure();
-        if songsOn {
-            songs::stop();
+        if (songsOn) {
+            songs.stop();
         }
         decayLeft = 0;
         fade = 0;
         shown = level;
-        sound::volume(level);
-        sound::tone(voiceOf(songs::sampleWave(slot)), periodOf(songs::sampleNote(slot)));
+        sound.volume(level);
+        sound.tone(voiceOf(songs.sampleWave(slot)), periodOf(songs.sampleNote(slot)));
         sfxLeft = 8;
     }
 
     // A song, repeated for ever if its file says `loop true` (the default), until the next sound
     // or audio.silence().
-    fn music(slot: utinyint) {
+    function music(slot: utinyint): void {
         songsOn = true;
         ensure();
         sfxLeft = 0;
-        apply(songs::start(slot, true));
+        apply(songs.start(slot, true));
     }
 
-    fn update() {
-        if sfxLeft != 0 {
+    function update(): void {
+        if (sfxLeft != 0) {
             sfxLeft = sfxLeft - 1;
-            if sfxLeft == 0 {
-                sound::quiet();
+            if (sfxLeft == 0) {
+                sound.quiet();
                 fade = 0;
                 shown = level;
-                sound::volume(level);
-            } else if fade != 0 {
-                if shown > fade {
+                sound.volume(level);
+            } else if (fade != 0) {
+                if (shown > fade) {
                     shown = shown - fade;
                 } else {
                     shown = 0;
                 }
-                sound::volume(shown);
+                sound.volume(shown);
             }
             return;
         }
-        if songsOn {
+        if (songsOn) {
             songFrame();
         }
     }

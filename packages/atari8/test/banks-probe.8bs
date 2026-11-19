@@ -2,21 +2,21 @@
 // found and sets the border to a color that encodes it — red for none, a
 // different color for each 16 KiB step up to the 130XE's 64. See
 // test/banks.test.mjs.
-use super::src::screen::screen;
-use super::src::text::text;
-use super::src::banks::banks;
+import { screen } from "../src/screen.8bs";
+import { text } from "../src/text.8bs";
+import { banks } from "../src/banks.8bs";
 
-pub fn main() {
-    screen::blank();
-    let kib: usmallint = banks::kib();
-    text::print(0, "EXTRA KIB");
-    text::printNumber(10, kib, 5);
-    let mut color: utinyint = 52; // dark red
-    if kib != 0 {
-        color = 196; // bright green: a 130XE
+export function main(): void {
+    screen.blank();
+    let kib: usmallint = banks.kib();
+    text.print(0, "EXTRA KIB");
+    text.printNumber(10, kib, 5);
+    let color: utinyint = 52;      // dark red
+    if (kib != 0) {
+        color = 196;               // bright green: a 130XE
     }
-    screen::setColors(color, 0);
-    loop {
+    screen.setColors(color, 0);
+    while (true) {
         waitFrame();
     }
 }

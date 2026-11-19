@@ -17,77 +17,77 @@
 //   VIC-20   memory pointer $9005, low nybble: 0 upper case and graphics
 //            ($8000), 2 lower and upper case ($8800); the high nybble is
 //            the 8K machine's screen at $1000 (packages/vic20/src/geometry.vic20.expanded.8bs)
-use @8bitscript::screen::screen;
-use @8bitscript::text::text;
-use @8bitscript::system::System;
+import { screen } from "@8bitscript/screen";
+import { text } from "@8bitscript/text";
+import { System } from "@8bitscript/system";
 
-const COLS: utinyint = text::COLUMNS;
-const ROWS: utinyint = text::ROWS;
+const COLS: utinyint = text.COLUMNS;
+const ROWS: utinyint = text.ROWS;
 const WHITE: utinyint = 1;
-const PER_ROW: utinyint = 20; // codes a row: fits the VIC-20's 22 columns with a cell either side
+const PER_ROW: utinyint = 20;     // codes a row: fits the VIC-20's 22 columns with a cell either side
 const FIRST_ROW: utinyint = 2;
 
 // cell = row * COLS + col, summed rather than multiplied: a product of two
 // bytes would wrap at 8 bits on a wide grid.
-fn cellOf(col: utinyint, row: utinyint) -> usmallint {
-    let mut cell: usmallint = col;
-    for r: utinyint in 0..row {
+function cellOf(col: utinyint, row: utinyint): usmallint {
+    let cell: usmallint = col;
+    for (let r: utinyint = 0; r < row; r++) {
         cell = cell + COLS;
     }
     return cell;
 }
 
-fn solid(cell: usmallint) {
-    text::setReverse(true);
-    text::fill(cell, 1, 32);
-    text::setReverse(false);
+function solid(cell: usmallint): void {
+    text.setReverse(true);
+    text.fill(cell, 1, 32);
+    text.setReverse(false);
 }
 
-fn dumpCodes(screenBase: usmallint, colorBase: usmallint, withColor: bool) {
-    let mut col: utinyint = 1;
-    let mut row: utinyint = FIRST_ROW;
-    for code: usmallint in 0..256 {
+function dumpCodes(screenBase: usmallint, colorBase: usmallint, withColor: bool): void {
+    let col: utinyint = 1;
+    let row: utinyint = FIRST_ROW;
+    for (let code: usmallint = 0; code < 256; code++) {
         let cell: usmallint = cellOf(col, row);
-        memory::write(screenBase + cell, code);
-        if withColor {
-            memory::write(colorBase + cell, WHITE);
+        memory.write(screenBase + cell, code);
+        if (withColor) {
+            memory.write(colorBase + cell, WHITE);
         }
-        col += 1;
-        if col > PER_ROW {
+        col++;
+        if (col > PER_ROW) {
             col = 1;
-            row += 1;
+            row++;
         }
     }
 }
 
 /** Draw the corners, select a character set, and fill the screen with all 256 screen codes. `alternate` picks the text (lower and upper case) set instead of the boot set. */
-pub fn run(alternate: bool) {
-    screen::blank();
-    text::setColor(WHITE);
+export function run(alternate: bool): void {
+    screen.blank();
+    text.setColor(WHITE);
     solid(cellOf(0, 0));
     solid(cellOf(COLS - 1, 0));
     solid(cellOf(0, ROWS - 1));
     solid(cellOf(COLS - 1, ROWS - 1));
-    text::releaseCursor();
+    text.releaseCursor();
 
-    if #system() == System::PET {
-        if alternate {
-            memory::write(0xE84C, 14);
+    if (#system() == System.PET) {
+        if (alternate) {
+            memory.write(0xE84C, 14);
         } else {
-            memory::write(0xE84C, 12);
+            memory.write(0xE84C, 12);
         }
         dumpCodes(0x8000, 0, false);
     }
-    if #system() == System::VIC20 {
-        if alternate {
-            memory::write(0x9005, 0xC2);
+    if (#system() == System.VIC20) {
+        if (alternate) {
+            memory.write(0x9005, 0xC2);
         } else {
-            memory::write(0x9005, 0xC0);
+            memory.write(0x9005, 0xC0);
         }
         dumpCodes(0x1000, 0x9400, true);
     }
 
-    loop {
+    while (true) {
         waitFrame();
     }
 }

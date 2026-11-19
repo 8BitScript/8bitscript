@@ -60,57 +60,57 @@
 // `plan()` inside that bracket, never both. Here there is no list: `plan()`
 // is the redraw and `update()` is the same call, so a portable program
 // can be written either way and runs unchanged.
-use @8bitscript::system::Video;
-use @8bitscript::text::text;
+import { Video } from "@8bitscript/system";
+import { text } from "@8bitscript/text";
 
-const HIDDEN: utinyint = 255; // a sprite's row when it is not drawn
-const NONE: utinyint = 255; // a sprite's drawn row when nothing is on screen for it
+const HIDDEN: utinyint = 255;   // a sprite's row when it is not drawn
+const NONE: utinyint = 255;     // a sprite's drawn row when nothing is on screen for it
 
 // Positions are kept as the cell they land in — `place()` does the shift
 // once, so the frame's loop below does none.
-let mut acol: [u8; 16]; // stage x >> 3 (254 at most: past the widest grid)
-let mut arow: [u8; 16]; // stage y >> 3 (254 at most), or HIDDEN
-let mut glyph: [u8; 16]; // the ASCII code drawn
-let mut tint: [u8; 16]; // text colour, where the machine has one
-let mut drawnCol: [u8; 16]; // where the last update() put this sprite
-let mut drawnRow: [u8; 16]; // ... or NONE
-let mut dirty: [u8; 16]; // 1: draw this sprite at the next update()
-let mut count: utinyint = 0;
-let mut background: utinyint = 0x20;
-let mut shownCount: utinyint = 0;
+let acol: array<u8, 16>;        // stage x >> 3 (254 at most: past the widest grid)
+let arow: array<u8, 16>;        // stage y >> 3 (254 at most), or HIDDEN
+let glyph: array<u8, 16>;       // the ASCII code drawn
+let tint: array<u8, 16>;        // text colour, where the machine has one
+let drawnCol: array<u8, 16>;    // where the last update() put this sprite
+let drawnRow: array<u8, 16>;    // ... or NONE
+let dirty: array<u8, 16>;       // 1: draw this sprite at the next update()
+let count: utinyint = 0;
+let background: utinyint = 0x20;
+let shownCount: utinyint = 0;
 
-let mut rowCount: [u8; 32]; // sprites drawn on each row: the erase's cheap test
+let rowCount: array<u8, 32>;    // sprites drawn on each row: the erase's cheap test
 
 // The cell for a column and a row: row * COLUMNS + col, as a sum of
 // shifts chosen at compile time from COLUMNS's bits (40 is 32 + 8, 22 is
 // 16 + 4 + 2 ...) — every `if` below folds, and what is left is two or
 // three shifts of a 16-bit value where the generic multiply routine
 // cost ~300 cycles a call (measured on the VIC-20, 2026-09-19).
-fn cellAt(col: utinyint, row: utinyint) -> usmallint {
+function cellAt(col: utinyint, row: utinyint): usmallint {
     let wide: usmallint = row;
-    let mut cell: usmallint = col;
-    if (text::COLUMNS & 1) != 0 {
+    let cell: usmallint = col;
+    if ((text.COLUMNS & 1) != 0) {
         cell = cell + wide;
     }
-    if (text::COLUMNS & 2) != 0 {
+    if ((text.COLUMNS & 2) != 0) {
         cell = cell + (wide << 1);
     }
-    if (text::COLUMNS & 4) != 0 {
+    if ((text.COLUMNS & 4) != 0) {
         cell = cell + (wide << 2);
     }
-    if (text::COLUMNS & 8) != 0 {
+    if ((text.COLUMNS & 8) != 0) {
         cell = cell + (wide << 3);
     }
-    if (text::COLUMNS & 16) != 0 {
+    if ((text.COLUMNS & 16) != 0) {
         cell = cell + (wide << 4);
     }
-    if (text::COLUMNS & 32) != 0 {
+    if ((text.COLUMNS & 32) != 0) {
         cell = cell + (wide << 5);
     }
-    if (text::COLUMNS & 64) != 0 {
+    if ((text.COLUMNS & 64) != 0) {
         cell = cell + (wide << 6);
     }
-    if (text::COLUMNS & 128) != 0 {
+    if ((text.COLUMNS & 128) != 0) {
         cell = cell + (wide << 7);
     }
     return cell;
@@ -121,18 +121,18 @@ fn cellAt(col: utinyint, row: utinyint) -> usmallint {
 // local because a callee with a local of its own, inlined into a function
 // that inlines another such callee, is left unplaced — `'bottomEdge_2'
 // resolves to nothing this backend knows` (a compiler bug, 2026-09-19).
-let mut edge: usmallint = 0;
+let edge: usmallint = 0;
 
-pub mod sprites {
-    const MAX: utinyint = 16; // sprites this layer holds
-    const PER_LINE: utinyint = Video::COLUMNS; // a row of cells: no per-line limit worth the name
-    const WIDTH: utinyint = 8; // one cell
+export namespace sprites {
+    const MAX: utinyint = 16;                     // sprites this layer holds
+    const PER_LINE: utinyint = Video.COLUMNS;     // a row of cells: no per-line limit worth the name
+    const WIDTH: utinyint = 8;                    // one cell
     const HEIGHT: utinyint = 8;
-    const STEP_X: utinyint = 8; // the smallest move that shows: a cell
+    const STEP_X: utinyint = 8;                   // the smallest move that shows: a cell
     const STEP_Y: utinyint = 8;
-    const RESTORES: bool = false; // what a sprite covers is lost — no portable screen read
-    const EXTENDS: bool = false; // no border to open
-    const ORIGIN_X: usmallint = 0; // the playfield's top-left, in stage pixels
+    const RESTORES: bool = false;                 // what a sprite covers is lost — no portable screen read
+    const EXTENDS: bool = false;                  // no border to open
+    const ORIGIN_X: usmallint = 0;                // the playfield's top-left, in stage pixels
     const ORIGIN_Y: usmallint = 0;
 
     // Where a sprite's top-left can be and still show, in stage pixels:
@@ -140,39 +140,39 @@ pub mod sprites {
     // Functions, not consts, because a namespace const cannot hold an
     // expression and because the C64's move with extend(); each of these
     // folds to a number.
-    fn left() -> usmallint {
+    function left(): usmallint {
         return 0;
     }
 
-    fn top() -> usmallint {
+    function top(): usmallint {
         return 0;
     }
 
-    fn right() -> usmallint {
-        edge = text::COLUMNS;
+    function right(): usmallint {
+        edge = text.COLUMNS;
         return edge * 8 - 8;
     }
 
-    fn bottom() -> usmallint {
-        edge = text::ROWS;
+    function bottom(): usmallint {
+        edge = text.ROWS;
         return edge * 8 - 8;
     }
 
     // How many sprites this program moves, 0-MAX; those at and past the
     // count are ignored. Every sprite starts hidden, an asterisk, colour 1.
-    fn begin(n: utinyint) {
-        if n > sprites::MAX {
-            n = sprites::MAX;
+    function begin(n: utinyint): void {
+        if (n > sprites.MAX) {
+            n = sprites.MAX;
         }
         count = n;
-        for i: utinyint in 0..sprites::MAX {
+        for (let i: utinyint = 0; i < sprites.MAX; i++) {
             arow[i] = HIDDEN;
             drawnRow[i] = NONE;
             dirty[i] = 0;
             glyph[i] = 0x2A;
             tint[i] = 1;
         }
-        for r: utinyint in 0..32 {
+        for (let r: utinyint = 0; r < 32; r++) {
             rowCount[r] = 0;
         }
     }
@@ -181,21 +181,21 @@ pub mod sprites {
     // drawn. An index at or past MAX is ignored, here and below: a program
     // written for a machine with more sprites degrades to this many, and
     // never writes past these tables into the next.
-    fn place(n: utinyint, x: usmallint, y: usmallint) {
-        if n >= sprites::MAX {
+    function place(n: utinyint, x: usmallint, y: usmallint): void {
+        if (n >= sprites.MAX) {
             return;
         }
-        let mut col: usmallint = x >> 3;
-        if col > 254 {
+        let col: usmallint = x >> 3;
+        if (col > 254) {
             col = 254;
         }
-        let mut row: usmallint = y >> 3;
-        if row > 254 {
+        let row: usmallint = y >> 3;
+        if (row > 254) {
             row = 254; // past every grid, and not HIDDEN
         }
         let newCol: utinyint = col & 0xFF;
         let newRow: utinyint = row & 0xFF;
-        if newCol != acol[n] || newRow != arow[n] {
+        if (newCol != acol[n] || newRow != arow[n]) {
             acol[n] = newCol;
             arow[n] = newRow;
             dirty[n] = 1; // a move inside one cell draws nothing
@@ -203,53 +203,53 @@ pub mod sprites {
     }
 
     // The ASCII code this sprite is drawn as.
-    fn setShape(n: utinyint, shape: utinyint) {
-        if n < sprites::MAX {
+    function setShape(n: utinyint, shape: utinyint): void {
+        if (n < sprites.MAX) {
             glyph[n] = shape;
             dirty[n] = 1;
         }
     }
 
-    fn setColor(n: utinyint, color: utinyint) {
-        if n < sprites::MAX {
+    function setColor(n: utinyint, color: utinyint): void {
+        if (n < sprites.MAX) {
             tint[n] = color;
             dirty[n] = 1;
         }
     }
 
     // Not drawn until placed again.
-    fn hide(n: utinyint) {
-        if n < sprites::MAX {
+    function hide(n: utinyint): void {
+        if (n < sprites.MAX) {
             arow[n] = HIDDEN;
             dirty[n] = 1;
         }
     }
 
     // What a sprite leaves behind when it moves. A space unless set.
-    fn setBackground(code: utinyint) {
+    function setBackground(code: utinyint): void {
         background = code;
     }
 
     // Nothing to extend: the playfield is the stage.
-    fn extend(on: bool) {
+    function extend(on: bool): void {
     }
 
     // Sprites the last update() could not show. Always 0 here: a cell
     // machine has no per-line limit.
-    fn dropped() -> utinyint {
+    function dropped(): utinyint {
         return 0;
     }
 
     // The frame's work. Returns how many sprites are on screen.
-    fn plan() -> utinyint {
+    function plan(): utinyint {
         // 1. Erase what moved or hid — unless another sprite stands in
         //    that cell, which is then redrawn below instead. HIDDEN is a
         //    row no grid has, so a hidden sprite always reads as moved.
-        for i: utinyint in 0..count {
-            if drawnRow[i] == NONE || dirty[i] == 0 {
+        for (let i: utinyint = 0; i < count; i++) {
+            if (drawnRow[i] == NONE || dirty[i] == 0) {
                 continue;
             }
-            if arow[i] == drawnRow[i] && acol[i] == drawnCol[i] {
+            if (arow[i] == drawnRow[i] && acol[i] == drawnCol[i]) {
                 continue;
             }
             // Another sprite in this cell? Only worth asking when the row
@@ -257,37 +257,37 @@ pub mod sprites {
             // ~65 cycles each, and it was most of a VIC-20 frame when it
             // ran for every mover (measured 2026-09-19).
             let row: utinyint = drawnRow[i];
-            let mut occupied: bool = false;
-            if rowCount[row] > 1 {
-                for j: utinyint in 0..count {
-                    if j != i && arow[j] == row && acol[j] == drawnCol[i] {
+            let occupied: bool = false;
+            if (rowCount[row] > 1) {
+                for (let j: utinyint = 0; j < count; j++) {
+                    if (j != i && arow[j] == row && acol[j] == drawnCol[i]) {
                         dirty[j] = 1;
                         occupied = true;
                     }
                 }
             }
-            if !occupied {
-                text::putChar(cellAt(drawnCol[i], row), background);
+            if (!occupied) {
+                text.putChar(cellAt(drawnCol[i], row), background);
             }
             rowCount[row] = rowCount[row] - 1;
             drawnRow[i] = NONE;
         }
         // 2. Draw what changed, in index order: the last drawn wins a
         //    shared cell. Off the grid is not drawn, and not remembered.
-        for i: utinyint in 0..count {
-            if dirty[i] == 0 {
+        for (let i: utinyint = 0; i < count; i++) {
+            if (dirty[i] == 0) {
                 continue;
             }
             dirty[i] = 0;
             let row: utinyint = arow[i];
             let col: utinyint = acol[i];
-            if row < text::ROWS && col < text::COLUMNS {
+            if (row < text.ROWS && col < text.COLUMNS) {
                 let cell: usmallint = cellAt(col, row);
-                text::putChar(cell, glyph[i]);
-                if Video::COLOR_PER_CELL {
-                    text::putColor(cell, tint[i]);
+                text.putChar(cell, glyph[i]);
+                if (Video.COLOR_PER_CELL) {
+                    text.putColor(cell, tint[i]);
                 }
-                if drawnRow[i] == NONE {
+                if (drawnRow[i] == NONE) {
                     rowCount[row] = rowCount[row] + 1; // redrawn in place: already counted
                 }
                 drawnCol[i] = col;
@@ -296,8 +296,8 @@ pub mod sprites {
         }
         // 3. How many are on screen.
         shownCount = 0;
-        for i: utinyint in 0..count {
-            if drawnRow[i] != NONE {
+        for (let i: utinyint = 0; i < count; i++) {
+            if (drawnRow[i] != NONE) {
                 shownCount = shownCount + 1;
             }
         }
@@ -305,7 +305,7 @@ pub mod sprites {
     }
 
     // The same as plan() here: there is no list to open and commit around it.
-    fn update() -> utinyint {
-        return sprites::plan();
+    function update(): utinyint {
+        return sprites.plan();
     }
 }

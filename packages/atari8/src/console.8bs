@@ -31,33 +31,33 @@
 // Reading CONSOL returns the keys; writing it drives the speaker. They are
 // the same address and genuinely different registers, which is why this file
 // declares it twice.
-use self::index::{consolRead, consolWrite};
+import { consolRead, consolWrite } from "./index.8bs";
 
 // The last scan: `ConsoleKey.*` bits, 1 = pressed, the hardware's active-low
 // sense inverted once here. Zero until the first scan.
-let mut state: utinyint = 0;
+let state: utinyint = 0;
 
-pub mod ConsoleKey {
+export namespace ConsoleKey {
     const START: utinyint = 1;
     const SELECT: utinyint = 2;
     const OPTION: utinyint = 4;
 }
 
-pub mod console {
+export namespace console {
     // Read the three keys into the snapshot. Once a frame, beside
     // joystick.scan(); unlike the joystick this reads the hardware and so
     // is live whether or not the OS VBI is running.
-    fn scan() {
+    function scan(): void {
         state = (consolRead ^ 0x07) & 0x07;
     }
 
     // One key, from the snapshot: `console.pressed(ConsoleKey.START)`.
-    fn pressed(key: utinyint) -> bool {
+    function pressed(key: utinyint): bool {
         return (state & key) != 0;
     }
 
     // All three at once, as `ConsoleKey.*` bits.
-    fn bits() -> utinyint {
+    function bits(): utinyint {
         return state;
     }
 
@@ -68,15 +68,15 @@ pub mod console {
     // event is a click. A tone means toggling `speaker()` on a timed loop
     // instead, which costs the CPU the whole time it sounds — POKEY is the
     // answer for anything longer than a click.
-    fn click() {
+    function click(): void {
         consolWrite = 0x00;
         consolWrite = 0x08;
     }
 
     // The speaker bit on its own, for a program timing its own tone:
     // `out` true pushes the cone, false lets it rest.
-    fn speaker(out: bool) {
-        if out {
+    function speaker(out: bool): void {
+        if (out) {
             consolWrite = 0x00;
         } else {
             consolWrite = 0x08;

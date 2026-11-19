@@ -25,8 +25,8 @@
 // namespace — the same names, the same shapes, ASCII codes, and a cell 0
 // at the top-left corner inside the border — so a program that imports it
 // from @8bitscript/text draws the same thing on every target.
-use self::index::{memoryPointer, setupVideo, videoMode, VideoMode};
-use self::geometry::{Video, screenRam, colorRam};
+import { memoryPointer, setupVideo, videoMode, VideoMode } from "./index.8bs";
+import { Video, screenRam, colorRam } from "./geometry.8bs";
 
 // The screen is addressed by flat cell index — a position is
 // `y * text.COLUMNS + x` — and these are the plainest things a text API
@@ -64,14 +64,14 @@ use self::geometry::{Video, screenRam, colorRam};
 // caller asked. The upper-case set costs nothing to reach for a program
 // that wants it — MEMORY_POINTER_UPPERCASE is right there in `Video`.
 
-fn asciiToScreenCode(code: utinyint) -> utinyint {
+function asciiToScreenCode(code: utinyint): utinyint {
     // The mixed-case set keeps lower case at 1-26 and upper case at its own
     // ASCII values, 65-90 — measured against the real ROM
     // (`chargen-901225-01.bin`, 8 bytes/glyph, the two sets in one 4K file):
     // in the lower half, code 8 is 'h' and code 72 is 'H'. So 'A'-'Z',
     // space, the digits and the punctuation all pass through untouched, and
     // only lower case moves.
-    if code >= 97 && code < 123 {
+    if (code >= 97 && code < 123) {
         return code - 96; // 'a'-'z'
     }
     return code;
@@ -102,72 +102,73 @@ fn asciiToScreenCode(code: utinyint) -> utinyint {
 // mixed-case set once for the run, and hands the routines the color and
 // reverse state. `text.putChar` and `text.putColor` stay the one-cell
 // pokes a caller can build anything from, in 8BitScript.
-let mut currentColor: utinyint = 1; // white, until text.setColor() says otherwise
-let mut currentReverse: bool = false; // until text.setReverse() says otherwise
+let currentColor: utinyint = 1; // white, until text.setColor() says otherwise
+let currentReverse: bool = false; // until text.setReverse() says otherwise
 
 // Reverse video is bit 7 of the screen code: 128-255 are the ROM's
 // inverted copies of 0-127. A reverse space is a solid block in the
 // cell's color, which is how a selected menu item becomes a filled bar.
-fn toScreen(code: utinyint) -> utinyint {
-    let mut screen: utinyint = asciiToScreenCode(code);
-    if currentReverse {
+function toScreen(code: utinyint): utinyint {
+    let screen: utinyint = asciiToScreenCode(code);
+    if (currentReverse) {
         screen = screen + 128;
     }
     return screen;
 }
 
 // What a run of text needs once, before its first character.
-fn prepare() {
+function prepare(): void {
     setupVideo();
-    if videoMode == VideoMode::TEXT {
-        memoryPointer = Video::MEMORY_POINTER_LOWERCASE;
+    if (videoMode == VideoMode.TEXT) {
+        memoryPointer = Video.MEMORY_POINTER_LOWERCASE;
     }
 }
 
 // One cell: the screen code for an ASCII character, in the current colour.
-fn place(cell: usmallint, code: utinyint) {
+function place(cell: usmallint, code: utinyint): void {
     screenRam[cell] = toScreen(code);
     colorRam[cell] = currentColor;
 }
 
 // A number is written one place at a time, high to low, by subtracting the
 // place value until it no longer fits — the same walk text.s does.
-const DIGIT_PLACES: [usmallint; 5] = [10000, 1000, 100, 10, 1];
+const DIGIT_PLACES: array<usmallint, 5> = [10000, 1000, 100, 10, 1];
 
-pub mod text {
-    const CELL_COUNT: usmallint = Video::CELL_COUNT; // 40 columns x 25 rows
-    const COLUMNS: utinyint = Video::COLUMNS; // cells per row, so cell = y * text.COLUMNS + x
-    const ROWS: utinyint = Video::ROWS;
+export namespace text {
+    const CELL_COUNT: usmallint = Video.CELL_COUNT; // 40 columns x 25 rows
+    const COLUMNS: utinyint = Video.COLUMNS; // cells per row, so cell = y * text.COLUMNS + x
+    const ROWS: utinyint = Video.ROWS;
 
     // The live grid. Fixed on this machine — its screen is the size its video
     // chip makes it — so both fold to the constants above and cost nothing.
     // Here so a program that lays itself out from the grid it is actually on
     // runs unchanged on every target; see the web target's Modern host, the
     // one grid that does change.
-    fn columns() -> utinyint {
-        return text::COLUMNS;
+    function columns(): utinyint {
+        return text.COLUMNS;
     }
 
-    fn rows() -> utinyint {
-        return text::ROWS;
+    function rows(): utinyint {
+        return text.ROWS;
     }
 
-    fn putChar(cell: usmallint, code: utinyint) {
+
+    function putChar(cell: usmallint, code: utinyint): void {
         prepare();
         screenRam[cell] = toScreen(code);
     }
 
-    fn putColor(cell: usmallint, color: utinyint) {
+    function putColor(cell: usmallint, color: utinyint): void {
         colorRam[cell] = color;
     }
 
-    fn setColor(color: utinyint) {
+    function setColor(color: utinyint): void {
         currentColor = color;
     }
 
     // Invert glyphs printed after this: the character pixels take the
     // background color and the rest of the cell takes the text color.
-    fn setReverse(on: bool) {
+    function setReverse(on: bool): void {
         currentReverse = on;
     }
 
@@ -177,12 +178,12 @@ pub mod text {
     // not land back in a working BASIC the way it does on every other
     // Commodore here (see the file header's "the KERNAL goes out... and
     // stays out" in ./index.8bs). There is no cursor to hand back.
-    fn releaseCursor() {
+    function releaseCursor(): void {
     }
 
-    fn print(cell: usmallint, s: string) {
+    function print(cell: usmallint, s: string): void {
         prepare();
-        for i: utinyint in 0..s.length {
+        for (let i: utinyint = 0; i < s.length; i++) {
             place(cell + i, s[i]);
         }
     }
@@ -192,9 +193,9 @@ pub mod text {
     // built at run time — it cannot, so a layout whose width is only known
     // while the program runs (a responsive tile, a panel being cleared) needs
     // this instead of a string constant per possible width.
-    fn fill(cell: usmallint, count: usmallint, code: utinyint) {
+    function fill(cell: usmallint, count: usmallint, code: utinyint): void {
         prepare();
-        for i: usmallint in 0..count {
+        for (let i: usmallint = 0; i < count; i++) {
             place(cell + i, code);
         }
     }
@@ -206,24 +207,24 @@ pub mod text {
     // Places above the field are still taken off, so a field narrower than
     // its number shows the low digits; places the number does not reach
     // print as zeros.
-    fn printNumber(cell: usmallint, value: usmallint, width: utinyint) {
+    function printNumber(cell: usmallint, value: usmallint, width: utinyint): void {
         prepare();
-        let mut k: utinyint = width;
-        if k < DIGIT_PLACES.length {
+        let k: utinyint = width;
+        if (k < DIGIT_PLACES.length) {
             k = DIGIT_PLACES.length;
         }
-        while k > 0 {
-            let mut digit: utinyint = 48; // '0'
-            if k <= DIGIT_PLACES.length {
-                while value >= DIGIT_PLACES[DIGIT_PLACES.length - k] {
+        while (k > 0) {
+            let digit: utinyint = 48; // '0'
+            if (k <= DIGIT_PLACES.length) {
+                while (value >= DIGIT_PLACES[DIGIT_PLACES.length - k]) {
                     value = value - DIGIT_PLACES[DIGIT_PLACES.length - k];
-                    digit += 1;
+                    digit++;
                 }
             }
-            if k <= width {
+            if (k <= width) {
                 place(cell + width - k, digit);
             }
-            k -= 1;
+            k--;
         }
     }
 }
@@ -232,7 +233,7 @@ pub mod text {
 // shares, with this machine's color-RAM values. Color RAM takes all
 // sixteen VIC-II colors; the other eight are numbers 8-15, the ones
 // `BorderColor`/`BackgroundColor` in ./screen.8bs name.
-pub mod TextColor {
+export namespace TextColor {
     const BLACK: utinyint = 0;
     const WHITE: utinyint = 1;
     const RED: utinyint = 2;

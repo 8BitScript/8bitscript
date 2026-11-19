@@ -1,11 +1,11 @@
 // What a sprite looks like on the C64: a 24 x 21 sprite, drawn into the
 // first shape block at start-up — a ring, so the sprites read as objects
 // rather than tiles. `shapes.8bs` beside this file is the other eight.
-use @8bitscript::c64::sprites::{sprites as hardware};
-use @8bitscript::c64::video::spriteShapes;
+import { sprites as hardware } from "@8bitscript/c64/sprites";
+import { spriteShapes } from "@8bitscript/c64/video";
 
 // 21 rows of 3 bytes: a rounded ring, 24 wide.
-const RING: [utinyint; 63] = [
+const RING: array<utinyint, 63> = [
     0x00, 0x7E, 0x00,
     0x03, 0xFF, 0xC0,
     0x0F, 0xFF, 0xF0,
@@ -29,12 +29,12 @@ const RING: [utinyint; 63] = [
     0x00, 0x7E, 0x00,
 ];
 
-pub mod shapes {
-    const ACTOR: utinyint = hardware::FIRST_BLOCK;
+export namespace shapes {
+    const ACTOR: utinyint = hardware.FIRST_BLOCK;
 
-    fn begin() {
-        for i: utinyint in 0..63 {
-            spriteShapes[hardware::blockOffset(shapes::ACTOR) + i] = RING[i];
+    function begin(): void {
+        for (let i: utinyint = 0; i < 63; i++) {
+            spriteShapes[hardware.blockOffset(shapes.ACTOR) + i] = RING[i];
         }
     }
 }

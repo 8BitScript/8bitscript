@@ -4,9 +4,9 @@
 // `screen.8bs`), which is how a portable program keeps the one thing that
 // is a sprite shape on one machine and an ASCII code on another out of
 // its own text.
-pub mod shapes {
+export namespace shapes {
     const ACTOR: utinyint = 0x4F; // 'O'
 
-    fn begin() {
+    function begin(): void {
     }
 }
