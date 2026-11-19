@@ -4,10 +4,11 @@ use indexmap::{IndexMap, IndexSet};
 use mos::asm::assemble::Directive;
 use mos::build::Machine;
 use mos::machine::{
-    BORROWS_ZERO_PAGE, CPU, RASTER_MACHINES, SizePart, ZP_BUDGET_MACHINES, ZpBudget,
-    chrget_zp_holes, clear_ram, collect_call_names, collect_string_indexes, copy_to_ram,
-    directive_bytes, find_call_cycle, function_size_entries, output_extension, zp_budgets,
+    BORROWS_ZERO_PAGE, CPU, RASTER_MACHINES, SizePart, ZP_BUDGET_MACHINES, chrget_zp_holes,
+    clear_ram, collect_call_names, collect_string_indexes, copy_to_ram, directive_bytes,
+    find_call_cycle, function_size_entries, output_extension, zp_budgets,
 };
+use mos::zp::Budget;
 use mos_ir::{Function, HardwareBuild, Stmt};
 use serde_json::{Value, json};
 
@@ -78,7 +79,7 @@ fn budgets_and_machine_sets_match() {
 fn chrget_holes_match() {
     for c in fixtures()["chrget"].as_array().unwrap() {
         let facts: IndexMap<String, Value> = serde_json::from_value(c["facts"].clone()).unwrap();
-        let budget = ZpBudget {
+        let budget = Budget {
             zp_origin: c["budget"]["zpOrigin"].as_i64().unwrap(),
             zp_ceiling: c["budget"]["zpCeiling"].as_i64().unwrap(),
             holes: Vec::new(),
