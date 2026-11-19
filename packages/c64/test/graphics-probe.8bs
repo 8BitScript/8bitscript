@@ -4,35 +4,35 @@
 // Twelve graphics.update() calls advance the walker six times at `every 2`,
 // so it ends on frame 2 of 4 and the screenshot does not depend on timing;
 // after that the sprites are only redrawn.
-import { screen } from "@8bitscript/screen";
-import { graphics } from "@8bitscript/graphics";
-import { sprites } from "@8bitscript/sprites";
-import { walker, wide, corner, dot0, dot1, dot2, dot3, dot4, dot5, dot6, dot7, dot8, dot9, dot10, dot11 } from "./graphics-probe.8bg";
+use @8bitscript::screen::screen;
+use @8bitscript::graphics::graphics;
+use @8bitscript::sprites::sprites;
+use "./graphics-probe.8bg"::{walker, wide, corner, dot0, dot1, dot2, dot3, dot4, dot5, dot6, dot7, dot8, dot9, dot10, dot11};
 
-export function main(): void {
-    screen.blank();
-    graphics.place(walker, 40, 20);
-    graphics.place(wide, 276, 60);
-    graphics.place(corner, 0, 0);
-    graphics.place(dot0, 16, 90);
-    graphics.place(dot1, 36, 98);
-    graphics.place(dot2, 56, 106);
-    graphics.place(dot3, 76, 114);
-    graphics.place(dot4, 96, 122);
-    graphics.place(dot5, 116, 130);
-    graphics.place(dot6, 136, 138);
-    graphics.place(dot7, 156, 146);
-    graphics.place(dot8, 176, 154);
-    graphics.place(dot9, 196, 162);
-    graphics.place(dot10, 216, 170);
+pub fn main() {
+    screen::blank();
+    graphics::place(walker, 40, 20);
+    graphics::place(wide, 276, 60);
+    graphics::place(corner, 0, 0);
+    graphics::place(dot0, 16, 90);
+    graphics::place(dot1, 36, 98);
+    graphics::place(dot2, 56, 106);
+    graphics::place(dot3, 76, 114);
+    graphics::place(dot4, 96, 122);
+    graphics::place(dot5, 116, 130);
+    graphics::place(dot6, 136, 138);
+    graphics::place(dot7, 156, 146);
+    graphics::place(dot8, 176, 154);
+    graphics::place(dot9, 196, 162);
+    graphics::place(dot10, 216, 170);
     // Stage pixels: 236 is sprite-chip X 260, past 255 (the ninth X bit).
-    graphics.place(dot11, 236, 178);
-    for (let n: utinyint = 0; n < 12; n++) {
+    graphics::place(dot11, 236, 178);
+    for n: utinyint in 0..12 {
         waitFrame();
-        graphics.update();
+        graphics::update();
     }
-    while (true) {
+    loop {
         waitFrame();
-        sprites.update();
+        sprites::update();
     }
 }

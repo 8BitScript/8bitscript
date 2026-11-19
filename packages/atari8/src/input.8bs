@@ -62,11 +62,11 @@
 // `+`" is the CTRL *modifier bit* alongside the last key code, which the
 // hardware does give, but two ordinary keys at once is not a question this
 // machine can answer. That is a property of the hardware, not of this file.
-import { keyboard } from "./keyboard.8bs";
-import { Key } from "./keys.8bs";
-import { joystick, Joystick } from "./joystick.8bs";
+use self::keyboard::keyboard;
+use self::keys::Key;
+use self::joystick::{joystick, Joystick};
 
-namespace Edge {
+mod Edge {
     const LEFT: utinyint = 1;
     const RIGHT: utinyint = 2;
     const UP: utinyint = 4;
@@ -75,15 +75,14 @@ namespace Edge {
     const CANCEL: utinyint = 32;
 }
 
-let held: utinyint = 0;
-let before: utinyint = 0;
-let began: utinyint = 0;
+let mut held: utinyint = 0;
+let mut before: utinyint = 0;
+let mut began: utinyint = 0;
 
-export namespace input {
-
+pub mod input {
     // Nothing to set up: no pointer to give a ceiling to. Here so a
     // program written for nine machines calls the same thing on all.
-    function begin(): void {
+    fn begin() {
         // One poll before the program's first, so the edge detector starts
         // from what is actually held rather than from nothing. `before` is
         // zero until something fills it, and an edge is "held now, not held
@@ -91,103 +90,103 @@ export namespace input {
         // starts reads as a fresh press on frame one. Measured on the
         // MEGA65, whose RETURN key is down at start-up: the joystick example
         // counted a confirm() nobody pressed until begin() primed this.
-        input.poll();
+        input::poll();
     }
 
     // Read the key register and the port, and work out what began this
     // frame. Once a frame, right after waitFrame().
-    function poll(): void {
-        keyboard.scan();
-        joystick.scan();
+    fn poll() {
+        keyboard::scan();
+        joystick::scan();
 
         before = held;
         held = 0;
 
         // The arrows are CTRL plus a printed key — asked once and reused,
         // because the modifier is a separate bit from the key code.
-        if (keyboard.control()) {
-            if (keyboard.pressed(Key.PLUS)) {
-                held = held | Edge.LEFT;
+        if keyboard::control() {
+            if keyboard::pressed(Key::PLUS) {
+                held = held | Edge::LEFT;
             }
-            if (keyboard.pressed(Key.ASTERISK)) {
-                held = held | Edge.RIGHT;
+            if keyboard::pressed(Key::ASTERISK) {
+                held = held | Edge::RIGHT;
             }
-            if (keyboard.pressed(Key.DASH)) {
-                held = held | Edge.UP;
+            if keyboard::pressed(Key::DASH) {
+                held = held | Edge::UP;
             }
-            if (keyboard.pressed(Key.EQUALS)) {
-                held = held | Edge.DOWN;
+            if keyboard::pressed(Key::EQUALS) {
+                held = held | Edge::DOWN;
             }
         }
-        if (keyboard.pressed(Key.RETURN)) {
-            held = held | Edge.CONFIRM;
+        if keyboard::pressed(Key::RETURN) {
+            held = held | Edge::CONFIRM;
         }
-        if (keyboard.pressed(Key.ESC)) {
-            held = held | Edge.CANCEL;
+        if keyboard::pressed(Key::ESC) {
+            held = held | Edge::CANCEL;
         }
 
-        let stick: utinyint = joystick.bits(Joystick.PORT_1);
-        if ((stick & Joystick.LEFT) != 0) {
-            held = held | Edge.LEFT;
+        let stick: utinyint = joystick::bits(Joystick::PORT_1);
+        if (stick & Joystick::LEFT) != 0 {
+            held = held | Edge::LEFT;
         }
-        if ((stick & Joystick.RIGHT) != 0) {
-            held = held | Edge.RIGHT;
+        if (stick & Joystick::RIGHT) != 0 {
+            held = held | Edge::RIGHT;
         }
-        if ((stick & Joystick.UP) != 0) {
-            held = held | Edge.UP;
+        if (stick & Joystick::UP) != 0 {
+            held = held | Edge::UP;
         }
-        if ((stick & Joystick.DOWN) != 0) {
-            held = held | Edge.DOWN;
+        if (stick & Joystick::DOWN) != 0 {
+            held = held | Edge::DOWN;
         }
-        if ((stick & Joystick.FIRE) != 0) {
-            held = held | Edge.CONFIRM;
+        if (stick & Joystick::FIRE) != 0 {
+            held = held | Edge::CONFIRM;
         }
 
         began = held & (before ^ 0xFF);
     }
 
-    function left(): bool {
-        return (began & Edge.LEFT) != 0;
+    fn left() -> bool {
+        return (began & Edge::LEFT) != 0;
     }
 
-    function right(): bool {
-        return (began & Edge.RIGHT) != 0;
+    fn right() -> bool {
+        return (began & Edge::RIGHT) != 0;
     }
 
-    function up(): bool {
-        return (began & Edge.UP) != 0;
+    fn up() -> bool {
+        return (began & Edge::UP) != 0;
     }
 
-    function down(): bool {
-        return (began & Edge.DOWN) != 0;
+    fn down() -> bool {
+        return (began & Edge::DOWN) != 0;
     }
 
-    function confirm(): bool {
-        return (began & Edge.CONFIRM) != 0;
+    fn confirm() -> bool {
+        return (began & Edge::CONFIRM) != 0;
     }
 
-    function cancel(): bool {
-        return (began & Edge.CANCEL) != 0;
+    fn cancel() -> bool {
+        return (began & Edge::CANCEL) != 0;
     }
 
     // No driver for any of the three mice the catalog offers — see the
     // header. False rather than "maybe", and a constant either way.
-    function pointer(): bool {
+    fn pointer() -> bool {
         return false;
     }
 
-    function pointerCell(): usmallint {
+    fn pointerCell() -> usmallint {
         return 0;
     }
 
-    function pointerButton(): bool {
+    fn pointerButton() -> bool {
         return false;
     }
 }
 
 // Compile-time names for the confirm control, interpolated into catalogs
 // as {control} / {other}. OR / ODER lives in the catalog, not here.
-export namespace Input {
+pub mod Input {
     const CONFIRM_LABEL: string = "RETURN";
     const ALT_CONFIRM_LABEL: string = "FIRE";
     const CONFIRM_LABELS: string = "RETURN OR FIRE";

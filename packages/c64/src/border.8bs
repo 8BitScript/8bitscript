@@ -96,59 +96,59 @@
 // rest or through raster.insert (both use it, so order does not matter;
 // call top() before a long ascending run and bottom() after it to keep
 // the slide short).
-import { control1 } from "./index.8bs";
-import { raster, Register } from "./raster.8bs";
-import { idle, patternSet, Pattern } from "./idle.8bs";
+use self::index::control1;
+use self::raster::{raster, Register};
+use self::idle::{idle, patternSet, Pattern};
 
 const RSEL: utinyint = 0x08;
 const KEEP: utinyint = 0x37; // YSCROLL (0-2), DEN (4), BMM (5); RSEL, ECM and the raster's bit 8 dropped
 
-let short: bool = false;
+let mut short: bool = false;
 
-export namespace border {
-    const OPEN_LINE: utinyint = 249;   // RSEL cleared here: after 247's comparison, before 251's
-    const SHORT_LINE: utinyint = 245;  // with 24 rows, RSEL set here first
-    const TOP_OFFSET: utinyint = 47;   // + YSCROLL: ECM cleared, RSEL restored
+pub mod border {
+    const OPEN_LINE: utinyint = 249; // RSEL cleared here: after 247's comparison, before 251's
+    const SHORT_LINE: utinyint = 245; // with 24 rows, RSEL set here first
+    const TOP_OFFSET: utinyint = 47; // + YSCROLL: ECM cleared, RSEL restored
 
     // The program's rows: 25 (false, the default) or 24.
-    function setShort(on: bool): void {
+    fn setShort(on: bool) {
         short = on;
     }
 
     // The line `top()` writes at, for a program that orders its own list.
-    function topLine(): utinyint {
-        return border.TOP_OFFSET + (control1 & 7);
+    fn topLine() -> utinyint {
+        return border::TOP_OFFSET + (control1 & 7);
     }
 
     // The first line `bottom()` writes at.
-    function bottomLine(): utinyint {
-        if (short) {
-            return border.SHORT_LINE;
+    fn bottomLine() -> utinyint {
+        if short {
+            return border::SHORT_LINE;
         }
-        return border.OPEN_LINE;
+        return border::OPEN_LINE;
     }
 
     // The entries that open the border below row 24. False if the list
     // could not take them all (it is full).
-    function bottom(): bool {
-        if (!patternSet) {
-            idle.setPattern(Pattern.TRANSPARENT);
+    fn bottom() -> bool {
+        if !patternSet {
+            idle::setPattern(Pattern::TRANSPARENT);
         }
         let base: utinyint = control1 & KEEP;
         let lastRow: utinyint = 247 + (base & 7);
-        let ok: bool = true;
-        if (short) {
-            ok = raster.insert(border.SHORT_LINE, Register.CONTROL_1, base | RSEL);
+        let mut ok: bool = true;
+        if short {
+            ok = raster::insert(border::SHORT_LINE, Register::CONTROL_1, base | RSEL);
         }
-        if (lastRow <= border.OPEN_LINE) {
-            if (!raster.insert(border.OPEN_LINE, Register.CONTROL_1, base | idle.ECM)) {
+        if lastRow <= border::OPEN_LINE {
+            if !raster::insert(border::OPEN_LINE, Register::CONTROL_1, base | idle::ECM) {
                 ok = false;
             }
         } else {
-            if (!raster.insert(border.OPEN_LINE, Register.CONTROL_1, base)) {
+            if !raster::insert(border::OPEN_LINE, Register::CONTROL_1, base) {
                 ok = false;
             }
-            if (!raster.insert(lastRow, Register.CONTROL_1, base | idle.ECM)) {
+            if !raster::insert(lastRow, Register::CONTROL_1, base | idle::ECM) {
                 ok = false;
             }
         }
@@ -157,11 +157,11 @@ export namespace border {
 
     // The entry that ends the pattern and restores the row count before
     // the first bad line. False if the list is full.
-    function top(): bool {
-        let base: utinyint = control1 & KEEP;
-        if (!short) {
+    fn top() -> bool {
+        let mut base: utinyint = control1 & KEEP;
+        if !short {
             base = base | RSEL;
         }
-        return raster.insert(border.TOP_OFFSET + (base & 7), Register.CONTROL_1, base);
+        return raster::insert(border::TOP_OFFSET + (base & 7), Register::CONTROL_1, base);
     }
 }

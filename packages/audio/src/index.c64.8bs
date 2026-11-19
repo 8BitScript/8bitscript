@@ -1,129 +1,129 @@
 // @8bitscript/audio on the C64: a song plays on SID voice 0 (songs.8bs holds the bank and the
 // sequencer). A sample is the declared synth fallback (not a $D418 digi).
-import { sid, Waveform } from "@8bitscript/c64/sid";
-import { songs } from "./songs.8bs";
+use @8bitscript::c64::sid::{sid, Waveform};
+use self::songs::songs;
 
-let sfxLeft: utinyint = 0;
+let mut sfxLeft: utinyint = 0;
 // True once the program has asked for a song (audio.play or audio.music of one). Nothing but
 // those two calls assigns it, so in a program that never plays a song the linker's optimizer
 // inlines it as false, every `songsOn` test below folds away, and the sequencer and its 256-byte
 // bank are not linked at all: a program that only plays tones pays nothing for songs.
-let songsOn: bool = false;
-let ready: bool = false;
+let mut songsOn: bool = false;
+let mut ready: bool = false;
 // The master volume, 0..15, and whether the envelope is the plucked one (see blip).
-let level: utinyint = 15;
-let plucked: bool = false;
+let mut level: utinyint = 15;
+let mut plucked: bool = false;
 
 // The SID decay rate (0..15, the datasheet's table: 6 ms, 24, 48, 72, 114, 168, 204, 240, 300 ms
 // ... to fall from the peak to nothing) a pluck of N frames wants, N = 0..15 and more. Frames are
 // 16.7 ms at 60 Hz, so this is a nearest-rate table, not a stopwatch.
-const DECAY: array<u8, 16> = [1, 1, 2, 3, 3, 4, 4, 5, 5, 5, 6, 6, 7, 7, 8, 8];
+const DECAY: [u8; 16] = [1, 1, 2, 3, 3, 4, 4, 5, 5, 5, 6, 6, 7, 7, 8, 8];
 
-function waveOf(code: utinyint): utinyint {
-    if (code == 1) {
-        return Waveform.NOISE;
+fn waveOf(code: utinyint) -> utinyint {
+    if code == 1 {
+        return Waveform::NOISE;
     }
-    if (code == 2) {
-        return Waveform.TRIANGLE;
+    if code == 2 {
+        return Waveform::TRIANGLE;
     }
-    if (code == 3) {
-        return Waveform.SAWTOOTH;
+    if code == 3 {
+        return Waveform::SAWTOOTH;
     }
-    return Waveform.PULSE;
+    return Waveform::PULSE;
 }
 
-function ensure(): void {
-    if (!ready) {
-        sid.detectRegion();
-        sid.setVolume(level);
-        sid.setEnvelope(0, 0, 9, 8, 6);
-        sid.setPulseWidth(0, 2048);
+fn ensure() {
+    if !ready {
+        sid::detectRegion();
+        sid::setVolume(level);
+        sid::setEnvelope(0, 0, 9, 8, 6);
+        sid::setPulseWidth(0, 2048);
         ready = true;
     }
 }
 
 // The master volume a note of `vol` (0..15) plays at under the game's level, rounded up so a
 // quiet note under a loud level is not lost: level * vol / 16, ceiling.
-function scaled(vol: utinyint): utinyint {
+fn scaled(vol: utinyint) -> utinyint {
     let product: utinyint = level * vol;
-    return (product + 15) >> 4;
+    return product + 15 >> 4;
 }
 
 // Start the note the sequencer says begins: a fresh gate, its waveform, its volume, and an envelope
 // that is either a pluck (a decay and no sustain, so it dies away by itself) or a held note at full.
-function startNote(): void {
+fn startNote() {
     ensure();
-    sid.release(0);
-    sid.setWaveform(0, waveOf(songs.wave()));
-    sid.setVolume(scaled(songs.volume()));
-    let decay: utinyint = songs.decay();
-    if (decay != 0) {
-        if (decay > 15) {
+    sid::release(0);
+    sid::setWaveform(0, waveOf(songs::wave()));
+    sid::setVolume(scaled(songs::volume()));
+    let mut decay: utinyint = songs::decay();
+    if decay != 0 {
+        if decay > 15 {
             decay = 15;
         }
-        sid.setEnvelope(0, 0, DECAY[decay], 0, 2);
+        sid::setEnvelope(0, 0, DECAY[decay], 0, 2);
     } else {
-        sid.setEnvelope(0, 0, 0, 15, 3);
+        sid::setEnvelope(0, 0, 0, 15, 3);
     }
     plucked = true;
-    sid.play(0, songs.note());
+    sid::play(0, songs::note());
 }
 
 // Do what the sequencer says.
-function apply(event: utinyint): void {
-    if (event == 1) {
+fn apply(event: utinyint) {
+    if event == 1 {
         startNote();
-    } else if (event == 2) {
-        sid.release(0);
-    } else if (event == 3) {
-        sid.release(0);
-        sid.setVolume(level);
+    } else if event == 2 {
+        sid::release(0);
+    } else if event == 3 {
+        sid::release(0);
+        sid::setVolume(level);
     }
 }
 
 // One frame of a song that is playing: a note's decay, then the sequencer's next step.
-function songFrame(): void {
-    if (!songs.active()) {
+fn songFrame() {
+    if !songs::active() {
         return;
     }
-    apply(songs.step());
+    apply(songs::step());
 }
 
-export namespace audio {
+pub mod audio {
     // The playable notes (the .8ba index, C0 = 0, A4 = 57): the SID's
     // table is C0..B6, so nothing folds.
     const NOTE_LOW: utinyint = 0;
     const NOTE_HIGH: utinyint = 83;
 
-    function bind(kind: utinyint, slot: utinyint, index: utinyint, value: utinyint): void {
-        songs.bind(kind, slot, index, value);
+    fn bind(kind: utinyint, slot: utinyint, index: utinyint, value: utinyint) {
+        songs::bind(kind, slot, index, value);
     }
 
-    function meta(kind: utinyint, slot: utinyint, length: utinyint, a: utinyint, b: utinyint, c: utinyint): void {
-        songs.meta(kind, slot, length);
+    fn meta(kind: utinyint, slot: utinyint, length: utinyint, a: utinyint, b: utinyint, c: utinyint) {
+        songs::meta(kind, slot, length);
         ensure();
     }
 
     // A sample plays its fallback note for eight frames; a song plays once, from its start to its
     // last row, and is silent after. A new sound replaces whatever is sounding.
-    function play(slot: utinyint): void {
-        if (songs.isSong(slot)) {
+    fn play(slot: utinyint) {
+        if songs::isSong(slot) {
             songsOn = true;
             ensure();
             sfxLeft = 0;
-            apply(songs.start(slot, false));
+            apply(songs::start(slot, false));
             return;
         }
-        if (!songs.isSample(slot)) {
+        if !songs::isSample(slot) {
             return;
         }
         ensure();
-        if (songsOn) {
-            songs.stop();
+        if songsOn {
+            songs::stop();
         }
-        sid.release(0);
-        sid.setWaveform(0, waveOf(songs.sampleWave(slot)));
-        sid.play(0, songs.sampleNote(slot));
+        sid::release(0);
+        sid::setWaveform(0, waveOf(songs::sampleWave(slot)));
+        sid::play(0, songs::sampleNote(slot));
         sfxLeft = 8;
     }
 
@@ -131,44 +131,44 @@ export namespace audio {
     // gate closes and the release runs. Replaces whatever tone is sounding.
     // The first tone finds the PAL/NTSC clock from the raster (two frames,
     // once) so the pitch is right. Nothing else blocks.
-    function tone(note: utinyint, frames: utinyint): void {
+    fn tone(note: utinyint, frames: utinyint) {
         ensure();
-        if (songsOn) {
-            songs.stop();
+        if songsOn {
+            songs::stop();
         }
-        if (plucked) {
-            sid.setEnvelope(0, 0, 9, 8, 6);
+        if plucked {
+            sid::setEnvelope(0, 0, 9, 8, 6);
             plucked = false;
         }
-        sid.setVolume(level);
-        sid.release(0);
-        sid.setWaveform(0, Waveform.PULSE);
-        sid.play(0, note);
+        sid::setVolume(level);
+        sid::release(0);
+        sid::setWaveform(0, Waveform::PULSE);
+        sid::play(0, note);
         sfxLeft = frames;
-        if (frames == 0) {
+        if frames == 0 {
             sfxLeft = 1;
         }
     }
 
     // Stop now: the tone, the sample and the song, and put the volume back.
-    function silence(): void {
-        if (songsOn) {
-            songs.stop();
+    fn silence() {
+        if songsOn {
+            songs::stop();
         }
-        if (ready) {
-            sid.release(0);
-            sid.setVolume(level);
+        if ready {
+            sid::release(0);
+            sid::setVolume(level);
         }
         sfxLeft = 0;
     }
 
     // True while a tone, a sample or a song is sounding (a song's rests count).
-    function busy(): bool {
-        if (sfxLeft != 0) {
+    fn busy() -> bool {
+        if sfxLeft != 0 {
             return true;
         }
-        if (songsOn) {
-            return songs.active();
+        if songsOn {
+            return songs::active();
         }
         return false;
     }
@@ -177,58 +177,58 @@ export namespace audio {
     // the maximum is the maximum. It scales every tone, blip and song.
     const LEVEL_MAX: utinyint = 15;
 
-    function setLevel(amount: utinyint): void {
+    fn setLevel(amount: utinyint) {
         level = amount;
-        if (level > 15) {
+        if level > 15 {
             level = 15;
         }
         ensure();
-        sid.setVolume(level);
+        sid::setVolume(level);
     }
 
     // A plucked tone on voice 0: the envelope has no sustain, so the note dies
     // away by itself in about `frames` frames, and a missed update() can never
     // leave it sounding. The gate is dropped first, so a note started on top of
     // another retriggers.
-    function blip(note: utinyint, frames: utinyint): void {
+    fn blip(note: utinyint, frames: utinyint) {
         ensure();
-        if (songsOn) {
-            songs.stop();
+        if songsOn {
+            songs::stop();
         }
-        let slow: utinyint = frames;
-        if (slow > 9) {
+        let mut slow: utinyint = frames;
+        if slow > 9 {
             slow = 9;
         }
-        sid.setVolume(level);
-        sid.setEnvelope(0, 0, DECAY[slow], 0, 2);
+        sid::setVolume(level);
+        sid::setEnvelope(0, 0, DECAY[slow], 0, 2);
         plucked = true;
-        sid.release(0);
-        sid.setWaveform(0, Waveform.PULSE);
-        sid.play(0, note);
+        sid::release(0);
+        sid::setWaveform(0, Waveform::PULSE);
+        sid::play(0, note);
         sfxLeft = frames;
-        if (frames == 0) {
+        if frames == 0 {
             sfxLeft = 1;
         }
     }
 
     // A song, repeated for ever if its file says `loop true` (the default), until the next sound
     // or audio.silence().
-    function music(slot: utinyint): void {
+    fn music(slot: utinyint) {
         songsOn = true;
         ensure();
         sfxLeft = 0;
-        apply(songs.start(slot, true));
+        apply(songs::start(slot, true));
     }
 
-    function update(): void {
-        if (sfxLeft != 0) {
+    fn update() {
+        if sfxLeft != 0 {
             sfxLeft = sfxLeft - 1;
-            if (sfxLeft == 0) {
-                sid.release(0);
+            if sfxLeft == 0 {
+                sid::release(0);
             }
             return;
         }
-        if (songsOn) {
+        if songsOn {
             songFrame();
         }
     }

@@ -1,6 +1,6 @@
-import { mark } from "./mark.8bg";
-import { graphics } from "@8bitscript/graphics";
+use self::mark::mark;
+use @8bitscript::graphics::graphics;
 
-export component Mark() {
-    graphics.place(mark, 120, 0);
+pub component Mark() {
+    graphics::place(mark, 120, 0);
 }

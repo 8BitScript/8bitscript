@@ -84,25 +84,25 @@
 // VERA by locateTextMap() — see above for why it is read, not known. Two
 // globals rather than a return value because a function returns one
 // value, and this is two.
-export let mapBank: utinyint = 0;
-export let mapLow: usmallint = 0;
+pub let mut mapBank: utinyint = 0;
+pub let mut mapLow: usmallint = 0;
 
 // L1_MAPBASE ($9F35) holds the map address >> 9: bit 7 is VRAM bit 16,
 // bits 6:0 are address bits 15:9.
-export function locateTextMap(): void {
-    mapBank = memory.read(0x9F35) / 128;
+pub fn locateTextMap() {
+    mapBank = memory::read(0x9F35) / 128;
     // Two steps, not `(byte % 128) * 512`: the product can reach 65024,
     // past a 16-bit signed int, and wrapping a promoted byte is not
     // promised. Multiplying a usmallint keeps it unsigned.
-    mapLow = memory.read(0x9F35) % 128;
+    mapLow = memory::read(0x9F35) % 128;
     mapLow = mapLow * 512;
 }
 
 // Point DATA0 at a 17-bit VRAM address (bank = bit 16, low = bits 15:0),
 // with the auto-increment step index in the top nibble of $9F22 (0 = no
 // step, 1 = +1, 2 = +2 — VERA's table of steps, not a byte count).
-export function setVramAddress(bank: utinyint, low: usmallint, stepIndex: utinyint): void {
-    memory.write(0x9F20, low % 256);
-    memory.write(0x9F21, low / 256);
-    memory.write(0x9F22, bank + stepIndex * 16);
+pub fn setVramAddress(bank: utinyint, low: usmallint, stepIndex: utinyint) {
+    memory::write(0x9F20, low % 256);
+    memory::write(0x9F21, low / 256);
+    memory::write(0x9F22, bank + stepIndex * 16);
 }

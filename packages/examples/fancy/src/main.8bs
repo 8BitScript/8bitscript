@@ -111,22 +111,22 @@
 // at different offsets AND the phase moves between frames. The web's
 // C64-skin capture at --frames 300 shows the same bands, the same
 // sheared title, and FRAME at exactly 00300.
-import { screen } from "@8bitscript/screen";
-import { text, TextColor } from "@8bitscript/text";
-import { raster, Slot } from "@8bitscript/raster";
-import { Video, System } from "@8bitscript/system";
-import { audio } from "@8bitscript/audio";
-import { graphics } from "@8bitscript/graphics";
-import { chime } from "./chime.8ba";
-import { Mark } from "./Mark.8bx";
+use @8bitscript::screen::screen;
+use @8bitscript::text::{text, TextColor};
+use @8bitscript::raster::{raster, Slot};
+use @8bitscript::system::{Video, System};
+use @8bitscript::audio::audio;
+use @8bitscript::graphics::graphics;
+use self::chime::chime;
+use self::Mark::Mark;
 
 // Whether this machine can change the picture part-way down a frame,
 // and whether its raster list takes a per-line fine scroll too — the
 // wobble. Both compile-time: every `if` on them below is folded while
 // compiling, so a machine that answers false never sees that code.
-const HAS_RASTER: bool = #fact(video.raster);
-const BANDS: bool = raster.COLORS;   // this demo's colour bands: BORDER/BACKGROUND
-const WOBBLES: bool = raster.FINE_SCROLL;
+const HAS_RASTER: bool = #fact(video::raster);
+const BANDS: bool = raster::COLORS; // this demo's colour bands: BORDER/BACKGROUND
+const WOBBLES: bool = raster::FINE_SCROLL;
 
 // The C64's sprite layer builds its frame through the raster list:
 // graphics.update() does raster.clear(), the plan, raster.commit() every
@@ -144,13 +144,13 @@ const WOBBLES: bool = raster.FINE_SCROLL;
 // the only thing besides a literal that a global initializer may be, so
 // every cell is worked out at run time in centered() rather than written
 // as a const expression here.
-const ROW: utinyint = text.COLUMNS;
+const ROW: utinyint = text::COLUMNS;
 
 // XSCROLL 0-7 over 32 steps: round(3.5 + 3.5 * sin(2 * pi * k / 32)) —
 // the same table packages/c64/test/wobble-probe.8bs runs, verified on
 // screen there, so the wave here is a known-good shape rather than a new
 // guess.
-const SINE: array<utinyint, 32> = [
+const SINE: [utinyint; 32] = [
     4, 4, 5, 5, 6, 6, 7, 7, 7, 7, 7, 6, 6, 5, 5, 4,
     3, 3, 2, 2, 1, 1, 0, 0, 0, 0, 0, 1, 1, 2, 2, 3,
 ];
@@ -160,13 +160,13 @@ const SINE: array<utinyint, 32> = [
 // colour splits and the straightening entry the list holds 17, well
 // inside the smallest raster.ENTRIES any answering machine declares (63
 // on the C64).
-const BAND_TOP: utinyint = 32;     // picture line: top of text row 4
+const BAND_TOP: utinyint = 32; // picture line: top of text row 4
 const BAND_ENTRIES: utinyint = 12; // one SCROLL_X entry per two scanlines
-const STRAIGHT: utinyint = 56;     // XSCROLL 0 again: first line after the band
-const ABOVE: utinyint = 24;        // the colour bands open a text row above the wobble
-const BELOW: utinyint = 64;        // and close a text row below it
+const STRAIGHT: utinyint = 56; // XSCROLL 0 again: first line after the band
+const ABOVE: utinyint = 24; // the colour bands open a text row above the wobble
+const BELOW: utinyint = 64; // and close a text row below it
 const BAND_BACKGROUND: utinyint = 2; // red behind the title
-const BAND_BORDER: utinyint = 7;     // yellow border beside it
+const BAND_BORDER: utinyint = 7; // yellow border beside it
 
 // Where everything sits, in text rows. The title is inside the band; the
 // caption, counter and fact line are below it, where the picture never
@@ -178,16 +178,16 @@ const FACT_ROW: utinyint = 14;
 
 // Trips round the main loop, wrapping at 65535 — the liveness signal,
 // repainted every frame without a dirty check, exactly as joystick does.
-let frames: usmallint = 0;
-let frameCell: usmallint = 0;
+let mut frames: usmallint = 0;
+let mut frameCell: usmallint = 0;
 
 // The wobble's walk through the sine table, and the two probed numbers
 // the per-frame rewrite needs: bytes per entry in setValue's unit, and
 // the byte offset of the band's first SCROLL_X entry (index 2 — the two
 // opening colour splits come first). All three are only ever touched
 // inside `if (HAS_RASTER)`.
-let phase: utinyint = 0;
-let bandFirst: utinyint = 0;
+let mut phase: utinyint = 0;
+let mut bandFirst: utinyint = 0;
 
 // The cell where a `width`-cell line starts centred on `row` — centred
 // the way joystick centres its 22-column map, so the narrowest machine
@@ -196,12 +196,12 @@ let bandFirst: utinyint = 0;
 // operands' own width, and row * ROW overflows a byte on an 80-column
 // machine (packages/c64/AGENTS.md records the sprite bug this exact
 // shape caused).
-function centered(row: utinyint, width: utinyint): usmallint {
-    let col: utinyint = 0;
-    if (text.COLUMNS > width) {
-        col = (text.COLUMNS - width) >> 1;
+fn centered(row: utinyint, width: utinyint) -> usmallint {
+    let mut col: utinyint = 0;
+    if text::COLUMNS > width {
+        col = text::COLUMNS - width >> 1;
     }
-    let cell: usmallint = row;
+    let mut cell: usmallint = row;
     cell = cell * ROW + col;
     return cell;
 }
@@ -211,29 +211,29 @@ function centered(row: utinyint, width: utinyint): usmallint {
 // deliberately empty function on the machines with no per-cell colour
 // and the compiler deletes the call, so it is made unconditionally, the
 // same as joystick.
-function drawScreen(): void {
-    text.setColor(TextColor.YELLOW);
-    text.print(centered(TITLE_ROW, 9), "F A N C Y");
-    text.setColor(TextColor.WHITE);
+fn drawScreen() {
+    text::setColor(TextColor::YELLOW);
+    text::print(centered(TITLE_ROW, 9), "F A N C Y");
+    text::setColor(TextColor::WHITE);
 
     // HAS_RASTER is a compile-time constant, so only one of these two
     // captions is in the build at all.
-    if (WOBBLES) {
-        text.print(centered(CAPTION_ROW, 17), "THE TITLE WOBBLES");
-    } else if (BANDS) {
-        text.print(centered(CAPTION_ROW, 18), "SPLITS, NO WOBBLE");
-    } else if (HAS_RASTER) {
+    if WOBBLES {
+        text::print(centered(CAPTION_ROW, 17), "THE TITLE WOBBLES");
+    } else if BANDS {
+        text::print(centered(CAPTION_ROW, 18), "SPLITS, NO WOBBLE");
+    } else if HAS_RASTER {
         // A real raster capability this demo doesn't draw with: the PET's
         // is a character-set split (Slot.CHARSET), not a colour one, and
         // this showpiece is specifically the colour one.
-        text.print(centered(CAPTION_ROW, 19), "RASTER, NOT COLOUR");
+        text::print(centered(CAPTION_ROW, 19), "RASTER, NOT COLOUR");
     } else {
-        text.print(centered(CAPTION_ROW, 21), "NO RASTER SPLITS HERE");
+        text::print(centered(CAPTION_ROW, 21), "NO RASTER SPLITS HERE");
     }
 
     // "FRAME 00000": the label once, the counter's cell kept for the loop.
-    let cell: usmallint = centered(FRAME_ROW, 11);
-    text.print(cell, "FRAME");
+    let mut cell: usmallint = centered(FRAME_ROW, 11);
+    text::print(cell, "FRAME");
     frameCell = cell + 6;
 
     // What the machine itself declares — the line that separates "still
@@ -241,68 +241,68 @@ function drawScreen(): void {
     // takes a number, so it is widened here; both sides of the `if` are
     // compile-time constants, so this is one literal by the time the
     // backend sees it.
-    let answers: utinyint = 0;
-    if (Video.RASTER) {
+    let mut answers: utinyint = 0;
+    if Video::RASTER {
         answers = 1;
     }
     cell = centered(FACT_ROW, 8);
-    text.print(cell, "RASTER");
-    text.printNumber(cell + 7, answers, 1);
+    text::print(cell, "RASTER");
+    text::printNumber(cell + 7, answers, 1);
     return;
 }
 
-export function main(): void {
-    screen.blank();
+pub fn main() {
+    screen::blank();
     Mark();
-    if (#system() == System.C64) {
-        graphics.update();
+    if #system() == System::C64 {
+        graphics::update();
     }
-    audio.play(chime);
+    audio::play(chime);
     drawScreen();
 
-    if (BANDS) {
+    if BANDS {
         // The list, built once: lines and slots stand for the program's
         // whole life, and only the band's value bytes are rewritten each
         // frame. Entries go in ascending line order — the C64's handler
         // reads the list live and the web enforces the same rule.
-        raster.clear();
-        raster.at(ABOVE, Slot.BACKGROUND, BAND_BACKGROUND);
-        raster.at(ABOVE, Slot.BORDER, BAND_BORDER);
-        if (WOBBLES) {
-            for (let i: utinyint = 0; i < BAND_ENTRIES; i++) {
-                raster.at(BAND_TOP + i * 2, Slot.SCROLL_X, SINE[i]);
+        raster::clear();
+        raster::at(ABOVE, Slot::BACKGROUND, BAND_BACKGROUND);
+        raster::at(ABOVE, Slot::BORDER, BAND_BORDER);
+        if WOBBLES {
+            for i: utinyint in 0..BAND_ENTRIES {
+                raster::at(BAND_TOP + i * 2, Slot::SCROLL_X, SINE[i]);
             }
-            raster.at(STRAIGHT, Slot.SCROLL_X, 0);
-            bandFirst = raster.STRIDE * 2; // entry 2: the first band's line
+            raster::at(STRAIGHT, Slot::SCROLL_X, 0);
+            bandFirst = raster::STRIDE * 2; // entry 2: the first band's line
         }
-        raster.at(BELOW, Slot.BACKGROUND, 0);
-        raster.at(BELOW, Slot.BORDER, 0);
+        raster::at(BELOW, Slot::BACKGROUND, 0);
+        raster::at(BELOW, Slot::BORDER, 0);
 
-        raster.enable();
+        raster::enable();
     }
 
-    while (true) {
+    loop {
         waitFrame();
 
-        if (WOBBLES) {
+        if WOBBLES {
             // Rebuild only the band's 12 value bytes, right after
             // waitFrame() — before the raster reaches the first entry's
             // line, per @8bitscript/c64/raster's rebuild rule. SCROLL_X
             // keeps its 0-7 slot semantics through setValue, so the sine
             // value goes in as-is on every machine.
-            phase = (phase + 1) & 31;
-            for (let i: utinyint = 0; i < BAND_ENTRIES; i++) {
-                raster.setValue(bandFirst + i * raster.STRIDE, SINE[(i + phase) & 31]);
+            phase = phase + 1 & 31;
+            for i: utinyint in 0..BAND_ENTRIES {
+                raster::setValue(bandFirst + i * raster::STRIDE, SINE[i + phase & 31]);
             }
         }
 
         // The liveness signal, every frame. On a machine with no raster
         // this is the only thing on screen that moves.
-        frames++;
-        text.printNumber(frameCell, frames, 5);
-        if (#system() != System.C64) {
-            graphics.update();
+        frames += 1;
+        text::printNumber(frameCell, frames, 5);
+        if #system() != System::C64 {
+            graphics::update();
         }
-        audio.update();
+        audio::update();
     }
 }

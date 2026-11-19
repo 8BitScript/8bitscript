@@ -50,10 +50,10 @@
 // matrix is read a row at a time and has the same ghosting every
 // undiodedmatrix does — three keys down can read as four. Two keys are
 // always safe, and SHIFT plus a cursor key is two.
-import { keyboard } from "./keyboard.8bs";
-import { Key } from "./keys.8bs";
+use self::keyboard::keyboard;
+use self::keys::Key;
 
-namespace Edge {
+mod Edge {
     const LEFT: utinyint = 1;
     const RIGHT: utinyint = 2;
     const UP: utinyint = 4;
@@ -63,22 +63,21 @@ namespace Edge {
 }
 
 // The physical keys, one bit each — what edge detection actually runs on.
-namespace Held {
+mod Held {
     const CURSOR_RIGHT: utinyint = 1;
     const CURSOR_DOWN: utinyint = 2;
     const RETURN: utinyint = 4;
     const STOP: utinyint = 8;
 }
 
-let keysBefore: utinyint = 0;
-let began: utinyint = 0;
+let mut keysBefore: utinyint = 0;
+let mut began: utinyint = 0;
 
-export namespace input {
-
+pub mod input {
     // Nothing to set up: there is no pointer to give a ceiling to and the
     // matrix needs no configuration. Here so a program written for nine
     // machines calls the same thing on all of them.
-    function begin(): void {
+    fn begin() {
         // One poll before the program's first, so the edge detector starts
         // from what is actually held rather than from nothing. `before` is
         // zero until something fills it, and an edge is "held now, not held
@@ -86,98 +85,98 @@ export namespace input {
         // starts reads as a fresh press on frame one. Measured on the
         // MEGA65, whose RETURN key is down at start-up: the joystick example
         // counted a confirm() nobody pressed until begin() primed this.
-        input.poll();
+        input::poll();
     }
 
     // Snapshot the matrix and work out what began this frame. Once a
     // frame, right after waitFrame(). Edges come from the physical keys;
     // SHIFT only decides what a cursor key's own edge means (see the
     // header for why the other order reads releases as phantom presses).
-    function poll(): void {
-        keyboard.scan();
+    fn poll() {
+        keyboard::scan();
 
-        let keys: utinyint = 0;
-        if (keyboard.pressed(Key.CURSOR_RIGHT)) {
-            keys = keys | Held.CURSOR_RIGHT;
+        let mut keys: utinyint = 0;
+        if keyboard::pressed(Key::CURSOR_RIGHT) {
+            keys = keys | Held::CURSOR_RIGHT;
         }
-        if (keyboard.pressed(Key.CURSOR_DOWN)) {
-            keys = keys | Held.CURSOR_DOWN;
+        if keyboard::pressed(Key::CURSOR_DOWN) {
+            keys = keys | Held::CURSOR_DOWN;
         }
-        if (keyboard.pressed(Key.RETURN)) {
-            keys = keys | Held.RETURN;
+        if keyboard::pressed(Key::RETURN) {
+            keys = keys | Held::RETURN;
         }
-        if (keyboard.pressed(Key.STOP)) {
-            keys = keys | Held.STOP;
+        if keyboard::pressed(Key::STOP) {
+            keys = keys | Held::STOP;
         }
         let newKeys: utinyint = keys & (keysBefore ^ 0xFF);
         keysBefore = keys;
 
-        let shifted: bool = keyboard.pressed(Key.SHIFT_LEFT) || keyboard.pressed(Key.SHIFT_RIGHT);
+        let shifted: bool = keyboard::pressed(Key::SHIFT_LEFT) || keyboard::pressed(Key::SHIFT_RIGHT);
         began = 0;
-        if ((newKeys & Held.CURSOR_RIGHT) != 0) {
-            if (shifted) {
-                began = began | Edge.LEFT;
+        if (newKeys & Held::CURSOR_RIGHT) != 0 {
+            if shifted {
+                began = began | Edge::LEFT;
             } else {
-                began = began | Edge.RIGHT;
+                began = began | Edge::RIGHT;
             }
         }
-        if ((newKeys & Held.CURSOR_DOWN) != 0) {
-            if (shifted) {
-                began = began | Edge.UP;
+        if (newKeys & Held::CURSOR_DOWN) != 0 {
+            if shifted {
+                began = began | Edge::UP;
             } else {
-                began = began | Edge.DOWN;
+                began = began | Edge::DOWN;
             }
         }
-        if ((newKeys & Held.RETURN) != 0) {
-            began = began | Edge.CONFIRM;
+        if (newKeys & Held::RETURN) != 0 {
+            began = began | Edge::CONFIRM;
         }
-        if ((newKeys & Held.STOP) != 0) {
-            began = began | Edge.CANCEL;
+        if (newKeys & Held::STOP) != 0 {
+            began = began | Edge::CANCEL;
         }
     }
 
-    function left(): bool {
-        return (began & Edge.LEFT) != 0;
+    fn left() -> bool {
+        return (began & Edge::LEFT) != 0;
     }
 
-    function right(): bool {
-        return (began & Edge.RIGHT) != 0;
+    fn right() -> bool {
+        return (began & Edge::RIGHT) != 0;
     }
 
-    function up(): bool {
-        return (began & Edge.UP) != 0;
+    fn up() -> bool {
+        return (began & Edge::UP) != 0;
     }
 
-    function down(): bool {
-        return (began & Edge.DOWN) != 0;
+    fn down() -> bool {
+        return (began & Edge::DOWN) != 0;
     }
 
-    function confirm(): bool {
-        return (began & Edge.CONFIRM) != 0;
+    fn confirm() -> bool {
+        return (began & Edge::CONFIRM) != 0;
     }
 
-    function cancel(): bool {
-        return (began & Edge.CANCEL) != 0;
+    fn cancel() -> bool {
+        return (began & Edge::CANCEL) != 0;
     }
 
     // No control ports on this machine, so no pointer — a constant, not a
     // measurement.
-    function pointer(): bool {
+    fn pointer() -> bool {
         return false;
     }
 
-    function pointerCell(): usmallint {
+    fn pointerCell() -> usmallint {
         return 0;
     }
 
-    function pointerButton(): bool {
+    fn pointerButton() -> bool {
         return false;
     }
 }
 
 // Compile-time names for the confirm control, interpolated into catalogs
 // as {control} / {other}. OR / ODER lives in the catalog, not here.
-export namespace Input {
+pub mod Input {
     const CONFIRM_LABEL: string = "RETURN";
     const ALT_CONFIRM_LABEL: string = "RETURN";
     const CONFIRM_LABELS: string = "RETURN";

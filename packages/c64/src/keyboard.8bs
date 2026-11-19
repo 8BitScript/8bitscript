@@ -41,28 +41,28 @@
 // RUN/STOP should expect it while the port-1 stick is pushed up: row 7).
 // Ghosting: three keys down can read as four (any three corners of a
 // rectangle in the matrix light the fourth). Two keys are always safe.
-import { cia1PortA, cia1PortB, cia1DirectionA, cia1DirectionB } from "./index.8bs";
+use self::index::{cia1PortA, cia1PortB, cia1DirectionA, cia1DirectionB};
 
 // The last scan, one byte per column, a 1 bit where a key is down (the
 // port's active-low rows inverted once, here, so nothing else has to
 // think about it). All zero until the first scan.
-let state: array<utinyint, 8>;
+let mut state: [utinyint; 8];
 
 // The column-select byte for each column, and the row masks — indexed
 // rather than shifted, as `1 << n` with a variable n is a loop on the 6502.
-const COLUMN_SELECT: array<utinyint, 8> = [254, 253, 251, 247, 239, 223, 191, 127];
-const ROW_BIT: array<utinyint, 8> = [1, 2, 4, 8, 16, 32, 64, 128];
+const COLUMN_SELECT: [utinyint; 8] = [254, 253, 251, 247, 239, 223, 191, 127];
+const ROW_BIT: [utinyint; 8] = [1, 2, 4, 8, 16, 32, 64, 128];
 
-export namespace keyboard {
+pub mod keyboard {
     const COLUMNS: utinyint = 8;
     const ROWS: utinyint = 8;
 
     // Read all eight columns into the snapshot. Once a frame, right after
     // waitFrame(), before joystick.scan().
-    function scan(): void {
+    fn scan() {
         cia1DirectionA = 0xFF;
         cia1DirectionB = 0x00;
-        for (let column: utinyint = 0; column < 8; column++) {
+        for column: utinyint in 0..8 {
             cia1PortA = COLUMN_SELECT[column];
             state[column] = cia1PortB ^ 0xFF;
         }
@@ -71,14 +71,14 @@ export namespace keyboard {
 
     // Is this key down in the last scan? `key` is a `Key.*` value from
     // @8bitscript/c64/keys — `column * 8 + row` in the matrix.
-    function pressed(key: utinyint): bool {
+    fn pressed(key: utinyint) -> bool {
         return (state[key >> 3] & ROW_BIT[key & 7]) != 0;
     }
 
     // The last scan's eight rows of one column, a 1 bit per key down:
     // for code that wants a whole column at once (an "any key" test over
     // all eight, a ghosting check).
-    function column(index: utinyint): utinyint {
+    fn column(index: utinyint) -> utinyint {
         return state[index];
     }
 }

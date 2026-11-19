@@ -24,50 +24,50 @@
 // What the picture does at a line, named without an address. The numbers
 // are arbitrary and the same in all nine rasterline files; nothing here
 // consumes them.
-export namespace Slot {
-    const BORDER: utinyint = 0;     // the border's color
+pub mod Slot {
+    const BORDER: utinyint = 0; // the border's color
     const BACKGROUND: utinyint = 1; // the playfield's background color
-    const SCROLL_X: utinyint = 2;   // the horizontal fine scroll
-    const CHARSET: utinyint = 3;    // the machine's alternate character set, where one exists
+    const SCROLL_X: utinyint = 2; // the horizontal fine scroll
+    const CHARSET: utinyint = 3; // the machine's alternate character set, where one exists
 }
 
-export namespace raster {
+pub mod raster {
     const ENTRIES: utinyint = 0; // the list's capacity: there is no list
-    const STRIDE: utinyint = 0;  // bytes per entry: none
+    const STRIDE: utinyint = 0; // bytes per entry: none
     const FINE_SCROLL: bool = false; // Slot.SCROLL_X entries are refused
-    const COLORS: bool = false;     // Slot.BORDER/BACKGROUND entries are accepted
-    const CHARSET: bool = false;   // Slot.CHARSET entries are refused
+    const COLORS: bool = false; // Slot.BORDER/BACKGROUND entries are accepted
+    const CHARSET: bool = false; // Slot.CHARSET entries are refused
     const FRAME_COUNTER: bool = false; // no video-frame counter: frame() answers 0
 
-    function clear(): void {
+    fn clear() {
     }
 
-    function at(line: utinyint, slot: utinyint, value: utinyint): bool {
+    fn at(line: utinyint, slot: utinyint, value: utinyint) -> bool {
         return false;
     }
 
-    function insert(line: utinyint, slot: utinyint, value: utinyint): bool {
+    fn insert(line: utinyint, slot: utinyint, value: utinyint) -> bool {
         return false;
     }
 
-    function setValue(entry: utinyint, value: utinyint): bool {
+    fn setValue(entry: utinyint, value: utinyint) -> bool {
         return false;
     }
 
-    function commit(): void {
+    fn commit() {
     }
 
-    function count(): utinyint {
+    fn count() -> utinyint {
         return 0;
     }
 
-    function frame(): utinyint {
+    fn frame() -> utinyint {
         return 0;
     }
 
-    function enable(): void {
+    fn enable() {
     }
 
-    function disable(): void {
+    fn disable() {
     }
 }

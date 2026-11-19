@@ -2,7 +2,7 @@
 // hardware tag is `vic20`. Facts come from @8bitscript/vic20 (22×23, 16
 // colors, per-cell color). See geometry.8bs.
 
-export namespace Video {
+pub mod Video {
     const COLUMNS: utinyint = 22;
     const ROWS: utinyint = 23;
     const CELL_COUNT: usmallint = 506;
@@ -39,15 +39,15 @@ export namespace Video {
     // not change. Both fold, so a program that asks costs nothing for asking.
     const RESIZABLE: bool = false;
 
-    function columns(): utinyint {
-        return Video.COLUMNS;
+    fn columns() -> utinyint {
+        return Video::COLUMNS;
     }
 
-    function rows(): utinyint {
-        return Video.ROWS;
+    fn rows() -> utinyint {
+        return Video::ROWS;
     }
 
-    function cells(): usmallint {
-        return Video.CELL_COUNT;
+    fn cells() -> usmallint {
+        return Video::CELL_COUNT;
     }
 }
