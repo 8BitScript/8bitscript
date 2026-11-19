@@ -1,24 +1,23 @@
 {
   "body": [
     {
-      "length": 27,
+      "length": 29,
       "source": {
-        "length": 13,
+        "length": 15,
         "start": 458,
         "type": "StringLiteral",
-        "value": "./menubar"
+        "value": "./menubar.8bs"
       },
       "specifiers": [
         {
           "length": 7,
           "name": "menubar",
-          "start": 473,
+          "start": 475,
           "type": "Identifier"
         }
       ],
       "start": 454,
-      "type": "ImportDeclaration",
-      "usePath": true
+      "type": "ImportDeclaration"
     },
     {
       "allowsChildren": true,
@@ -30,13 +29,13 @@
                 {
                   "length": 3,
                   "name": "row",
-                  "start": 559,
+                  "start": 561,
                   "type": "Identifier"
                 },
                 {
                   "length": 5,
                   "name": "width",
-                  "start": 564,
+                  "start": 566,
                   "type": "Identifier"
                 }
               ],
@@ -45,24 +44,24 @@
                 "object": {
                   "length": 7,
                   "name": "menubar",
-                  "start": 544,
+                  "start": 546,
                   "type": "Identifier"
                 },
                 "property": {
                   "length": 5,
                   "name": "begin",
-                  "start": 553,
+                  "start": 555,
                   "type": "Identifier"
                 },
-                "start": 544,
+                "start": 546,
                 "type": "MemberExpression"
               },
               "length": 26,
-              "start": 544,
+              "start": 546,
               "type": "CallExpression"
             },
             "length": 27,
-            "start": 544,
+            "start": 546,
             "type": "ExpressionStatement"
           },
           {
@@ -71,7 +70,7 @@
             "length": 8,
             "name": "slot",
             "selfClosing": true,
-            "start": 576,
+            "start": 578,
             "type": "BxElement"
           },
           {
@@ -82,29 +81,29 @@
                 "object": {
                   "length": 7,
                   "name": "menubar",
-                  "start": 590,
+                  "start": 592,
                   "type": "Identifier"
                 },
                 "property": {
                   "length": 3,
                   "name": "end",
-                  "start": 599,
+                  "start": 601,
                   "type": "Identifier"
                 },
-                "start": 590,
+                "start": 592,
                 "type": "MemberExpression"
               },
               "length": 14,
-              "start": 590,
+              "start": 592,
               "type": "CallExpression"
             },
             "length": 15,
-            "start": 590,
+            "start": 592,
             "type": "ExpressionStatement"
           }
         ],
         "length": 69,
-        "start": 538,
+        "start": 540,
         "type": "BlockStatement"
       },
       "exported": true,
@@ -112,7 +111,7 @@
       "name": {
         "length": 7,
         "name": "MenuBar",
-        "start": 497,
+        "start": 499,
         "type": "Identifier"
       },
       "params": [
@@ -122,16 +121,16 @@
           "name": {
             "length": 3,
             "name": "row",
-            "start": 505,
+            "start": 507,
             "type": "Identifier"
           },
           "optional": false,
-          "start": 505,
+          "start": 507,
           "type": "Parameter",
           "typeAnnotation": {
             "length": 8,
             "name": "utinyint",
-            "start": 510,
+            "start": 512,
             "type": "TypeReference",
             "typeArguments": []
           }
@@ -142,22 +141,22 @@
           "name": {
             "length": 5,
             "name": "width",
-            "start": 520,
+            "start": 522,
             "type": "Identifier"
           },
           "optional": false,
-          "start": 520,
+          "start": 522,
           "type": "Parameter",
           "typeAnnotation": {
             "length": 9,
             "name": "usmallint",
-            "start": 527,
+            "start": 529,
             "type": "TypeReference",
             "typeArguments": []
           }
         }
       ],
-      "start": 483,
+      "start": 485,
       "type": "ComponentDeclaration"
     },
     {
@@ -170,7 +169,7 @@
                 {
                   "length": 5,
                   "name": "label",
-                  "start": 667,
+                  "start": 669,
                   "type": "Identifier"
                 }
               ],
@@ -179,29 +178,29 @@
                 "object": {
                   "length": 7,
                   "name": "menubar",
-                  "start": 653,
+                  "start": 655,
                   "type": "Identifier"
                 },
                 "property": {
                   "length": 4,
                   "name": "item",
-                  "start": 662,
+                  "start": 664,
                   "type": "Identifier"
                 },
-                "start": 653,
+                "start": 655,
                 "type": "MemberExpression"
               },
               "length": 20,
-              "start": 653,
+              "start": 655,
               "type": "CallExpression"
             },
             "length": 21,
-            "start": 653,
+            "start": 655,
             "type": "ExpressionStatement"
           }
         ],
         "length": 29,
-        "start": 647,
+        "start": 649,
         "type": "BlockStatement"
       },
       "exported": true,
@@ -209,7 +208,7 @@
       "name": {
         "length": 8,
         "name": "MenuItem",
-        "start": 623,
+        "start": 625,
         "type": "Identifier"
       },
       "params": [
@@ -219,26 +218,26 @@
           "name": {
             "length": 5,
             "name": "label",
-            "start": 632,
+            "start": 634,
             "type": "Identifier"
           },
           "optional": false,
-          "start": 632,
+          "start": 634,
           "type": "Parameter",
           "typeAnnotation": {
             "length": 6,
             "name": "string",
-            "start": 639,
+            "start": 641,
             "type": "TypeReference",
             "typeArguments": []
           }
         }
       ],
-      "start": 609,
+      "start": 611,
       "type": "ComponentDeclaration"
     }
   ],
-  "length": 677,
+  "length": 679,
   "start": 0,
   "type": "Program"
 }

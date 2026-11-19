@@ -288,6 +288,19 @@ test('fences: a ```8bs block holding a component is converted as .8bx', () => {
   assert.equal(out.text, '```8bs\npub component Box() {\n    <A />;\n}\n```\n');
 });
 
+test('fences: a ```8bx block is converted as .8bx', () => {
+  const out = convertFences('```8bx\nexport component Box() { <A />; }\n```\n', convert);
+  assert.equal(out.converted, 1);
+  assert.equal(out.text, '```8bx\npub component Box() {\n    <A />;\n}\n```\n');
+});
+
+test('fences: a ```8bx block is not retried as .8bs when it fails', () => {
+  const kinds = [];
+  const out = convertFences('```8bx\nlet x = ;\n```\n', (body, kind) => (kinds.push(kind), convert(body, kind)));
+  assert.deepEqual(kinds, ['.8bx']);
+  assert.equal(out.failures.length, 1);
+});
+
 test('fences: an indented fence keeps its indent', () => {
   const out = convertFences('  ```8bs\n  function f(): void {}\n\n  ```\n', convert);
   assert.equal(out.text, '  ```8bs\n  fn f() {\n  }\n  ```\n');

@@ -251,7 +251,9 @@ export async function migrate(args, io = {}) {
     const files = roots.flatMap((r) => collect(r, wanted)).filter((f) => !isExcluded(f));
     for (const file of files) {
       const text = readFileSync(file, 'utf8');
-      // Embedded programs and fences have no file of their own: the predicate looks beside the host file.
+      // Embedded programs and fences have no file of their own, so the same-stem predicate looks beside the host file.
+      // That is acceptable here: a doc or test snippet imports siblings of the file that shows it, and a wrong guess only
+      // keeps the string form, which resolves either way.
       const result = convertFile(text, (body, sourceKind) => migrateText(body, { file, sourceKind, aliasHeads: opts.aliasHeads, sameStem: sameStemIn(file) }));
       for (const failure of result.failures) record(`${show(file)}:${failure.line}`, failure.status, failure.message);
       if (result.converted > 0 || result.unchanged > 0) {
