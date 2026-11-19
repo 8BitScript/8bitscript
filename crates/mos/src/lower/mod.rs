@@ -963,6 +963,12 @@ pub fn lower(
 ) -> Result<Lowered, String> {
     let mut lowerer = Lowerer::new(options, c);
     let ranges = lowerer.block(body)?;
+    Ok(finish(lowerer, ranges))
+}
+
+/// Closes the program with the exit label, runs the two peephole passes and
+/// slices the per-origin parts.
+fn finish(mut lowerer: Lowerer<'_>, ranges: Vec<BlockRange>) -> Lowered {
     let exit = lowerer.exit_label.clone();
     lowerer.emit([label(&exit)]);
     let mut removed = jumps_to_next_label(&lowerer.program);
@@ -986,7 +992,7 @@ pub fn lower(
                 .collect(),
         })
         .collect();
-    Ok(Lowered { program, parts })
+    Lowered { program, parts }
 }
 
 #[cfg(test)]
@@ -1636,6 +1642,30 @@ mod tests {
         let mut removed = BTreeSet::new();
         redundant_reloads(&[lda_imm(1)], &mut removed);
         assert!(removed.is_empty());
+    }
+
+    #[test]
+    fn finish_closes_filters_and_slices() {
+        let mut opts = options(Some("main"));
+        let mut c = Counters::default();
+        let mut l = Lowerer::new(&mut opts, &mut c);
+        l.emit([lda_imm(1), jmp("next"), label("next"), sta_zp(5), lda_imm(1)]);
+        let ranges = vec![
+            BlockRange { origin: None, start: 0, end: 3 },
+            BlockRange { origin: Some("callee".into()), start: 3, end: 5 },
+        ];
+        let out = finish(l, ranges);
+        // The JMP to the next label and the redundant reload are gone; the exit label is last.
+        let names: Vec<_> = out.program.iter().map(|d| match d {
+            Directive::Label { name, .. } => name.clone(),
+            Directive::Instruction { mnemonic, .. } => mnemonic.clone(),
+            _ => String::new(),
+        }).collect();
+        assert_eq!(names, ["LDA", "next", "STA", "__8bs_exit_0"]);
+        assert_eq!(out.parts.len(), 2);
+        assert_eq!(out.parts[0].program.len(), 2);
+        assert_eq!(out.parts[1].origin.as_deref(), Some("callee"));
+        assert_eq!(out.parts[1].program.len(), 1);
     }
 
     #[test]

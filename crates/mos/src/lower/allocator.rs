@@ -9,7 +9,7 @@ fn hex(value: i64) -> String {
     format!("${}", hex_upper(value, 4))
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct LocalAllocator {
     origin: i64,
     ceiling: i64,
