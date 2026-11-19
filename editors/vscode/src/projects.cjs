@@ -57,6 +57,18 @@ function staleConfigsOnly(found, stale) {
   return stale.filter((p) => !dirs.has(path.dirname(p)));
 }
 
+/**
+ * Forget reported old-name configs that are no longer stale (renamed or
+ * removed), so one that comes back is reported again.
+ *
+ * @param {Set<string>} reported
+ * @param {string[]} stillStale
+ */
+function forgetFixedStale(reported, stillStale) {
+  const now = new Set(stillStale);
+  for (const p of reported) if (!now.has(p)) reported.delete(p);
+}
+
 // The canonical name, for messages that talk about the file in the abstract.
 const CONFIG_FILE = CONFIG_FILENAMES[0];
 
@@ -1264,6 +1276,7 @@ module.exports = {
   STALE_CONFIG,
   staleConfigMessage,
   staleConfigsOnly,
+  forgetFixedStale,
   CONFIG_FILENAMES,
   DEFAULT_ENTRY,
   findConfig,
