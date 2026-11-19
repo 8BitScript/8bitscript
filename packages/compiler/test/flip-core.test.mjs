@@ -8,7 +8,10 @@ import { tmpdir } from 'node:os';
 import test from 'node:test';
 
 import { check } from '../src/checker/index.mjs';
-import { findImports, resolveImports, resolveSpecifier } from '../src/resolver/index.mjs';
+import {
+  findImports, pathFormSpecifiers, resolveImports, resolveSpecifier, withPathForm,
+} from '../src/resolver/index.mjs';
+import { resolveModuleFile, resolvePortableModule } from '../src/intellisense/symbols.mjs';
 import { parse, tokenize } from '../src/front/index.mjs';
 import { link } from '../index.mjs';
 
@@ -202,4 +205,32 @@ test('old import syntax: an extensionless relative or alias specifier is still n
   const oldText = 'import { f } from "./geo";\nexport function main(): void { f(); }\n';
   const { diagnostics } = link(oldText, from);
   assert.ok(diagnostics.some((d) => d.code === '8BS3001'), JSON.stringify(diagnostics.map((d) => d.code)));
+});
+
+test('pathFormSpecifiers and withPathForm: only a use run is a path form', () => {
+  const tokens = tokenize('use self::geo::{ x };\nimport { y } from "./old.8bs";\n', 't.8bs').tokens;
+  assert.deepEqual([...pathFormSpecifiers(tokens)], ['./geo']);
+  assert.equal(withPathForm({ machine: 'c64' }, true).pathForm, true);
+  assert.deepEqual(withPathForm({ machine: 'c64' }, false), { machine: 'c64' });
+});
+
+test('resolveModuleFile and resolvePortableModule: pathForm finds the extension, its absence does not', () => {
+  const root = tree({ 'main.8bs': '', 'geo.8bs': '' });
+  const from = join(root, 'main.8bs');
+  assert.equal(resolveModuleFile('./geo', from, { pathForm: true })?.path, join(root, 'geo.8bs'));
+  assert.equal(resolveModuleFile('./geo', from, {}), null);
+  assert.equal(resolvePortableModule('./geo', from, { pathForm: true })?.path, join(root, 'geo.8bs'));
+  assert.equal(resolvePortableModule('./geo', from, {}), null);
+});
+
+test('ir: an import record keeps the parser usePath as pathForm', async () => {
+  const { lower } = await import('../src/ir/index.mjs');
+  const source = { type: 'Literal', value: './geo' };
+  const node = (usePath) => ({ type: 'ImportDeclaration', source, specifiers: [], start: 0, length: 1, ...(usePath ? { usePath } : {}) });
+  const record = (n) => {
+    const ir = lower({ type: 'Program', body: [n], start: 0, length: 1 }, 't.8bs', '');
+    return ir.imports?.[0] ?? ir.ir?.imports?.[0];
+  };
+  assert.equal(record(node(true))?.pathForm, true);
+  assert.equal(record(node(false))?.pathForm, undefined);
 });

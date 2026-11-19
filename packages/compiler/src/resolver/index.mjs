@@ -375,6 +375,16 @@ function findUse(t, i) {
   };
 }
 
+/** `options` with `pathForm` set when the import is a path-form `use`. */
+export function withPathForm(options, pathForm) {
+  return pathForm ? { ...options, pathForm: true } : options;
+}
+
+/** The specifiers `tokens` import with a path-form `use`. */
+export function pathFormSpecifiers(tokens) {
+  return new Set(findImports(tokens).filter((i) => i.pathForm).map((i) => i.specifier));
+}
+
 /**
  * Extract every `import ... from "specifier"` and bare `import "specifier"`,
  * and every `use` run of the new syntax (see findUse).
@@ -803,7 +813,7 @@ export function resolveImports(tokens, file, options = {}) {
   const diagnostics = [];
 
   for (const { specifier, start, length, pathForm } of findImports(tokens)) {
-    const resolved = resolveSpecifier(specifier, file, pathForm ? { ...options, pathForm } : options);
+    const resolved = resolveSpecifier(specifier, file, withPathForm(options, pathForm));
     if (resolved?.diagnostics?.length) {
       for (const extra of resolved.diagnostics) {
         if (!diagnostics.some((d) => d.code === extra.code && d.file === extra.file && d.start === extra.start && d.message === extra.message)) {

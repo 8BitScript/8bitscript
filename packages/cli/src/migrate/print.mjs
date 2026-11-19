@@ -17,7 +17,7 @@
 // array, pointer or string variable that is used as a bare value (it may be
 // written through a copy).
 import {
-  NodeType, TokenKind, lookup, parse, storeTarget, targetOf, tokenize, walk, walkScopes,
+  NodeType, TokenKind, scopeLookup, parse, scopeStoreTarget, scopeTargetOf, tokenize, walk, walkScopes,
 } from '@8bitscript/compiler';
 
 const INDENT = '    ';
@@ -147,10 +147,10 @@ export function analyzeMutability(ast) {
 
   walkScopes(ast, (scope, root) => {
     walk(root, (n, parent) => {
-      const target = storeTarget(n);
-      if (target) mark(targetOf(scope, target)?.decl, 'assigned');
+      const target = scopeStoreTarget(n);
+      if (target) mark(scopeTargetOf(scope, target)?.decl, 'assigned');
       else if (n.type === NodeType.Identifier && !n.compileTime && isBareValue(n, parent)) {
-        const hit = lookup(scope, n.name);
+        const hit = scopeLookup(scope, n.name);
         if (hit?.kind === 'let' && ARRAYISH_TYPES.has(hit.decl.typeAnnotation?.name)) mark(hit.decl, 'value');
       }
     });
@@ -176,7 +176,7 @@ function isBareValue(n, parent) {
 function storesTo(root, name) {
   let found = false;
   walk(root, (n) => {
-    let t = storeTarget(n);
+    let t = scopeStoreTarget(n);
     while (t?.type === NodeType.IndexExpression) t = t.object;
     if (t?.type === NodeType.Identifier && t.name === name) found = true;
   });

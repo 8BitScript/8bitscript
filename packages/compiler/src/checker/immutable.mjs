@@ -8,7 +8,7 @@
 // in this checker's eyes).
 import { Codes, diagnostic } from '../diagnostics/index.mjs';
 import { NodeType, walk } from '../ast/index.mjs';
-import { storeTarget, targetOf, walkScopes } from './scopes.mjs';
+import { scopeStoreTarget, scopeTargetOf, walkScopes } from './scopes.mjs';
 
 /**
  * Whether a `for` is a range `for` (`for i in a..b`), whose update is the
@@ -34,8 +34,8 @@ export function checkImmutableLets(ast, file) {
   const diagnostics = [];
   walkScopes(ast, (scope, root) => {
     walk(root, (n) => {
-      const target = storeTarget(n);
-      const hit = target && targetOf(scope, target);
+      const target = scopeStoreTarget(n);
+      const hit = target && scopeTargetOf(scope, target);
       if (hit?.decl.immutable === true) {
         diagnostics.push(diagnostic(
           Codes.ASSIGN_TO_CONST,

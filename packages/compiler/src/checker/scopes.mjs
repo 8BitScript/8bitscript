@@ -11,7 +11,7 @@ import { NodeType } from '../ast/index.mjs';
 
 const newScope = (parent) => ({ parent, names: new Map() });
 
-export const lookup = (scope, name) => {
+export const scopeLookup = (scope, name) => {
   for (let s = scope; s; s = s.parent) {
     const hit = s.names.get(name);
     if (hit) return hit;
@@ -39,7 +39,7 @@ const hoist = (scope, body) => {
 };
 
 /** The expression a node stores to, or null when it is not a store. */
-export const storeTarget = (n) => {
+export const scopeStoreTarget = (n) => {
   if (n.type === NodeType.AssignmentExpression) return n.left;
   if (n.type === NodeType.UpdateExpression) return n.argument;
   return null;
@@ -50,16 +50,16 @@ export const storeTarget = (n) => {
  * or null. `a[i] = …` writes to `a`; `ns::x = …` to the `let` named `x` in
  * namespace `ns`.
  */
-export const targetOf = (scope, target) => {
+export const scopeTargetOf = (scope, target) => {
   let n = target;
   while (n?.type === NodeType.IndexExpression) n = n.object;
   if (n?.type === NodeType.MemberExpression && n.object.type === NodeType.Identifier) {
-    const ns = lookup(scope, n.object.name);
+    const ns = scopeLookup(scope, n.object.name);
     const member = ns?.kind === 'namespace' ? ns.members.names.get(n.property.name) : null;
     return member?.kind === 'let' ? { decl: member.decl, name: n.property } : null;
   }
   if (n?.type === NodeType.Identifier) {
-    const hit = lookup(scope, n.name);
+    const hit = scopeLookup(scope, n.name);
     return hit?.kind === 'let' ? { decl: hit.decl, name: n } : null;
   }
   return null;
@@ -112,7 +112,7 @@ export function walkScopes(ast, onExpression, options = {}) {
         visitFunction(scope, s);
         break;
       case NodeType.NamespaceDeclaration: {
-        const ns = lookup(scope, s.name?.name);
+        const ns = scopeLookup(scope, s.name?.name);
         const members = ns?.members ?? scope;
         for (const m of s.members) visitStatement(members, m);
         break;
