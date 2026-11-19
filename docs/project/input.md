@@ -16,7 +16,7 @@ get a real controller into an emulator.
 Two things, and it is worth being precise about them because the obvious
 design proposal reinvents both.
 
-**A normalized input namespace.** `@8bitscript/input` resolves per target the
+**A normalized input module.** `@8bitscript/input` resolves per target the
 same way `@8bitscript/text` does, and every one of the nine machines
 implements it:
 
@@ -61,7 +61,7 @@ const HAS_MOUSE: bool = #fact(input.mouse);
 
 `@8bitscript/c64/pointer` does this, and the comment beside it explains the
 payoff: on a stock C64 the fact is false, so `HAS_MOUSE` is a constant, the
-`if` is `if (false)`, and the arrow's 63 bytes of shape data are deleted before
+`if` is `if false`, and the arrow's 63 bytes of shape data are deleted before
 the machine ever sees them. A runtime `has()` cannot do that. **Capability
 questions should be asked at compile time wherever the answer is a fact about
 the machine**, and only at run time where the answer genuinely is not — whether
@@ -143,7 +143,7 @@ controller work:
   `waitFrame()` holds `sei` and acks VSYNC itself, so the default IRQ never
   scans. `packages/cx16/src/input.8bs` calls `joystick_scan` `$FF53`,
   `kbd_scan` `$FF9F` and `joystick_get` `$FF56` from `poll()`: joy0 is the
-  keyboard joystick (Enter is START, arrows are the D-pad — `joystick.s`
+  keyboard joystick (Enter is START, arrows are the D-pad — `joystick::s`
   intab0), joy1 and joy2 the two SNES ports. GETIN (`$FFE4`) is still
   unread; the portable surface wants levels, which that API already is.
 

@@ -5,7 +5,7 @@ nav_order: 86
 
 # The baseline, and what a build does without
 
-*Design note, 2026-09-19. What `baseline` in `8bitscript.config.8bs`
+*Design note, 2026-09-19. What `baseline` in `8bitscript.config.ts`
 means, what the toolchain does with it, and — the part that took longer
 than the code — what to call the builds that are not it.*
 
@@ -110,7 +110,7 @@ is **short of** the baseline by exactly those facts — the same word
   those. The C64 has a SID and the PET has not, but a program that
   never asks `Audio.VOICES` does nothing without on the PET for it, and
   listing it would be the noise the report exists to replace. A fact a
-  package folds on — `text.COLUMNS` on `video.columns` — is the
+  package folds on — `text::COLUMNS` on `video.columns` — is the
   package's business: the program that prints through it never asked,
   and the library did the lifting. That is the line 2048's README draws
   between an element that tests a fact and a `lib/` twin the build
@@ -151,7 +151,7 @@ ever told anyone.
 - **Release notes.** The report is stdout today; a `--release --json`
   carrying `{ artifact, facts, shortOf }` per build would let a release
   workflow write the table into the GitHub Release body.
-- **A fact a package tests on the program's behalf.** `screen.RESIZABLE`
+- **A fact a package tests on the program's behalf.** `screen::RESIZABLE`
   is a package const that is true only on the web's fluid host and that
   2048 branches on by name. It is not a system fact and so not on the
   report; whether a package should be able to declare "this const is a

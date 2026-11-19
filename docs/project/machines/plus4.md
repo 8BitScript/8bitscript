@@ -159,7 +159,7 @@ under `xplus4`, not recalled.
   (cc65's `COLOR_*` table is a good default mapping); expose luma as the
   Plus/4's own extension, not as a portable concept.
 - The border color is `$FF19`, the background `$FF15`; both are the same
-  chroma/luma byte format. `screen.setColors()` maps directly.
+  chroma/luma byte format. `screen::setColors()` maps directly.
 - There is no reverse-video bit in hardware unless RVSDIS is clear: with
   the default 128-glyph set, bit 7 of a code inverts. Enabling 256
   glyphs costs reverse video. Pick one per build and say which.

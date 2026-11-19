@@ -47,19 +47,19 @@ Do not describe more than this as working:
   surfaces need: `src/screen.8bs` (behind `@8bitscript/screen`, as
   `@8bitscript/vic20/screen`) and `src/text.8bs` (behind
   `@8bitscript/text`).
-- `screen.setColors(border, background)` is one write of `$900F`, border
+- `screen::setColors(border, background)` is one write of `$900F`, border
   masked to 3 bits, bit 3 held at 1; `setBorder`/`setBackground` mask and
   rewrite the register. `BorderColor` has the first eight colors and
   `BackgroundColor` all sixteen — two namespaces because the chip draws that
-  line, not a preference. `screen.blank()` writes the space screen code to
+  line, not a preference. `screen::blank()` writes the space screen code to
   `Video.CELL_COUNT` (506) cells at `Video.SCREEN`.
-- `text.putChar(cell, code)` takes ASCII, converts to a screen code
+- `text::putChar(cell, code)` takes ASCII, converts to a screen code
   (`A`–`Z` → 1–26, 32–63 unchanged), writes `Video.SCREEN + cell`, and
   before every run of text stores `Video.MEMORY_POINTER_UPPERCASE` in
   `$9005` — the value that names both this hardware's screen base and the
   upper-case ROM. `putColor`/`place` write the low three bits of the color
   to `Video.COLOR + cell` (bit 3 would make the cell multicolor).
-  `text.COLUMNS` is 22 and `text.CELL_COUNT` 506 whatever RAM is fitted. Writes
+  `text::COLUMNS` is 22 and `text::CELL_COUNT` 506 whatever RAM is fitted. Writes
   happen at any time; there is no vertical-blank queue and none is needed.
 - **Hardware** (the catalog in `package.json`): `ram` — `none` (default),
   `3k`, `8k`, `16k`, `24k` — exactly the five values `xvic
@@ -99,9 +99,9 @@ Do not describe more than this as working:
   both regions,
   every line landed whole and still from frame to frame, a list built once
   and `enable()`d kept every frame, `setValue` live without a commit.
-  `#fact(video.raster)` is true and so is `raster.CHARSET` (0 the
+  `#fact(video.raster)` is true and so is `raster::CHARSET` (0 the
   upper-case/graphics ROM set, 1 the mixed-case one — the PET's meaning).
-  `Slot.SCROLL_X` is refused and `raster.FINE_SCROLL` is false. The VIC raises no interrupt, so
+  `Slot.SCROLL_X` is refused and `raster::FINE_SCROLL` is false. The VIC raises no interrupt, so
   `waitFrame()` applies the list — the section "Raster splits" below is
   the mechanism, the measurements and what they cost.
   **On the wasm build** (`8bs run vic20 --web`) the hook's machine code is never
@@ -312,7 +312,7 @@ facts, and these are the ones that are wrong on this machine:
   names exactly what a file differs on — whether there is 8K or more —
   and one `geometry.vic20.expanded.8bs` serves all three. New per-value
   facts go the same way: a tag's version of one small file, read through
-  a namespace const, never a copy of a surface — or, for a number, a
+  a `mod` const, never a copy of a surface — or, for a number, a
   `facts` entry on the value.
 - Block 5 (`$A000`) and `all` are not `ram` values: a program there is a
   cartridge, which this target has no link for. If cartridge output
@@ -341,7 +341,7 @@ facts, and these are the ones that are wrong on this machine:
   (16). A portable color name that is not in the first eight (orange,
   the light shades) exists here only as a background or auxiliary color;
   a portable capability must say so rather than clamp silently.
-- Color RAM bit 3 is the per-cell multicolor switch, and `text.putColor`
+- Color RAM bit 3 is the per-cell multicolor switch, and `text::putColor`
   masks it off on purpose. A multicolor API owns that bit per cell and
   the auxiliary color globally; mixing the two per cell is the hardware's
   one gift here (4 colors in a 4×8 cell), and the double-width pixels are
@@ -451,7 +451,7 @@ before). A picture with fewer than four ink pixels becomes the single glyph
   was there: text printed where an object stands is gone once the object
   moves, and a program prints where objects are not. The color goes back to
   white (`INK`) because color RAM is the object's too: an unreset cell would
-  show a character stored there with `text.putChar` — which writes no color —
+  show a character stored there with `text::putChar` — which writes no color —
   in the object's ink. Every update redraws every placed object, so one a
   program printed over comes back.
 - **Frames.** An object with more than one frame steps every `every`
@@ -462,7 +462,7 @@ before). A picture with fewer than four ink pixels becomes the single glyph
   pauses or resumes the stepping object by object.
 - **Color.** `color(slot, c)` sets the color RAM value the object's cells are
   drawn with, from the next `update()`. Color RAM bit 3 is the multicolor
-  switch, so `c` is masked to three bits (8–15 wrap, as `text.putColor`
+  switch, so `c` is masked to three bits (8–15 wrap, as `text::putColor`
   does); an unmasked `color(slot, 9)` made the cells multicolor garbage
   until 2026-10-04.
 - **Limits.** Eight objects (`MAX`, like the other targets), and 64 bytes of
@@ -472,7 +472,7 @@ before). A picture with fewer than four ink pixels becomes the single glyph
   media module sees one sprite at a time, so the build cannot add them up:
   each sprite's `8BS2111` note says what it takes ("taking 12 of the 64 pool
   bytes every object shares"), and the sum is the program's to keep under 64.
-  Both arrays are in the program image, so they count in `memory.program`,
+  Both arrays are in the program image, so they count in `memory::program`,
   not in the variables.
 - **Slots.** The compiler numbers sprites across the whole build, not per
   `.8bg` file. It used to start each file at 0, so `mark.8bg` and
@@ -490,7 +490,7 @@ reduction of every object. The all-operations probe in
 draw's cost in cycles is not measured: update is one pass over the placed
 objects, a few dozen stores each.
 
-Verified two ways. Under xvic (`test/graphics.test.mjs` and
+Verified two ways. Under xvic (`test/graphics::test.mjs` and
 `test/graphics-ops.test.mjs`, NTSC, unexpanded and 8K): an 8×8 object takes
 one cell and leaves its neighbours' text intact; a faint picture is one
 glyph; objects from two `.8bg` files are both there; a moved object leaves
@@ -548,7 +548,7 @@ with it (`frameHookWanted`) — the hook reads `planCount`, and only
 `commit()` writes it. A program that imports `@8bitscript/raster` and
 never commits, or whose raster branch a `#fact` folded away, carries
 none of it: byte-identical to a program without the import
-(`packages/compiler/test/mos-vic20-raster.test.ts`). The build's
+(`packages/compiler/test/mos-vic20-raster::test.ts`). The build's
 "inlined away" guard (`mos/index.ts`) fires only for a hook the program
 calls or still feeds.
 
@@ -750,7 +750,7 @@ only see one in `$1000`–`$1FFF`, a reservation no package makes yet.
 - **A partial line above a split, moving between frames**: a store left
   its window. Re-measure the edge with one store (the NTSC 274–322 / PAL
   50–98 experiment above), redo the windows, and re-run the test.
-- **Tools**: `test/raster.test.mjs` is the gate; it reads rows and whole
+- **Tools**: `test/raster::test.mjs` is the gate; it reads rows and whole
   runs of pixels with `pixelAt` from `packages/cli/src/png.mjs`. The
   mutation that proved it bites: NTSC's second `jsr sled+6` changed to
   `sled+12` (12 cycles early) fails at picture line 59.

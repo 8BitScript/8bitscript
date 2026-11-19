@@ -5,7 +5,7 @@ nav_order: 3
 
 # Project config
 
-An 8BitScript project is a directory with an `8bitscript.config.8bs` (or
+An 8BitScript project is a directory with an `8bitscript.config.ts` (or
 the older `8bs.config.ts`). Node 26 loads it as a module. The CLI and
 the editor read the same file.
 
@@ -43,11 +43,11 @@ plain `export default { … }` is still a config.
 | `frameRate` | Logical frames per second for `waitFrame()` and `#frames(...)`. Positive integer. Default 60. Not `--pal`. |
 | `targets` | Machines this project builds for: an array of names, or an object. Per machine: `hardware` (default options), `profiles` (named option sets `--profile` accepts), `release` (what `8bs build --release` builds). |
 | `systems` | Advertised named machines. Each value is `{ target, profile?, hardware?, region? }`. A name cannot be a machine id (`pet`, `c64`, …). The whole team sees these; they are source. |
-| `requires` | Fact floors (`memory.ram`, `storage.save`, …). A system or a build that cannot meet them is refused with what would. |
+| `requires` | Fact floors (`memory::ram`, `storage.save`, …). A system or a build that cannot meet them is refused with what would. |
 | `input` | What the program is designed to be played with, and what else it plays on: `{ primary: 'stick', also: ['keyboard', 'pad'] }` over `stick`, `pad`, `keyboard`, `mouse`, `paddles`, `touch`. A preference, not a floor — `requires: { 'input.keyboard': true }` is the floor. `8bs targets --reach` reports, per machine, whether each device is standard, optional or absent — read from the machine as this project fits it (`targets.<machine>.hardware`), so a mouse in a port is optional and a control port is standard; nothing else reads it. `touch` is the web's alone, and the web is not on the sheet, so it reads absent everywhere. |
 | `baseline` | The system the program is designed on — the build every fact the program tests is true on. A machine's name (`'c64'`, under the project's own hardware for it), a name from `systems`, or a system's shape `{ target, profile?, hardware? }`. `8bs build` and `8bs run` with no target build it; `8bs targets` names it; `8bs build --release` says, per build, which of the facts the program tests that build is short of. `requires` is the floor every build clears; this is the ceiling one reaches. See below, and [docs/project/baseline.md](project/baseline.md). |
 | `i18n` | Message catalogs under `catalog` (`src/i18n/<locale>.8bs` by default), imported as `@8bitscript/i18n/catalog`. `{ defaultLocale, fallbackLocale, locales, catalog, charset }`. A project without this block and without that directory is unchanged. See below. |
-| `imports` | Project import aliases: `{ '@lib': 'src/lib', '@ui': 'src/ui' }` so `import { score } from '@lib/game/rules.8bs'` resolves under the config file's directory. Same twin rules as a relative `.8bs`/`.8bx` path. |
+| `imports` | Project import aliases: `{ '@lib': 'src/lib', '@ui': 'src/ui' }` so `use @lib::game::rules::score;` resolves under the config file's directory. Same twin rules as a relative `.8bs`/`.8bx` path. |
 
 `restoreOnExit` is retired. If the file still sets it, the CLI says so
 and ignores it.
@@ -64,12 +64,12 @@ works today.
 | Which machines does this build for? | `targets` | `targets: { c64: {}, pet: {}, web: {} }` |
 | Which one is it designed on — where every feature is tried first? | `baseline` | `baseline: 'c64'`, or with its accessories: `baseline: { target: 'c64', hardware: { ram: 'reu512', port2: 'joystick' } }` |
 | What memory configuration is each machine assumed to have? | `targets.<machine>.hardware`, `systems`, `--profile` | `pet: { hardware: { model: '4032', ram: '32' } }`; `systems: { 'PET 2001 (4K)': { target: 'pet', profile: '2001', hardware: { ram: '4' } } }` |
-| What is the least any build may have? | `requires` | `requires: { 'memory.ram': 8192 }` |
+| What is the least any build may have? | `requires` | `requires: { 'memory::ram': 8192 }` |
 | How much detail does the picture need? | `requires`, with a video fact | `'video.columns': 40` (a 40-column grid: refuses the 22-column VIC-20), `'video.bitmap': true` (pixel addressing: refuses the PET), `'video.palette': 16`, `'video.sprites': 8`, `'video.colorPerCell': true` |
 | Does it need a keyboard, a control port, somewhere to save? | `requires`, with an input or storage fact | `'input.keyboard': true` (refuses the NES), `'input.joysticks': 1` (refuses the PET), `'storage.save': true` |
 | Which downloads does a release ship? | `targets.<machine>.release` | `pet: { release: ['2001', {}, { profile: '2001', locale: 'de' }] }` |
-| What does each build do without? | `8bs build --release` | prints, per artifact, `short of the baseline (c64): video.raster, memory.ram 3071 of 51199` |
-| Does a named system clear the floor? | `8bs targets` | prints `short: memory.ram needs 8192, has 3071` under the system |
+| What does each build do without? | `8bs build --release` | prints, per artifact, `short of the baseline (c64): video.raster, memory::ram 3071 of 51199` |
+| Does a named system clear the floor? | `8bs targets` | prints `short: memory::ram needs 8192, has 3071` under the system |
 
 The fact keys are the compiler's (`packages/compiler/src/fold/facts.mjs`),
 listed with one line each by `8bs targets --json` under `facts`, and
@@ -249,7 +249,7 @@ export default defineConfig({
 
 `8bs build --target pet --locale de` and `8bs run pet --locale de` build one
 locale by hand. A file with one line to translate can branch instead of
-splitting: `if (#locale("de")) { … } else { … }` folds at compile time, and
+splitting: `if #locale("de") { … } else { … }` folds at compile time, and
 is `false` in every build that names no locale.
 
 The twin rule applies inside packages too. `@8bitscript/i18n` is one file

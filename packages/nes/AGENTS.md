@@ -30,12 +30,12 @@ Do not describe more than this as working:
   `setVramAddress()` and `resetScroll()` — that the package's two portable
   surfaces are built on: `src/screen.8bs` (behind `@8bitscript/screen`, as
   `@8bitscript/nes/screen`) and `src/text.8bs` (behind `@8bitscript/text`).
-  `screen.setColors(border, background)`'s background writes PPU palette
+  `screen::setColors(border, background)`'s background writes PPU palette
   RAM `$3F00`, the universal backdrop. Its border is real but *drawn*: the
   NES has no border register (the picture fills the frame edge to edge), so
   the first `setColors()` lays a two-tile-thick ring of a solid tile around
   the nametable and `border` is that tile's color (`$3F02`).
-  `text.putChar(cell, code)` writes an ASCII code into the 28×26 grid
+  `text::putChar(cell, code)` writes an ASCII code into the 28×26 grid
   inside that frame — into the package's write queue, which `waitFrame()`
   delivers through PPUADDR/PPUDATA at the start of vertical blank and then
   resets the scroll (`nesVerticalBlank()` in `index.8bs`, called by the
@@ -46,7 +46,7 @@ Do not describe more than this as working:
   alone does not price in, and the run headers are what actually decide it:
   a HUD of a few wide rows is nearly all data bytes, but a grid of many
   narrow fields (`packages/2048`'s 4-character tile cells, three
-  `text.print()` runs per tile) pays a run header on almost every write.
+  `text::print()` runs per tile) pays a run header on almost every write.
   The history is worth keeping, because the same mistake is easy to make
   twice:
 
@@ -141,7 +141,7 @@ Do not describe more than this as working:
   | `__load_address` | `$8000` | Where NROM maps PRG-ROM. Not a policy: the code is assembled there because the cartridge appears there. |
   | `__ram_ceiling` | `$FFF9` | `$FFF9 - $8000 = 32761 = 32768 - 6 - 1` — the 32K PRG-ROM above, less the 6502's three vectors at `$FFFA-$FFFF` and the one `RTI` byte the two unused ones point at. Code and data are refused BY NAME at this line, which is the only thing between a too-big program and a cartridge whose reset vector is its own last instruction. |
   | `__bss_origin` | `$0200` | The work RAM above the zero page and the stack. |
-  | `__bss_ceiling` | `$0800` | `$0800 - $0200 = 1536`, exactly the `memory.ram` fact in the same file and the `$0200`-`$07FF` this document already described. |
+  | `__bss_ceiling` | `$0800` | `$0800 - $0200 = 1536`, exactly the `memory::ram` fact in the same file and the `$0200`-`$07FF` this document already described. |
 
   The last pair exists because this is the first target whose image is a
   ROM. A mutable array cannot ride inside a cartridge the way it rides
@@ -168,7 +168,7 @@ to; if you're just writing docs or comments, don't imply it already exists.
 
 Two PPU rules `index.8bs` documents, `screen.8bs`/`text.8bs` already
 honor, and any extension must keep: VRAM is free to write only while
-rendering is off (before the first `screen.setColors()`) or during
+rendering is off (before the first `screen::setColors()`) or during
 vertical blank (right after `waitFrame()`
 returns, which on the NES is vblank start) — never from setup code that
 runs after rendering is on, and never late in a frame's work; and every
@@ -206,7 +206,7 @@ hardware fact worth having memorized before writing NES-facing API or docs:
 | Pattern space | Two 4K pattern tables (8K total addressable by the PPU at once) of 256 tiles each — background and sprites can each use either table. What's actually *in* pattern space (ROM, fixed, bank-switched, RAM) depends on the mapper, not on the PPU. |
 | Sprites (OAM) | 64 entries, 4 bytes each (Y, tile index, attributes, X) — the familiar "4 bytes per sprite" figure. |
 | **Sprite-per-scanline limit** | Only **8** of those 64 entries can be drawn on any single scanline. This is the constraint that actually breaks games, not the 64 total — four hardware sprites forming one large metasprite already spend half a scanline's budget. |
-| Palette RAM | 32 bytes at PPU address `$3F00`–`$3F1F`, reached indirectly through `PPUADDR`/`PPUDATA` (`$2006`/`$2007`) the way `screen.setColors()` already does — the CPU cannot address it directly. |
+| Palette RAM | 32 bytes at PPU address `$3F00`–`$3F1F`, reached indirectly through `PPUADDR`/`PPUDATA` (`$2006`/`$2007`) the way `screen::setColors()` already does — the CPU cannot address it directly. |
 
 Facts to actively correct if you see them stated otherwise:
 
@@ -254,11 +254,11 @@ Facts to actively correct if you see them stated otherwise:
   should report both, the way the roadmap's capability system is meant to
   surface hardware limits at build time rather than as an emulator surprise.
 - **Rendering should stay command/state-oriented, never
-  `screen.setPixel(x, y, color)`-shaped.** The useful high-level operations
-  look like `background.setTile(x, y, tile)`, `sprites.place(id, x, y,
+  `screen::setPixel(x, y, color)`-shaped.** The useful high-level operations
+  look like `background::setTile(x, y, tile)`, `sprites.place(id, x, y,
   frame)`, `scroll.set(x, y)` — game logic updates a shadow representation,
   and a frame-time commit step transfers changes to the PPU at a safe point
-  (vblank). Raw PPU access (as `screen.setColors()` already does) stays available
+  (vblank). Raw PPU access (as `screen::setColors()` already does) stays available
   underneath for anyone who wants it; the portable layer should never be the
   *only* way in.
 - **The PPU warm-up is two vblanks after reset** (NESdev). A working NROM

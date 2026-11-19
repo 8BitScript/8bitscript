@@ -76,7 +76,7 @@ so every `.8bs` file looks like a generic document until you switch theme.
 The **8BitScript** file icon theme draws all four source kinds with the same
 pixel **8**. `.8bs` is a white 8 on a purple box; the other three are a violet
 8 with a badge beside it — a silver **X** for `.8bx`, green **tiles** for
-`.8bg`, amber **bars** for `.8ba`. A project's `8bitscript.config.8bs` wears
+`.8bg`, amber **bars** for `.8ba`. A project's `8bitscript.config.ts` wears
 the `.8bs` icon too.
 
 The theme replaces *every* icon in the explorer, not only ours, so it also
@@ -112,7 +112,7 @@ With this extension enabled, the default file icon theme is **8BitScript**
   text between tags stays plain
 - **Snippets** for the constructs that compile — `program`, `loop`,
   `countdown`, `print`, `#frames`, `#package`, `#define`, `const`, `let`, `for`, `array`,
-  `table`, `address`, `namespace`, `asm6502`, `poke`/`peek`. Nothing is offered that the compiler would
+  `table`, `address`, `mod`, `asm6502`, `poke`/`peek`. Nothing is offered that the compiler would
   reject, and the compiler's own test suite is what holds that
 - `//` line comments and `/* */` blocks, so comment-toggling works, and a
   `/** */` block continues its `*` column on Enter
@@ -122,21 +122,21 @@ With this extension enabled, the default file icon theme is **8BitScript**
   - **Diagnostics** — lexical, syntax, and range errors, as you type
   - **Hover** — documentation for built-in types (`utinyint`, `int`, ...),
     constructs (`string`, `volatile`, `ptr`, `array`, `asm6502`,
-    `@address`, `memory.read`/`memory.write`, `port.read`/`port.write`), the builtins
+    `#[address]`, `memory::read`/`memory::write`, `port::read`/`port::write`), the builtins
     `#frames(...)` and its `seconds` unit, `#system()`, `#fact(...)`,
     `#package("version")`, `#define("NAME", default)`, and `waitFrame()`, and a member of
-    a named import's own namespace — `screen.blank(...)` shows its
+    a named `use` import's own module — `screen::blank(...)` shows its
     signature and doc comment, read from whichever module the import
     actually resolves to
   - **Completion** — built-in type names in type position (after `:` or
     inside `ptr<...>`/`array<...>`/`volatile<...>`), the compile-time
     functions after a `#`, the unit words inside a `#frames(...)` call, and
     — right after `object.` — the members a named import brings in
-    (`screen.bl` offers `blank`) — inside a template's `${...}` field as
+    (`screen::bl` offers `blank`) — inside a template's `${...}` field as
     much as outside one
   - **Your own names** — hover on a component, function, variable, const,
     parameter or `state` field shows its declaration and the comment above
-    it, following an import to the file it comes from; completion offers
+    it, following a `use` to the file it comes from; completion offers
     what is visible from the cursor; **Go to Definition** (F12) lands on
     the declaration, in this file or another
   - **8BX** — in an `.8bx` file, `<` offers the components in scope (and
@@ -273,7 +273,7 @@ not in the side bar.
   `--target <machine>`), which stops at the built file instead of
   starting an emulator.
 - **Project** — the folder the tiles and Build act on (`8bitscript.project`).
-  Every directory in the workspace with an `8bitscript.config.8bs` is in the
+  Every directory in the workspace with an `8bitscript.config.ts` is in the
   menu, grouped as **Programs**, **Examples**, **Apps**, and — when this
   repository is open — **8BitScript repository**, the toolchain's own test
   programs (`conform`). Apps are packages whose `package.json` declares an
@@ -297,7 +297,7 @@ not in the side bar.
   stays in the list even with the toggle off, so hiding them never blanks
   the picker.
 - **System** — a **named system** from [project config](../../docs/config.md)
-  (advertised in `8bitscript.config.8bs`, this clone's
+  (advertised in `8bitscript.config.ts`, this clone's
   `.8bitscript/systems.json`, or `~/.config/8bitscript/systems.json`), or a
   bare machine under them, grouped by family (Commodore, Atari, Nintendo,
   Sega, Computers, Other consoles, Modern). The list comes from `8bs targets --json`, tagged
@@ -392,7 +392,7 @@ Example…**, **Configure System**, **Show Project**, **Save as a System…**, *
 are on the command palette as well — **8BitScript: Select Project**, **Select System**,
 **Select Region**, **Run**, **Build**, **Stop**, **Configure System**, **Show Project**,
 **Use Local 8BitScript**, **Use Published Packages**, **Controller Setup**, **Doctor: Choose Emulators**, **Open Entry File**,
-**Open 8bitscript.config.8bs**.
+**Open 8bitscript.config.ts**.
 
 ### Doctor: Choose Emulators
 
@@ -414,7 +414,7 @@ means all).
 **8BitScript: Configure System** opens an editor tab — Machine, Hardware,
 Region, Facts, Save — and writes the same `{ target, profile?, hardware?,
 region? }` object the CLI already validates. Save destination is explicit:
-advertise into `8bitscript.config.8bs`, this clone (`.8bitscript/systems.json`,
+advertise into `8bitscript.config.ts`, this clone (`.8bitscript/systems.json`,
 gitignored), or this user (`~/.config/8bitscript/systems.json`).
 
 The extension lists nothing of its own here: it asks the toolchain (`8bs
@@ -497,7 +497,7 @@ not the project's source:
 }
 ```
 
-`8bitscript.controllers.json` rather than a block in `8bitscript.config.8bs`:
+`8bitscript.controllers.json` rather than a block in `8bitscript.config.ts`:
 the config is TypeScript source that a person reads and that **Save as a
 System…** edits through the editor's own undo stack, and eighteen
 machine-generated bindings per device rewritten on every button press are
@@ -528,7 +528,7 @@ differs a lot, and the CLI names by name anything it has nowhere to put.
 
 ### Projects, tasks, and what is missing
 
-A project is any directory containing an `8bitscript.config.8bs`; that file is
+A project is any directory containing an `8bitscript.config.ts`; that file is
 already the manifest the CLI reads for the entry file and the target list,
 so the launcher uses it as the marker rather than a second list to
 maintain. A `package.json` on its own does not count — every package in a
@@ -584,10 +584,10 @@ build and run for real; every other target is still refused.
 ## The grammar is provisional
 
 8BitScript's syntax is not fully specified yet. `syntaxes/8bs.tmLanguage.json`
-covers the TypeScript-derived surface the project documentation actually
+covers the Rust-style surface the project documentation actually
 shows, the primitive integer types (both the friendly spelling — `utinyint`,
 `int`, ... — and the low-level `u8`/`i8`-style aliases), and the hardware
-escape hatches that already exist: `@address` decorators,
+escape hatches that already exist: `#[address]` decorators,
 `volatile`/`ptr`/`array`, and `asm6502` blocks. A keyword the language turns
 out not to have simply never matches, so a wrong guess costs a word that does
 not color rather than a broken file.
