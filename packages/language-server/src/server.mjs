@@ -55,6 +55,29 @@ const SEVERITY = {
 // resolveFrameRate rather than importing it.
 const CONFIG_FILENAMES = ['8bitscript.config.ts', '8bs.config.ts'];
 
+// The `.8bs` config name of 0.23 through 0.26 is no longer read.
+const STALE_CONFIG = '8bitscript.config.8bs';
+
+/**
+ * The old-name config a document's project still has, when no current
+ * config is found above it; null otherwise. Exported for the notice below
+ * and its test.
+ *
+ * @param {string} dir
+ * @returns {string|null}
+ */
+export function staleConfigPath(dir) {
+  if (findConfigPath(dir)) return null;
+  let current = dir;
+  for (;;) {
+    const candidate = join(current, STALE_CONFIG);
+    if (existsSync(candidate)) return candidate;
+    const parent = dirname(current);
+    if (parent === current) return null;
+    current = parent;
+  }
+}
+
 /**
  * Walk upward from `dir` looking for 8bitscript.config.8bs (or an older
  * name), so a document opened from src/ (or deeper) still finds its
@@ -204,10 +227,16 @@ export function start({ checkout } = {}) {
    * `file:` documents. An untitled buffer still gets every lexical and checker
    * diagnostic; it just cannot be asked whether its imports exist.
    */
+  const warnedStale = new Set();
   const validate = async (document) => {
     const text = document.getText();
     const { version } = document;
     const path = filePathOf(document.uri);
+    const stale = path ? staleConfigPath(dirname(path)) : null;
+    if (stale && !warnedStale.has(stale)) {
+      warnedStale.add(stale);
+      connection.window.showErrorMessage(`${stale} is no longer read: rename it to 8bitscript.config.ts (or run '8bs migrate').`);
+    }
     const frameRate = path ? await frameRateFor(path) : 60;
     const importAliases = path ? await importAliasesFor(path) : {};
     // Two things can happen while frameRateFor() awaits the filesystem: a

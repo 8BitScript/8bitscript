@@ -26,6 +26,9 @@ const vscode = require('vscode');
 const {
   ALL_TARGETS,
   CONFIG_FILE,
+  STALE_CONFIG,
+  staleConfigMessage,
+  staleConfigsOnly,
   CONFIG_FILENAMES,
   MACHINE_TARGETS,
   cliCommand,
@@ -593,6 +596,11 @@ class Projects {
   async refresh() {
     const found = await vscode.workspace.findFiles(`**/{${CONFIG_FILENAMES.join(',')}}`, SEARCH_EXCLUDE);
     const checkout = this.checkoutFlag();
+    const stale = await vscode.workspace.findFiles(`**/${STALE_CONFIG}`, SEARCH_EXCLUDE);
+    for (const old of staleConfigsOnly(found.map((uri) => uri.fsPath), stale.map((uri) => uri.fsPath))) {
+      this.output.appendLine(staleConfigMessage(old));
+      void vscode.window.showErrorMessage(staleConfigMessage(old));
+    }
     this.projects = loadProjects(found.map((uri) => uri.fsPath), { checkout });
     this.targetsPromises.clear();
     this.targetRows.clear();

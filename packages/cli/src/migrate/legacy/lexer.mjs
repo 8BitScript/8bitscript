@@ -16,7 +16,8 @@
 // those closures instead of inline in the main loop, so a change to how
 // numbers or templates scan never touches the dispatch, and the dispatch
 // itself stays readable as a flat list of "what starts here."
-import { Codes, INTEGER_TYPE_NAMES, diagnostic } from '@8bitscript/compiler';
+import { Codes, diagnostic } from '../../../../compiler/src/diagnostics/index.mjs';
+import { INTEGER_TYPE_NAMES } from '../../../../compiler/src/types/index.mjs';
 
 export const TokenKind = {
   Comment: 'comment',

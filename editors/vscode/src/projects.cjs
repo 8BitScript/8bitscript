@@ -31,6 +31,32 @@ const path = require('path');
 // with more than one is one project under the newest name, never two.
 const CONFIG_FILENAMES = ['8bitscript.config.ts', '8bs.config.ts'];
 
+// The `.8bs` config name of 0.23 through 0.26. It is no longer read, so a
+// project that still has one must be told, not silently emptied.
+const STALE_CONFIG = '8bitscript.config.8bs';
+
+/**
+ * The message for a project whose only config is the old `.8bs` one.
+ *
+ * @param {string} configPath absolute path of the old file
+ */
+function staleConfigMessage(configPath) {
+  return `${configPath} is no longer read: rename it to 8bitscript.config.ts (or run '8bs migrate').`;
+}
+
+/**
+ * The old-name config files among `stale` whose directory has no current
+ * config in `found`.
+ *
+ * @param {string[]} found current config paths
+ * @param {string[]} stale old-name config paths
+ * @returns {string[]}
+ */
+function staleConfigsOnly(found, stale) {
+  const dirs = new Set(found.map((p) => path.dirname(p)));
+  return stale.filter((p) => !dirs.has(path.dirname(p)));
+}
+
 // The canonical name, for messages that talk about the file in the abstract.
 const CONFIG_FILE = CONFIG_FILENAMES[0];
 
@@ -1235,6 +1261,9 @@ module.exports = {
   ALL_TARGETS,
   BINARY,
   CONFIG_FILE,
+  STALE_CONFIG,
+  staleConfigMessage,
+  staleConfigsOnly,
   CONFIG_FILENAMES,
   DEFAULT_ENTRY,
   findConfig,

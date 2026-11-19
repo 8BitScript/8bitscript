@@ -12,7 +12,8 @@
 // `case` are lexed as keywords but have no parse rule, so writing one is an
 // honest syntax error rather than a silently accepted guess at syntax nobody
 // has decided on.
-import { Codes, NodeType, diagnostic } from '@8bitscript/compiler';
+import { NodeType } from '../../../../compiler/src/ast/index.mjs';
+import { Codes, diagnostic } from '../../../../compiler/src/diagnostics/index.mjs';
 
 import { TokenKind, tokenize } from './lexer.mjs';
 

@@ -4,7 +4,8 @@
 // the same block-scope rule over the new front end's tree.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -100,7 +101,6 @@ test('a file that cannot be converted is a failure: exit 1, and the file is left
 
 test('configs, old-syntax pair fixtures, crates and the converter itself are skipped; node_modules too', async () => {
   const dir = project({
-    '8bitscript.config.8bs': 'export default {};\n',
     'crates/x/tests/p.8bs': 'let x = ;\n',
     'tests/pairs/1.old.8bs': OLD,
     'node_modules/m/a.8bs': OLD,
@@ -429,4 +429,58 @@ test('the legacy lexer and parser still read the old syntax for migrate', async 
 test('CONFIG_FILENAMES names 8bitscript.config.ts and 8bs.config.ts only', async () => {
   const { CONFIG_FILENAMES } = await import('../src/config.mjs');
   assert.deepEqual(CONFIG_FILENAMES, ['8bitscript.config.ts', '8bs.config.ts']);
+});
+
+test('migrate renames the old 8bitscript.config.8bs and reports it; --check writes nothing', async () => {
+  const dir = project({ '8bitscript.config.8bs': "export default { entry: 'src/main.8bs' };\n" });
+  try {
+    const dry = await run(dir, '--check');
+    assert.ok(dry.lines.some((l) => /would rename 8bitscript\.config\.8bs to 8bitscript\.config\.ts/.test(l)), dry.lines.join('\n'));
+    assert.equal(existsSync(join(dir, '8bitscript.config.8bs')), true);
+    const real = await run(dir);
+    assert.equal(real.code, 0, real.lines.join('\n'));
+    assert.equal(existsSync(join(dir, '8bitscript.config.8bs')), false);
+    assert.equal(readFileSync(join(dir, '8bitscript.config.ts'), 'utf8'), "export default { entry: 'src/main.8bs' };\n");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('migrate refuses to overwrite an existing 8bitscript.config.ts', async () => {
+  const dir = project({ '8bitscript.config.8bs': 'export default {};\n', '8bitscript.config.ts': 'export default { a: 1 };\n' });
+  try {
+    const result = await run(dir);
+    assert.equal(result.code, 1);
+    assert.ok(result.lines.some((l) => /^FAILED .*already exists/.test(l)), result.lines.join('\n'));
+    assert.equal(existsSync(join(dir, '8bitscript.config.8bs')), true);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('a directory whose only config is the old .8bs name is an error, not an empty project', async () => {
+  const { loadConfig, staleConfigError } = await import('../src/config.mjs');
+  const dir = project({ '8bitscript.config.8bs': 'export default {};\n' });
+  try {
+    await assert.rejects(loadConfig(dir, '8bs build'), (error) => error.name === 'StaleConfigError'
+      && /8bitscript\.config\.8bs is no longer read; rename it to 8bitscript\.config\.ts/.test(error.message));
+    writeFileSync(join(dir, '8bitscript.config.ts'), 'export default { frameRate: 50 };\n');
+    assert.equal(staleConfigError(dir), null);
+    assert.deepEqual(await loadConfig(dir), { frameRate: 50 });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('8bs build prints the stale-config line and exits 1', () => {
+  const dir = project({ '8bitscript.config.8bs': 'export default {};\n' });
+  try {
+    const bin = join(REPO, 'packages', 'cli', 'bin', '8bs.mjs');
+    const result = spawnSync(process.execPath, [bin, 'targets'], { cwd: dir, encoding: 'utf8' });
+    assert.equal(result.status, 1, result.stderr);
+    assert.match(result.stderr, /no longer read; rename it to 8bitscript\.config\.ts/);
+    assert.doesNotMatch(result.stderr, /\n\s+at /);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

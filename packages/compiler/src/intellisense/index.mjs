@@ -993,16 +993,16 @@ function contextIndex(tokens, offset) {
 /**
  * Is `offset` a position where a type name belongs?
  *
- * Only two shapes introduce a type in this grammar: a `:` annotation (`let x:`,
- * a parameter, a return type) and a type argument after a type constructor
- * (`ptr<`, `array<`, `volatile<`). Both are checked by token, not regex, so
+ * Three shapes introduce a type in this grammar: a `:` annotation (`let x:`,
+ * a parameter), a `->` return type, and a type argument after a type
+ * constructor (`ptr<`, `array<`, `volatile<`). All are checked by token, not regex, so
  * `x < 5` does not get mistaken for `ptr<u8>`.
  */
 function isTypePosition(tokens, offset) {
   const { before, i } = contextIndex(tokens, offset);
   const context = before[i];
   if (!context) return false;
-  if (context.text === ':') return true;
+  if (context.text === ':' || context.text === '->') return true;
   if (context.text === '<') return before[i - 1]?.kind === TokenKind.Type;
   return false;
 }

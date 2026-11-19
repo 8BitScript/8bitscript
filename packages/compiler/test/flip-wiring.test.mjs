@@ -24,31 +24,36 @@ const withFiles = (files, fn) => {
   }
 };
 
-const GEO = 'pub let mut a: utinyint = 3;\n';
-const MAIN = 'use self::geo::{a};\npub fn main() { memory::write(0x80, a); }\n';
-const codes = (result) => result.diagnostics.map((d) => d.code);
+const GEO = 'pub const A: utinyint = 3;\n';
+const MAIN = 'use self::geo::{A};\npub fn main() { memory::write(0x80, A); }\n';
 
 test('link: use self::geo::{a} resolves geo.8bx, and two matching extensions are 8BS2217', () => {
   withFiles({ 'geo.8bx': GEO, 'main.8bs': MAIN }, (dir) => {
     const result = link(MAIN, join(dir, 'main.8bs'));
-    assert.deepEqual(codes(result).filter((c) => c === '8BS2004' || c === '8BS2217'), []);
+    assert.deepEqual(result.diagnostics, []);
+    assert.ok(result.ir);
   });
   withFiles({ 'geo.8bx': GEO, 'geo.8bs': GEO, 'main.8bs': MAIN }, (dir) => {
-    assert.ok(codes(link(MAIN, join(dir, 'main.8bs'))).includes('8BS2217'));
+    const ambiguous = link(MAIN, join(dir, 'main.8bs')).diagnostics.filter((d) => d.code === '8BS2217');
+    assert.equal(ambiguous.length, 1);
+    assert.match(ambiguous[0].message, /geo/);
   });
 });
 
 test('link: a use path that matches no file is 8BS2004', () => {
   withFiles({ 'main.8bs': MAIN }, (dir) => {
-    assert.ok(codes(link(MAIN, join(dir, 'main.8bs'))).includes('8BS2004'));
+    const missing = link(MAIN, join(dir, 'main.8bs')).diagnostics.filter((d) => d.code === '8BS2004');
+    assert.equal(missing.length, 1);
+    assert.match(missing[0].message, /geo/);
   });
 });
 
 test('link: messages use the new words', () => {
-  const src = 'pub mod m { pub fn f() {} }\nlet x: u8 = 0;\npub fn main() { m::g(); }\n';
+  const src = 'pub mod m { pub fn f() {} }\npub fn main() {}\n';
   withFiles({ 'main.8bs': src }, (dir) => {
-    const text = link(src, join(dir, 'main.8bs')).diagnostics.map((d) => d.message).join('\n');
-    assert.doesNotMatch(text, /\bnamespace\b|\bfunction\b|\bexport\b/);
+    const messages = link(src, join(dir, 'main.8bs')).diagnostics.map((d) => d.message);
+    assert.deepEqual(messages, ["the entry module may pub only its entry fn; 'm' is a mod"]);
+    assert.doesNotMatch(messages.join('\n'), /\bnamespace\b|\bfunction\b|\bexport\b/);
   });
 });
 
@@ -85,4 +90,18 @@ test('completion and definition read a use path', () => {
     assert.ok(items.some((item) => item.label === 'spin'), JSON.stringify(items));
     assert.ok(getHoverInfo(text, text.lastIndexOf('spin') + 1, { path }));
   });
+});
+
+test('definition and completion read a braced use list and a return type position', () => {
+  const geo = 'pub mod geo {\n    pub fn spin() {}\n    pub fn turn() {}\n}\npub mod other {\n    pub fn go() {}\n}\n';
+  const text = 'use self::geo::{geo, other};\npub fn main() { other::go(); }\n';
+  withFiles({ 'geo.8bs': geo, 'main.8bs': text }, (dir) => {
+    const path = join(dir, 'main.8bs');
+    const def = getDefinition(text, text.lastIndexOf('go') + 1, { path });
+    assert.equal(def?.path, join(dir, 'geo.8bs'));
+    const items = getCompletions(text, text.lastIndexOf('::') + 2, { path });
+    assert.ok(items.some((item) => item.label === 'go'), JSON.stringify(items));
+  });
+  const ret = 'pub fn f() -> ';
+  assert.ok(getCompletions(ret, ret.length).some((item) => item.label === 'u8'));
 });

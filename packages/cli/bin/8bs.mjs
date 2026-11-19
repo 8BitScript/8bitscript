@@ -7,6 +7,14 @@
 // under the cursor.
 const [, , command, ...rest] = process.argv;
 
+// A project whose only config is the old `.8bs` one stops the command with
+// one clear line, not a stack trace (config.mjs's staleConfigError).
+process.on('uncaughtException', (error) => {
+  if (error?.name !== 'StaleConfigError') throw error;
+  process.stderr.write(`${error.message}\n`);
+  process.exit(1);
+});
+
 /**
  * Exit with `code`, but not before what has been printed has left this
  * process.
