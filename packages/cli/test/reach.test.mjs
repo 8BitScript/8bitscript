@@ -196,7 +196,7 @@ test('8bs targets --reach: the report, and --json its rows; a wrong `input` is r
   const bad = project("export default { entry: 'src/main.8bs', input: { primary: 'joystick' } };\n");
   await assert.rejects(run(process.execPath, [BIN, 'targets', '--reach'], { cwd: bad }), (error) => {
     assert.equal(error.code, 1);
-    assert.match(error.stderr, /8bs targets: 8bitscript\.config\.8bs's `input`\.primary must be one of stick, pad, keyboard, mouse, paddles, touch, not "joystick"/);
+    assert.match(error.stderr, /8bs targets: 8bitscript\.config\.ts's `input`\.primary must be one of stick, pad, keyboard, mouse, paddles, touch, not "joystick"/);
     return true;
   });
 });
