@@ -373,6 +373,7 @@ class Lowering {
         start: spec.start,
         length: spec.length,
       })),
+      ...(node.usePath === true ? { pathForm: true } : {}),
       start: node.start,
       length: node.length,
     });

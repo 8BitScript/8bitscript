@@ -53,6 +53,7 @@ Graphics diagnostics (`8BS21xx`) and audio diagnostics (`8BS22xx`):
 | 8BS2214 | Missing required field |
 | 8BS2215 | Song names an unknown instrument |
 | 8BS2216 | The program's samples and songs do not fit the audio driver's 255-byte data bank |
+| 8BS2217 | A path-form `use` names a module that exists with two or more source extensions (`.8bs`, `.8bx`, `.8bg`, `.8ba`) |
 
 ## Editor and CLI contract
 

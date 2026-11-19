@@ -16,7 +16,9 @@
 // module may assign it), a name that appears in an `asm6502` block, and an
 // array, pointer or string variable that is used as a bare value (it may be
 // written through a copy).
-import { NodeType, TokenKind, parse, tokenize, walk } from '@8bitscript/compiler';
+import {
+  NodeType, TokenKind, scopeLookup, parse, scopeStoreTarget, scopeTargetOf, tokenize, walk, walkScopes,
+} from '@8bitscript/compiler';
 
 const INDENT = '    ';
 
@@ -121,49 +123,8 @@ export function usePathOf(specifier, aliasHeads = []) {
 
 // ---- mutability --------------------------------------------------------
 
-// ---- scopes for the scan ----
-
-const newScope = (parent) => ({ parent, names: new Map() });
-const lookup = (scope, name) => {
-  for (let s = scope; s; s = s.parent) {
-    const hit = s.names.get(name);
-    if (hit) return hit;
-  }
-  return null;
-};
-const declareVariable = (scope, decl) => {
-  if (decl.name) scope.names.set(decl.name.name, { kind: decl.kind, decl });
-};
-// Module-level names are visible everywhere in the file, in any order.
-const hoist = (scope, body) => {
-  for (const s of body ?? []) {
-    if (s?.type === NodeType.VariableDeclaration) declareVariable(scope, s);
-    else if (s?.type === NodeType.NamespaceDeclaration && s.name) {
-      const members = newScope(scope);
-      hoist(members, s.members);
-      scope.names.set(s.name.name, { kind: 'namespace', members, node: s });
-    } else if (s?.name) scope.names.set(s.name.name, { kind: 'other' });
-    else if (s?.type === NodeType.ImportDeclaration) {
-      for (const spec of s.specifiers) scope.names.set(spec.name, { kind: 'other' });
-    }
-  }
-};
-
-/** The declared `let` a store target writes to, or null. */
-const targetOf = (scope, target) => {
-  let n = target;
-  while (n?.type === NodeType.IndexExpression) n = n.object;
-  if (n?.type === NodeType.MemberExpression && n.object.type === NodeType.Identifier) {
-    const ns = lookup(scope, n.object.name);
-    const member = ns?.kind === 'namespace' ? ns.members.names.get(n.property.name) : null;
-    return member?.kind === 'let' ? member.decl : null;
-  }
-  if (n?.type === NodeType.Identifier) {
-    const hit = lookup(scope, n.name);
-    return hit?.kind === 'let' ? hit.decl : null;
-  }
-  return null;
-};
+// The block-scope walk is shared with the checker (`walkScopes` in the
+// compiler's `checker/scopes.mjs`), so the two scans agree on what a store reaches.
 
 /**
  * Which `let` declarations need `mut`. Returns a map from the declaration
@@ -184,86 +145,16 @@ export function analyzeMutability(ast) {
     if (n.type === NodeType.VariableDeclaration && n.kind === 'let') letDecls.push(n);
   });
 
-  const visitExpression = (scope, root) => {
-    if (!root) return;
+  walkScopes(ast, (scope, root) => {
     walk(root, (n, parent) => {
-      const target = storeTarget(n);
-      if (target) mark(targetOf(scope, target), 'assigned');
+      const target = scopeStoreTarget(n);
+      if (target) mark(scopeTargetOf(scope, target)?.decl, 'assigned');
       else if (n.type === NodeType.Identifier && !n.compileTime && isBareValue(n, parent)) {
-        const hit = lookup(scope, n.name);
+        const hit = scopeLookup(scope, n.name);
         if (hit?.kind === 'let' && ARRAYISH_TYPES.has(hit.decl.typeAnnotation?.name)) mark(hit.decl, 'value');
       }
     });
-  };
-
-  const visitStatements = (scope, body) => {
-    for (const s of body ?? []) visitStatement(scope, s);
-  };
-  function visitFunction(scope, s) {
-    const fnScope = newScope(scope);
-    for (const p of s.params) fnScope.names.set(p.name.name, { kind: 'param' });
-    for (const p of s.params) visitExpression(fnScope, p.defaultValue);
-    visitStatement(fnScope, s.body);
-  }
-  function visitFor(scope, s) {
-    const forScope = newScope(scope);
-    if (s.init?.type === NodeType.VariableDeclaration) visitStatement(forScope, s.init);
-    else visitExpression(forScope, s.init);
-    visitExpression(forScope, s.test);
-    visitExpression(forScope, s.update);
-    visitStatement(newScope(forScope), s.body);
-  }
-  function visitStatement(scope, s) {
-    if (!s) return;
-    switch (s.type) {
-      case NodeType.VariableDeclaration:
-      case NodeType.StateDeclaration:
-        visitExpression(scope, s.initializer);
-        declareVariable(scope, s);
-        break;
-      case NodeType.FunctionDeclaration:
-      case NodeType.ComponentDeclaration:
-        visitFunction(scope, s);
-        break;
-      case NodeType.NamespaceDeclaration: {
-        const ns = lookup(scope, s.name?.name);
-        const members = ns?.members ?? scope;
-        for (const m of s.members) visitStatement(members, m);
-        break;
-      }
-      case NodeType.BlockStatement:
-        visitStatements(newScope(scope), s.body);
-        break;
-      case NodeType.IfStatement:
-        visitExpression(scope, s.test);
-        visitStatement(newScope(scope), s.consequent);
-        visitStatement(newScope(scope), s.alternate);
-        break;
-      case NodeType.WhileStatement:
-        visitExpression(scope, s.test);
-        visitStatement(newScope(scope), s.body);
-        break;
-      case NodeType.ForStatement:
-        visitFor(scope, s);
-        break;
-      case NodeType.ReturnStatement:
-        visitExpression(scope, s.argument);
-        break;
-      case NodeType.ExpressionStatement:
-        visitExpression(scope, s.expression);
-        break;
-      case NodeType.BxElement:
-      case NodeType.BxFragment:
-        visitExpression(scope, s);
-        break;
-      default:
-        break;
-    }
-  }
-
-  const moduleScope = newScope(null);
-  hoist(moduleScope, ast.body);
-  visitStatements(moduleScope, ast.body);
+  });
 
   for (const decl of letDecls) {
     if (decl.exported) mark(decl, 'exported');
@@ -281,18 +172,11 @@ function isBareValue(n, parent) {
   return !(isObject || isStoreTarget || isProperty);
 }
 
-/** The expression a node stores to, or null when it is not a store. */
-function storeTarget(n) {
-  if (n.type === NodeType.AssignmentExpression) return n.left;
-  if (n.type === NodeType.UpdateExpression) return n.argument;
-  return null;
-}
-
 /** Whether `body` stores to `name` (assignment or update, directly or through an index). */
 function storesTo(root, name) {
   let found = false;
   walk(root, (n) => {
-    let t = storeTarget(n);
+    let t = scopeStoreTarget(n);
     while (t?.type === NodeType.IndexExpression) t = t.object;
     if (t?.type === NodeType.Identifier && t.name === name) found = true;
   });
