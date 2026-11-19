@@ -1,0 +1,22 @@
+[
+  "Program@0+412<",
+  "NamespaceDeclaration@93+109<Program",
+  "Identifier@110+6<NamespaceDeclaration",
+  "VariableDeclaration@123+29<NamespaceDeclaration",
+  "Identifier@129+7<VariableDeclaration",
+  "TypeReference@138+8<VariableDeclaration",
+  "IntegerLiteral@149+2<VariableDeclaration",
+  "VariableDeclaration@164+27<NamespaceDeclaration",
+  "Identifier@170+5<VariableDeclaration",
+  "TypeReference@177+8<VariableDeclaration",
+  "IntegerLiteral@188+2<VariableDeclaration",
+  "NamespaceDeclaration@204+207<Program",
+  "Identifier@221+4<NamespaceDeclaration",
+  "FunctionDeclaration@362+47<NamespaceDeclaration",
+  "Identifier@371+6<FunctionDeclaration",
+  "Parameter@378+16<FunctionDeclaration",
+  "Identifier@378+8<Parameter",
+  "TypeReference@388+6<Parameter",
+  "TypeReference@397+4<FunctionDeclaration",
+  "BlockStatement@402+7<FunctionDeclaration"
+]

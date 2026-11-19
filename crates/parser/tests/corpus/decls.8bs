@@ -1,0 +1,32 @@
+use self::geo::{a, b as c};
+use super::src::index::{x,};
+use super::super::up::one;
+use @8bitscript::c64::sprites::{sprites as hardware};
+use foo::{bar};
+use "./number-values.8bs"::{n};
+use "./pic.8bg"::pic;
+#[address($D020)]
+pub let mut border: volatile<u8>;
+#[unroll]
+pub fn add(a: u8, b: u8 = 3,) -> u8 {
+    return a + b;
+}
+fn main() {}
+fn quiet() -> void {}
+pub mod Color {
+    const RED: u8 = 2;
+    pub fn paint(c: u8) { border = c; }
+    #[inline]
+    let mut shade: u8 = 0;
+}
+mod empty {}
+let x = 5;
+let mut y: u16 = 7;
+const MAX: u8 = 9;
+pub const TOP: [u8; 4] = [1, 2, 3, 4];
+let t: ptr<ptr<u8>> = 0;
+let u: [[u8; 2]; 3];
+let r#loop = 1;
+let z: array<u8, 16>;
+let w: ptr<u8>= 0;
+asm6502 { lda #1 }

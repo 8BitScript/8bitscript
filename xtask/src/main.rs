@@ -1,9 +1,12 @@
-//! Repo automation entry point. `roundtrip` arrives in a later unit.
+//! Repo automation entry point: `compare`, `roundtrip` and `wasm`.
+
+mod roundtrip;
+mod wasm;
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-const USAGE: &str = "usage: cargo xtask compare <js-dir> <other-dir> [--stages a,b] [--corpus <glob>] [--divergences <file>]";
+const USAGE: &str = "usage: cargo xtask compare <js-dir> <other-dir> [--stages a,b] [--corpus <glob>] [--divergences <file>]\n       cargo xtask roundtrip <dump-dir>\n       cargo xtask wasm [--out <file> | --check]";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -13,6 +16,20 @@ fn main() -> ExitCode {
             Err(message) => {
                 eprintln!("xtask: {message}");
                 ExitCode::from(2)
+            }
+        },
+        Some("roundtrip") => match roundtrip_command(&args[1..]) {
+            Ok(code) => ExitCode::from(code),
+            Err(message) => {
+                eprintln!("xtask: {message}");
+                ExitCode::from(2)
+            }
+        },
+        Some("wasm") => match wasm::run(&args[1..]) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(message) => {
+                eprintln!("xtask: {message}");
+                ExitCode::from(1)
             }
         },
         Some(command) => {
@@ -59,6 +76,18 @@ fn compare(args: &[String]) -> Result<u8, String> {
     opts.divergences =
         std::fs::read_to_string(&file).map_err(|e| format!("{}: {e}", file.display()))?;
     let report = oracle::compare(js, other, &opts)?;
+    for line in &report.lines {
+        println!("{line}");
+    }
+    println!("{}", report.summary());
+    Ok(report.exit_code())
+}
+
+fn roundtrip_command(args: &[String]) -> Result<u8, String> {
+    let [dir] = args else {
+        return Err(USAGE.to_string());
+    };
+    let report = roundtrip::run(Path::new(dir))?;
     for line in &report.lines {
         println!("{line}");
     }

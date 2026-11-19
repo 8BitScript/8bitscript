@@ -1,0 +1,223 @@
+{
+  "body": [
+    {
+      "length": 38,
+      "source": {
+        "length": 11,
+        "start": 26,
+        "type": "StringLiteral",
+        "value": "./geo.8bs"
+      },
+      "specifiers": [
+        {
+          "length": 1,
+          "name": "a",
+          "start": 9,
+          "type": "Identifier"
+        },
+        {
+          "imported": "b",
+          "length": 1,
+          "name": "c",
+          "start": 12,
+          "type": "Identifier"
+        }
+      ],
+      "start": 0,
+      "type": "ImportDeclaration"
+    },
+    {
+      "length": 11,
+      "source": {
+        "length": 3,
+        "start": 46,
+        "type": "StringLiteral",
+        "value": "x"
+      },
+      "specifiers": [],
+      "start": 39,
+      "type": "ImportDeclaration"
+    },
+    {
+      "decorators": [
+        {
+          "args": [
+            {
+              "length": 5,
+              "radix": 16,
+              "raw": "$D020",
+              "start": 60,
+              "type": "IntegerLiteral",
+              "value": 53280
+            }
+          ],
+          "length": 15,
+          "name": "address",
+          "start": 51,
+          "type": "Decorator"
+        }
+      ],
+      "exported": false,
+      "initializer": null,
+      "kind": "let",
+      "length": 25,
+      "name": {
+        "length": 6,
+        "name": "border",
+        "start": 71,
+        "type": "Identifier"
+      },
+      "start": 67,
+      "type": "VariableDeclaration",
+      "typeAnnotation": {
+        "length": 12,
+        "name": "volatile",
+        "start": 79,
+        "type": "TypeReference",
+        "typeArguments": [
+          {
+            "length": 2,
+            "name": "u8",
+            "start": 88,
+            "type": "TypeReference",
+            "typeArguments": []
+          }
+        ]
+      }
+    },
+    {
+      "body": {
+        "body": [
+          {
+            "expression": {
+              "left": {
+                "index": {
+                  "length": 1,
+                  "name": "i",
+                  "start": 140,
+                  "type": "Identifier"
+                },
+                "length": 4,
+                "object": {
+                  "length": 1,
+                  "name": "a",
+                  "start": 138,
+                  "type": "Identifier"
+                },
+                "start": 138,
+                "type": "IndexExpression"
+              },
+              "length": 9,
+              "operator": "=",
+              "right": {
+                "argument": {
+                  "length": 1,
+                  "name": "i",
+                  "start": 146,
+                  "type": "Identifier"
+                },
+                "length": 2,
+                "operator": "-",
+                "start": 145,
+                "type": "UnaryExpression"
+              },
+              "start": 138,
+              "type": "AssignmentExpression"
+            },
+            "length": 10,
+            "start": 138,
+            "type": "ExpressionStatement"
+          }
+        ],
+        "length": 14,
+        "start": 136,
+        "type": "BlockStatement"
+      },
+      "decorators": [
+        {
+          "args": [
+            {
+              "length": 1,
+              "radix": 10,
+              "raw": "4",
+              "start": 101,
+              "type": "IntegerLiteral",
+              "value": 4
+            }
+          ],
+          "length": 10,
+          "name": "unroll",
+          "start": 93,
+          "type": "Decorator"
+        }
+      ],
+      "init": {
+        "exported": false,
+        "initializer": {
+          "length": 1,
+          "radix": 10,
+          "raw": "0",
+          "start": 121,
+          "type": "IntegerLiteral",
+          "value": 0
+        },
+        "kind": "let",
+        "length": 13,
+        "name": {
+          "length": 1,
+          "name": "i",
+          "start": 113,
+          "type": "Identifier"
+        },
+        "start": 109,
+        "type": "VariableDeclaration",
+        "typeAnnotation": {
+          "length": 2,
+          "name": "u8",
+          "start": 116,
+          "type": "TypeReference",
+          "typeArguments": []
+        }
+      },
+      "length": 46,
+      "start": 104,
+      "test": {
+        "left": {
+          "length": 1,
+          "name": "i",
+          "start": 124,
+          "type": "Identifier"
+        },
+        "length": 5,
+        "operator": "<",
+        "right": {
+          "length": 1,
+          "radix": 10,
+          "raw": "8",
+          "start": 128,
+          "type": "IntegerLiteral",
+          "value": 8
+        },
+        "start": 124,
+        "type": "BinaryExpression"
+      },
+      "type": "ForStatement",
+      "update": {
+        "argument": {
+          "length": 1,
+          "name": "i",
+          "start": 131,
+          "type": "Identifier"
+        },
+        "length": 3,
+        "operator": "++",
+        "prefix": false,
+        "start": 131,
+        "type": "UpdateExpression"
+      }
+    }
+  ],
+  "length": 151,
+  "start": 0,
+  "type": "Program"
+}

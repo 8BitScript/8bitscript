@@ -1,0 +1,298 @@
+{
+  "body": [
+    {
+      "length": 25,
+      "source": {
+        "length": 12,
+        "start": 4,
+        "type": "StringLiteral",
+        "value": "./player"
+      },
+      "specifiers": [
+        {
+          "length": 6,
+          "name": "player",
+          "start": 18,
+          "type": "Identifier"
+        }
+      ],
+      "start": 0,
+      "type": "ImportDeclaration",
+      "usePath": true
+    },
+    {
+      "length": 31,
+      "source": {
+        "length": 11,
+        "start": 30,
+        "type": "StringLiteral",
+        "value": "./theme"
+      },
+      "specifiers": [
+        {
+          "length": 4,
+          "name": "blip",
+          "start": 44,
+          "type": "Identifier"
+        },
+        {
+          "length": 5,
+          "name": "theme",
+          "start": 50,
+          "type": "Identifier"
+        }
+      ],
+      "start": 26,
+      "type": "ImportDeclaration",
+      "usePath": true
+    },
+    {
+      "length": 36,
+      "source": {
+        "length": 21,
+        "start": 62,
+        "type": "StringLiteral",
+        "value": "@8bitscript/graphics"
+      },
+      "specifiers": [
+        {
+          "length": 8,
+          "name": "graphics",
+          "start": 85,
+          "type": "Identifier"
+        }
+      ],
+      "start": 58,
+      "type": "ImportDeclaration",
+      "usePath": true
+    },
+    {
+      "length": 30,
+      "source": {
+        "length": 18,
+        "start": 99,
+        "type": "StringLiteral",
+        "value": "@8bitscript/audio"
+      },
+      "specifiers": [
+        {
+          "length": 5,
+          "name": "audio",
+          "start": 119,
+          "type": "Identifier"
+        }
+      ],
+      "start": 95,
+      "type": "ImportDeclaration",
+      "usePath": true
+    },
+    {
+      "length": 28,
+      "source": {
+        "length": 17,
+        "start": 130,
+        "type": "StringLiteral",
+        "value": "@8bitscript/text"
+      },
+      "specifiers": [
+        {
+          "length": 4,
+          "name": "text",
+          "start": 149,
+          "type": "Identifier"
+        }
+      ],
+      "start": 126,
+      "type": "ImportDeclaration",
+      "usePath": true
+    },
+    {
+      "allowsChildren": false,
+      "body": {
+        "body": [
+          {
+            "expression": {
+              "args": [
+                {
+                  "length": 1,
+                  "radix": 10,
+                  "raw": "0",
+                  "start": 195,
+                  "type": "IntegerLiteral",
+                  "value": 0
+                },
+                {
+                  "length": 6,
+                  "start": 198,
+                  "type": "StringLiteral",
+                  "value": "WALK"
+                }
+              ],
+              "callee": {
+                "length": 11,
+                "object": {
+                  "length": 4,
+                  "name": "text",
+                  "start": 183,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 5,
+                  "name": "print",
+                  "start": 189,
+                  "type": "Identifier"
+                },
+                "start": 183,
+                "type": "MemberExpression"
+              },
+              "length": 22,
+              "start": 183,
+              "type": "CallExpression"
+            },
+            "length": 23,
+            "start": 183,
+            "type": "ExpressionStatement"
+          },
+          {
+            "expression": {
+              "args": [
+                {
+                  "length": 6,
+                  "name": "player",
+                  "start": 227,
+                  "type": "Identifier"
+                },
+                {
+                  "length": 2,
+                  "radix": 10,
+                  "raw": "40",
+                  "start": 235,
+                  "type": "IntegerLiteral",
+                  "value": 40
+                },
+                {
+                  "length": 2,
+                  "radix": 10,
+                  "raw": "40",
+                  "start": 239,
+                  "type": "IntegerLiteral",
+                  "value": 40
+                }
+              ],
+              "callee": {
+                "length": 15,
+                "object": {
+                  "length": 8,
+                  "name": "graphics",
+                  "start": 211,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 5,
+                  "name": "place",
+                  "start": 221,
+                  "type": "Identifier"
+                },
+                "start": 211,
+                "type": "MemberExpression"
+              },
+              "length": 31,
+              "start": 211,
+              "type": "CallExpression"
+            },
+            "length": 32,
+            "start": 211,
+            "type": "ExpressionStatement"
+          },
+          {
+            "expression": {
+              "args": [
+                {
+                  "length": 4,
+                  "name": "blip",
+                  "start": 260,
+                  "type": "Identifier"
+                }
+              ],
+              "callee": {
+                "length": 11,
+                "object": {
+                  "length": 5,
+                  "name": "audio",
+                  "start": 248,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 4,
+                  "name": "play",
+                  "start": 255,
+                  "type": "Identifier"
+                },
+                "start": 248,
+                "type": "MemberExpression"
+              },
+              "length": 17,
+              "start": 248,
+              "type": "CallExpression"
+            },
+            "length": 18,
+            "start": 248,
+            "type": "ExpressionStatement"
+          },
+          {
+            "expression": {
+              "args": [
+                {
+                  "length": 5,
+                  "name": "theme",
+                  "start": 284,
+                  "type": "Identifier"
+                }
+              ],
+              "callee": {
+                "length": 12,
+                "object": {
+                  "length": 5,
+                  "name": "audio",
+                  "start": 271,
+                  "type": "Identifier"
+                },
+                "property": {
+                  "length": 5,
+                  "name": "music",
+                  "start": 278,
+                  "type": "Identifier"
+                },
+                "start": 271,
+                "type": "MemberExpression"
+              },
+              "length": 19,
+              "start": 271,
+              "type": "CallExpression"
+            },
+            "length": 20,
+            "start": 271,
+            "type": "ExpressionStatement"
+          }
+        ],
+        "length": 116,
+        "start": 177,
+        "type": "BlockStatement"
+      },
+      "exported": true,
+      "length": 137,
+      "name": {
+        "length": 4,
+        "name": "Walk",
+        "start": 170,
+        "type": "Identifier"
+      },
+      "params": [],
+      "start": 156,
+      "type": "ComponentDeclaration"
+    }
+  ],
+  "length": 294,
+  "start": 0,
+  "type": "Program"
+}

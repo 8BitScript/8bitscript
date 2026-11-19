@@ -118,9 +118,14 @@ pub fn compare(
             report.accepted += 1;
         }
     }
-    if opts.stages.is_none() && opts.corpus.is_none() {
+    if opts.corpus.is_none() {
         for (d, used) in divergences.iter().zip(used) {
-            if !used {
+            // A subset run only judges the entries of the stages it compares.
+            let in_subset = opts
+                .stages
+                .as_ref()
+                .is_none_or(|s| s.iter().any(|st| glob_match(&d.stage, st)));
+            if !used && in_subset {
                 report.stale += 1;
                 report.lines.push(format!("STALE {} matches nothing", d.id));
             }

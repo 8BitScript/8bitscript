@@ -1,0 +1,9 @@
+// rows: import relative, parent dir, package, config alias, bare package, one name, string specifier, asset
+import { a, b as c } from "./geo.8bs";
+import { d } from "../src/index.8bs";
+import { sprites as hardware } from "@8bitscript/c64/sprites";
+import { e, f } from "@lib/game/rules.8bs";
+import { g } from "foo";
+import { h } from "./number-values.8bs";
+import { mark } from "./mark.8bg";
+import { one } from "./geo.8bs";

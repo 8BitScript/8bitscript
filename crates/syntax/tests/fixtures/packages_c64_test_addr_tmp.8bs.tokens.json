@@ -1,0 +1,225 @@
+[
+  {
+    "kind": "decorator",
+    "length": 8,
+    "start": 0,
+    "text": "@address"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 8,
+    "text": "("
+  },
+  {
+    "kind": "number",
+    "length": 6,
+    "radix": 16,
+    "start": 9,
+    "text": "0x06C0",
+    "value": 1728
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 15,
+    "text": ")"
+  },
+  {
+    "kind": "keyword",
+    "length": 3,
+    "start": 17,
+    "text": "let"
+  },
+  {
+    "kind": "identifier",
+    "length": 6,
+    "start": 21,
+    "text": "shared"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 27,
+    "text": ":"
+  },
+  {
+    "kind": "type",
+    "length": 8,
+    "start": 29,
+    "text": "utinyint"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 38,
+    "text": "="
+  },
+  {
+    "kind": "number",
+    "length": 1,
+    "radix": 10,
+    "start": 40,
+    "text": "2",
+    "value": 2
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 41,
+    "text": ";"
+  },
+  {
+    "kind": "keyword",
+    "length": 6,
+    "start": 43,
+    "text": "export"
+  },
+  {
+    "kind": "keyword",
+    "length": 8,
+    "start": 50,
+    "text": "function"
+  },
+  {
+    "kind": "identifier",
+    "length": 4,
+    "start": 59,
+    "text": "main"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 63,
+    "text": "("
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 64,
+    "text": ")"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 65,
+    "text": ":"
+  },
+  {
+    "kind": "type",
+    "length": 4,
+    "start": 67,
+    "text": "void"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 72,
+    "text": "{"
+  },
+  {
+    "kind": "identifier",
+    "length": 6,
+    "start": 78,
+    "text": "shared"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 85,
+    "text": "="
+  },
+  {
+    "kind": "identifier",
+    "length": 6,
+    "start": 87,
+    "text": "shared"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 94,
+    "text": "+"
+  },
+  {
+    "kind": "number",
+    "length": 1,
+    "radix": 10,
+    "start": 96,
+    "text": "1",
+    "value": 1
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 97,
+    "text": ";"
+  },
+  {
+    "kind": "keyword",
+    "length": 5,
+    "start": 103,
+    "text": "while"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 109,
+    "text": "("
+  },
+  {
+    "kind": "keyword",
+    "length": 4,
+    "start": 110,
+    "text": "true"
+  },
+  {
+    "controlHeader": true,
+    "kind": "punctuation",
+    "length": 1,
+    "start": 114,
+    "text": ")"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 116,
+    "text": "{"
+  },
+  {
+    "kind": "identifier",
+    "length": 9,
+    "start": 126,
+    "text": "waitFrame"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 135,
+    "text": "("
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 136,
+    "text": ")"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 137,
+    "text": ";"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 143,
+    "text": "}"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 145,
+    "text": "}"
+  }
+]

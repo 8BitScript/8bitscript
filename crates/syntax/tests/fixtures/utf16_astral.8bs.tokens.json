@@ -1,0 +1,114 @@
+[
+  {
+    "kind": "comment",
+    "length": 37,
+    "start": 0,
+    "text": "// 😀 café — spans count UTF-16 units"
+  },
+  {
+    "kind": "keyword",
+    "length": 3,
+    "start": 38,
+    "text": "let"
+  },
+  {
+    "kind": "identifier",
+    "length": 1,
+    "start": 42,
+    "text": "s"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 43,
+    "text": ":"
+  },
+  {
+    "kind": "type",
+    "length": 6,
+    "start": 45,
+    "text": "string"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 51,
+    "text": "<"
+  },
+  {
+    "kind": "number",
+    "length": 1,
+    "radix": 10,
+    "start": 52,
+    "text": "8",
+    "value": 8
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 53,
+    "text": ">"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 55,
+    "text": "="
+  },
+  {
+    "kind": "string",
+    "length": 10,
+    "start": 57,
+    "text": "\"héllo 😀\""
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 67,
+    "text": ";"
+  },
+  {
+    "kind": "keyword",
+    "length": 3,
+    "start": 69,
+    "text": "let"
+  },
+  {
+    "kind": "identifier",
+    "length": 1,
+    "start": 73,
+    "text": "n"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 74,
+    "text": ":"
+  },
+  {
+    "kind": "type",
+    "length": 8,
+    "start": 76,
+    "text": "utinyint"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 85,
+    "text": "="
+  },
+  {
+    "kind": "number",
+    "length": 1,
+    "radix": 10,
+    "start": 87,
+    "text": "7",
+    "value": 7
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 88,
+    "text": ";"
+  }
+]
