@@ -19,6 +19,7 @@ run(process.execPath, [
   'site/test/layout.test.mjs',
   'scripts/require-changeset.test.mjs',
   'scripts/oracle/corpus.test.mjs',
+  'scripts/oracle/mos-tap/tap.test.mjs',
   'scripts/oracle/frontend.test.mjs',
   // Reads the checked-in scripts/vice/*.json and never launches an
   // emulator, so it runs on CI, which has no VICE.

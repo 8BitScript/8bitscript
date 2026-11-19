@@ -6,7 +6,7 @@ mod wasm;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-const USAGE: &str = "usage: cargo xtask compare <js-dir> <other-dir> [--stages a,b] [--corpus <glob>] [--divergences <file>]\n       cargo xtask roundtrip <dump-dir>\n       cargo xtask wasm [--out <file> | --check]";
+const USAGE: &str = "usage: cargo xtask compare <js-dir> <other-dir> [--stages a,b] [--corpus <glob>] [--divergences <file>]\n       cargo xtask roundtrip <dump-dir>\n       cargo xtask wasm [--out <file> | --check]\n       cargo xtask tap <dir> [--fn <name>]";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -19,6 +19,13 @@ fn main() -> ExitCode {
             }
         },
         Some("roundtrip") => match roundtrip_command(&args[1..]) {
+            Ok(code) => ExitCode::from(code),
+            Err(message) => {
+                eprintln!("xtask: {message}");
+                ExitCode::from(2)
+            }
+        },
+        Some("tap") => match xtask::tap::command(&args[1..]) {
             Ok(code) => ExitCode::from(code),
             Err(message) => {
                 eprintln!("xtask: {message}");
