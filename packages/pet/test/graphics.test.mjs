@@ -27,7 +27,7 @@ function writeProgram(dir, layout) {
     writeFileSync(join(dir, `${name}.png`), sheet(frames));
     writeFileSync(join(dir, `${name}.8bg`), eightBg(name, frames.length > 1));
     imports.push(`use self::${name}::${name};`);
-    places.push(`    graphics.place(${name}, sprites.ORIGIN_X + ${x}, sprites.ORIGIN_Y + ${y});`);
+    places.push(`    graphics::place(${name}, sprites::ORIGIN_X + ${x}, sprites::ORIGIN_Y + ${y});`);
   }
   const text = `use @8bitscript::screen::screen;
 use @8bitscript::graphics::graphics;

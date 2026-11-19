@@ -88,7 +88,7 @@ use @8bitscript::graphics::graphics;
 
 /** A program that acts at its n-th frame: `events` is [[n, "statements"], ...]. */
 function timeline(imports, setup, events) {
-  const acts = events.map(([n, code]) => `        if (n == ${n}) {\n            ${code}\n        }`).join('\n');
+  const acts = events.map(([n, code]) => `        if n == ${n} {\n            ${code}\n        }`).join('\n');
   return `${HEAD}${imports};
 pub fn main() {
     let mut n: usmallint = 0;
@@ -129,9 +129,9 @@ const expected = (...cells) => cells.flat().sort();
 
 // --- hide, and place to show again -----------------------------------------------
 
-const HIDE = timeline(`use self::g::big;`, 'graphics.place(big, 8, 8);', [
-  [40, 'graphics.hide(big);'],
-  [100, 'graphics.place(big, 88, 120);'],
+const HIDE = timeline(`use self::g::big;`, 'graphics::place(big, 8, 8);', [
+  [40, 'graphics::hide(big);'],
+  [100, 'graphics::place(big, 88, 120);'],
 ]);
 
 for (const machine of Object.keys(MACHINES)) {
@@ -156,9 +156,9 @@ for (const machine of Object.keys(MACHINES)) {
 
 // `spin` is paused and set to a frame past its last (so: its last); `spin2`
 // plays on. At 120 `spin` plays again.
-const FRAMES = timeline(`use self::g::{spin, spin2};`, 'graphics.place(spin, 80, 40);\n    graphics.place(spin2, 80, 88);', [
-  [40, 'graphics.animate(spin, false);\n            graphics.setFrame(spin, 9);'],
-  [120, 'graphics.animate(spin, true);'],
+const FRAMES = timeline(`use self::g::{spin, spin2};`, 'graphics::place(spin, 80, 40);\n    graphics::place(spin2, 80, 88);', [
+  [40, 'graphics::animate(spin, false);\n            graphics::setFrame(spin, 9);'],
+  [120, 'graphics::animate(spin, true);'],
 ]);
 
 /** Which of SPIN's two frames shows at (col, row): 0, 1, or -1 for neither. */
@@ -197,20 +197,20 @@ test('under VICE, a paused object holds the frame setFrame gave it (a frame past
 // ink with; `big` is tinted, then given colors 9 (which is white wrapped, not
 // multicolor), then red again and, 40 frames later, moved with a letter
 // stored where it was.
-const COLOR = timeline(`use self::g::{big, other};`, `text.setColor(2);
-    text.print(440, "X");
-    text.setColor(1);
-    text.print(441, "X");
-    text.setColor(5);
-    text.print(442, "X");
-    graphics.place(big, 8, 8);
-    graphics.place(other, 88, 8);`, [
-  [40, 'graphics.color(big, 2);'],
-  [100, 'graphics.color(big, 9);\n            graphics.color(other, 5);'],
-  [160, 'graphics.color(big, 2);'],
+const COLOR = timeline(`use self::g::{big, other};`, `text::setColor(2);
+    text::print(440, "X");
+    text::setColor(1);
+    text::print(441, "X");
+    text::setColor(5);
+    text::print(442, "X");
+    graphics::place(big, 8, 8);
+    graphics::place(other, 88, 8);`, [
+  [40, 'graphics::color(big, 2);'],
+  [100, 'graphics::color(big, 9);\n            graphics::color(other, 5);'],
+  [160, 'graphics::color(big, 2);'],
   // Moved only now, once it has been drawn red: a place() flushes at once, so
   // doing both in one frame would never draw the red in the old cells.
-  [200, 'graphics.place(big, 8, 120);\n            text.putChar(23, 88);'],
+  [200, 'graphics::place(big, 8, 120);\n            text::putChar(23, 88);'],
 ]);
 
 for (const machine of Object.keys(MACHINES)) {
@@ -254,11 +254,11 @@ for (const machine of Object.keys(MACHINES)) {
 // Two eight-frame objects fill the pool exactly (32 + 32); the third does
 // not fit and is not drawn. Every call on it does nothing, and a line of text
 // beside them is not touched.
-const POOLED = timeline(`use self::p::{pa, pb, pc};`, `text.print(220, "CANARY");
-    graphics.place(pa, 8, 8);
-    graphics.place(pb, 64, 8);
-    graphics.place(pc, 120, 8);`, [
-  [30, 'graphics.setFrame(pc, 3);\n            graphics.color(pc, 2);\n            graphics.animate(pc, false);\n            graphics.hide(pc);\n            graphics.place(pc, 120, 8);'],
+const POOLED = timeline(`use self::p::{pa, pb, pc};`, `text::print(220, "CANARY");
+    graphics::place(pa, 8, 8);
+    graphics::place(pb, 64, 8);
+    graphics::place(pc, 120, 8);`, [
+  [30, 'graphics::setFrame(pc, 3);\n            graphics::color(pc, 2);\n            graphics::animate(pc, false);\n            graphics::hide(pc);\n            graphics::place(pc, 120, 8);'],
 ]);
 
 for (const machine of Object.keys(MACHINES)) {

@@ -153,8 +153,8 @@ test('joystick highlights with reverse video, not colour alone', () => {
 // here, next to the example that assumes the split.
 test('fancy keeps its raster effect behind #fact(video.raster), and its wobble behind raster.FINE_SCROLL', () => {
   const main = readFileSync(join(ROOT, 'fancy', 'src', 'main.8bs'), 'utf8');
-  assert.match(main, /#fact\(video\.raster\)/, 'the splits are guarded by the capability fact');
-  assert.match(main, /raster\.FINE_SCROLL/, 'the wobble is guarded by the fine-scroll constant');
+  assert.match(main, /#fact\(video::raster\)/, 'the splits are guarded by the capability fact');
+  assert.match(main, /raster::FINE_SCROLL/, 'the wobble is guarded by the fine-scroll constant');
   for (const target of ['c64', 'web', 'vic20', 'cx16']) {
     assert.equal(stockFacts(target)['video.raster'], true, `${target} answers the raster capability`);
   }
