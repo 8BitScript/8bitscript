@@ -1,0 +1,4062 @@
+{
+ "cpu": [
+  [
+   "vic20",
+   {
+    "core": "6502",
+    "decimalMode": true,
+    "jmpIndirectPageBug": true,
+    "extraOpcodes": [],
+    "undocumentedOpcodes": false
+   }
+  ],
+  [
+   "pet",
+   {
+    "core": "6502",
+    "decimalMode": true,
+    "jmpIndirectPageBug": true,
+    "extraOpcodes": [],
+    "undocumentedOpcodes": false
+   }
+  ],
+  [
+   "c64",
+   {
+    "core": "6510",
+    "decimalMode": true,
+    "jmpIndirectPageBug": true,
+    "extraOpcodes": [],
+    "undocumentedOpcodes": false
+   }
+  ],
+  [
+   "c128",
+   {
+    "core": "8502",
+    "decimalMode": true,
+    "jmpIndirectPageBug": true,
+    "extraOpcodes": [],
+    "undocumentedOpcodes": false
+   }
+  ],
+  [
+   "cx16",
+   {
+    "core": "65C02",
+    "decimalMode": true,
+    "jmpIndirectPageBug": false,
+    "extraOpcodes": [
+     "STZ",
+     "BRA",
+     "PHX",
+     "PHY",
+     "PLX",
+     "PLY",
+     "TRB",
+     "TSB"
+    ],
+    "undocumentedOpcodes": false
+   }
+  ],
+  [
+   "mega65",
+   {
+    "core": "45GS10",
+    "decimalMode": true,
+    "jmpIndirectPageBug": false,
+    "extraOpcodes": [
+     "STZ",
+     "BRA",
+     "PHX",
+     "PHY",
+     "PLX",
+     "PLY",
+     "TRB",
+     "TSB",
+     "INW",
+     "DEW"
+    ],
+    "undocumentedOpcodes": false
+   }
+  ],
+  [
+   "nes",
+   {
+    "core": "2A03",
+    "decimalMode": false,
+    "jmpIndirectPageBug": true,
+    "extraOpcodes": [],
+    "undocumentedOpcodes": false
+   }
+  ],
+  [
+   "atari8",
+   {
+    "core": "6502",
+    "decimalMode": true,
+    "jmpIndirectPageBug": true,
+    "extraOpcodes": [],
+    "undocumentedOpcodes": true
+   }
+  ],
+  [
+   "plus4",
+   {
+    "core": "6502",
+    "decimalMode": true,
+    "jmpIndirectPageBug": true,
+    "extraOpcodes": [],
+    "undocumentedOpcodes": false
+   }
+  ],
+  [
+   "oric",
+   {
+    "core": "6502",
+    "decimalMode": true,
+    "jmpIndirectPageBug": true,
+    "extraOpcodes": [],
+    "undocumentedOpcodes": false
+   }
+  ],
+  [
+   "apple2",
+   {
+    "core": "6502",
+    "decimalMode": true,
+    "jmpIndirectPageBug": true,
+    "extraOpcodes": [],
+    "undocumentedOpcodes": false
+   }
+  ],
+  [
+   "bbc",
+   {
+    "core": "65C02",
+    "decimalMode": true,
+    "jmpIndirectPageBug": false,
+    "extraOpcodes": [
+     "STZ",
+     "BRA",
+     "PHX",
+     "PHY",
+     "PLX",
+     "PLY",
+     "TRB",
+     "TSB"
+    ],
+    "undocumentedOpcodes": false
+   }
+  ],
+  [
+   "atari5200",
+   {
+    "core": "6502",
+    "decimalMode": true,
+    "jmpIndirectPageBug": true,
+    "extraOpcodes": [],
+    "undocumentedOpcodes": true
+   }
+  ],
+  [
+   "lynx",
+   {
+    "core": "65C02",
+    "decimalMode": true,
+    "jmpIndirectPageBug": false,
+    "extraOpcodes": [
+     "STZ",
+     "BRA",
+     "PHX",
+     "PHY",
+     "PLX",
+     "PLY",
+     "TRB",
+     "TSB"
+    ],
+    "undocumentedOpcodes": false
+   }
+  ],
+  [
+   "pce",
+   {
+    "core": "65C02",
+    "decimalMode": true,
+    "jmpIndirectPageBug": false,
+    "extraOpcodes": [
+     "STZ",
+     "BRA",
+     "PHX",
+     "PHY",
+     "PLX",
+     "PLY",
+     "TRB",
+     "TSB",
+     "ST0",
+     "ST1",
+     "ST2"
+    ],
+    "undocumentedOpcodes": false
+   }
+  ],
+  [
+   "supervision",
+   {
+    "core": "65C02",
+    "decimalMode": true,
+    "jmpIndirectPageBug": false,
+    "extraOpcodes": [
+     "STZ",
+     "BRA",
+     "PHX",
+     "PHY",
+     "PLX",
+     "PLY",
+     "TRB",
+     "TSB"
+    ],
+    "undocumentedOpcodes": false
+   }
+  ],
+  [
+   "atari2600",
+   {
+    "core": "6502",
+    "decimalMode": true,
+    "jmpIndirectPageBug": true,
+    "extraOpcodes": [],
+    "undocumentedOpcodes": false
+   }
+  ],
+  [
+   "atari7800",
+   {
+    "core": "6502",
+    "decimalMode": true,
+    "jmpIndirectPageBug": true,
+    "extraOpcodes": [],
+    "undocumentedOpcodes": false
+   }
+  ]
+ ],
+ "zpBudgets": [
+  [
+   "pet",
+   {
+    "polite": {
+     "zpOrigin": 2,
+     "zpCeiling": 256
+    },
+    "owned": {
+     "zpOrigin": 2,
+     "zpCeiling": 256
+    }
+   }
+  ],
+  [
+   "c64",
+   {
+    "polite": {
+     "zpOrigin": 2,
+     "zpCeiling": 253
+    },
+    "owned": {
+     "zpOrigin": 2,
+     "zpCeiling": 253
+    }
+   }
+  ],
+  [
+   "vic20",
+   {
+    "polite": {
+     "zpOrigin": 2,
+     "zpCeiling": 256
+    },
+    "owned": {
+     "zpOrigin": 2,
+     "zpCeiling": 256
+    }
+   }
+  ],
+  [
+   "c128",
+   {
+    "polite": {
+     "zpOrigin": 10,
+     "zpCeiling": 256
+    },
+    "owned": {
+     "zpOrigin": 10,
+     "zpCeiling": 256
+    }
+   }
+  ],
+  [
+   "cx16",
+   {
+    "polite": {
+     "zpOrigin": 34,
+     "zpCeiling": 128
+    },
+    "owned": {
+     "zpOrigin": 34,
+     "zpCeiling": 256,
+     "holes": [
+      {
+       "start": 128,
+       "end": 169
+      }
+     ]
+    }
+   }
+  ],
+  [
+   "mega65",
+   {
+    "polite": {
+     "zpOrigin": 2,
+     "zpCeiling": 256
+    },
+    "owned": {
+     "zpOrigin": 2,
+     "zpCeiling": 256
+    }
+   }
+  ],
+  [
+   "atari8",
+   {
+    "polite": {
+     "zpOrigin": 128,
+     "zpCeiling": 256
+    },
+    "owned": {
+     "zpOrigin": 128,
+     "zpCeiling": 256
+    }
+   }
+  ],
+  [
+   "nes",
+   {
+    "polite": {
+     "zpOrigin": 0,
+     "zpCeiling": 256
+    },
+    "owned": {
+     "zpOrigin": 0,
+     "zpCeiling": 256
+    }
+   }
+  ],
+  [
+   "plus4",
+   {
+    "polite": {
+     "zpOrigin": 2,
+     "zpCeiling": 256
+    },
+    "owned": {
+     "zpOrigin": 2,
+     "zpCeiling": 256
+    }
+   }
+  ],
+  [
+   "oric",
+   {
+    "polite": {
+     "zpOrigin": 2,
+     "zpCeiling": 256
+    },
+    "owned": {
+     "zpOrigin": 2,
+     "zpCeiling": 256
+    }
+   }
+  ],
+  [
+   "apple2",
+   {
+    "polite": {
+     "zpOrigin": 2,
+     "zpCeiling": 256
+    },
+    "owned": {
+     "zpOrigin": 2,
+     "zpCeiling": 256
+    }
+   }
+  ],
+  [
+   "bbc",
+   {
+    "polite": {
+     "zpOrigin": 2,
+     "zpCeiling": 256
+    },
+    "owned": {
+     "zpOrigin": 2,
+     "zpCeiling": 256
+    }
+   }
+  ],
+  [
+   "atari5200",
+   {
+    "polite": {
+     "zpOrigin": 128,
+     "zpCeiling": 256
+    },
+    "owned": {
+     "zpOrigin": 128,
+     "zpCeiling": 256
+    }
+   }
+  ],
+  [
+   "lynx",
+   {
+    "polite": {
+     "zpOrigin": 0,
+     "zpCeiling": 256
+    },
+    "owned": {
+     "zpOrigin": 0,
+     "zpCeiling": 256
+    }
+   }
+  ],
+  [
+   "pce",
+   {
+    "polite": {
+     "zpOrigin": 0,
+     "zpCeiling": 256
+    },
+    "owned": {
+     "zpOrigin": 0,
+     "zpCeiling": 256
+    }
+   }
+  ],
+  [
+   "supervision",
+   {
+    "polite": {
+     "zpOrigin": 0,
+     "zpCeiling": 256
+    },
+    "owned": {
+     "zpOrigin": 0,
+     "zpCeiling": 256
+    }
+   }
+  ],
+  [
+   "atari2600",
+   {
+    "polite": {
+     "zpOrigin": 128,
+     "zpCeiling": 256
+    },
+    "owned": {
+     "zpOrigin": 128,
+     "zpCeiling": 256
+    }
+   }
+  ],
+  [
+   "atari7800",
+   {
+    "polite": {
+     "zpOrigin": 0,
+     "zpCeiling": 256
+    },
+    "owned": {
+     "zpOrigin": 0,
+     "zpCeiling": 256
+    }
+   }
+  ]
+ ],
+ "missingBudget": [],
+ "borrows": [
+  "pet",
+  "vic20"
+ ],
+ "raster": [
+  "c64",
+  "vic20",
+  "c128",
+  "cx16",
+  "mega65",
+  "nes",
+  "atari8",
+  "plus4",
+  "oric",
+  "apple2",
+  "bbc",
+  "atari5200",
+  "lynx",
+  "pce",
+  "supervision",
+  "atari2600",
+  "atari7800"
+ ],
+ "chrget": [
+  {
+   "facts": {},
+   "budget": {
+    "zpOrigin": 2,
+    "zpCeiling": 256
+   },
+   "result": []
+  },
+  {
+   "facts": {
+    "memory.chrget": 112
+   },
+   "budget": {
+    "zpOrigin": 2,
+    "zpCeiling": 256
+   },
+   "result": [
+    {
+     "start": 112,
+     "end": 136
+    }
+   ]
+  },
+  {
+   "facts": {
+    "memory.chrget": 194
+   },
+   "budget": {
+    "zpOrigin": 2,
+    "zpCeiling": 256
+   },
+   "result": [
+    {
+     "start": 194,
+     "end": 218
+    }
+   ]
+  },
+  {
+   "facts": {
+    "memory.chrget": 240
+   },
+   "budget": {
+    "zpOrigin": 2,
+    "zpCeiling": 256
+   },
+   "result": [
+    {
+     "start": 240,
+     "end": 264
+    }
+   ]
+  },
+  {
+   "facts": {
+    "memory.chrget": 256
+   },
+   "budget": {
+    "zpOrigin": 2,
+    "zpCeiling": 256
+   },
+   "result": []
+  },
+  {
+   "facts": {
+    "memory.chrget": 232
+   },
+   "budget": {
+    "zpOrigin": 2,
+    "zpCeiling": 256
+   },
+   "result": [
+    {
+     "start": 232,
+     "end": 256
+    }
+   ]
+  },
+  {
+   "facts": {
+    "memory.chrget": -22
+   },
+   "budget": {
+    "zpOrigin": 2,
+    "zpCeiling": 256
+   },
+   "result": []
+  },
+  {
+   "facts": {
+    "memory.chrget": -21
+   },
+   "budget": {
+    "zpOrigin": 2,
+    "zpCeiling": 256
+   },
+   "result": [
+    {
+     "start": -21,
+     "end": 3
+    }
+   ]
+  },
+  {
+   "facts": {
+    "memory.chrget": "0x70"
+   },
+   "budget": {
+    "zpOrigin": 2,
+    "zpCeiling": 256
+   },
+   "result": []
+  },
+  {
+   "facts": {
+    "memory.chrget": null
+   },
+   "budget": {
+    "zpOrigin": 2,
+    "zpCeiling": 256
+   },
+   "result": []
+  },
+  {
+   "facts": {
+    "memory.chrget": 112
+   },
+   "budget": {
+    "zpOrigin": 128,
+    "zpCeiling": 253
+   },
+   "result": [
+    {
+     "start": 112,
+     "end": 136
+    }
+   ]
+  },
+  {
+   "facts": {
+    "memory.chrget": 112,
+    "other": 1
+   },
+   "budget": {
+    "zpOrigin": 34,
+    "zpCeiling": 128
+   },
+   "result": [
+    {
+     "start": 112,
+     "end": 136
+    }
+   ]
+  }
+ ],
+ "outputExtension": [
+  {
+   "machine": "vic20",
+   "hardware": null,
+   "result": "prg"
+  },
+  {
+   "machine": "vic20",
+   "hardware": {
+    "build": {}
+   },
+   "result": "prg"
+  },
+  {
+   "machine": "vic20",
+   "hardware": {
+    "build": {
+     "output": ""
+    }
+   },
+   "result": "prg"
+  },
+  {
+   "machine": "vic20",
+   "hardware": {
+    "build": {
+     "output": "bin"
+    }
+   },
+   "result": "bin"
+  },
+  {
+   "machine": "pet",
+   "hardware": null,
+   "result": "prg"
+  },
+  {
+   "machine": "pet",
+   "hardware": {
+    "build": {}
+   },
+   "result": "prg"
+  },
+  {
+   "machine": "pet",
+   "hardware": {
+    "build": {
+     "output": ""
+    }
+   },
+   "result": "prg"
+  },
+  {
+   "machine": "pet",
+   "hardware": {
+    "build": {
+     "output": "bin"
+    }
+   },
+   "result": "bin"
+  },
+  {
+   "machine": "c64",
+   "hardware": null,
+   "result": "prg"
+  },
+  {
+   "machine": "c64",
+   "hardware": {
+    "build": {}
+   },
+   "result": "prg"
+  },
+  {
+   "machine": "c64",
+   "hardware": {
+    "build": {
+     "output": ""
+    }
+   },
+   "result": "prg"
+  },
+  {
+   "machine": "c64",
+   "hardware": {
+    "build": {
+     "output": "bin"
+    }
+   },
+   "result": "bin"
+  },
+  {
+   "machine": "c128",
+   "hardware": null,
+   "result": "prg"
+  },
+  {
+   "machine": "c128",
+   "hardware": {
+    "build": {}
+   },
+   "result": "prg"
+  },
+  {
+   "machine": "c128",
+   "hardware": {
+    "build": {
+     "output": ""
+    }
+   },
+   "result": "prg"
+  },
+  {
+   "machine": "c128",
+   "hardware": {
+    "build": {
+     "output": "bin"
+    }
+   },
+   "result": "bin"
+  },
+  {
+   "machine": "cx16",
+   "hardware": null,
+   "result": "prg"
+  },
+  {
+   "machine": "cx16",
+   "hardware": {
+    "build": {}
+   },
+   "result": "prg"
+  },
+  {
+   "machine": "cx16",
+   "hardware": {
+    "build": {
+     "output": ""
+    }
+   },
+   "result": "prg"
+  },
+  {
+   "machine": "cx16",
+   "hardware": {
+    "build": {
+     "output": "bin"
+    }
+   },
+   "result": "bin"
+  },
+  {
+   "machine": "mega65",
+   "hardware": null,
+   "result": "prg"
+  },
+  {
+   "machine": "mega65",
+   "hardware": {
+    "build": {}
+   },
+   "result": "prg"
+  },
+  {
+   "machine": "mega65",
+   "hardware": {
+    "build": {
+     "output": ""
+    }
+   },
+   "result": "prg"
+  },
+  {
+   "machine": "mega65",
+   "hardware": {
+    "build": {
+     "output": "bin"
+    }
+   },
+   "result": "bin"
+  },
+  {
+   "machine": "nes",
+   "hardware": null,
+   "result": "nes"
+  },
+  {
+   "machine": "nes",
+   "hardware": {
+    "build": {}
+   },
+   "result": "nes"
+  },
+  {
+   "machine": "nes",
+   "hardware": {
+    "build": {
+     "output": ""
+    }
+   },
+   "result": "nes"
+  },
+  {
+   "machine": "nes",
+   "hardware": {
+    "build": {
+     "output": "bin"
+    }
+   },
+   "result": "bin"
+  },
+  {
+   "machine": "atari8",
+   "hardware": null,
+   "result": "xex"
+  },
+  {
+   "machine": "atari8",
+   "hardware": {
+    "build": {}
+   },
+   "result": "xex"
+  },
+  {
+   "machine": "atari8",
+   "hardware": {
+    "build": {
+     "output": ""
+    }
+   },
+   "result": "xex"
+  },
+  {
+   "machine": "atari8",
+   "hardware": {
+    "build": {
+     "output": "bin"
+    }
+   },
+   "result": "bin"
+  },
+  {
+   "machine": "plus4",
+   "hardware": null,
+   "result": "prg"
+  },
+  {
+   "machine": "plus4",
+   "hardware": {
+    "build": {}
+   },
+   "result": "prg"
+  },
+  {
+   "machine": "plus4",
+   "hardware": {
+    "build": {
+     "output": ""
+    }
+   },
+   "result": "prg"
+  },
+  {
+   "machine": "plus4",
+   "hardware": {
+    "build": {
+     "output": "bin"
+    }
+   },
+   "result": "bin"
+  },
+  {
+   "machine": "oric",
+   "hardware": null,
+   "result": "prg"
+  },
+  {
+   "machine": "oric",
+   "hardware": {
+    "build": {}
+   },
+   "result": "prg"
+  },
+  {
+   "machine": "oric",
+   "hardware": {
+    "build": {
+     "output": ""
+    }
+   },
+   "result": "prg"
+  },
+  {
+   "machine": "oric",
+   "hardware": {
+    "build": {
+     "output": "bin"
+    }
+   },
+   "result": "bin"
+  },
+  {
+   "machine": "apple2",
+   "hardware": null,
+   "result": "prg"
+  },
+  {
+   "machine": "apple2",
+   "hardware": {
+    "build": {}
+   },
+   "result": "prg"
+  },
+  {
+   "machine": "apple2",
+   "hardware": {
+    "build": {
+     "output": ""
+    }
+   },
+   "result": "prg"
+  },
+  {
+   "machine": "apple2",
+   "hardware": {
+    "build": {
+     "output": "bin"
+    }
+   },
+   "result": "bin"
+  },
+  {
+   "machine": "bbc",
+   "hardware": null,
+   "result": "prg"
+  },
+  {
+   "machine": "bbc",
+   "hardware": {
+    "build": {}
+   },
+   "result": "prg"
+  },
+  {
+   "machine": "bbc",
+   "hardware": {
+    "build": {
+     "output": ""
+    }
+   },
+   "result": "prg"
+  },
+  {
+   "machine": "bbc",
+   "hardware": {
+    "build": {
+     "output": "bin"
+    }
+   },
+   "result": "bin"
+  },
+  {
+   "machine": "atari5200",
+   "hardware": null,
+   "result": "prg"
+  },
+  {
+   "machine": "atari5200",
+   "hardware": {
+    "build": {}
+   },
+   "result": "prg"
+  },
+  {
+   "machine": "atari5200",
+   "hardware": {
+    "build": {
+     "output": ""
+    }
+   },
+   "result": "prg"
+  },
+  {
+   "machine": "atari5200",
+   "hardware": {
+    "build": {
+     "output": "bin"
+    }
+   },
+   "result": "bin"
+  },
+  {
+   "machine": "lynx",
+   "hardware": null,
+   "result": "prg"
+  },
+  {
+   "machine": "lynx",
+   "hardware": {
+    "build": {}
+   },
+   "result": "prg"
+  },
+  {
+   "machine": "lynx",
+   "hardware": {
+    "build": {
+     "output": ""
+    }
+   },
+   "result": "prg"
+  },
+  {
+   "machine": "lynx",
+   "hardware": {
+    "build": {
+     "output": "bin"
+    }
+   },
+   "result": "bin"
+  },
+  {
+   "machine": "pce",
+   "hardware": null,
+   "result": "prg"
+  },
+  {
+   "machine": "pce",
+   "hardware": {
+    "build": {}
+   },
+   "result": "prg"
+  },
+  {
+   "machine": "pce",
+   "hardware": {
+    "build": {
+     "output": ""
+    }
+   },
+   "result": "prg"
+  },
+  {
+   "machine": "pce",
+   "hardware": {
+    "build": {
+     "output": "bin"
+    }
+   },
+   "result": "bin"
+  },
+  {
+   "machine": "supervision",
+   "hardware": null,
+   "result": "prg"
+  },
+  {
+   "machine": "supervision",
+   "hardware": {
+    "build": {}
+   },
+   "result": "prg"
+  },
+  {
+   "machine": "supervision",
+   "hardware": {
+    "build": {
+     "output": ""
+    }
+   },
+   "result": "prg"
+  },
+  {
+   "machine": "supervision",
+   "hardware": {
+    "build": {
+     "output": "bin"
+    }
+   },
+   "result": "bin"
+  },
+  {
+   "machine": "atari2600",
+   "hardware": null,
+   "result": "prg"
+  },
+  {
+   "machine": "atari2600",
+   "hardware": {
+    "build": {}
+   },
+   "result": "prg"
+  },
+  {
+   "machine": "atari2600",
+   "hardware": {
+    "build": {
+     "output": ""
+    }
+   },
+   "result": "prg"
+  },
+  {
+   "machine": "atari2600",
+   "hardware": {
+    "build": {
+     "output": "bin"
+    }
+   },
+   "result": "bin"
+  },
+  {
+   "machine": "atari7800",
+   "hardware": null,
+   "result": "prg"
+  },
+  {
+   "machine": "atari7800",
+   "hardware": {
+    "build": {}
+   },
+   "result": "prg"
+  },
+  {
+   "machine": "atari7800",
+   "hardware": {
+    "build": {
+     "output": ""
+    }
+   },
+   "result": "prg"
+  },
+  {
+   "machine": "atari7800",
+   "hardware": {
+    "build": {
+     "output": "bin"
+    }
+   },
+   "result": "bin"
+  }
+ ],
+ "clearRam": [
+  {
+   "origin": 512,
+   "end": 512,
+   "result": []
+  },
+  {
+   "origin": 512,
+   "end": 513,
+   "result": [
+    {
+     "kind": "instruction",
+     "mnemonic": "LDA",
+     "mode": "immediate",
+     "operand": {
+      "kind": "value",
+      "value": 0
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "LDX",
+     "mode": "immediate",
+     "operand": {
+      "kind": "value",
+      "value": 1
+     }
+    },
+    {
+     "kind": "label",
+     "name": "__8bs_ram_clear_tail"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "DEX",
+     "mode": "implied"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "STA",
+     "mode": "absolute,x",
+     "operand": {
+      "kind": "value",
+      "value": 512
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "BNE",
+     "mode": "relative",
+     "operand": {
+      "kind": "label",
+      "name": "__8bs_ram_clear_tail"
+     }
+    }
+   ]
+  },
+  {
+   "origin": 512,
+   "end": 767,
+   "result": [
+    {
+     "kind": "instruction",
+     "mnemonic": "LDA",
+     "mode": "immediate",
+     "operand": {
+      "kind": "value",
+      "value": 0
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "LDX",
+     "mode": "immediate",
+     "operand": {
+      "kind": "value",
+      "value": 255
+     }
+    },
+    {
+     "kind": "label",
+     "name": "__8bs_ram_clear_tail"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "DEX",
+     "mode": "implied"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "STA",
+     "mode": "absolute,x",
+     "operand": {
+      "kind": "value",
+      "value": 512
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "BNE",
+     "mode": "relative",
+     "operand": {
+      "kind": "label",
+      "name": "__8bs_ram_clear_tail"
+     }
+    }
+   ]
+  },
+  {
+   "origin": 512,
+   "end": 768,
+   "result": [
+    {
+     "kind": "instruction",
+     "mnemonic": "LDA",
+     "mode": "immediate",
+     "operand": {
+      "kind": "value",
+      "value": 0
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "LDX",
+     "mode": "immediate",
+     "operand": {
+      "kind": "value",
+      "value": 0
+     }
+    },
+    {
+     "kind": "label",
+     "name": "__8bs_ram_clear_0"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "STA",
+     "mode": "absolute,x",
+     "operand": {
+      "kind": "value",
+      "value": 512
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "INX",
+     "mode": "implied"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "BNE",
+     "mode": "relative",
+     "operand": {
+      "kind": "label",
+      "name": "__8bs_ram_clear_0"
+     }
+    }
+   ]
+  },
+  {
+   "origin": 512,
+   "end": 769,
+   "result": [
+    {
+     "kind": "instruction",
+     "mnemonic": "LDA",
+     "mode": "immediate",
+     "operand": {
+      "kind": "value",
+      "value": 0
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "LDX",
+     "mode": "immediate",
+     "operand": {
+      "kind": "value",
+      "value": 0
+     }
+    },
+    {
+     "kind": "label",
+     "name": "__8bs_ram_clear_0"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "STA",
+     "mode": "absolute,x",
+     "operand": {
+      "kind": "value",
+      "value": 512
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "INX",
+     "mode": "implied"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "BNE",
+     "mode": "relative",
+     "operand": {
+      "kind": "label",
+      "name": "__8bs_ram_clear_0"
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "LDX",
+     "mode": "immediate",
+     "operand": {
+      "kind": "value",
+      "value": 1
+     }
+    },
+    {
+     "kind": "label",
+     "name": "__8bs_ram_clear_tail"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "DEX",
+     "mode": "implied"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "STA",
+     "mode": "absolute,x",
+     "operand": {
+      "kind": "value",
+      "value": 768
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "BNE",
+     "mode": "relative",
+     "operand": {
+      "kind": "label",
+      "name": "__8bs_ram_clear_tail"
+     }
+    }
+   ]
+  },
+  {
+   "origin": 512,
+   "end": 1512,
+   "result": [
+    {
+     "kind": "instruction",
+     "mnemonic": "LDA",
+     "mode": "immediate",
+     "operand": {
+      "kind": "value",
+      "value": 0
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "LDX",
+     "mode": "immediate",
+     "operand": {
+      "kind": "value",
+      "value": 0
+     }
+    },
+    {
+     "kind": "label",
+     "name": "__8bs_ram_clear_0"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "STA",
+     "mode": "absolute,x",
+     "operand": {
+      "kind": "value",
+      "value": 512
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "INX",
+     "mode": "implied"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "BNE",
+     "mode": "relative",
+     "operand": {
+      "kind": "label",
+      "name": "__8bs_ram_clear_0"
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "LDX",
+     "mode": "immediate",
+     "operand": {
+      "kind": "value",
+      "value": 0
+     }
+    },
+    {
+     "kind": "label",
+     "name": "__8bs_ram_clear_1"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "STA",
+     "mode": "absolute,x",
+     "operand": {
+      "kind": "value",
+      "value": 768
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "INX",
+     "mode": "implied"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "BNE",
+     "mode": "relative",
+     "operand": {
+      "kind": "label",
+      "name": "__8bs_ram_clear_1"
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "LDX",
+     "mode": "immediate",
+     "operand": {
+      "kind": "value",
+      "value": 0
+     }
+    },
+    {
+     "kind": "label",
+     "name": "__8bs_ram_clear_2"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "STA",
+     "mode": "absolute,x",
+     "operand": {
+      "kind": "value",
+      "value": 1024
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "INX",
+     "mode": "implied"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "BNE",
+     "mode": "relative",
+     "operand": {
+      "kind": "label",
+      "name": "__8bs_ram_clear_2"
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "LDX",
+     "mode": "immediate",
+     "operand": {
+      "kind": "value",
+      "value": 232
+     }
+    },
+    {
+     "kind": "label",
+     "name": "__8bs_ram_clear_tail"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "DEX",
+     "mode": "implied"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "STA",
+     "mode": "absolute,x",
+     "operand": {
+      "kind": "value",
+      "value": 1280
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "BNE",
+     "mode": "relative",
+     "operand": {
+      "kind": "label",
+      "name": "__8bs_ram_clear_tail"
+     }
+    }
+   ]
+  },
+  {
+   "origin": 24576,
+   "end": 24576,
+   "result": []
+  },
+  {
+   "origin": 24576,
+   "end": 24577,
+   "result": [
+    {
+     "kind": "instruction",
+     "mnemonic": "LDA",
+     "mode": "immediate",
+     "operand": {
+      "kind": "value",
+      "value": 0
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "LDX",
+     "mode": "immediate",
+     "operand": {
+      "kind": "value",
+      "value": 1
+     }
+    },
+    {
+     "kind": "label",
+     "name": "__8bs_ram_clear_tail"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "DEX",
+     "mode": "implied"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "STA",
+     "mode": "absolute,x",
+     "operand": {
+      "kind": "value",
+      "value": 24576
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "BNE",
+     "mode": "relative",
+     "operand": {
+      "kind": "label",
+      "name": "__8bs_ram_clear_tail"
+     }
+    }
+   ]
+  },
+  {
+   "origin": 24576,
+   "end": 24831,
+   "result": [
+    {
+     "kind": "instruction",
+     "mnemonic": "LDA",
+     "mode": "immediate",
+     "operand": {
+      "kind": "value",
+      "value": 0
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "LDX",
+     "mode": "immediate",
+     "operand": {
+      "kind": "value",
+      "value": 255
+     }
+    },
+    {
+     "kind": "label",
+     "name": "__8bs_ram_clear_tail"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "DEX",
+     "mode": "implied"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "STA",
+     "mode": "absolute,x",
+     "operand": {
+      "kind": "value",
+      "value": 24576
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "BNE",
+     "mode": "relative",
+     "operand": {
+      "kind": "label",
+      "name": "__8bs_ram_clear_tail"
+     }
+    }
+   ]
+  },
+  {
+   "origin": 24576,
+   "end": 24832,
+   "result": [
+    {
+     "kind": "instruction",
+     "mnemonic": "LDA",
+     "mode": "immediate",
+     "operand": {
+      "kind": "value",
+      "value": 0
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "LDX",
+     "mode": "immediate",
+     "operand": {
+      "kind": "value",
+      "value": 0
+     }
+    },
+    {
+     "kind": "label",
+     "name": "__8bs_ram_clear_0"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "STA",
+     "mode": "absolute,x",
+     "operand": {
+      "kind": "value",
+      "value": 24576
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "INX",
+     "mode": "implied"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "BNE",
+     "mode": "relative",
+     "operand": {
+      "kind": "label",
+      "name": "__8bs_ram_clear_0"
+     }
+    }
+   ]
+  },
+  {
+   "origin": 24576,
+   "end": 24833,
+   "result": [
+    {
+     "kind": "instruction",
+     "mnemonic": "LDA",
+     "mode": "immediate",
+     "operand": {
+      "kind": "value",
+      "value": 0
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "LDX",
+     "mode": "immediate",
+     "operand": {
+      "kind": "value",
+      "value": 0
+     }
+    },
+    {
+     "kind": "label",
+     "name": "__8bs_ram_clear_0"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "STA",
+     "mode": "absolute,x",
+     "operand": {
+      "kind": "value",
+      "value": 24576
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "INX",
+     "mode": "implied"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "BNE",
+     "mode": "relative",
+     "operand": {
+      "kind": "label",
+      "name": "__8bs_ram_clear_0"
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "LDX",
+     "mode": "immediate",
+     "operand": {
+      "kind": "value",
+      "value": 1
+     }
+    },
+    {
+     "kind": "label",
+     "name": "__8bs_ram_clear_tail"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "DEX",
+     "mode": "implied"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "STA",
+     "mode": "absolute,x",
+     "operand": {
+      "kind": "value",
+      "value": 24832
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "BNE",
+     "mode": "relative",
+     "operand": {
+      "kind": "label",
+      "name": "__8bs_ram_clear_tail"
+     }
+    }
+   ]
+  },
+  {
+   "origin": 24576,
+   "end": 25576,
+   "result": [
+    {
+     "kind": "instruction",
+     "mnemonic": "LDA",
+     "mode": "immediate",
+     "operand": {
+      "kind": "value",
+      "value": 0
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "LDX",
+     "mode": "immediate",
+     "operand": {
+      "kind": "value",
+      "value": 0
+     }
+    },
+    {
+     "kind": "label",
+     "name": "__8bs_ram_clear_0"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "STA",
+     "mode": "absolute,x",
+     "operand": {
+      "kind": "value",
+      "value": 24576
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "INX",
+     "mode": "implied"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "BNE",
+     "mode": "relative",
+     "operand": {
+      "kind": "label",
+      "name": "__8bs_ram_clear_0"
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "LDX",
+     "mode": "immediate",
+     "operand": {
+      "kind": "value",
+      "value": 0
+     }
+    },
+    {
+     "kind": "label",
+     "name": "__8bs_ram_clear_1"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "STA",
+     "mode": "absolute,x",
+     "operand": {
+      "kind": "value",
+      "value": 24832
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "INX",
+     "mode": "implied"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "BNE",
+     "mode": "relative",
+     "operand": {
+      "kind": "label",
+      "name": "__8bs_ram_clear_1"
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "LDX",
+     "mode": "immediate",
+     "operand": {
+      "kind": "value",
+      "value": 0
+     }
+    },
+    {
+     "kind": "label",
+     "name": "__8bs_ram_clear_2"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "STA",
+     "mode": "absolute,x",
+     "operand": {
+      "kind": "value",
+      "value": 25088
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "INX",
+     "mode": "implied"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "BNE",
+     "mode": "relative",
+     "operand": {
+      "kind": "label",
+      "name": "__8bs_ram_clear_2"
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "LDX",
+     "mode": "immediate",
+     "operand": {
+      "kind": "value",
+      "value": 232
+     }
+    },
+    {
+     "kind": "label",
+     "name": "__8bs_ram_clear_tail"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "DEX",
+     "mode": "implied"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "STA",
+     "mode": "absolute,x",
+     "operand": {
+      "kind": "value",
+      "value": 25344
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "BNE",
+     "mode": "relative",
+     "operand": {
+      "kind": "label",
+      "name": "__8bs_ram_clear_tail"
+     }
+    }
+   ]
+  },
+  {
+   "origin": 768,
+   "end": 767,
+   "result": []
+  }
+ ],
+ "copyToRam": [
+  {
+   "from": "data_arr",
+   "to": 512,
+   "size": 0,
+   "tag": "__8bs_ram_copy",
+   "result": []
+  },
+  {
+   "from": "data_arr",
+   "to": 512,
+   "size": 1,
+   "tag": "__8bs_ram_copy",
+   "result": [
+    {
+     "kind": "instruction",
+     "mnemonic": "LDX",
+     "mode": "immediate",
+     "operand": {
+      "kind": "value",
+      "value": 0
+     }
+    },
+    {
+     "kind": "label",
+     "name": "__8bs_ram_copy_tail"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "LDA",
+     "mode": "absolute,x",
+     "operand": {
+      "kind": "label",
+      "name": "data_arr",
+      "offset": 0
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "STA",
+     "mode": "absolute,x",
+     "operand": {
+      "kind": "value",
+      "value": 512
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "INX",
+     "mode": "implied"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "CPX",
+     "mode": "immediate",
+     "operand": {
+      "kind": "value",
+      "value": 1
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "BNE",
+     "mode": "relative",
+     "operand": {
+      "kind": "label",
+      "name": "__8bs_ram_copy_tail"
+     }
+    }
+   ]
+  },
+  {
+   "from": "data_arr",
+   "to": 512,
+   "size": 255,
+   "tag": "__8bs_ram_copy",
+   "result": [
+    {
+     "kind": "instruction",
+     "mnemonic": "LDX",
+     "mode": "immediate",
+     "operand": {
+      "kind": "value",
+      "value": 0
+     }
+    },
+    {
+     "kind": "label",
+     "name": "__8bs_ram_copy_tail"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "LDA",
+     "mode": "absolute,x",
+     "operand": {
+      "kind": "label",
+      "name": "data_arr",
+      "offset": 0
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "STA",
+     "mode": "absolute,x",
+     "operand": {
+      "kind": "value",
+      "value": 512
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "INX",
+     "mode": "implied"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "CPX",
+     "mode": "immediate",
+     "operand": {
+      "kind": "value",
+      "value": 255
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "BNE",
+     "mode": "relative",
+     "operand": {
+      "kind": "label",
+      "name": "__8bs_ram_copy_tail"
+     }
+    }
+   ]
+  },
+  {
+   "from": "data_arr",
+   "to": 512,
+   "size": 256,
+   "tag": "__8bs_ram_copy",
+   "result": [
+    {
+     "kind": "instruction",
+     "mnemonic": "LDX",
+     "mode": "immediate",
+     "operand": {
+      "kind": "value",
+      "value": 0
+     }
+    },
+    {
+     "kind": "label",
+     "name": "__8bs_ram_copy_0"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "LDA",
+     "mode": "absolute,x",
+     "operand": {
+      "kind": "label",
+      "name": "data_arr",
+      "offset": 0
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "STA",
+     "mode": "absolute,x",
+     "operand": {
+      "kind": "value",
+      "value": 512
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "INX",
+     "mode": "implied"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "BNE",
+     "mode": "relative",
+     "operand": {
+      "kind": "label",
+      "name": "__8bs_ram_copy_0"
+     }
+    }
+   ]
+  },
+  {
+   "from": "data_arr",
+   "to": 512,
+   "size": 257,
+   "tag": "__8bs_ram_copy",
+   "result": [
+    {
+     "kind": "instruction",
+     "mnemonic": "LDX",
+     "mode": "immediate",
+     "operand": {
+      "kind": "value",
+      "value": 0
+     }
+    },
+    {
+     "kind": "label",
+     "name": "__8bs_ram_copy_0"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "LDA",
+     "mode": "absolute,x",
+     "operand": {
+      "kind": "label",
+      "name": "data_arr",
+      "offset": 0
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "STA",
+     "mode": "absolute,x",
+     "operand": {
+      "kind": "value",
+      "value": 512
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "INX",
+     "mode": "implied"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "BNE",
+     "mode": "relative",
+     "operand": {
+      "kind": "label",
+      "name": "__8bs_ram_copy_0"
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "LDX",
+     "mode": "immediate",
+     "operand": {
+      "kind": "value",
+      "value": 0
+     }
+    },
+    {
+     "kind": "label",
+     "name": "__8bs_ram_copy_tail"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "LDA",
+     "mode": "absolute,x",
+     "operand": {
+      "kind": "label",
+      "name": "data_arr",
+      "offset": 256
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "STA",
+     "mode": "absolute,x",
+     "operand": {
+      "kind": "value",
+      "value": 768
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "INX",
+     "mode": "implied"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "CPX",
+     "mode": "immediate",
+     "operand": {
+      "kind": "value",
+      "value": 1
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "BNE",
+     "mode": "relative",
+     "operand": {
+      "kind": "label",
+      "name": "__8bs_ram_copy_tail"
+     }
+    }
+   ]
+  },
+  {
+   "from": "data_arr",
+   "to": 512,
+   "size": 1000,
+   "tag": "__8bs_ram_copy",
+   "result": [
+    {
+     "kind": "instruction",
+     "mnemonic": "LDX",
+     "mode": "immediate",
+     "operand": {
+      "kind": "value",
+      "value": 0
+     }
+    },
+    {
+     "kind": "label",
+     "name": "__8bs_ram_copy_0"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "LDA",
+     "mode": "absolute,x",
+     "operand": {
+      "kind": "label",
+      "name": "data_arr",
+      "offset": 0
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "STA",
+     "mode": "absolute,x",
+     "operand": {
+      "kind": "value",
+      "value": 512
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "INX",
+     "mode": "implied"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "BNE",
+     "mode": "relative",
+     "operand": {
+      "kind": "label",
+      "name": "__8bs_ram_copy_0"
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "LDX",
+     "mode": "immediate",
+     "operand": {
+      "kind": "value",
+      "value": 0
+     }
+    },
+    {
+     "kind": "label",
+     "name": "__8bs_ram_copy_1"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "LDA",
+     "mode": "absolute,x",
+     "operand": {
+      "kind": "label",
+      "name": "data_arr",
+      "offset": 256
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "STA",
+     "mode": "absolute,x",
+     "operand": {
+      "kind": "value",
+      "value": 768
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "INX",
+     "mode": "implied"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "BNE",
+     "mode": "relative",
+     "operand": {
+      "kind": "label",
+      "name": "__8bs_ram_copy_1"
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "LDX",
+     "mode": "immediate",
+     "operand": {
+      "kind": "value",
+      "value": 0
+     }
+    },
+    {
+     "kind": "label",
+     "name": "__8bs_ram_copy_2"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "LDA",
+     "mode": "absolute,x",
+     "operand": {
+      "kind": "label",
+      "name": "data_arr",
+      "offset": 512
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "STA",
+     "mode": "absolute,x",
+     "operand": {
+      "kind": "value",
+      "value": 1024
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "INX",
+     "mode": "implied"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "BNE",
+     "mode": "relative",
+     "operand": {
+      "kind": "label",
+      "name": "__8bs_ram_copy_2"
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "LDX",
+     "mode": "immediate",
+     "operand": {
+      "kind": "value",
+      "value": 0
+     }
+    },
+    {
+     "kind": "label",
+     "name": "__8bs_ram_copy_tail"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "LDA",
+     "mode": "absolute,x",
+     "operand": {
+      "kind": "label",
+      "name": "data_arr",
+      "offset": 768
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "STA",
+     "mode": "absolute,x",
+     "operand": {
+      "kind": "value",
+      "value": 1280
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "INX",
+     "mode": "implied"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "CPX",
+     "mode": "immediate",
+     "operand": {
+      "kind": "value",
+      "value": 232
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "BNE",
+     "mode": "relative",
+     "operand": {
+      "kind": "label",
+      "name": "__8bs_ram_copy_tail"
+     }
+    }
+   ]
+  },
+  {
+   "from": "data_arr",
+   "to": 24576,
+   "size": 0,
+   "tag": "__8bs_ram_copy",
+   "result": []
+  },
+  {
+   "from": "data_arr",
+   "to": 24576,
+   "size": 1,
+   "tag": "__8bs_ram_copy",
+   "result": [
+    {
+     "kind": "instruction",
+     "mnemonic": "LDX",
+     "mode": "immediate",
+     "operand": {
+      "kind": "value",
+      "value": 0
+     }
+    },
+    {
+     "kind": "label",
+     "name": "__8bs_ram_copy_tail"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "LDA",
+     "mode": "absolute,x",
+     "operand": {
+      "kind": "label",
+      "name": "data_arr",
+      "offset": 0
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "STA",
+     "mode": "absolute,x",
+     "operand": {
+      "kind": "value",
+      "value": 24576
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "INX",
+     "mode": "implied"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "CPX",
+     "mode": "immediate",
+     "operand": {
+      "kind": "value",
+      "value": 1
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "BNE",
+     "mode": "relative",
+     "operand": {
+      "kind": "label",
+      "name": "__8bs_ram_copy_tail"
+     }
+    }
+   ]
+  },
+  {
+   "from": "data_arr",
+   "to": 24576,
+   "size": 255,
+   "tag": "__8bs_ram_copy",
+   "result": [
+    {
+     "kind": "instruction",
+     "mnemonic": "LDX",
+     "mode": "immediate",
+     "operand": {
+      "kind": "value",
+      "value": 0
+     }
+    },
+    {
+     "kind": "label",
+     "name": "__8bs_ram_copy_tail"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "LDA",
+     "mode": "absolute,x",
+     "operand": {
+      "kind": "label",
+      "name": "data_arr",
+      "offset": 0
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "STA",
+     "mode": "absolute,x",
+     "operand": {
+      "kind": "value",
+      "value": 24576
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "INX",
+     "mode": "implied"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "CPX",
+     "mode": "immediate",
+     "operand": {
+      "kind": "value",
+      "value": 255
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "BNE",
+     "mode": "relative",
+     "operand": {
+      "kind": "label",
+      "name": "__8bs_ram_copy_tail"
+     }
+    }
+   ]
+  },
+  {
+   "from": "data_arr",
+   "to": 24576,
+   "size": 256,
+   "tag": "__8bs_ram_copy",
+   "result": [
+    {
+     "kind": "instruction",
+     "mnemonic": "LDX",
+     "mode": "immediate",
+     "operand": {
+      "kind": "value",
+      "value": 0
+     }
+    },
+    {
+     "kind": "label",
+     "name": "__8bs_ram_copy_0"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "LDA",
+     "mode": "absolute,x",
+     "operand": {
+      "kind": "label",
+      "name": "data_arr",
+      "offset": 0
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "STA",
+     "mode": "absolute,x",
+     "operand": {
+      "kind": "value",
+      "value": 24576
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "INX",
+     "mode": "implied"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "BNE",
+     "mode": "relative",
+     "operand": {
+      "kind": "label",
+      "name": "__8bs_ram_copy_0"
+     }
+    }
+   ]
+  },
+  {
+   "from": "data_arr",
+   "to": 24576,
+   "size": 257,
+   "tag": "__8bs_ram_copy",
+   "result": [
+    {
+     "kind": "instruction",
+     "mnemonic": "LDX",
+     "mode": "immediate",
+     "operand": {
+      "kind": "value",
+      "value": 0
+     }
+    },
+    {
+     "kind": "label",
+     "name": "__8bs_ram_copy_0"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "LDA",
+     "mode": "absolute,x",
+     "operand": {
+      "kind": "label",
+      "name": "data_arr",
+      "offset": 0
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "STA",
+     "mode": "absolute,x",
+     "operand": {
+      "kind": "value",
+      "value": 24576
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "INX",
+     "mode": "implied"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "BNE",
+     "mode": "relative",
+     "operand": {
+      "kind": "label",
+      "name": "__8bs_ram_copy_0"
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "LDX",
+     "mode": "immediate",
+     "operand": {
+      "kind": "value",
+      "value": 0
+     }
+    },
+    {
+     "kind": "label",
+     "name": "__8bs_ram_copy_tail"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "LDA",
+     "mode": "absolute,x",
+     "operand": {
+      "kind": "label",
+      "name": "data_arr",
+      "offset": 256
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "STA",
+     "mode": "absolute,x",
+     "operand": {
+      "kind": "value",
+      "value": 24832
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "INX",
+     "mode": "implied"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "CPX",
+     "mode": "immediate",
+     "operand": {
+      "kind": "value",
+      "value": 1
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "BNE",
+     "mode": "relative",
+     "operand": {
+      "kind": "label",
+      "name": "__8bs_ram_copy_tail"
+     }
+    }
+   ]
+  },
+  {
+   "from": "data_arr",
+   "to": 24576,
+   "size": 1000,
+   "tag": "__8bs_ram_copy",
+   "result": [
+    {
+     "kind": "instruction",
+     "mnemonic": "LDX",
+     "mode": "immediate",
+     "operand": {
+      "kind": "value",
+      "value": 0
+     }
+    },
+    {
+     "kind": "label",
+     "name": "__8bs_ram_copy_0"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "LDA",
+     "mode": "absolute,x",
+     "operand": {
+      "kind": "label",
+      "name": "data_arr",
+      "offset": 0
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "STA",
+     "mode": "absolute,x",
+     "operand": {
+      "kind": "value",
+      "value": 24576
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "INX",
+     "mode": "implied"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "BNE",
+     "mode": "relative",
+     "operand": {
+      "kind": "label",
+      "name": "__8bs_ram_copy_0"
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "LDX",
+     "mode": "immediate",
+     "operand": {
+      "kind": "value",
+      "value": 0
+     }
+    },
+    {
+     "kind": "label",
+     "name": "__8bs_ram_copy_1"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "LDA",
+     "mode": "absolute,x",
+     "operand": {
+      "kind": "label",
+      "name": "data_arr",
+      "offset": 256
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "STA",
+     "mode": "absolute,x",
+     "operand": {
+      "kind": "value",
+      "value": 24832
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "INX",
+     "mode": "implied"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "BNE",
+     "mode": "relative",
+     "operand": {
+      "kind": "label",
+      "name": "__8bs_ram_copy_1"
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "LDX",
+     "mode": "immediate",
+     "operand": {
+      "kind": "value",
+      "value": 0
+     }
+    },
+    {
+     "kind": "label",
+     "name": "__8bs_ram_copy_2"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "LDA",
+     "mode": "absolute,x",
+     "operand": {
+      "kind": "label",
+      "name": "data_arr",
+      "offset": 512
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "STA",
+     "mode": "absolute,x",
+     "operand": {
+      "kind": "value",
+      "value": 25088
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "INX",
+     "mode": "implied"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "BNE",
+     "mode": "relative",
+     "operand": {
+      "kind": "label",
+      "name": "__8bs_ram_copy_2"
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "LDX",
+     "mode": "immediate",
+     "operand": {
+      "kind": "value",
+      "value": 0
+     }
+    },
+    {
+     "kind": "label",
+     "name": "__8bs_ram_copy_tail"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "LDA",
+     "mode": "absolute,x",
+     "operand": {
+      "kind": "label",
+      "name": "data_arr",
+      "offset": 768
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "STA",
+     "mode": "absolute,x",
+     "operand": {
+      "kind": "value",
+      "value": 25344
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "INX",
+     "mode": "implied"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "CPX",
+     "mode": "immediate",
+     "operand": {
+      "kind": "value",
+      "value": 232
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "BNE",
+     "mode": "relative",
+     "operand": {
+      "kind": "label",
+      "name": "__8bs_ram_copy_tail"
+     }
+    }
+   ]
+  }
+ ],
+ "directiveBytes": [
+  {
+   "program": [],
+   "result": 0
+  },
+  {
+   "program": [
+    {
+     "kind": "label",
+     "name": "a"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "LDA",
+     "mode": "immediate",
+     "operand": {
+      "kind": "value",
+      "value": 1
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "STA",
+     "mode": "absolute",
+     "operand": {
+      "kind": "value",
+      "value": 1024
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "NOP",
+     "mode": "implied"
+    },
+    {
+     "kind": "byte",
+     "values": [
+      1,
+      2,
+      3
+     ]
+    },
+    {
+     "kind": "byte",
+     "values": []
+    },
+    {
+     "kind": "equate",
+     "name": "X",
+     "value": 1
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "BNE",
+     "mode": "relative",
+     "operand": {
+      "kind": "label",
+      "name": "a"
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "JMP",
+     "mode": "indirect",
+     "operand": {
+      "kind": "label",
+      "name": "a"
+     }
+    }
+   ],
+   "result": 14
+  },
+  {
+   "program": [
+    {
+     "kind": "label",
+     "name": "a"
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "LDA",
+     "mode": "immediate",
+     "operand": {
+      "kind": "value",
+      "value": 1
+     }
+    },
+    {
+     "kind": "instruction",
+     "mnemonic": "STA",
+     "mode": "absolute",
+     "operand": {
+      "kind": "value",
+      "value": 1024
+     }
+    }
+   ],
+   "result": 5
+  }
+ ],
+ "functionSizeEntries": [
+  {
+   "name": "main",
+   "parts": [
+    {
+     "origin": null,
+     "program": [
+      {
+       "kind": "label",
+       "name": "a"
+      },
+      {
+       "kind": "instruction",
+       "mnemonic": "LDA",
+       "mode": "immediate",
+       "operand": {
+        "kind": "value",
+        "value": 1
+       }
+      },
+      {
+       "kind": "instruction",
+       "mnemonic": "STA",
+       "mode": "absolute",
+       "operand": {
+        "kind": "value",
+        "value": 1024
+       }
+      },
+      {
+       "kind": "instruction",
+       "mnemonic": "NOP",
+       "mode": "implied"
+      },
+      {
+       "kind": "byte",
+       "values": [
+        1,
+        2,
+        3
+       ]
+      },
+      {
+       "kind": "byte",
+       "values": []
+      },
+      {
+       "kind": "equate",
+       "name": "X",
+       "value": 1
+      },
+      {
+       "kind": "instruction",
+       "mnemonic": "BNE",
+       "mode": "relative",
+       "operand": {
+        "kind": "label",
+        "name": "a"
+       }
+      },
+      {
+       "kind": "instruction",
+       "mnemonic": "JMP",
+       "mode": "indirect",
+       "operand": {
+        "kind": "label",
+        "name": "a"
+       }
+      }
+     ]
+    }
+   ],
+   "isEntry": true,
+   "result": [
+    {
+     "name": "main",
+     "bytes": 14
+    }
+   ]
+  },
+  {
+   "name": "main",
+   "parts": [
+    {
+     "origin": null,
+     "program": [
+      {
+       "kind": "label",
+       "name": "a"
+      },
+      {
+       "kind": "instruction",
+       "mnemonic": "LDA",
+       "mode": "immediate",
+       "operand": {
+        "kind": "value",
+        "value": 1
+       }
+      },
+      {
+       "kind": "instruction",
+       "mnemonic": "STA",
+       "mode": "absolute",
+       "operand": {
+        "kind": "value",
+        "value": 1024
+       }
+      },
+      {
+       "kind": "instruction",
+       "mnemonic": "NOP",
+       "mode": "implied"
+      },
+      {
+       "kind": "byte",
+       "values": [
+        1,
+        2,
+        3
+       ]
+      },
+      {
+       "kind": "byte",
+       "values": []
+      },
+      {
+       "kind": "equate",
+       "name": "X",
+       "value": 1
+      },
+      {
+       "kind": "instruction",
+       "mnemonic": "BNE",
+       "mode": "relative",
+       "operand": {
+        "kind": "label",
+        "name": "a"
+       }
+      },
+      {
+       "kind": "instruction",
+       "mnemonic": "JMP",
+       "mode": "indirect",
+       "operand": {
+        "kind": "label",
+        "name": "a"
+       }
+      }
+     ]
+    }
+   ],
+   "isEntry": false,
+   "result": [
+    {
+     "name": "main",
+     "bytes": 15
+    }
+   ]
+  },
+  {
+   "name": "f",
+   "parts": [
+    {
+     "origin": null,
+     "program": [
+      {
+       "kind": "label",
+       "name": "a"
+      },
+      {
+       "kind": "instruction",
+       "mnemonic": "LDA",
+       "mode": "immediate",
+       "operand": {
+        "kind": "value",
+        "value": 1
+       }
+      }
+     ]
+    },
+    {
+     "origin": "g",
+     "program": [
+      {
+       "kind": "instruction",
+       "mnemonic": "STA",
+       "mode": "absolute",
+       "operand": {
+        "kind": "value",
+        "value": 1024
+       }
+      },
+      {
+       "kind": "instruction",
+       "mnemonic": "NOP",
+       "mode": "implied"
+      }
+     ]
+    },
+    {
+     "origin": null,
+     "program": [
+      {
+       "kind": "byte",
+       "values": [
+        1,
+        2,
+        3
+       ]
+      },
+      {
+       "kind": "byte",
+       "values": []
+      },
+      {
+       "kind": "equate",
+       "name": "X",
+       "value": 1
+      },
+      {
+       "kind": "instruction",
+       "mnemonic": "BNE",
+       "mode": "relative",
+       "operand": {
+        "kind": "label",
+        "name": "a"
+       }
+      },
+      {
+       "kind": "instruction",
+       "mnemonic": "JMP",
+       "mode": "indirect",
+       "operand": {
+        "kind": "label",
+        "name": "a"
+       }
+      }
+     ]
+    },
+    {
+     "origin": "g",
+     "program": [
+      {
+       "kind": "label",
+       "name": "a"
+      }
+     ]
+    },
+    {
+     "origin": "h",
+     "program": []
+    }
+   ],
+   "isEntry": false,
+   "result": [
+    {
+     "name": "f",
+     "bytes": 11
+    },
+    {
+     "name": "g",
+     "bytes": 4
+    },
+    {
+     "name": "h",
+     "bytes": 0
+    }
+   ]
+  },
+  {
+   "name": "f",
+   "parts": [
+    {
+     "origin": "f",
+     "program": [
+      {
+       "kind": "label",
+       "name": "a"
+      },
+      {
+       "kind": "instruction",
+       "mnemonic": "LDA",
+       "mode": "immediate",
+       "operand": {
+        "kind": "value",
+        "value": 1
+       }
+      }
+     ]
+    },
+    {
+     "origin": null,
+     "program": [
+      {
+       "kind": "instruction",
+       "mnemonic": "STA",
+       "mode": "absolute",
+       "operand": {
+        "kind": "value",
+        "value": 1024
+       }
+      }
+     ]
+    }
+   ],
+   "isEntry": false,
+   "result": [
+    {
+     "name": "f",
+     "bytes": 6
+    }
+   ]
+  },
+  {
+   "name": "f",
+   "parts": [],
+   "isEntry": false,
+   "result": [
+    {
+     "name": "f",
+     "bytes": 1
+    }
+   ]
+  },
+  {
+   "name": "f",
+   "parts": [],
+   "isEntry": true,
+   "result": []
+  },
+  {
+   "name": "f",
+   "parts": [
+    {
+     "origin": "",
+     "program": [
+      {
+       "kind": "label",
+       "name": "a"
+      }
+     ]
+    }
+   ],
+   "isEntry": true,
+   "result": [
+    {
+     "name": "",
+     "bytes": 0
+    }
+   ]
+  }
+ ],
+ "walks": [
+  {
+   "body": [],
+   "calls": [],
+   "strings": []
+  },
+  {
+   "body": [
+    {
+     "kind": "call",
+     "name": "b",
+     "args": [
+      {
+       "kind": "string",
+       "index": 3,
+       "type": "string"
+      },
+      {
+       "kind": "call",
+       "name": "c",
+       "args": [
+        {
+         "kind": "string",
+         "index": 1,
+         "type": "string"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "kind": "if",
+     "test": {
+      "kind": "call",
+      "name": "d",
+      "args": []
+     },
+     "then": [
+      {
+       "kind": "assign",
+       "target": "x",
+       "value": {
+        "kind": "string",
+        "index": 2,
+        "type": "string"
+       }
+      }
+     ],
+     "else": [
+      {
+       "kind": "call",
+       "name": "b",
+       "args": []
+      }
+     ],
+     "start": 0,
+     "length": 0
+    },
+    {
+     "kind": "for",
+     "init": {
+      "kind": "local",
+      "name": "i",
+      "type": "u8",
+      "init": {
+       "kind": "call",
+       "name": "e",
+       "args": []
+      }
+     },
+     "test": {
+      "kind": "call",
+      "name": "f",
+      "args": [
+       {
+        "kind": "string",
+        "index": 1,
+        "type": "string"
+       }
+      ]
+     },
+     "update": {
+      "kind": "assign",
+      "target": "i",
+      "value": {
+       "kind": "const",
+       "value": 1
+      }
+     },
+     "body": [
+      {
+       "kind": "call",
+       "name": "a",
+       "args": []
+      }
+     ]
+    },
+    {
+     "kind": "while",
+     "test": {
+      "kind": "ref",
+      "name": "q"
+     },
+     "body": [
+      {
+       "kind": "block",
+       "origin": "z",
+       "body": [
+        {
+         "kind": "call",
+         "name": "g",
+         "args": [
+          {
+           "kind": "binop",
+           "operator": "+",
+           "left": {
+            "kind": "string",
+            "index": 7,
+            "type": "string"
+           },
+           "right": {
+            "kind": "call",
+            "name": "h",
+            "args": []
+           },
+           "type": "u8"
+          }
+         ]
+        }
+       ]
+      }
+     ],
+     "start": 0,
+     "length": 0
+    },
+    {
+     "kind": "storeIndex",
+     "array": {
+      "kind": "ref",
+      "name": "arr"
+     },
+     "index": {
+      "kind": "call",
+      "name": "i",
+      "args": []
+     },
+     "value": {
+      "kind": "string",
+      "index": 0,
+      "type": "string"
+     },
+     "elementType": "u8",
+     "start": 0,
+     "length": 0
+    },
+    {
+     "kind": "return",
+     "value": {
+      "kind": "stringByte",
+      "string": {
+       "kind": "string",
+       "index": 9,
+       "type": "string"
+      },
+      "index": {
+       "kind": "call",
+       "name": "j",
+       "args": []
+      },
+      "type": "u8"
+     },
+     "start": 0,
+     "length": 0
+    }
+   ],
+   "calls": [
+    "b",
+    "c",
+    "d",
+    "e",
+    "f",
+    "a",
+    "g",
+    "h",
+    "i",
+    "j"
+   ],
+   "strings": [
+    3,
+    1,
+    2,
+    7,
+    0,
+    9
+   ]
+  },
+  {
+   "body": [
+    {
+     "kind": "call",
+     "name": "only",
+     "args": []
+    }
+   ],
+   "calls": [
+    "only"
+   ],
+   "strings": []
+  }
+ ],
+ "callCycles": [
+  {
+   "functions": [],
+   "result": null
+  },
+  {
+   "functions": [
+    {
+     "name": "main",
+     "body": [
+      {
+       "kind": "call",
+       "name": "a",
+       "args": []
+      }
+     ]
+    },
+    {
+     "name": "a",
+     "body": [
+      {
+       "kind": "call",
+       "name": "b",
+       "args": []
+      }
+     ]
+    },
+    {
+     "name": "b",
+     "body": []
+    }
+   ],
+   "result": null
+  },
+  {
+   "functions": [
+    {
+     "name": "main",
+     "body": [
+      {
+       "kind": "call",
+       "name": "a",
+       "args": []
+      },
+      {
+       "kind": "call",
+       "name": "b",
+       "args": []
+      }
+     ]
+    },
+    {
+     "name": "a",
+     "body": [
+      {
+       "kind": "call",
+       "name": "c",
+       "args": []
+      }
+     ]
+    },
+    {
+     "name": "b",
+     "body": [
+      {
+       "kind": "call",
+       "name": "c",
+       "args": []
+      }
+     ]
+    },
+    {
+     "name": "c",
+     "body": []
+    }
+   ],
+   "result": null
+  },
+  {
+   "functions": [
+    {
+     "name": "main",
+     "body": [
+      {
+       "kind": "call",
+       "name": "a",
+       "args": []
+      }
+     ]
+    },
+    {
+     "name": "a",
+     "body": [
+      {
+       "kind": "call",
+       "name": "b",
+       "args": []
+      }
+     ]
+    },
+    {
+     "name": "b",
+     "body": [
+      {
+       "kind": "call",
+       "name": "c",
+       "args": []
+      }
+     ]
+    },
+    {
+     "name": "c",
+     "body": [
+      {
+       "kind": "call",
+       "name": "a",
+       "args": []
+      }
+     ]
+    }
+   ],
+   "result": [
+    "a",
+    "b",
+    "c"
+   ]
+  },
+  {
+   "functions": [
+    {
+     "name": "main",
+     "body": [
+      {
+       "kind": "call",
+       "name": "main",
+       "args": []
+      }
+     ]
+    }
+   ],
+   "result": [
+    "main"
+   ]
+  },
+  {
+   "functions": [
+    {
+     "name": "main",
+     "body": [
+      {
+       "kind": "call",
+       "name": "a",
+       "args": []
+      }
+     ]
+    },
+    {
+     "name": "a",
+     "body": [
+      {
+       "kind": "call",
+       "name": "a",
+       "args": []
+      }
+     ]
+    }
+   ],
+   "result": [
+    "a"
+   ]
+  },
+  {
+   "functions": [
+    {
+     "name": "main",
+     "body": [
+      {
+       "kind": "call",
+       "name": "ext",
+       "args": []
+      },
+      {
+       "kind": "call",
+       "name": "a",
+       "args": []
+      }
+     ]
+    },
+    {
+     "name": "a",
+     "body": [
+      {
+       "kind": "call",
+       "name": "main",
+       "args": []
+      }
+     ]
+    }
+   ],
+   "result": [
+    "main",
+    "a"
+   ]
+  },
+  {
+   "functions": [
+    {
+     "name": "x",
+     "body": [
+      {
+       "kind": "call",
+       "name": "y",
+       "args": []
+      }
+     ]
+    },
+    {
+     "name": "y",
+     "body": [
+      {
+       "kind": "call",
+       "name": "x",
+       "args": []
+      }
+     ]
+    },
+    {
+     "name": "z",
+     "body": [
+      {
+       "kind": "call",
+       "name": "z",
+       "args": []
+      }
+     ]
+    }
+   ],
+   "result": [
+    "x",
+    "y"
+   ]
+  },
+  {
+   "functions": [
+    {
+     "name": "main",
+     "body": [
+      {
+       "kind": "if",
+       "test": {
+        "kind": "call",
+        "name": "a",
+        "args": []
+       },
+       "then": [],
+       "else": [
+        {
+         "kind": "call",
+         "name": "b",
+         "args": []
+        }
+       ],
+       "start": 0,
+       "length": 0
+      }
+     ]
+    },
+    {
+     "name": "a",
+     "body": []
+    },
+    {
+     "name": "b",
+     "body": [
+      {
+       "kind": "while",
+       "test": {
+        "kind": "const",
+        "value": 1
+       },
+       "body": [
+        {
+         "kind": "call",
+         "name": "main",
+         "args": []
+        }
+       ],
+       "start": 0,
+       "length": 0
+      }
+     ]
+    }
+   ],
+   "result": [
+    "main",
+    "b"
+   ]
+  },
+  {
+   "functions": [
+    {
+     "name": "main",
+     "body": [
+      {
+       "kind": "call",
+       "name": "a",
+       "args": [
+        {
+         "kind": "const",
+         "value": 1
+        },
+        {
+         "kind": "call",
+         "name": "b",
+         "args": []
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "name": "a",
+     "body": []
+    },
+    {
+     "name": "b",
+     "body": [
+      {
+       "kind": "call",
+       "name": "a",
+       "args": []
+      }
+     ]
+    }
+   ],
+   "result": null
+  },
+  {
+   "functions": [
+    {
+     "name": "p",
+     "body": [
+      {
+       "kind": "call",
+       "name": "q",
+       "args": []
+      }
+     ]
+    },
+    {
+     "name": "q",
+     "body": [
+      {
+       "kind": "call",
+       "name": "r",
+       "args": []
+      }
+     ]
+    },
+    {
+     "name": "r",
+     "body": [
+      {
+       "kind": "call",
+       "name": "p",
+       "args": []
+      },
+      {
+       "kind": "call",
+       "name": "q",
+       "args": []
+      }
+     ]
+    }
+   ],
+   "result": [
+    "p",
+    "q",
+    "r"
+   ]
+  }
+ ]
+}

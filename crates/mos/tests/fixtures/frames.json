@@ -1,0 +1,1437 @@
+[
+ {
+  "functions": [
+   {
+    "name": "main",
+    "body": [
+     {
+      "kind": "call",
+      "name": "draw",
+      "args": []
+     },
+     {
+      "kind": "call",
+      "name": "input",
+      "args": []
+     }
+    ]
+   },
+   {
+    "name": "draw",
+    "body": [
+     {
+      "kind": "call",
+      "name": "put",
+      "args": []
+     }
+    ]
+   },
+   {
+    "name": "input",
+    "body": []
+   },
+   {
+    "name": "put",
+    "body": []
+   }
+  ],
+  "entry": "main",
+  "needs": [
+   [
+    "main",
+    4
+   ],
+   [
+    "draw",
+    6
+   ],
+   [
+    "input",
+    10
+   ],
+   [
+    "put",
+    2
+   ]
+  ],
+  "origin": 16,
+  "ceiling": 256,
+  "parents": [
+   [
+    "main",
+    []
+   ],
+   [
+    "draw",
+    [
+     "main"
+    ]
+   ],
+   [
+    "input",
+    [
+     "main"
+    ]
+   ],
+   [
+    "put",
+    [
+     "draw"
+    ]
+   ]
+  ],
+  "result": {
+   "ok": true,
+   "starts": [
+    [
+     "main",
+     16
+    ],
+    [
+     "input",
+     20
+    ],
+    [
+     "draw",
+     20
+    ],
+    [
+     "put",
+     26
+    ]
+   ],
+   "floor": 30
+  }
+ },
+ {
+  "functions": [
+   {
+    "name": "main",
+    "body": [
+     {
+      "kind": "call",
+      "name": "a",
+      "args": []
+     },
+     {
+      "kind": "call",
+      "name": "b",
+      "args": []
+     }
+    ]
+   },
+   {
+    "name": "a",
+    "body": [
+     {
+      "kind": "call",
+      "name": "shared",
+      "args": []
+     }
+    ]
+   },
+   {
+    "name": "b",
+    "body": [
+     {
+      "kind": "call",
+      "name": "shared",
+      "args": []
+     }
+    ]
+   },
+   {
+    "name": "shared",
+    "body": []
+   }
+  ],
+  "entry": "main",
+  "needs": [
+   [
+    "main",
+    2
+   ],
+   [
+    "a",
+    4
+   ],
+   [
+    "b",
+    12
+   ],
+   [
+    "shared",
+    2
+   ]
+  ],
+  "origin": 0,
+  "ceiling": 256,
+  "parents": [
+   [
+    "main",
+    []
+   ],
+   [
+    "a",
+    [
+     "main"
+    ]
+   ],
+   [
+    "b",
+    [
+     "main"
+    ]
+   ],
+   [
+    "shared",
+    [
+     "a",
+     "b"
+    ]
+   ]
+  ],
+  "result": {
+   "ok": true,
+   "starts": [
+    [
+     "main",
+     0
+    ],
+    [
+     "b",
+     2
+    ],
+    [
+     "a",
+     2
+    ],
+    [
+     "shared",
+     14
+    ]
+   ],
+   "floor": 16
+  }
+ },
+ {
+  "functions": [
+   {
+    "name": "main",
+    "body": [
+     {
+      "kind": "call",
+      "name": "f",
+      "args": [
+       {
+        "kind": "ref",
+        "name": "x"
+       },
+       {
+        "kind": "call",
+        "name": "g",
+        "args": []
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "name": "f",
+    "body": []
+   },
+   {
+    "name": "g",
+    "body": []
+   }
+  ],
+  "entry": "main",
+  "needs": [
+   [
+    "main",
+    2
+   ],
+   [
+    "f",
+    6
+   ],
+   [
+    "g",
+    4
+   ]
+  ],
+  "origin": 0,
+  "ceiling": 256,
+  "parents": [
+   [
+    "main",
+    []
+   ],
+   [
+    "f",
+    [
+     "main"
+    ]
+   ],
+   [
+    "g",
+    [
+     "f",
+     "main"
+    ]
+   ]
+  ],
+  "result": {
+   "ok": true,
+   "starts": [
+    [
+     "main",
+     0
+    ],
+    [
+     "f",
+     2
+    ],
+    [
+     "g",
+     8
+    ]
+   ],
+   "floor": 12
+  }
+ },
+ {
+  "functions": [
+   {
+    "name": "main",
+    "body": [
+     {
+      "kind": "call",
+      "name": "f",
+      "args": [
+       {
+        "kind": "call",
+        "name": "g",
+        "args": []
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "name": "f",
+    "body": []
+   },
+   {
+    "name": "g",
+    "body": []
+   }
+  ],
+  "entry": "main",
+  "needs": [
+   [
+    "main",
+    2
+   ],
+   [
+    "f",
+    6
+   ],
+   [
+    "g",
+    4
+   ]
+  ],
+  "origin": 0,
+  "ceiling": 256,
+  "parents": [
+   [
+    "main",
+    []
+   ],
+   [
+    "f",
+    [
+     "main"
+    ]
+   ],
+   [
+    "g",
+    [
+     "main"
+    ]
+   ]
+  ],
+  "result": {
+   "ok": true,
+   "starts": [
+    [
+     "main",
+     0
+    ],
+    [
+     "g",
+     2
+    ],
+    [
+     "f",
+     2
+    ]
+   ],
+   "floor": 8
+  }
+ },
+ {
+  "functions": [
+   {
+    "name": "main",
+    "body": [
+     {
+      "kind": "call",
+      "name": "f",
+      "args": [
+       {
+        "kind": "const",
+        "value": 1
+       },
+       {
+        "kind": "call",
+        "name": "f",
+        "args": [
+         {
+          "kind": "const",
+          "value": 2
+         },
+         {
+          "kind": "const",
+          "value": 3
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "name": "f",
+    "body": []
+   }
+  ],
+  "entry": "main",
+  "needs": [
+   [
+    "main",
+    2
+   ],
+   [
+    "f",
+    4
+   ]
+  ],
+  "origin": 0,
+  "ceiling": 256,
+  "parents": [
+   [
+    "main",
+    []
+   ],
+   [
+    "f",
+    [
+     "main",
+     "f"
+    ]
+   ]
+  ],
+  "result": {
+   "ok": false,
+   "error": "frame layout found a cycle through f: a function reappearing inside its own call's later arguments (f(a, f(b))) isn't layable-out — hoist the inner call into a local first"
+  }
+ },
+ {
+  "functions": [
+   {
+    "name": "main",
+    "body": [
+     {
+      "kind": "call",
+      "name": "f",
+      "args": []
+     }
+    ]
+   },
+   {
+    "name": "f",
+    "body": []
+   }
+  ],
+  "entry": "main",
+  "needs": [
+   [
+    "main",
+    4
+   ],
+   [
+    "f",
+    8
+   ]
+  ],
+  "origin": 192,
+  "ceiling": 256,
+  "holes": [
+   {
+    "start": 194,
+    "end": 218
+   }
+  ],
+  "parents": [
+   [
+    "main",
+    []
+   ],
+   [
+    "f",
+    [
+     "main"
+    ]
+   ]
+  ],
+  "result": {
+   "ok": true,
+   "starts": [
+    [
+     "main",
+     218
+    ],
+    [
+     "f",
+     222
+    ]
+   ],
+   "floor": 230
+  }
+ },
+ {
+  "functions": [
+   {
+    "name": "main",
+    "body": [
+     {
+      "kind": "call",
+      "name": "f",
+      "args": []
+     }
+    ]
+   },
+   {
+    "name": "f",
+    "body": []
+   }
+  ],
+  "entry": "main",
+  "needs": [
+   [
+    "main",
+    100
+   ],
+   [
+    "f",
+    100
+   ]
+  ],
+  "origin": 142,
+  "ceiling": 256,
+  "parents": [
+   [
+    "main",
+    []
+   ],
+   [
+    "f",
+    [
+     "main"
+    ]
+   ]
+  ],
+  "result": {
+   "ok": false,
+   "error": "out of zero page: 'f's frame needs 100 byte(s) at $F2 but the budget ends at $FF — the deepest call chain's frames ($8E up) no longer fit"
+  }
+ },
+ {
+  "functions": [
+   {
+    "name": "main",
+    "body": [
+     {
+      "kind": "call",
+      "name": "a",
+      "args": [
+       {
+        "kind": "const",
+        "value": 1
+       },
+       {
+        "kind": "call",
+        "name": "b",
+        "args": []
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "name": "a",
+    "body": []
+   },
+   {
+    "name": "b",
+    "body": [
+     {
+      "kind": "call",
+      "name": "a",
+      "args": []
+     }
+    ]
+   }
+  ],
+  "entry": "main",
+  "needs": [
+   [
+    "main",
+    1
+   ],
+   [
+    "a",
+    1
+   ],
+   [
+    "b",
+    1
+   ]
+  ],
+  "origin": 0,
+  "ceiling": 256,
+  "parents": [
+   [
+    "main",
+    []
+   ],
+   [
+    "a",
+    [
+     "main",
+     "b"
+    ]
+   ],
+   [
+    "b",
+    [
+     "a",
+     "main"
+    ]
+   ]
+  ],
+  "result": {
+   "ok": false,
+   "error": "frame layout found a cycle through a -> b: a function reappearing inside its own call's later arguments (f(a, f(b))) isn't layable-out — hoist the inner call into a local first"
+  }
+ },
+ {
+  "functions": [
+   {
+    "name": "main",
+    "body": [
+     {
+      "kind": "call",
+      "name": "x",
+      "args": []
+     }
+    ]
+   },
+   {
+    "name": "x",
+    "body": [
+     {
+      "kind": "call",
+      "name": "y",
+      "args": []
+     }
+    ]
+   },
+   {
+    "name": "y",
+    "body": [
+     {
+      "kind": "call",
+      "name": "x",
+      "args": []
+     }
+    ]
+   },
+   {
+    "name": "z",
+    "body": [
+     {
+      "kind": "call",
+      "name": "y",
+      "args": []
+     }
+    ]
+   }
+  ],
+  "entry": "main",
+  "needs": [
+   [
+    "main",
+    1
+   ],
+   [
+    "x",
+    1
+   ],
+   [
+    "y",
+    1
+   ],
+   [
+    "z",
+    1
+   ]
+  ],
+  "origin": 0,
+  "ceiling": 256,
+  "parents": [
+   [
+    "main",
+    []
+   ],
+   [
+    "x",
+    [
+     "main",
+     "y"
+    ]
+   ],
+   [
+    "y",
+    [
+     "x",
+     "z"
+    ]
+   ],
+   [
+    "z",
+    []
+   ]
+  ],
+  "result": {
+   "ok": false,
+   "error": "frame layout found a cycle through x -> y: a function reappearing inside its own call's later arguments (f(a, f(b))) isn't layable-out — hoist the inner call into a local first"
+  }
+ },
+ {
+  "functions": [
+   {
+    "name": "main",
+    "body": [
+     {
+      "kind": "if",
+      "test": {
+       "kind": "call",
+       "name": "c1",
+       "args": []
+      },
+      "then": [
+       {
+        "kind": "call",
+        "name": "c2",
+        "args": []
+       }
+      ],
+      "else": [
+       {
+        "kind": "call",
+        "name": "c3",
+        "args": []
+       }
+      ],
+      "start": 0,
+      "length": 0
+     },
+     {
+      "kind": "while",
+      "test": {
+       "kind": "const",
+       "value": 1
+      },
+      "body": [
+       {
+        "kind": "block",
+        "origin": "q",
+        "body": [
+         {
+          "kind": "call",
+          "name": "c4",
+          "args": [
+           {
+            "kind": "const",
+            "value": 0
+           },
+           {
+            "kind": "call",
+            "name": "c5",
+            "args": [
+             {
+              "kind": "const",
+              "value": 0
+             },
+             {
+              "kind": "call",
+              "name": "c6",
+              "args": []
+             }
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "start": 0,
+      "length": 0
+     },
+     {
+      "kind": "for",
+      "init": {
+       "kind": "local",
+       "name": "i",
+       "type": "u8",
+       "init": {
+        "kind": "call",
+        "name": "c7",
+        "args": []
+       }
+      },
+      "test": {
+       "kind": "const",
+       "value": 1
+      },
+      "update": {
+       "kind": "assign",
+       "target": "i",
+       "value": {
+        "kind": "call",
+        "name": "missing",
+        "args": []
+       }
+      },
+      "body": []
+     }
+    ]
+   },
+   {
+    "name": "c1",
+    "body": []
+   },
+   {
+    "name": "c2",
+    "body": []
+   },
+   {
+    "name": "c3",
+    "body": []
+   },
+   {
+    "name": "c4",
+    "body": []
+   },
+   {
+    "name": "c5",
+    "body": []
+   },
+   {
+    "name": "c6",
+    "body": []
+   },
+   {
+    "name": "c7",
+    "body": []
+   }
+  ],
+  "entry": "main",
+  "needs": [
+   [
+    "main",
+    3
+   ],
+   [
+    "c1",
+    1
+   ],
+   [
+    "c2",
+    2
+   ],
+   [
+    "c3",
+    5
+   ],
+   [
+    "c4",
+    4
+   ],
+   [
+    "c5",
+    3
+   ],
+   [
+    "c6",
+    2
+   ]
+  ],
+  "origin": 34,
+  "ceiling": 128,
+  "holes": [],
+  "parents": [
+   [
+    "main",
+    []
+   ],
+   [
+    "c1",
+    [
+     "main"
+    ]
+   ],
+   [
+    "c2",
+    [
+     "main"
+    ]
+   ],
+   [
+    "c3",
+    [
+     "main"
+    ]
+   ],
+   [
+    "c4",
+    [
+     "main"
+    ]
+   ],
+   [
+    "c5",
+    [
+     "c4",
+     "main"
+    ]
+   ],
+   [
+    "c6",
+    [
+     "c4",
+     "c5",
+     "main"
+    ]
+   ],
+   [
+    "c7",
+    [
+     "main"
+    ]
+   ]
+  ],
+  "result": {
+   "ok": true,
+   "starts": [
+    [
+     "main",
+     34
+    ],
+    [
+     "c7",
+     37
+    ],
+    [
+     "c4",
+     37
+    ],
+    [
+     "c5",
+     41
+    ],
+    [
+     "c6",
+     44
+    ],
+    [
+     "c3",
+     37
+    ],
+    [
+     "c2",
+     37
+    ],
+    [
+     "c1",
+     37
+    ]
+   ],
+   "floor": 46
+  }
+ },
+ {
+  "functions": [
+   {
+    "name": "main",
+    "body": [
+     {
+      "kind": "call",
+      "name": "a",
+      "args": []
+     }
+    ]
+   },
+   {
+    "name": "a",
+    "body": [
+     {
+      "kind": "call",
+      "name": "b",
+      "args": []
+     }
+    ]
+   },
+   {
+    "name": "b",
+    "body": []
+   }
+  ],
+  "entry": "main",
+  "needs": [
+   [
+    "main",
+    6
+   ],
+   [
+    "a",
+    6
+   ],
+   [
+    "b",
+    6
+   ]
+  ],
+  "origin": 34,
+  "ceiling": 256,
+  "holes": [
+   {
+    "start": 36,
+    "end": 48
+   },
+   {
+    "start": 48,
+    "end": 56
+   },
+   {
+    "start": 64,
+    "end": 80
+   }
+  ],
+  "parents": [
+   [
+    "main",
+    []
+   ],
+   [
+    "a",
+    [
+     "main"
+    ]
+   ],
+   [
+    "b",
+    [
+     "a"
+    ]
+   ]
+  ],
+  "result": {
+   "ok": true,
+   "starts": [
+    [
+     "main",
+     56
+    ],
+    [
+     "a",
+     80
+    ],
+    [
+     "b",
+     86
+    ]
+   ],
+   "floor": 92
+  }
+ },
+ {
+  "functions": [
+   {
+    "name": "main",
+    "body": [
+     {
+      "kind": "call",
+      "name": "a",
+      "args": []
+     }
+    ]
+   },
+   {
+    "name": "a",
+    "body": []
+   }
+  ],
+  "entry": "main",
+  "needs": [
+   [
+    "main",
+    8
+   ],
+   [
+    "a",
+    8
+   ]
+  ],
+  "origin": 240,
+  "ceiling": 256,
+  "parents": [
+   [
+    "main",
+    []
+   ],
+   [
+    "a",
+    [
+     "main"
+    ]
+   ]
+  ],
+  "result": {
+   "ok": true,
+   "starts": [
+    [
+     "main",
+     240
+    ],
+    [
+     "a",
+     248
+    ]
+   ],
+   "floor": 256
+  }
+ },
+ {
+  "functions": [
+   {
+    "name": "main",
+    "body": []
+   }
+  ],
+  "entry": "main",
+  "needs": [
+   [
+    "main",
+    9
+   ]
+  ],
+  "origin": 2,
+  "ceiling": 8,
+  "parents": [
+   [
+    "main",
+    []
+   ]
+  ],
+  "result": {
+   "ok": false,
+   "error": "out of zero page: 'main's frame needs 9 byte(s) at $02 but the budget ends at $07 — the deepest call chain's frames ($02 up) no longer fit"
+  }
+ },
+ {
+  "functions": [
+   {
+    "name": "a",
+    "body": []
+   }
+  ],
+  "entry": "nope",
+  "needs": [
+   [
+    "a",
+    3
+   ]
+  ],
+  "origin": 0,
+  "ceiling": 256,
+  "parents": [
+   [
+    "a",
+    []
+   ]
+  ],
+  "result": {
+   "ok": true,
+   "starts": [
+    [
+     "nope",
+     0
+    ],
+    [
+     "a",
+     0
+    ]
+   ],
+   "floor": 3
+  }
+ },
+ {
+  "functions": [
+   {
+    "name": "main",
+    "body": [
+     {
+      "kind": "call",
+      "name": "a",
+      "args": []
+     }
+    ]
+   },
+   {
+    "name": "a",
+    "body": [
+     {
+      "kind": "call",
+      "name": "main",
+      "args": []
+     }
+    ]
+   }
+  ],
+  "entry": "main",
+  "needs": [
+   [
+    "main",
+    1
+   ],
+   [
+    "a",
+    1
+   ]
+  ],
+  "origin": 0,
+  "ceiling": 256,
+  "parents": [
+   [
+    "main",
+    [
+     "a"
+    ]
+   ],
+   [
+    "a",
+    [
+     "main"
+    ]
+   ]
+  ],
+  "result": {
+   "ok": false,
+   "error": "frame layout found a cycle through main -> a: a function reappearing inside its own call's later arguments (f(a, f(b))) isn't layable-out — hoist the inner call into a local first"
+  }
+ },
+ {
+  "functions": [
+   {
+    "name": "main",
+    "body": [
+     {
+      "kind": "call",
+      "name": "a",
+      "args": []
+     }
+    ]
+   },
+   {
+    "name": "a",
+    "body": [
+     {
+      "kind": "call",
+      "name": "b",
+      "args": []
+     }
+    ]
+   },
+   {
+    "name": "b",
+    "body": []
+   }
+  ],
+  "entry": "main",
+  "needs": [
+   [
+    "main",
+    0
+   ],
+   [
+    "a",
+    0
+   ]
+  ],
+  "origin": 5,
+  "ceiling": 256,
+  "parents": [
+   [
+    "main",
+    []
+   ],
+   [
+    "a",
+    [
+     "main"
+    ]
+   ],
+   [
+    "b",
+    [
+     "a"
+    ]
+   ]
+  ],
+  "result": {
+   "ok": true,
+   "starts": [
+    [
+     "main",
+     5
+    ],
+    [
+     "a",
+     5
+    ],
+    [
+     "b",
+     5
+    ]
+   ],
+   "floor": 5
+  }
+ },
+ {
+  "functions": [
+   {
+    "name": "main",
+    "body": [
+     {
+      "kind": "call",
+      "name": "z",
+      "args": []
+     },
+     {
+      "kind": "call",
+      "name": "y",
+      "args": []
+     },
+     {
+      "kind": "call",
+      "name": "x",
+      "args": []
+     }
+    ]
+   },
+   {
+    "name": "x",
+    "body": []
+   },
+   {
+    "name": "y",
+    "body": []
+   },
+   {
+    "name": "z",
+    "body": []
+   }
+  ],
+  "entry": "main",
+  "needs": [
+   [
+    "main",
+    1
+   ],
+   [
+    "x",
+    2
+   ],
+   [
+    "y",
+    3
+   ],
+   [
+    "z",
+    4
+   ]
+  ],
+  "origin": 0,
+  "ceiling": 256,
+  "parents": [
+   [
+    "main",
+    []
+   ],
+   [
+    "x",
+    [
+     "main"
+    ]
+   ],
+   [
+    "y",
+    [
+     "main"
+    ]
+   ],
+   [
+    "z",
+    [
+     "main"
+    ]
+   ]
+  ],
+  "result": {
+   "ok": true,
+   "starts": [
+    [
+     "main",
+     0
+    ],
+    [
+     "z",
+     1
+    ],
+    [
+     "y",
+     1
+    ],
+    [
+     "x",
+     1
+    ]
+   ],
+   "floor": 5
+  }
+ }
+]
