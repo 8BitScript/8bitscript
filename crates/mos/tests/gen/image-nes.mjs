@@ -30,6 +30,7 @@ const cases = [
   ['font, patch wraps bytes', 0x8000, [], 0x8000, [{ file: font }], [{ tile: 0, bytes: [256, -1, 300, 1.5] }]],
   ['font, patch past the end is skipped', 0x8000, [], 0x8000, [{ file: font }], [{ tile: 511, bytes: new Array(17).fill(9) }, { tile: 600, bytes: [1] }]],
   ['font, patch fits exactly', 0x8000, [], 0x8000, [{ file: font }], [{ tile: 511, bytes: new Array(16).fill(9) }]],
+  ['font, negative patch tile throws', 0x8000, [], 0x8000, [{ file: font }], [{ tile: -1, bytes: [1] }]],
   ['font, empty patch list', 0x8000, [], 0x8000, [{ file: font }], []],
   ['font, empty patch bytes at the end', 0x8000, [], 0x8000, [{ file: font }], [{ tile: 512, bytes: [] }]],
   ['small chr, patches later win', 0x8000, [0x60], 0x8000, [{ text: small }], [{ tile: 0, bytes: [9] }, { tile: 0, bytes: [8, 7] }]],

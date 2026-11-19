@@ -730,7 +730,7 @@ impl<'a> Lowerer<'a> {
     /// An 8-bit value into the accumulator.
     ///
     /// # Errors
-    /// A `LowerError` text, or the `unported:` text of a method not ported yet.
+    /// A `LowerError` text.
     pub fn expr(&mut self, node: &Expr) -> Result<(), String> {
         if has_type(node) {
             require8_bit(expr_type(node), &format!("'{}'", expr_kind(node)))?;
@@ -773,7 +773,7 @@ impl<'a> Lowerer<'a> {
     /// low byte of the wide value.
     ///
     /// # Errors
-    /// A `LowerError` text, or the `unported:` text of a method not ported yet.
+    /// A `LowerError` text.
     pub fn expr8(&mut self, node: &Expr) -> Result<(), String> {
         if type_is_bytes(node, 2) {
             if let Expr::Binop(b) = node {
@@ -954,8 +954,7 @@ pub fn redundant_reloads(program: &[Directive], removed: &mut BTreeSet<usize>) {
 /// Lowers one function's body to a 6502 program.
 ///
 /// # Errors
-/// The `LowerError`/`ZpBudgetError` text (JS `{ ok: false, error }`), or the
-/// `unported:` text of a method not ported yet.
+/// The `LowerError`/`ZpBudgetError` text (JS `{ ok: false, error }`).
 pub fn lower(
     body: &[Stmt],
     options: &mut LowerOptions,
@@ -1692,7 +1691,7 @@ mod tests {
     }
 
     #[test]
-    fn lower_reports_the_first_unported_method() {
+    fn lower_counts_one_label_for_an_empty_body() {
         let mut opts = options(Some("main"));
         let mut c = Counters::default();
         assert!(lower(&[], &mut opts, &mut c).is_ok());

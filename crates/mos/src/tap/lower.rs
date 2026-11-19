@@ -86,22 +86,18 @@ fn strip_prov(v: &mut Value) {
     }
 }
 
-/// True for the error text of a method that is not ported yet.
-fn is_unported(error: &str) -> bool {
-    error.starts_with("unported:")
-}
-
 /// Replays one `lower` record.
 #[must_use]
 pub fn replay(record: &Value, counters: &mut Counters) -> Replay {
-    let (Some(args), Some(js)) = (
-        record.get("args").and_then(Value::as_array),
-        record.get("result"),
-    ) else {
-        return Replay::Skip;
+    let Some(args) = record.get("args").and_then(Value::as_array) else {
+        return Replay::Mismatch("/args".into(), Value::Null, json!("missing input"));
     };
     let (Some(body), Some(opts)) = (args.first(), args.get(1)) else {
-        return Replay::Skip;
+        return Replay::Mismatch("/args".into(), Value::Null, json!("missing input"));
+    };
+    let Some(js) = record.get("result") else {
+        // The JS call threw, so there is no result to match.
+        return Replay::Mismatch("/result".into(), record["throw"].clone(), Value::Null);
     };
     let body: Vec<Stmt> = match serde_json::from_value(body.clone()) {
         Ok(b) => b,
@@ -115,7 +111,6 @@ pub fn replay(record: &Value, counters: &mut Counters) -> Replay {
         counters.lower = n;
     }
     let mut rust = match lower(&body, &mut options, counters) {
-        Err(e) if is_unported(&e) => return Replay::Skip,
         Err(error) => json!({"ok": false, "error": error}),
         Ok(done) => {
             let mut v = serde_json::to_value(&done).unwrap_or(Value::Null);
@@ -194,16 +189,17 @@ mod tests {
     }
 
     #[test]
-    fn replay_skips_the_unported_and_flags_bad_input() {
+    fn replay_flags_bad_input_and_a_thrown_call() {
         let mut c = Counters::default();
         let rec = |body: Value, opts: Value| json!({"args": [body, opts], "result": {"ok": true, "program": [{"kind": "label", "name": "__8bs_exit_4"}], "parts": []}});
-        assert_eq!(replay(&json!({}), &mut c), Replay::Skip);
-        assert_eq!(
-            replay(&json!({"args": [[]], "result": {}}), &mut c),
-            Replay::Skip
+        assert!(matches!(replay(&json!({}), &mut c), Replay::Mismatch(p, ..) if p == "/args"));
+        assert!(
+            matches!(replay(&json!({"args": [[]], "result": {}}), &mut c), Replay::Mismatch(p, ..) if p == "/args")
         );
-        assert!(is_unported("unported: expr16"));
-        assert!(!is_unported("break outside any loop"));
+        assert_eq!(
+            replay(&json!({"args": [[], {}], "throw": "boom"}), &mut c),
+            Replay::Mismatch("/result".into(), json!("boom"), Value::Null)
+        );
         assert_eq!(
             replay(&rec(json!([]), options_json()), &mut c),
             Replay::Match

@@ -374,13 +374,14 @@ pub fn assemble_chr_rom(sources: &[NativeSource], size: i64) -> Result<ChrRom, S
         let mut state = State { section: None };
         read_lines(&lines, &mut macros, &mut state, &mut out, &source.path, 0)?;
     }
-    let size_usize = usize::try_from(size).map_err(|_| format!("invalid array length {size}"))?;
-    if out.len() > size_usize {
+    // JS compares first, so a negative size reports the oversize error, not a bad length.
+    if i64::try_from(out.len()).is_ok_and(|n| n > size) {
         return Err(format!(
             "the NES image's CHR-ROM is {size} bytes and the linked program's .chr_rom sections define {}",
             out.len()
         ));
     }
+    let size_usize = usize::try_from(size).map_err(|_| format!("invalid array length {size}"))?;
     let defined = out.len();
     out.resize(size_usize, 0);
     Ok(ChrRom {
