@@ -77,18 +77,18 @@ for (const target of TARGETS) {
 test('the drop-down offers the bar\'s calls, plus clear() for the rows it covered', () => {
   const source = readFileSync(join(SRC, 'menu.8bs'), 'utf8');
   for (const call of ['setColors', 'setPadding', 'select', 'selected', 'deselect', 'next', 'previous', 'point', 'pointed', 'begin', 'item', 'end', 'clear', 'count', 'clipped']) {
-    assert.match(source, new RegExp(`function ${call}\\(`), `menu.${call}`);
+    assert.match(source, new RegExp(`fn ${call}\\(`), `menu.${call}`);
   }
   assert.match(source, /const NONE: utinyint = NO_SELECTION;/);
-  assert.match(source, /let highlighted: utinyint = NO_SELECTION;/, 'a menu opens with nothing highlighted');
+  assert.match(source, /let mut highlighted: utinyint = NO_SELECTION;/, 'a menu opens with nothing highlighted');
   // No item(), no putChar: a row is a print and two fills, never a cell at a time.
   const code = source.split('\n').filter((line) => !line.trim().startsWith('//')).join('\n');
-  assert.equal([...code.matchAll(/text\.putChar\(/g)].length, 0, 'the drop-down never puts a character one cell at a time');
-  assert.match(code, /text\.setReverse\(on\)/, 'the highlighted entry is inverted, not recolored');
-  assert.match(code, /text\.setReverse\(false\)/, 'reverse is turned off after each row');
+  assert.equal([...code.matchAll(/text::putChar\(/g)].length, 0, 'the drop-down never puts a character one cell at a time');
+  assert.match(code, /text::setReverse\(on\)/, 'the highlighted entry is inverted, not recolored');
+  assert.match(code, /text::setReverse\(false\)/, 'reverse is turned off after each row');
   // The two-comparison hit test, for the reason the bar's test gives.
-  assert.match(code, /if \(pointerAt >= start\)/);
-  assert.match(code, /if \(pointerAt - start < width\)/);
+  assert.match(code, /if pointerAt >= start/);
+  assert.match(code, /if pointerAt - start < width/);
   assert.doesNotMatch(code, /pointerAt < start \+/);
 });
 
@@ -116,7 +116,7 @@ test('the default marker is on the portable character set every target can draw'
   // The checker enforces this for the labels a program passes in; the
   // component's own default marker is a literal here, so it is checked here.
   const source = readFileSync(join(SRC, 'menubar.8bs'), 'utf8');
-  const marker = /let marker: string<1> = "(.*)";/.exec(source);
+  const marker = /let mut marker: string<1> = "(.*)";/.exec(source);
   assert.ok(marker, 'the default marker is a one-character string');
   assert.ok(marker[1].length <= 1, 'the marker takes one padding cell, so it is at most one character');
   for (const ch of marker[1]) {
@@ -132,11 +132,11 @@ test('drawing goes through print, not putChar, everywhere but the one blanking l
   // component reaches for putChar in a drawing path, this is the reminder.
   const source = readFileSync(join(SRC, 'menubar.8bs'), 'utf8');
   const code = source.split('\n').filter((line) => !line.trim().startsWith('//')).join('\n');
-  const putChar = [...code.matchAll(/text\.putChar\(/g)];
+  const putChar = [...code.matchAll(/text::putChar\(/g)];
   assert.equal(putChar.length, 1, 'only the blanking loop may put a character one cell at a time');
-  assert.match(code, /function blank\(/, 'and that one call belongs to blank()');
-  assert.match(code, /text\.setReverse\(on\)/, 'the selected item is inverted, not recolored');
-  assert.match(code, /text\.setReverse\(false\)/, 'reverse is turned off after each item');
+  assert.match(code, /fn blank\(/, 'and that one call belongs to blank()');
+  assert.match(code, /text::setReverse\(on\)/, 'the selected item is inverted, not recolored');
+  assert.match(code, /text::setReverse\(false\)/, 'reverse is turned off after each item');
 });
 
 test('the highlight is invert on every machine, and colorPerCell is still the fact it was', () => {
@@ -161,9 +161,9 @@ test('a bar starts deselected, and NONE is not an index any bar can produce', ()
   // items could never select.
   const source = readFileSync(join(SRC, 'menubar.8bs'), 'utf8');
   assert.match(source, /const NO_SELECTION: utinyint = 255;/);
-  assert.match(source, /let highlighted: utinyint = NO_SELECTION;/,
+  assert.match(source, /let mut highlighted: utinyint = NO_SELECTION;/,
     'a bar opens with nothing highlighted');
-  assert.match(source, /let pointedIndex: utinyint = NO_SELECTION;/,
+  assert.match(source, /let mut pointedIndex: utinyint = NO_SELECTION;/,
     'and with nothing under the pointer');
 });
 
@@ -173,8 +173,8 @@ test('the pointer hit test never forms a sum that the two backends disagree abou
   // in menubar.8bs and packages/ui/AGENTS.md). Two comparisons instead.
   const source = readFileSync(join(SRC, 'menubar.8bs'), 'utf8');
   const code = source.split('\n').filter((line) => !line.trim().startsWith('//')).join('\n');
-  assert.match(code, /if \(pointerAt >= start\)/);
-  assert.match(code, /if \(pointerAt - start < n\)/);
+  assert.match(code, /if pointerAt >= start/);
+  assert.match(code, /if pointerAt - start < n/);
   assert.doesNotMatch(code, /pointerAt < start \+/,
     'the hit test must not add a length to a cell');
 });
