@@ -19,9 +19,8 @@ import { readFileSync } from 'node:fs';
 
 import { NodeType, walk } from '../ast/index.mjs';
 import { bind, bindImports, componentOf, resolveSymbol, SymbolKind } from '../binder/index.mjs';
-import { tokenize, TokenKind } from '../lexer/index.mjs';
-import { parse } from '../parser/index.mjs';
-import { machineOfVariant, resolveSpecifier } from '../resolver/index.mjs';
+import { parse, tokenize, TokenKind } from '../front/index.mjs';
+import { machineOfVariant, pathFormSpecifiers, resolveSpecifier } from '../resolver/index.mjs';
 import { MACHINES, sourceKindOf } from '../source/index.mjs';
 import { isMediaKind } from '../media/kinds.mjs';
 
@@ -106,8 +105,9 @@ export function bindModule(text, file, { sourceKind = null, checkout = null, mac
   const { ast } = parse(tokens, text, name, { sourceKind: kind });
   const bound = bind(ast, name);
   const modules = new Map();
+  const pathForms = pathFormSpecifiers(tokens);
   bindImports(bound, (specifier) => {
-    const resolved = resolveModuleFile(specifier, file, { checkout, machine, importAliases });
+    const resolved = resolveModuleFile(specifier, file, { checkout, machine, importAliases, pathForm: pathForms.has(specifier) });
     if (!resolved) return null;
     let other;
     try {
@@ -360,7 +360,13 @@ export function symbolAt(module, offset) {
   const scope = scopeAt(module, token.start);
   const dot = tokens[index - 1];
   const object = tokens[index - 2];
-  if (dot?.text === '.' && object?.kind === TokenKind.Identifier) {
+  // A word in a `use` path is the import's local name, not a member of the
+  // segment before it: `use self::bar::opened;` hovers the `opened` it binds.
+  if (dot?.text === '::' && inUsePath(tokens, index)) {
+    const symbol = resolveSymbol(scope, token.text);
+    return symbol ? { symbol, token } : null;
+  }
+  if ((dot?.text === '::' || dot?.text === '.') && object?.kind === TokenKind.Identifier) {
     const owner = resolveSymbol(scope, object.text);
     const namespace = owner ? declared(owner) : null;
     const member = namespace?.members?.get(token.text);
@@ -368,6 +374,16 @@ export function symbolAt(module, offset) {
   }
   const symbol = resolveSymbol(scope, token.text);
   return symbol ? { symbol, token } : null;
+}
+
+/** Is the token at `index` inside a `use ...;` statement? */
+function inUsePath(tokens, index) {
+  for (let i = index - 1; i >= 0; i--) {
+    const t = tokens[i];
+    if (t.text === ';' || (t.text === '}' && tokens[i - 1]?.text === ';')) return false;
+    if (t.kind === TokenKind.Keyword && t.text === 'use') return true;
+  }
+  return false;
 }
 
 /**
@@ -418,5 +434,5 @@ function definitionIn(module, offset) {
 function isMemberAccessAt(text, offset) {
   const { tokens } = tokenize(text, '<definition>', { sourceKind: sourceKindOf('') ?? '.8bs' });
   const index = tokens.findIndex((tk) => offset >= tk.start && offset <= tk.start + tk.length);
-  return index > 0 && tokens[index].kind === TokenKind.Identifier && tokens[index - 1].text === '.';
+  return index > 0 && tokens[index].kind === TokenKind.Identifier && (tokens[index - 1].text === '::' || tokens[index - 1].text === '.');
 }

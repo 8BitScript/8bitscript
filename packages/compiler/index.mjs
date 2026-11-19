@@ -9,8 +9,7 @@
 // implementation.
 import { readFileSync } from 'node:fs';
 
-import { tokenize } from './src/lexer/index.mjs';
-import { parse } from './src/parser/index.mjs';
+import { parse, tokenize } from './src/front/index.mjs';
 import { check } from './src/checker/index.mjs';
 import { foldCompileTime } from './src/fold/index.mjs';
 import { lower } from './src/ir/index.mjs';
@@ -22,11 +21,9 @@ import { checkBx } from './src/bx/check.mjs';
 import { elaborateBx } from './src/bx/elaborate.mjs';
 import { analyzeMedia, isMediaKind } from './src/media/index.mjs';
 
-export { tokenize, TokenKind, KEYWORDS, TYPE_NAMES } from './src/lexer/index.mjs';
-export { parse, normalizeBxText } from './src/parser/index.mjs';
+export { tokenize, parse, TokenKind, KEYWORDS, TYPE_NAMES, normalizeBxText } from './src/front/index.mjs';
 export { NodeType, walk } from './src/ast/index.mjs';
 export { check } from './src/checker/index.mjs';
-export { scopeLookup, scopeStoreTarget, scopeTargetOf, walkScopes } from './src/checker/scopes.mjs';
 export { bind, bindImports, bindImportedComponents, componentOf, SymbolKind, resolveSymbol } from './src/binder/index.mjs';
 export { foldCompileTime, DURATION_CLOCKS, DURATION_UNITS, SYSTEMS, DEFINE_NAME, defineKind } from './src/fold/index.mjs';
 export {
@@ -84,7 +81,7 @@ export { tokenizeMedia, analyzeMedia, isMediaKind } from './src/media/index.mjs'
  *   `#fact(...)` fold to placeholders and are valid-but-target-dependent,
  *   as a `.<machine>.8bs` import is. `facts` is the machine's hardware
  *   fact sheet, wanted whenever `machine` is given and a fact is read. `frameRate` (default 60) is the project's logical frame rate — see
- *   8bitscript.config.8bs — that every `#frames(...)` call folds against, mirroring
+ *   8bitscript.config.ts — that every `#frames(...)` call folds against, mirroring
  *   link()'s option of the same name so `8bs check`/the editor and a real
  *   build agree on what a duration means. `defines` (name → number |
  *   boolean | string) is what `#define("NAME", default)` takes over its

@@ -527,17 +527,13 @@ function index8bs(id, spec) {
 // Screen is a 2K block: attributes at $0800, characters at $0C00.
 // Color byte: bits 0-3 chroma, 4-6 luma, 7 blink. 121 colors.
 // Raster: $FF1C bit 0 + $FF1D. ROM in $FF3E, RAM in $FF3F.
-@address(0xFF15)
-export let tedBackground: volatile<u8>;
+#[address(0xFF15)] pub let mut tedBackground: volatile<u8>;
 
-@address(0xFF19)
-export let tedBorder: volatile<u8>;
+#[address(0xFF19)] pub let mut tedBorder: volatile<u8>;
 
-@address(0xFF1C)
-export let tedRasterHi: volatile<u8>;
+#[address(0xFF1C)] pub let mut tedRasterHi: volatile<u8>;
 
-@address(0xFF1D)
-export let tedRasterLo: volatile<u8>;
+#[address(0xFF1D)] pub let mut tedRasterLo: volatile<u8>;
 `;
   }
   return `// @8bitscript/${id} — ${TITLES[id]} hardware underneath the portable APIs.
@@ -548,7 +544,7 @@ export let tedRasterLo: volatile<u8>;
 function geometry8bs(spec) {
   const cols = spec.facts['video.columns'];
   const rows = spec.facts['video.rows'];
-  return `export namespace Video {
+  return `pub mod Video {
     const COLUMNS: utinyint = ${cols};
     const ROWS: utinyint = ${rows};
     const CELL_COUNT: usmallint = ${cols * rows};
@@ -558,50 +554,50 @@ function geometry8bs(spec) {
 
 function screen8bs(id, spec) {
   if (spec.ted) {
-    return `import { tedBackground, tedBorder } from "./index.8bs";
-import { Video } from "./geometry.8bs";
+    return `use self::index::{tedBackground, tedBorder};
+use self::geometry::Video;
 
-export namespace screen {
-    function setColors(border: u8, background: u8): void {
+pub mod screen {
+    fn setColors(border: u8, background: u8) {
         tedBorder = border;
         tedBackground = background;
     }
 
-    function blank(border: utinyint = BorderColor.BLACK, background: utinyint = BackgroundColor.BLACK): void {
-        if (border != BorderColor.KEEP) {
-            screen.setBorder(border);
+    fn blank(border: utinyint = BorderColor::BLACK, background: utinyint = BackgroundColor::BLACK) {
+        if border != BorderColor::KEEP {
+            screen::setBorder(border);
         }
-        if (background != BackgroundColor.KEEP) {
-            screen.setBackground(background);
+        if background != BackgroundColor::KEEP {
+            screen::setBackground(background);
         }
-        for (let i: utinyint = 0; i < 250; i++) {
-            memory.write(0x0C00 + i, 32);
-            memory.write(0x0C00 + i + 250, 32);
-            memory.write(0x0C00 + i + 500, 32);
-            memory.write(0x0C00 + i + 750, 32);
-            memory.write(0x0800 + i, 0x71);
-            memory.write(0x0800 + i + 250, 0x71);
-            memory.write(0x0800 + i + 500, 0x71);
-            memory.write(0x0800 + i + 750, 0x71);
+        for i: utinyint in 0..250 {
+            memory::write(0x0C00 + i, 32);
+            memory::write(0x0C00 + i + 250, 32);
+            memory::write(0x0C00 + i + 500, 32);
+            memory::write(0x0C00 + i + 750, 32);
+            memory::write(0x0800 + i, 0x71);
+            memory::write(0x0800 + i + 250, 0x71);
+            memory::write(0x0800 + i + 500, 0x71);
+            memory::write(0x0800 + i + 750, 0x71);
         }
     }
 
-    function setBackground(background: u8): void {
+    fn setBackground(background: u8) {
         tedBackground = background;
     }
 
-    function setBorder(border: u8): void {
+    fn setBorder(border: u8) {
         tedBorder = border;
     }
 
     const RESIZABLE: bool = false;
 
-    function resized(): bool {
+    fn resized() -> bool {
         return false;
     }
 }
 
-export namespace BorderColor {
+pub mod BorderColor {
     const BLACK: utinyint = 0;
     const WHITE: utinyint = 0x71;
     const RED: utinyint = 0x22;
@@ -613,7 +609,7 @@ export namespace BorderColor {
     const KEEP: utinyint = 255;
 }
 
-export namespace BackgroundColor {
+pub mod BackgroundColor {
     const BLACK: utinyint = 0;
     const WHITE: utinyint = 0x71;
     const RED: utinyint = 0x22;
@@ -627,33 +623,33 @@ export namespace BackgroundColor {
 `;
   }
   const base = spec.screen ?? 0x0400;
-  return `import { Video } from "./geometry.8bs";
+  return `use self::geometry::Video;
 
-export namespace screen {
-    function setColors(border: u8, background: u8): void {
+pub mod screen {
+    fn setColors(border: u8, background: u8) {
     }
 
-    function blank(border: utinyint = BorderColor.BLACK, background: utinyint = BackgroundColor.BLACK): void {
-${spec.family === 'mos' ? `        for (let cell: usmallint = 0; cell < Video.CELL_COUNT; cell++) {
-            memory.write(${base} + cell, 32);
+    fn blank(border: utinyint = BorderColor::BLACK, background: utinyint = BackgroundColor::BLACK) {
+${spec.family === 'mos' ? `        for cell: usmallint in 0..Video::CELL_COUNT {
+            memory::write(${base} + cell, 32);
         }
-` : `        // The ISA backends do not yet lower a computed memory.write in a loop.
+` : `        // The ISA backends do not yet lower a computed memory::write in a loop.
 `}    }
 
-    function setBackground(background: u8): void {
+    fn setBackground(background: u8) {
     }
 
-    function setBorder(border: u8): void {
+    fn setBorder(border: u8) {
     }
 
     const RESIZABLE: bool = false;
 
-    function resized(): bool {
+    fn resized() -> bool {
         return false;
     }
 }
 
-export namespace BorderColor {
+pub mod BorderColor {
     const BLACK: utinyint = 0;
     const WHITE: utinyint = 1;
     const RED: utinyint = 2;
@@ -665,7 +661,7 @@ export namespace BorderColor {
     const KEEP: utinyint = 255;
 }
 
-export namespace BackgroundColor {
+pub mod BackgroundColor {
     const BLACK: utinyint = 0;
     const WHITE: utinyint = 1;
     const RED: utinyint = 2;
@@ -682,62 +678,62 @@ export namespace BackgroundColor {
 function text8bs(id, spec) {
   const base = spec.ted ? 0x0c00 : (spec.screen ?? 0x0400);
   const color = spec.ted ? 0x0800 : 0;
-  return `import { Video } from "./geometry.8bs";
+  return `use self::geometry::Video;
 
-function asciiToScreenCode(code: utinyint): utinyint {
-    if (code >= 97 && code < 123) {
+fn asciiToScreenCode(code: utinyint) -> utinyint {
+    if code >= 97 && code < 123 {
         return code - 96;
     }
     return code;
 }
 
-export namespace text {
-    const CELL_COUNT: usmallint = Video.CELL_COUNT;
-    const COLUMNS: utinyint = Video.COLUMNS;
-    const ROWS: utinyint = Video.ROWS;
+pub mod text {
+    const CELL_COUNT: usmallint = Video::CELL_COUNT;
+    const COLUMNS: utinyint = Video::COLUMNS;
+    const ROWS: utinyint = Video::ROWS;
 
-    function columns(): utinyint {
-        return text.COLUMNS;
+    fn columns() -> utinyint {
+        return text::COLUMNS;
     }
 
-    function rows(): utinyint {
-        return text.ROWS;
+    fn rows() -> utinyint {
+        return text::ROWS;
     }
 
-    function releaseCursor(): void {
+    fn releaseCursor() {
     }
 
-    let ink: utinyint = 1;
+    let mut ink: utinyint = 1;
 
-    function setColor(color: utinyint): void {
+    fn setColor(color: utinyint) {
         ink = color;
     }
 
-    function putChar(cell: usmallint, code: utinyint): void {
-        memory.write(${base} + cell, asciiToScreenCode(code));
-${color ? `        memory.write(${color} + cell, ink);\n` : ''}    }
+    fn putChar(cell: usmallint, code: utinyint) {
+        memory::write(${base} + cell, asciiToScreenCode(code));
+${color ? `        memory::write(${color} + cell, ink);\n` : ''}    }
 
-    function putColor(cell: usmallint, color: utinyint): void {
-${color ? `        memory.write(${color} + cell, color);\n` : ''}    }
+    fn putColor(cell: usmallint, color: utinyint) {
+${color ? `        memory::write(${color} + cell, color);\n` : ''}    }
 
-    function print(cell: usmallint, s: string): void {
-        for (let i: utinyint = 0; i < s.length; i++) {
-            text.putChar(cell + i, s.charCodeAt(i));
+    fn print(cell: usmallint, s: string) {
+        for i: utinyint in 0..s.length {
+            text::putChar(cell + i, s.charCodeAt(i));
         }
     }
 
-    function printNumber(cell: usmallint, value: usmallint, width: utinyint): void {
-        let n: usmallint = value;
-        let i: utinyint = width;
-        while (i > 0) {
+    fn printNumber(cell: usmallint, value: usmallint, width: utinyint) {
+        let mut n: usmallint = value;
+        let mut i: utinyint = width;
+        while i > 0 {
             i = i - 1;
-            text.putChar(cell + i, 48 + (n % 10));
+            text::putChar(cell + i, 48 + n % 10);
             n = n / 10;
         }
     }
 }
 
-export namespace TextColor {
+pub mod TextColor {
     const WHITE: utinyint = 1;
     const CYAN: utinyint = 3;
     const GREEN: utinyint = 5;
@@ -747,52 +743,52 @@ export namespace TextColor {
 
 function input8bs(id, spec) {
   const keyboard = spec.keyboard !== false && spec.facts['input.keyboard'] === true;
-  return `export namespace input {
-    function begin(): void {
-        input.poll();
+  return `pub mod input {
+    fn begin() {
+        input::poll();
     }
 
-    function poll(): void {
+    fn poll() {
     }
 
-    function left(): bool {
+    fn left() -> bool {
         return false;
     }
 
-    function right(): bool {
+    fn right() -> bool {
         return false;
     }
 
-    function up(): bool {
+    fn up() -> bool {
         return false;
     }
 
-    function down(): bool {
+    fn down() -> bool {
         return false;
     }
 
-    function confirm(): bool {
+    fn confirm() -> bool {
         return false;
     }
 
-    function cancel(): bool {
+    fn cancel() -> bool {
         return false;
     }
 
-    function pointer(): bool {
+    fn pointer() -> bool {
         return false;
     }
 
-    function pointerCell(): usmallint {
+    fn pointerCell() -> usmallint {
         return 0;
     }
 
-    function pointerButton(): bool {
+    fn pointerButton() -> bool {
         return false;
     }
 }
 
-export namespace Input {
+pub mod Input {
     const CONFIRM_LABEL: string = "${keyboard ? 'RETURN' : 'FIRE'}";
     const ALT_CONFIRM_LABEL: string = "${keyboard ? 'RETURN' : 'FIRE'}";
     const CONFIRM_LABELS: string = "${keyboard ? 'RETURN' : 'FIRE'}";
@@ -801,61 +797,61 @@ export namespace Input {
 }
 
 function pointer8bs() {
-  return `export namespace pointer {
+  return `pub mod pointer {
     const DRAWS: bool = false;
 
-    function begin(): void {
+    fn begin() {
     }
 
-    function setColor(color: utinyint): void {
+    fn setColor(color: utinyint) {
     }
 
-    function update(): void {
+    fn update() {
     }
 
-    function hide(): void {
+    fn hide() {
     }
 }
 `;
 }
 
 function raster8bs() {
-  return `export namespace Slot {
+  return `pub mod Slot {
     const BORDER: utinyint = 0;
     const BACKGROUND: utinyint = 1;
     const SCROLL_X: utinyint = 2;
 }
 
-export namespace raster {
+pub mod raster {
     const ENTRIES: utinyint = 0;
     const STRIDE: utinyint = 0;
 
-    function clear(): void {
+    fn clear() {
     }
 
-    function at(line: utinyint, slot: utinyint, value: utinyint): bool {
+    fn at(line: utinyint, slot: utinyint, value: utinyint) -> bool {
         return false;
     }
 
-    function insert(line: utinyint, slot: utinyint, value: utinyint): bool {
+    fn insert(line: utinyint, slot: utinyint, value: utinyint) -> bool {
         return false;
     }
 
-    function setValue(entry: utinyint, value: utinyint): bool {
+    fn setValue(entry: utinyint, value: utinyint) -> bool {
         return false;
     }
 
-    function commit(): void {
+    fn commit() {
     }
 
-    function count(): utinyint {
+    fn count() -> utinyint {
         return 0;
     }
 
-    function enable(): void {
+    fn enable() {
     }
 
-    function disable(): void {
+    fn disable() {
     }
 }
 `;
@@ -971,12 +967,12 @@ test('${id} builds a probe program', async () => {
   try {
     const entry = join(scratch, 'main.8bs');
     await writeFile(entry, [
-      'let sum: utinyint = 0;',
-      'export function main(): void {',
-      '    for (let i: utinyint = 0; i < 10; i++) {',
+      'let mut sum: utinyint = 0;',
+      'pub fn main() {',
+      '    for i: utinyint in 0..10 {',
       '        sum = sum + i;',
       '    }',
-      '    memory.write(0x80, sum);',
+      '    memory::write(0x80, sum);',
       '}',
       '',
     ].join('\\n'));
@@ -996,7 +992,7 @@ test('${id} screenshot skips when ${binary} is missing', async (t) => {
   const scratch = await mkdtemp(join(tmpdir(), '8bs-${id}-shot-'));
   try {
     const entry = join(scratch, 'main.8bs');
-    await writeFile(entry, 'export function main(): void {}\\n');
+    await writeFile(entry, 'pub fn main() {}\\n');
     const shot = join(scratch, 'out.png');
     const { code } = await runCli(['run', '${id}', entry, '--screenshot', shot, '--frames', '1'], scratch);
     if (code !== 0) {

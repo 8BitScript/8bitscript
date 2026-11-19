@@ -20,7 +20,7 @@ const EXAMPLES = join(REPO, 'packages', 'examples');
 // Same lookup order as config.mjs's own CONFIG_FILENAMES — copying the
 // example's actual config rather than assuming one name keeps this test
 // working across the .ts -> .8bs migration without hardcoding either.
-const CONFIG_FILENAMES = ['8bitscript.config.8bs', '8bitscript.config.ts', '8bs.config.ts'];
+const CONFIG_FILENAMES = ['8bitscript.config.ts', '8bs.config.ts'];
 function exampleConfigName(name) {
   return CONFIG_FILENAMES.find((filename) => existsSync(join(EXAMPLES, name, filename)));
 }

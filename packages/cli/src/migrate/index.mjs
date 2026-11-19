@@ -15,11 +15,12 @@
 //   --alias @lib                        an import alias head from the config (repeatable)
 //
 // `--check` writes nothing and exits 1 on any difference or failure.
-import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import { basename, extname, join, relative, resolve, sep } from 'node:path';
-import { parse, tokenize } from '@8bitscript/compiler';
+import { existsSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { basename, dirname, extname, join, relative, resolve, sep } from 'node:path';
 import { check as proveEqual, parse as parseNew, tokenize as tokenizeNew } from '@8bitscript/compiler/front';
 import { convertEmbedded, convertFences } from './embedded.mjs';
+import { tokenize } from './legacy/lexer.mjs';
+import { parse } from './legacy/parser.mjs';
 import { UnsupportedError, printProgram } from './print.mjs';
 
 const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'target', '.changeset', '.fleet-out', 'coverage']);
@@ -27,10 +28,13 @@ const SOURCE_FILE = /\.8b[sx]$/;
 const SCRIPT_FILE = /\.(?:mjs|cjs|js|mts|cts|ts)$/;
 const MARKDOWN_FILE = /\.md$/;
 
+const OLD_CONFIG = '8bitscript.config.8bs';
+const NEW_CONFIG = '8bitscript.config.ts';
+
 /** Files that must keep their old syntax or are not converted at all. */
 function isExcluded(path) {
   const name = basename(path);
-  if (name.startsWith('8bitscript.config.')) return true; // renamed in the flip, not converted
+  if (name.startsWith('8bitscript.config.')) return true; // renamed by the config step, never parsed
   if (/\.old\.8b[sx]$/.test(name)) return true; // old-syntax pair fixtures
   const parts = path.split(sep).join('/');
   if (/(^|\/)crates\//.test(parts)) return true; // Rust crates' fixtures: new syntax and error corpora
@@ -188,7 +192,23 @@ export async function migrate(args, io = {}) {
   };
 
   if (modes.sources) {
-    const files = roots.flatMap((r) => collect(r, SOURCE_FILE)).filter((f) => !isExcluded(f));
+    const all = roots.flatMap((r) => collect(r, SOURCE_FILE));
+    // The old config name: the file is plain type-stripped TypeScript, so
+    // the rename is the whole conversion.
+    for (const file of all.filter((f) => basename(f) === OLD_CONFIG)) {
+      const target = join(dirname(file), NEW_CONFIG);
+      if (existsSync(target)) {
+        record(show(file), 'failed', `${NEW_CONFIG} already exists beside it; delete one of them`);
+        continue;
+      }
+      totals.converted += 1;
+      out(`${opts.check ? 'would rename' : 'renamed'} ${show(file)} to ${NEW_CONFIG}`);
+      if (!opts.check) {
+        writeFileSync(target, readFileSync(file, 'utf8'));
+        rmSync(file);
+      }
+    }
+    const files = all.filter((f) => !isExcluded(f));
     for (const file of files) {
       const text = readFileSync(file, 'utf8');
       const sourceKind = extname(file);

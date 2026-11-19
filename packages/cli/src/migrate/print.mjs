@@ -16,9 +16,11 @@
 // module may assign it), a name that appears in an `asm6502` block, and an
 // array, pointer or string variable that is used as a bare value (it may be
 // written through a copy).
-import {
-  NodeType, TokenKind, scopeLookup, parse, scopeStoreTarget, scopeTargetOf, tokenize, walk, walkScopes,
-} from '@8bitscript/compiler';
+import { NodeType, walk } from '@8bitscript/compiler';
+import { scopeLookup, scopeStoreTarget, scopeTargetOf, walkScopes } from '@8bitscript/compiler/scopes';
+
+import { TokenKind, tokenize } from './legacy/lexer.mjs';
+import { parse } from './legacy/parser.mjs';
 
 const INDENT = '    ';
 

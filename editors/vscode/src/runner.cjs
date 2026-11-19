@@ -26,6 +26,9 @@ const vscode = require('vscode');
 const {
   ALL_TARGETS,
   CONFIG_FILE,
+  STALE_CONFIG,
+  staleConfigMessage,
+  staleConfigsOnly,
   CONFIG_FILENAMES,
   MACHINE_TARGETS,
   cliCommand,
@@ -71,6 +74,9 @@ const TASK_TYPE = '8bs';
 // packages, git internals, and the per-session worktrees the agent tooling
 // keeps under .claude/worktrees, each a whole second checkout of the repo.
 const SEARCH_EXCLUDE = '{**/node_modules/**,**/.git/**,**/.claude/worktrees/**}';
+
+// Old-name configs already reported, so a refresh does not pop the error again.
+const reportedStale = new Set();
 
 /** The workspace folder a directory belongs to, for scoping tasks. */
 function folderOf(dir) {
@@ -377,7 +383,7 @@ class Projects {
    * cached per directory until the next refresh. Which directory matters:
    * the machine catalogs are the toolchain's, but the `hardware` and
    * `profiles` a project fits its targets with are that project's
-   * `8bitscript.config.8bs` (Studio asks for a 1351 on a C64), so asking in the
+   * `8bitscript.config.ts` (Studio asks for a 1351 on a C64), so asking in the
    * wrong directory shows the panel someone else's stock machine. Falls
    * back to the first project with a toolchain when `dir` names none, and
    * null when no toolchain can be found or the command fails — the
@@ -593,6 +599,13 @@ class Projects {
   async refresh() {
     const found = await vscode.workspace.findFiles(`**/{${CONFIG_FILENAMES.join(',')}}`, SEARCH_EXCLUDE);
     const checkout = this.checkoutFlag();
+    const stale = await vscode.workspace.findFiles(`**/${STALE_CONFIG}`, SEARCH_EXCLUDE);
+    for (const old of staleConfigsOnly(found.map((uri) => uri.fsPath), stale.map((uri) => uri.fsPath))) {
+      if (reportedStale.has(old)) continue;
+      reportedStale.add(old);
+      this.output.appendLine(staleConfigMessage(old));
+      void vscode.window.showErrorMessage(staleConfigMessage(old));
+    }
     this.projects = loadProjects(found.map((uri) => uri.fsPath), { checkout });
     this.targetsPromises.clear();
     this.targetRows.clear();

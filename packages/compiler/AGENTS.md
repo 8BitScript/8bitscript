@@ -11,7 +11,7 @@ out at run time, when the answer was knowable while it was being
 compiled, is a byte this package wasted.
 
 Layer-specific rules live next to the layer. The lexer's are
-[`src/lexer/AGENTS.md`](src/lexer/AGENTS.md). If you are adding a
+[`../cli/src/migrate/legacy/AGENTS.md`](../cli/src/migrate/legacy/AGENTS.md). If you are adding a
 keyword, a literal form, a `#name`, or a diagnostic the scanner emits,
 start there. Message catalogs (`@8bitscript/i18n/catalog`) live in
 [`src/i18n/index.mjs`](src/i18n/index.mjs): schema/placeholder parity,
@@ -46,8 +46,8 @@ it was given (`App.8bx` on the PET is `App.pet.8bx`, never `.8bs`); an
 hardware twins. Media files can be imported; they cannot be a program
 entry. One lexer and one parser serve `.8bs` and `.8bx`; `.8bx` adds the
 `component` declaration and element syntax, which the lexer tokenizes in
-its own modes (`src/lexer/AGENTS.md`, "the 8BX modes") and the parser
-reads token by token (`parseBxElement` in `src/parser/index.mjs`) — only
+its own modes (`../cli/src/migrate/legacy/AGENTS.md`, "the 8BX modes") and the parser
+reads token by token (`parseBxElement` in `../cli/src/migrate/legacy/parser.mjs`) — only
 when the source kind says so. Spans are tokens' spans, everywhere.
 Resource names elaborated from `.8bg` / `.8ba` are asset ids;
 `8BS1034` does not apply to them.
@@ -231,7 +231,7 @@ warm), and `mergeNamespace` merges members by name. The rules, in
   where it exists (`Available on …; not on …`), in `8bs targets` order.
   The machine the file is read *for* — its own twin's (`machineOfVariant`),
   else the project's single configured target (the language server reads
-  `8bitscript.config.8bs` and passes `machine`) — is called out first when
+  `8bitscript.config.ts` and passes `machine`) — is called out first when
   it lacks the member, because a dead arm naming it is a link error
   (2048 #54). Nothing is said when nothing differs.
 - *Go to Definition* opens the module for that machine when it has the
@@ -391,7 +391,7 @@ them on every keystroke:
 
 ## The lexer, in brief
 
-The lexer is a hand-written scanner in `src/lexer/index.mjs`. That is
+The lexer is a hand-written scanner in `../cli/src/migrate/legacy/lexer.mjs`. That is
 the right approach for this language and this is not a candidate for a
 generator. It classifies keywords and type names, matches operators by
 maximal munch against a real list, treats `#name` and `@name` as single
@@ -400,7 +400,7 @@ token with field spans the parser re-lexes.
 
 The details — `%` vs binary, why a newline always ends a string, why
 comments have to be skipped when looking back, how `asm6502` counts
-braces — are in [`src/lexer/AGENTS.md`](src/lexer/AGENTS.md). Do not
+braces — are in [`../cli/src/migrate/legacy/AGENTS.md`](../cli/src/migrate/legacy/AGENTS.md). Do not
 duplicate them here; they go stale the first time the scanner changes.
 
 ## Names and `#`

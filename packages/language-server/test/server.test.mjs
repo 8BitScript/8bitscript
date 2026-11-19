@@ -1041,3 +1041,19 @@ test('start() resolves @8bitscript/* through a checkout when given one', () => {
   assert.match(src, /export function start\(\{ checkout \} = \{\}\)/);
   assert.match(src, /checkout,/);
 });
+
+// ---- the old .8bs config name ------------------------------------------------
+
+test('staleConfigPath finds an old 8bitscript.config.8bs only when no current config is above', async () => {
+  const { staleConfigPath } = await import('../src/server.mjs');
+  const dir = await mkdtemp(join(tmpdir(), '8bs-ls-stale-'));
+  try {
+    await mkdir(join(dir, 'src'), { recursive: true });
+    await writeFile(join(dir, '8bitscript.config.8bs'), 'export default {};\n');
+    assert.equal(staleConfigPath(join(dir, 'src')), join(dir, '8bitscript.config.8bs'));
+    await writeFile(join(dir, '8bitscript.config.ts'), 'export default {};\n');
+    assert.equal(staleConfigPath(join(dir, 'src')), null);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});

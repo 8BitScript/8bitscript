@@ -56,7 +56,7 @@ This release builds for **five** machines, shared with
 | `pet` | 4032 with 32K RAM |
 | `web` | Headless and in-browser smoke tests |
 
-`8bitscript.config.8bs` imports `releaseTargets` from `@8bitscript/examples` (a dependency, so it resolves where Studio is installed too) and spreads it into `targets` and names those five
+`8bitscript.config.ts` imports `releaseTargets` from `@8bitscript/examples` (a dependency, so it resolves where Studio is installed too) and spreads it into `targets` and names those five
 in `systems`. Adding a machine to the release set is one edit in
 `shared-release-targets.mjs` and matching tests.
 

@@ -1,8 +1,8 @@
 # Writing the lexer
 
 This file is for anyone — human or agent — changing
-`packages/compiler/src/lexer`. Read the root [`AGENTS.md`](../../../../AGENTS.md)
-and [`packages/compiler/AGENTS.md`](../../AGENTS.md) first. Those say what
+`packages/cli/src/migrate/legacy`. Read the root [`AGENTS.md`](../../../../../AGENTS.md)
+and [`packages/compiler/AGENTS.md`](../../../../compiler/AGENTS.md) first. Those say what
 the compiler is and where the lexer sits in it. This file is the rules for
 the scanner itself.
 

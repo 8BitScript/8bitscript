@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync } from 'node:fs';
-import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -127,5 +127,21 @@ test('loadConfig writes a load error and returns null when a .8bs config does no
   } finally {
     process.stderr.write = original;
     await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('loadConfig loads a typed .ts config from under node_modules, and cleans up its temp file', async () => {
+  const root = await mkdtemp(join(tmpdir(), '8bs-config-'));
+  try {
+    const dir = join(root, 'node_modules', '@8bitscript', 'studio');
+    await mkdir(dir, { recursive: true });
+    await writeFile(
+      join(dir, '8bitscript.config.ts'),
+      'const frameRate: number = 50;\nexport default { frameRate, entry: "src/main.8bs" };\n',
+    );
+    assert.deepEqual(await loadConfig(dir), { frameRate: 50, entry: 'src/main.8bs' });
+    assert.deepEqual(readdirSync(dir), ['8bitscript.config.ts'], 'the stripped temp file is cleaned up');
+  } finally {
+    await rm(root, { recursive: true, force: true });
   }
 });

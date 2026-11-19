@@ -8,8 +8,8 @@
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { tokenize } from '../../../packages/compiler/src/lexer/index.mjs';
-import { parse } from '../../../packages/compiler/src/parser/index.mjs';
+import { tokenize } from '../../../packages/cli/src/migrate/legacy/lexer.mjs';
+import { parse } from '../../../packages/cli/src/migrate/legacy/parser.mjs';
 
 const dir = join(dirname(fileURLToPath(import.meta.url)), 'pairs');
 

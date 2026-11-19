@@ -7,6 +7,14 @@
 // under the cursor.
 const [, , command, ...rest] = process.argv;
 
+// A project whose only config is the old `.8bs` one stops the command with
+// one clear line, not a stack trace (config.mjs's staleConfigError).
+process.on('uncaughtException', (error) => {
+  if (error?.name !== 'StaleConfigError') throw error;
+  process.stderr.write(`${error.message}\n`);
+  process.exit(1);
+});
+
 /**
  * Exit with `code`, but not before what has been printed has left this
  * process.
@@ -43,7 +51,7 @@ Implemented:
                                no region: its model is hardware. --profile
                                names the hardware fitted — a preset from
                                the machine's catalog (8032) or a profile the
-                               project composes in 8bitscript.config.8bs —
+                               project composes in 8bitscript.config.ts —
                                and --hardware sets single options on top
                                (model=4032). --system names a saved
                                arrangement (config, .8bitscript/systems.json,
@@ -58,7 +66,7 @@ Implemented:
                                lists every option, value and preset, and
                                which machines this release builds for.
                                --program names one of the project's
-                               programs (8bitscript.config.8bs's programs
+                               programs (8bitscript.config.ts's programs
                                block); without it, main, or the only one.
                                --define NAME=VALUE (repeatable) hands the
                                program a value that its #define("NAME", …)

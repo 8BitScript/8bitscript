@@ -327,10 +327,10 @@ fn ids_are_assigned_in_pre_order() {
 
 #[test]
 fn e21_full_text_comes_from_the_release_constant() {
-    assert_eq!(parser::MIGRATE_RELEASE, "<cut release>");
+    assert_eq!(parser::MIGRATE_RELEASE, "0.27.0");
     assert_eq!(
         one("function f() {}"),
-        "this is the old 8BitScript syntax; run '8bs migrate' from 8BitScript <cut release> to convert it"
+        "this is the old 8BitScript syntax; run '8bs migrate' from 8BitScript 0.27.0 to convert it"
     );
     assert_eq!(one("function f() {}"), parser::old_syntax_message());
 }
