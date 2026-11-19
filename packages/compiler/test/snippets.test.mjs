@@ -75,8 +75,8 @@ function expand(body) {
  */
 function wrap8bs(text) {
   const trimmed = text.trim();
-  if (/^(export |import |let |const |function |namespace |@address)/.test(trimmed)) {
-    return `${trimmed};
+  if (/^(pub |fn |mod |use |let |const |#\[)/.test(trimmed)) {
+    return `${trimmed}
 pub fn __entry() {
 }`;
   }
@@ -86,10 +86,10 @@ pub fn __entry() {
   const statement = /[;{]/.test(trimmed) ? trimmed : `__value = ${trimmed};`;
   return [
     'use @8bitscript::text::text;',
-    'let ticks: utinyint = 0;',
-    'let framesUntilTick: utinyint = 0;',
-    'let __value: usmallint = 0;',
-    'export function __entry(): void {',
+    'let mut ticks: utinyint = 0;',
+    'let mut framesUntilTick: utinyint = 0;',
+    'let mut __value: usmallint = 0;',
+    'pub fn __entry() {',
     statement,
     '}',
   ].join('\n');
