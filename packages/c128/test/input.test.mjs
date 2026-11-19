@@ -70,10 +70,10 @@ test('poll() or\'s the dedicated arrows into held, and the IR writes $D02F', () 
   });
   assert.deepEqual(values, [0xFF, 0xFB, 0xFF], 'none, K2, none — extra bits must not leak into the stick snapshot');
   const body = SOURCE.slice(SOURCE.indexOf('fn poll'), SOURCE.indexOf('fn left'));
-  assert.match(body, /extra & Extra\.LEFT/);
-  assert.match(body, /extra & Extra\.RIGHT/);
-  assert.match(body, /extra & Extra\.UP/);
-  assert.match(body, /extra & Extra\.DOWN/);
+  assert.match(body, /extra & Extra::LEFT/);
+  assert.match(body, /extra & Extra::RIGHT/);
+  assert.match(body, /extra & Extra::UP/);
+  assert.match(body, /extra & Extra::DOWN/);
 });
 
 const viceArrows = () => {
