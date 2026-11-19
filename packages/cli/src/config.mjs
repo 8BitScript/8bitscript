@@ -2,6 +2,9 @@
 // check` (and, through them, anything else that needs a project's config
 // without duplicating the loader).
 import { existsSync, readdirSync } from 'node:fs';
+import { readFile, rm, writeFile } from 'node:fs/promises';
+import { randomBytes } from 'node:crypto';
+import { stripTypeScriptTypes } from 'node:module';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -53,8 +56,9 @@ export function configPathOf(dir) {
 
 /**
  * The project's 8bitscript.config.ts (or the older 8bs.config.ts), if present.
- * A `.ts` config imports straight through: Node 26 imports TypeScript with
- * type stripping, so it is an ordinary module, not a parsed format. An old
+ * A `.ts` config has its types stripped in-process and is imported from a
+ * temp .mjs beside it: Node refuses to strip types under node_modules (an
+ * installed Studio or example), so it cannot import the `.ts` itself. An old
  * `8bitscript.config.8bs` alone in the directory is an error, not a skip.
  *
  * @param {string} dir
@@ -67,7 +71,7 @@ export async function loadConfig(dir, label = '8bs') {
     const path = join(dir, filename);
     if (!existsSync(path)) continue;
     try {
-      const module = await import(pathToFileURL(path).href);
+      const module = await importStripped(path, dir);
       return module.default ?? null;
     } catch (error) {
       process.stderr.write(`${label}: cannot load ${filename}: ${error.message}\n`);
@@ -75,6 +79,32 @@ export async function loadConfig(dir, label = '8bs') {
     }
   }
   return null;
+}
+
+/** Strip types without Node's ExperimentalWarning reaching the user. */
+function stripTypesQuietly(source) {
+  const listeners = process.listeners('warning');
+  process.removeAllListeners('warning');
+  try {
+    return stripTypeScriptTypes(source);
+  } finally {
+    process.nextTick(() => {
+      for (const listener of listeners) process.on('warning', listener);
+    });
+  }
+}
+
+/** Import a `.ts` config as plain JS: stripped into a temp .mjs in `dir`, imported, removed. */
+async function importStripped(path, dir) {
+  const source = await readFile(path, 'utf8');
+  const stripped = stripTypesQuietly(source);
+  const tmpPath = join(dir, `.${randomBytes(8).toString('hex')}.8bitscript-config.mjs`);
+  await writeFile(tmpPath, stripped);
+  try {
+    return await import(pathToFileURL(tmpPath).href);
+  } finally {
+    await rm(tmpPath, { force: true });
+  }
 }
 
 /**
