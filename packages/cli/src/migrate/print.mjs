@@ -486,7 +486,10 @@ class Printer {
 
   importLine(s) {
     const specifier = s.source?.value ?? '';
-    const path = usePathOf(specifier, this.options.aliasHeads);
+    // A stem that exists under two source extensions is ambiguous as a `::` path
+    // (8BS2217), so those imports keep the string form, which names the file.
+    const ambiguous = this.options.sameStem?.(specifier) === true;
+    const path = ambiguous ? null : usePathOf(specifier, this.options.aliasHeads);
     const base = path ?? this.string(s.source);
     const names = s.specifiers.map((n) => (n.imported ? `${spellName(n.imported)} as ${spellName(n.name)}` : spellName(n.name)));
     if (names.length === 1 && !s.specifiers[0].imported) return `use ${base}::${names[0]};`;
