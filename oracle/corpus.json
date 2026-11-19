@@ -1,6 +1,6 @@
 {
   "games": [
     { "name": "2048", "repo": "8BitScript/2048", "sha": "3c5158601c2e0511450fc390ce5aff8321662102" },
-    { "name": "vegas-nights", "repo": "8BitScript/vegas-nights", "sha": "fc60313e9cfd85abc9b47262bf621a2736d2f2c3" }
+    { "name": "vegas-nights", "repo": "8BitScript/vegas-nights", "sha": "4b6d2aaa1a7511d016a60cdacdf8076111e43268" }
   ]
 }
