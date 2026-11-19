@@ -25,9 +25,9 @@ function tick() {
 function writeLabConfig(dir, { withMain = true } = {}) {
   fs.mkdirSync(path.join(dir, 'src'), { recursive: true });
   for (const entry of ['main', 'reels', 'tiny']) {
-    fs.writeFileSync(path.join(dir, 'src', `${entry}.8bs`), 'export function main(): void {}\n');
+    fs.writeFileSync(path.join(dir, 'src', `${entry}.8bs`), 'pub fn main() {}\n');
   }
-  fs.writeFileSync(path.join(dir, '8bitscript.config.8bs'), `export default {
+  fs.writeFileSync(path.join(dir, '8bitscript.config.ts'), `export default {
   programs: {
     ${withMain ? "main: { entry: 'src/main.8bs' }," : "lobby: { entry: 'src/main.8bs' },"}
     reels: { entry: 'src/reels.8bs' },
@@ -50,7 +50,7 @@ function labProject(dir) {
     kind: 'project',
     name: 'my-game',
     dir,
-    configPath: path.join(dir, '8bitscript.config.8bs'),
+    configPath: path.join(dir, '8bitscript.config.ts'),
     entry: path.join(dir, 'src', 'main.8bs'),
     targets: ['pet', 'vic20', 'c64'],
     toolchain: '/proj/node_modules/.bin/8bs',
@@ -86,7 +86,7 @@ async function inLabProject({ withMain = true, settings = {} }, fn) {
     vscode.__mock.configStore.set('project', dir);
     vscode.__mock.configStore.set('system', 'c64');
     for (const [key, value] of Object.entries(settings)) vscode.__mock.configStore.set(key, typeof value === 'function' ? value(dir) : value);
-    vscode.workspace.findFiles = () => Promise.resolve([{ fsPath: path.join(dir, '8bitscript.config.8bs') }]);
+    vscode.workspace.findFiles = () => Promise.resolve([{ fsPath: path.join(dir, '8bitscript.config.ts') }]);
     await withRunner(path.join(dir, '.storage'), async (projects) => {
       projects.projects[0].toolchain = cli;
       await fn(dir);
@@ -220,13 +220,13 @@ test('a project with one program never gets --program', async () => {
   const dir = tmpDir();
   try {
     fs.mkdirSync(path.join(dir, 'src'), { recursive: true });
-    fs.writeFileSync(path.join(dir, 'src', 'main.8bs'), 'export function main(): void {}\n');
-    fs.writeFileSync(path.join(dir, '8bitscript.config.8bs'), "export default { entry: 'src/main.8bs', targets: ['c64'] };\n");
+    fs.writeFileSync(path.join(dir, 'src', 'main.8bs'), 'pub fn main() {}\n');
+    fs.writeFileSync(path.join(dir, '8bitscript.config.ts'), "export default { entry: 'src/main.8bs', targets: ['c64'] };\n");
     const cli = writeFakeCli(dir);
     vscode.__mock.reset();
     vscode.__mock.configStore.set('project', dir);
     vscode.__mock.configStore.set('system', 'c64');
-    vscode.workspace.findFiles = () => Promise.resolve([{ fsPath: path.join(dir, '8bitscript.config.8bs') }]);
+    vscode.workspace.findFiles = () => Promise.resolve([{ fsPath: path.join(dir, '8bitscript.config.ts') }]);
     await withRunner(path.join(dir, '.storage'), async (projects) => {
       projects.projects[0].toolchain = cli;
       await vscode.__mock.trigger('8bitscript.run');

@@ -43,7 +43,7 @@ test('begin() sets a whole known $D418 rather than reading a write-only register
   // likely to regress into `sidRegisters[24] = sidRegisters[24] | 0x80`,
   // which looks more careful and is actually wrong.
   const source = readFileSync(join(ROOT, 'src', 'random.8bs'), 'utf8');
-  const body = source.split('function begin')[1];
+  const body = source.split('fn begin')[1];
   assert.match(body, /sidRegisters\[24\] = 0x80;/, 'begin() must assign $D418 outright, not merge into a read');
   assert.doesNotMatch(body, /sidRegisters\[24\]\s*\|/, 'no read-modify-write of the write-only $D418');
 });

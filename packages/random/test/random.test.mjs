@@ -64,7 +64,7 @@ test('the table probe offers the whole surface, on both the default generator an
 
 test('the table is a permutation of every byte 0-255, not an arbitrary sequence', () => {
   const source = readFileSync(join(SRC, 'table.8bs'), 'utf8');
-  const match = /const TABLE: array<utinyint, 256> = \[([\s\S]*?)\];/.exec(source);
+  const match = /const TABLE: \[utinyint; 256\] = \[([\s\S]*?)\];/.exec(source);
   assert.ok(match, 'TABLE literal not found');
   const values = match[1].split(',').map((s) => s.trim()).filter((s) => s.length > 0).map(Number);
   assert.equal(values.length, 256);

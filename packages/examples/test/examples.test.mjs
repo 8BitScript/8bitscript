@@ -21,7 +21,7 @@ const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
 const cli = JSON.parse(readFileSync(join(ROOT, '..', 'cli', 'package.json'), 'utf8'));
 const examples = pkg['8bitscript'].examples;
 
-// 8bitscript.config.8bs is the current name; 8bitscript.config.ts and
+// 8bitscript.config.ts is the current name; 8bitscript.config.ts and
 // 8bs.config.ts are older ones still loaded for a few more releases — the
 // same precedence the CLI's own loader uses (packages/cli/src/config.mjs)
 // — an example may be written any of the three ways.
@@ -133,7 +133,7 @@ test('the release machines joystick claims still declare the budgets it was meas
 // nothing on those three; this is what notices.
 test('joystick highlights with reverse video, not colour alone', () => {
   const main = readFileSync(join(ROOT, 'joystick', 'src', 'main.8bs'), 'utf8');
-  assert.match(main, /text\.setReverse\(true\)/, 'a lit lamp is a reverse-video bar');
+  assert.match(main, /text::setReverse\(true\)/, 'a lit lamp is a reverse-video bar');
   const colourless = ['pet', 'atari8', 'nes'];
   for (const target of colourless) {
     assert.equal(stockFacts(target)['video.colorPerCell'], false, `${target} has no per-cell colour`);
@@ -176,12 +176,12 @@ test('fancy keeps its raster effect behind #fact(video.raster), and its wobble b
 // per-frame call (their layers do not rebuild a program's list).
 test('fancy publishes its sprite once on the C64 and never rebuilds the raster list from its frame loop', () => {
   const main = readFileSync(join(ROOT, 'fancy', 'src', 'main.8bs'), 'utf8');
-  const loop = main.slice(main.indexOf('while (true)'));
-  const setup = main.slice(main.indexOf('export function main'), main.indexOf('while (true)'));
-  assert.match(setup, /if \(#system\(\) == System\.C64\) \{\s*graphics\.update\(\);\s*\}/, 'the C64 publishes Mark once, before it builds its list');
-  assert.ok(setup.indexOf('graphics.update()') < setup.indexOf('raster.clear()'), 'and does so before raster.clear() starts the program\'s list');
-  assert.match(loop, /if \(#system\(\) != System\.C64\) \{\s*graphics\.update\(\);\s*\}/, 'the loop calls update() only where it leaves a program\'s list alone');
-  assert.equal((loop.match(/graphics\.update\(\)/g) ?? []).length, 1, 'one call in the loop, and it is the guarded one above');
+  const loop = main.slice(main.indexOf('loop {'));
+  const setup = main.slice(main.indexOf('pub fn main'), main.indexOf('loop {'));
+  assert.match(setup, /if #system\(\) == System::C64 \{\s*graphics::update\(\);\s*\}/, 'the C64 publishes Mark once, before it builds its list');
+  assert.ok(setup.indexOf('graphics::update()') < setup.indexOf('raster::clear()'), 'and does so before raster::clear() starts the program\'s list');
+  assert.match(loop, /if #system\(\) != System::C64 \{\s*graphics::update\(\);\s*\}/, 'the loop calls update() only where it leaves a program\'s list alone');
+  assert.equal((loop.match(/graphics::update\(\)/g) ?? []).length, 1, 'one call in the loop, and it is the guarded one above');
 });
 
 test('the release targets fancy builds against include the 4032 PET and 8K VIC-20', () => {
