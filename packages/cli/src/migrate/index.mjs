@@ -41,6 +41,7 @@ function isExcluded(path) {
   if (/(^|\/)crates\//.test(parts)) return true; // Rust crates' fixtures: new syntax and error corpora
   if (/(^|\/)packages\/cli\/src\/migrate\//.test(parts)) return true; // the converter's own sources
   if (/(^|\/)packages\/cli\/test\/migrate-[^/]*$/.test(parts)) return true; // its fixtures
+  if (/(^|\/)docs\/spec\/8bx\.md$/.test(parts)) return true; // a design record kept as the spec was written: fragments, proposals, rejected designs
   return false;
 }
 
@@ -253,7 +254,8 @@ export async function migrate(args, io = {}) {
       const text = readFileSync(file, 'utf8');
       // Embedded programs and fences have no file of their own, so the same-stem predicate looks beside the host file.
       // That is acceptable here: a doc or test snippet imports siblings of the file that shows it, and a wrong guess only
-      // keeps the string form, which resolves either way.
+      // keeps the string form, which resolves either way now that the resolver (#380) accepts a string path
+      // for a module whose stem exists under more than one extension.
       const result = convertFile(text, (body, sourceKind) => migrateText(body, { file, sourceKind, aliasHeads: opts.aliasHeads, sameStem: sameStemIn(file) }));
       for (const failure of result.failures) record(`${show(file)}:${failure.line}`, failure.status, failure.message);
       if (result.converted > 0 || result.unchanged > 0) {
