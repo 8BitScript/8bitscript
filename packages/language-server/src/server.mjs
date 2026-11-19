@@ -97,7 +97,7 @@ function findConfigPath(dir) {
 }
 
 /**
- * The project's `frameRate` (8bitscript.config.8bs, default 60) for the document at
+ * The project's `frameRate` (8bitscript.config.ts, default 60) for the document at
  * `filePath` — so `#frames(...)` diagnostics in the editor agree with what
  * `8bs build`/`8bs check` would actually report, the same invariant this
  * file's header comment already promises for every other diagnostic.
@@ -108,7 +108,7 @@ function findConfigPath(dir) {
  *
  * The `?t=<mtime>` on the dynamic import is a cache-buster: Node's ESM
  * loader otherwise caches a resolved file URL for the life of the process,
- * so an edited 8bitscript.config.8bs would need a server restart to take effect
+ * so an edited 8bitscript.config.ts would need a server restart to take effect
  * without it.
  */
 async function frameRateFor(filePath) {

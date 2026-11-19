@@ -200,7 +200,7 @@ export function toolsBlock() {
 export function emptyState() {
   return `<div class="empty"><img src="../../../media/8bitscript-icon.svg" alt="">
     <h2>No 8BitScript project here</h2>
-    <p>Open a folder that has an <span class="mono">8bitscript.config.8bs</span>, or start from an example.</p>
+    <p>Open a folder that has an <span class="mono">8bitscript.config.ts</span>, or start from an example.</p>
     <button class="btn primary">${ic('folder-opened')}Open Folder…</button>
     <button class="btn">${ic('rocket')}Try an example…</button>
     <button class="link" style="font-size:12px">What is 8BitScript?</button></div>`;

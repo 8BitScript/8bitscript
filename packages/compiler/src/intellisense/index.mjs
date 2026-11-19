@@ -173,7 +173,7 @@ const FRAMES_DOC = [
   '',
   'Compile-time duration, as a frame count. `n` is an integer or decimal literal — `#frames(1, seconds)`, `#frames(0.5, seconds)` — never a variable or expression. `unit` says what `n` is measured in and is required; the only unit so far is `seconds`.',
   '',
-  'Folds at compile time to however many frames — `waitFrame()` calls — that much time takes at this project\'s configured `frameRate` (`8bitscript.config.8bs`, default 60) — `#frames(0.5, seconds)` becomes `30` at the default rate, `25` at a configured 50. Always a plain integer once compiled: no runtime division, no floating point.',
+  'Folds at compile time to however many frames — `waitFrame()` calls — that much time takes at this project\'s configured `frameRate` (`8bitscript.config.ts`, default 60) — `#frames(0.5, seconds)` becomes `30` at the default rate, `25` at a configured 50. Always a plain integer once compiled: no runtime division, no floating point.',
   '',
   'The `#` says 8bitscript evaluates this before any target toolchain runs; a plain `name(...)` always runs on the machine. Nothing is reserved: `#frames` is its own token, and the unit word is only a unit in this argument position.',
 ].join('\n');
@@ -212,7 +212,7 @@ const PACKAGE_DOC = [
 const DEFINE_DOC = [
   '**#define("NAME", default)**',
   '',
-  'Compile-time: a value this build is handed, with the default written right here so a plain build, `8bs check` and this editor always have one. `const SEED: utinyint = #define("SEED", 10);` is `10` until a build says otherwise — `8bs run c64 --define SEED=42`, or `define: { SEED: 42 }` on the program in `8bitscript.config.8bs` — and then it is `42`. Once folded it *is* the literal: the same bytes as writing the number, so a program that reads no defines costs nothing, and a different value is a different build.',
+  'Compile-time: a value this build is handed, with the default written right here so a plain build, `8bs check` and this editor always have one. `const SEED: utinyint = #define("SEED", 10);` is `10` until a build says otherwise — `8bs run c64 --define SEED=42`, or `define: { SEED: 42 }` on the program in `8bitscript.config.ts` — and then it is `42`. Once folded it *is* the literal: the same bytes as writing the number, so a program that reads no defines costs nothing, and a different value is a different build.',
   '',
   'The name is in quotes, in capitals (`SEED`, `START_CREDITS`); the default is a whole number, `true`/`false`, or a string, and it is required. A value handed in keeps the kind its default has — a number for `10`, true or false for `false`. A malformed call is `8BS1047`, a value of the wrong kind is `8BS1048`, and one name with two different defaults in one program is `8BS1049`.',
 ].join('\n');
@@ -248,7 +248,7 @@ const UNIT_DOCS = {};
 UNIT_DOCS.seconds = [
   '**seconds**',
   '',
-  'A unit for `#frames(...)`: `#frames(0.5, seconds)` is half a second, counted in logical frames — `waitFrame()` calls — at this project\'s configured `frameRate` (`8bitscript.config.8bs`, default 60). The unit is required, so the call always says what its literal is measured in.',
+  'A unit for `#frames(...)`: `#frames(0.5, seconds)` is half a second, counted in logical frames — `waitFrame()` calls — at this project\'s configured `frameRate` (`8bitscript.config.ts`, default 60). The unit is required, so the call always says what its literal is measured in.',
   '',
   'Only a unit in the second argument to `#frames(...)`; anywhere else, `seconds` is an ordinary name a program is free to declare.',
 ].join('\n');
@@ -259,7 +259,7 @@ const WAITFRAME_DOC = [
   '',
   'Blocks until the next logical frame, then returns. Call it once per pass through your main loop — `while (true) { waitFrame(); ... }` — the way an 8-bit program waits for vertical blank (cc65\'s `waitvsync()`).',
   '',
-  'Frames arrive at this project\'s configured `frameRate` (`8bitscript.config.8bs`, default 60) on every target, whatever the real hardware refreshes at — on the 6502 machines it waits on the video chip\'s own vertical blank, on the web it waits on the page\'s frame clock. Pair it with `#frames(...)` to count time: `#frames(0.5, seconds)` is how many `waitFrame()` calls make half a second.',
+  'Frames arrive at this project\'s configured `frameRate` (`8bitscript.config.ts`, default 60) on every target, whatever the real hardware refreshes at — on the 6502 machines it waits on the video chip\'s own vertical blank, on the web it waits on the page\'s frame clock. Pair it with `#frames(...)` to count time: `#frames(0.5, seconds)` is how many `waitFrame()` calls make half a second.',
   '',
   'Takes no arguments and returns nothing. Reserved: a variable, fn, parameter, or `use` name `waitFrame` is a compile error.',
 ].join('\n');
@@ -798,7 +798,7 @@ function machineFor(path, options) {
  *   no path on disk (packages/language-server/src/server.mjs's `validate`).
  *   `checkout` is the same local 8BitScript tree `8bs --checkout` names.
  *   `machine`: the project's single configured target, if it has exactly
- *   one (the language server reads 8bitscript.config.8bs) — the machine a
+ *   one (the language server reads 8bitscript.config.ts) — the machine a
  *   target-dependent import is read *for* when the file is not itself a
  *   twin; see machineFor.
  * @returns {{ start: number, length: number, markdown: string } | null}
@@ -948,16 +948,20 @@ function hoverAt(tokens, offset, text, filePath, resolverOptions = {}, machine =
  *
  * @returns {{ text: string, start: number, length: number } | null}
  */
+function isPathSep(token) {
+  return token?.text === '::' || token?.text === '.';
+}
+
 function factKeyAt(tokens, index) {
   let first = index;
-  while (tokens[first - 1]?.text === '.' && tokens[first - 2]?.kind === TokenKind.Identifier) first -= 2;
+  while (isPathSep(tokens[first - 1]) && tokens[first - 2]?.kind === TokenKind.Identifier) first -= 2;
   let last = index;
-  while (tokens[last + 1]?.text === '.' && tokens[last + 2]?.kind === TokenKind.Identifier) last += 2;
+  while (isPathSep(tokens[last + 1]) && tokens[last + 2]?.kind === TokenKind.Identifier) last += 2;
   const open = tokens[first - 1];
   const callee = tokens[first - 2];
   const close = tokens[last + 1];
   if (open?.text !== '(' || close?.text !== ')' || callee?.kind !== TokenKind.CompileTime || callee.text !== '#fact') return null;
-  const text = tokens.slice(first, last + 1).map((t) => t.text).join('');
+  const text = tokens.slice(first, last + 1).filter((t) => t.kind === TokenKind.Identifier).map((t) => t.text).join('.');
   if (!FACTS.has(text)) return null;
   return { text, start: tokens[first].start, length: tokens[last].start + tokens[last].length - tokens[first].start };
 }
@@ -1244,8 +1248,8 @@ function completionsAt(tokens, offset, text, filePath, resolverOptions, program,
       kind: member.kind,
       sortRank: 0,
       detail: all.length > 0 && member.machines.length < all.length
-        ? `${object}.${member.signature} — ${member.machines.join(', ')} only`
-        : `${object}.${member.signature}`,
+        ? `${object}::${member.signature} — ${member.machines.join(', ')} only`
+        : `${object}::${member.signature}`,
       documentation: memberMarkdown(object, member, context),
     }));
   }
