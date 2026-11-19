@@ -3,8 +3,8 @@
 //
 // Named by "8bitscript".exports["./rasterline"] in this package's
 // package.json, and by "8bitscript".entry.atari8 in @8bitscript/raster's,
-// so a portable program's `import { raster, Slot } from
-// "@8bitscript/raster"` gets this file on the Atari 8-bit.
+// so a portable program's `use @8bitscript::raster::{raster, Slot};`
+// gets this file on the Atari 8-bit.
 //
 // ANTIC really can change the picture part-way down the screen — a
 // display-list interrupt at any mode line is the machine's signature

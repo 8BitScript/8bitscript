@@ -2,7 +2,7 @@
 //
 // Named by "8bitscript".exports["./joystick"] in this package's package.json:
 //
-//     import { joystick, Joystick } from "@8bitscript/c64/joystick";
+//     use @8bitscript::c64::joystick::{joystick, Joystick};
 //
 //     joystick.scan();
 //     if (joystick.left(Joystick.PORT_2)) { ... }

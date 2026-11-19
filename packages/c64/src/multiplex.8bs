@@ -3,8 +3,8 @@
 //
 // Named by "8bitscript".exports["./multiplex"] in this package's package.json:
 //
-//     import { multiplex } from "@8bitscript/c64/multiplex";
-//     import { raster } from "@8bitscript/c64/raster";
+//     use @8bitscript::c64::multiplex::multiplex;
+//     use @8bitscript::c64::raster::raster;
 //
 //     multiplex.setCount(16);                    // sixteen virtual sprites, 0-15
 //     multiplex.set(3, 120, 140, SHIP_BLOCK, 7); // x, y, shape block, color

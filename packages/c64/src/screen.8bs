@@ -3,7 +3,7 @@
 // Named by "8bitscript".exports["./screen"] in this package's package.json,
 // and what
 //
-//     import { screen, BorderColor, BackgroundColor } from "@8bitscript/screen";
+//     use @8bitscript::screen::{screen, BorderColor, BackgroundColor};
 //
 // resolves to when the build is for the C64: @8bitscript/screen's entry is
 // keyed by machine and delegates here. Built on the registers @8bitscript/c64

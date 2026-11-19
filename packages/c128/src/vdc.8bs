@@ -2,7 +2,7 @@
 //
 // Named by "8bitscript".exports["./vdc"] in this package's package.json:
 //
-//     import { vdc } from "@8bitscript/c128/vdc";
+//     use @8bitscript::c128::vdc::vdc;
 //
 //     let kib: usmallint = vdc.ramKib();     // 16, or 64 on a C128DCR
 //     vdc.setAddress(0x0000);

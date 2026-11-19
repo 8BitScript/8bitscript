@@ -9,7 +9,7 @@
 // The module entry point named by the "8bitscript".entry field in this
 // package's package.json, resolved and linked for:
 //
-//     import { setVramAddress, resetScroll } from "@8bitscript/nes";
+//     use @8bitscript::nes::{setVramAddress, resetScroll};
 //
 // What a program usually wants sits one layer up, in this package's own
 // implementations of the portable capability packages — `./src/screen.8bs`

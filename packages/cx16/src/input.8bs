@@ -4,7 +4,7 @@
 // and by "8bitscript".entry.cx16 in @8bitscript/input's, so a portable
 // program writes
 //
-//     import { input } from "@8bitscript/input";
+//     use @8bitscript::input::input;
 //
 // and gets this file on an X16.
 //

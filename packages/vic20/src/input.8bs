@@ -4,7 +4,7 @@
 // and by "8bitscript".entry.vic20 in @8bitscript/input's, so a portable
 // program writes
 //
-//     import { input } from "@8bitscript/input";
+//     use @8bitscript::input::input;
 //
 // and gets this file on a VIC-20. The machine-level layers underneath —
 // ./keyboard.8bs, ./keys.8bs — stay available to a program that wants the

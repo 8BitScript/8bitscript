@@ -4,7 +4,7 @@
 // and by "8bitscript".entry.c64 in @8bitscript/input's, so a portable
 // program writes
 //
-//     import { input } from "@8bitscript/input";
+//     use @8bitscript::input::input;
 //
 // and gets this file on a C64. Nothing here is C64-specific to a program:
 // it is the same ten calls on all nine machines, answered from whatever

@@ -1,7 +1,7 @@
 // @8bitscript/audio — play a sample or song compiled from a .8ba file.
 //
-//     import { blip, theme } from "./theme.8ba";
-//     import { audio } from "@8bitscript/audio";
+//     use self::theme::{blip, theme};
+//     use @8bitscript::audio::audio;
 //     audio.play(blip);
 //     audio.music(theme);
 //     audio.update();

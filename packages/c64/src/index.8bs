@@ -3,9 +3,9 @@
 // The module entry point named by the "8bitscript".entry field in this
 // package's package.json, resolved and linked for:
 //
-//     import { borderColor, backgroundColor, memoryPointer } from "@8bitscript/c64";
-//     import { spriteEnable, spritePositions, cia1PortA } from "@8bitscript/c64";
-//     import { reuStatus, reuCommand } from "@8bitscript/c64"; // --profile reu*
+//     use @8bitscript::c64::{borderColor, backgroundColor, memoryPointer};
+//     use @8bitscript::c64::{spriteEnable, spritePositions, cia1PortA};
+//     use @8bitscript::c64::{reuStatus, reuCommand}; // --profile reu*
 //
 // The surface is the hardware, one register at a time — the VIC-II, the
 // SID, the two CIAs, the 6510's own port — under the names the chips'

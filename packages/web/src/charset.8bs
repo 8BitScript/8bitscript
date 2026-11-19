@@ -2,7 +2,7 @@
 //
 // Named by "8bitscript".exports["./charset"] in this package's package.json:
 //
-//     import { charset } from "@8bitscript/web/charset";
+//     use @8bitscript::web::charset::charset;
 //
 //     // Code 176 becomes a ring. Write it with text.putChar(176, ...) or
 //     // let @8bitscript/graphics do it for a .8bg picture.

@@ -3,8 +3,8 @@
 //
 // Named by "8bitscript".exports["./idle"] in this package's package.json:
 //
-//     import { idle, Pattern } from "@8bitscript/c64/idle";
-//     import { raster } from "@8bitscript/c64/raster";
+//     use @8bitscript::c64::idle::{idle, Pattern};
+//     use @8bitscript::c64::raster::raster;
 //
 //     idle.setPattern(Pattern.BLACK);          // an opened border draws black
 //     raster.at(200, idle.PATTERN, Pattern.DITHER); // ... and dithered from line 200

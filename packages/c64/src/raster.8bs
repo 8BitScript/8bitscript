@@ -2,7 +2,7 @@
 //
 // Named by "8bitscript".exports["./raster"] in this package's package.json:
 //
-//     import { raster, Register } from "@8bitscript/c64/raster";
+//     use @8bitscript::c64::raster::{raster, Register};
 //
 //     raster.clear();
 //     raster.at(49, Register.BORDER, 0);         // black border over the picture

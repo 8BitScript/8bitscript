@@ -2,7 +2,7 @@
 //
 // Named by "8bitscript".exports["./banks"] in this package's package.json:
 //
-//     import { banks } from "@8bitscript/cx16/banks";
+//     use @8bitscript::cx16::banks::banks;
 //
 //     let kib: usmallint = banks.kib();   // 64 .. 2048
 //

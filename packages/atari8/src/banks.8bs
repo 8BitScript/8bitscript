@@ -3,7 +3,7 @@
 //
 // Named by "8bitscript".exports["./banks"] in this package's package.json:
 //
-//     import { banks } from "@8bitscript/atari8/banks";
+//     use @8bitscript::atari8::banks::banks;
 //
 //     let kib: usmallint = banks.kib();   // 0 on an 800XL, 64 on a 130XE
 //

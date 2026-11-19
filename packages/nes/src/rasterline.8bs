@@ -3,8 +3,8 @@
 //
 // Named by "8bitscript".exports["./rasterline"] in this package's
 // package.json, and by "8bitscript".entry.nes in @8bitscript/raster's,
-// so a portable program's `import { raster, Slot } from
-// "@8bitscript/raster"` gets this file on an NES.
+// so a portable program's `use @8bitscript::raster::{raster, Slot};`
+// gets this file on an NES.
 //
 // The stock PPU has no scanline interrupt at all: mid-frame effects on
 // this machine need a mapper's IRQ counter (the MMC3's) or sprite-0-hit

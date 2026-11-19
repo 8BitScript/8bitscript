@@ -2,8 +2,8 @@
 //
 // Named by "8bitscript".exports["./sprites"] in this package's package.json:
 //
-//     import { sprites } from "@8bitscript/c64/sprites";
-//     import { spriteShapes } from "@8bitscript/c64/video";
+//     use @8bitscript::c64::sprites::sprites;
+//     use @8bitscript::c64::video::spriteShapes;
 //
 // This is hardware-level, C64-only surface — the layer a portable sprite
 // capability (the `sprites.place(...)` intent API the root AGENTS.md

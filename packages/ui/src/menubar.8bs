@@ -1,6 +1,6 @@
 // @8bitscript/ui/menubar — a menu bar across one row of the character grid.
 //
-//     import { menubar } from "@8bitscript/ui/menubar";
+//     use @8bitscript::ui::menubar::menubar;
 //
 //     menubar.select(1);
 //     menubar.begin(0, text.COLUMNS);

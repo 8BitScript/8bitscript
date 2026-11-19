@@ -3,7 +3,7 @@
 // The module entry point named by the "8bitscript".entry field in this
 // package's package.json, resolved and linked for:
 //
-//     import { viaPeripheralControl } from "@8bitscript/pet";
+//     use @8bitscript::pet::viaPeripheralControl;
 //
 // The surface is the hardware, one register at a time. What a program
 // usually wants sits one layer up, in this package's own implementations of

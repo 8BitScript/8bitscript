@@ -3,7 +3,7 @@
 // The module entry point named by the "8bitscript".entry field in this
 // package's package.json, resolved and linked for:
 //
-//     import { vicColor, memoryPointer } from "@8bitscript/vic20";
+//     use @8bitscript::vic20::{vicColor, memoryPointer};
 //
 // The surface is the hardware, one register at a time. What a program
 // usually wants sits one layer up, in this package's own implementations of

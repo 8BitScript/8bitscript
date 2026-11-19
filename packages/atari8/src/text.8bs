@@ -4,7 +4,7 @@
 // Named by "8bitscript".exports["./text"] in this package's package.json,
 // and what
 //
-//     import { text } from "@8bitscript/text";
+//     use @8bitscript::text::text;
 //
 // resolves to when the build is for the Atari. Built on the registers
 // @8bitscript/atari8 exports. Every machine's text.8bs exports this same

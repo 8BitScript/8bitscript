@@ -2,7 +2,7 @@
 //
 // Named by "8bitscript".exports["./charset"] in this package's package.json:
 //
-//     import { charset } from "@8bitscript/c64/charset";
+//     use @8bitscript::c64::charset::charset;
 //
 //     // Screen code 1 (the upper-case set's 'A') becomes a solid block with a hole.
 //     charset.define(1, 0xFF, 0x81, 0x81, 0x81, 0x81, 0x81, 0x81, 0xFF);

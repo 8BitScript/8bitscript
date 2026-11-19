@@ -1,7 +1,7 @@
 // Every call @8bitscript/c64/random offers, linked the way a program built
 // from inside the package tests it: the import is relative because a
 // package does not resolve its own name; a consumer writes
-// `import { random } from "@8bitscript/c64/random"`.
+// `use @8bitscript::c64::random::random;`.
 use super::src::random::random;
 
 let mut seed: utinyint = 0;

@@ -2,7 +2,7 @@
 //
 // Named by "8bitscript".exports["./mouse"] in this package's package.json:
 //
-//     import { mouse } from "@8bitscript/cx16/mouse";
+//     use @8bitscript::cx16::mouse::mouse;
 //
 //     mouse.begin();                   // once, at start-up
 //     ...

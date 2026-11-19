@@ -2,7 +2,7 @@
 //
 // Named by "8bitscript".exports["./voice"] in this package's package.json:
 //
-//     import { voice } from "@8bitscript/web/voice";
+//     use @8bitscript::web::voice::voice;
 //
 //     voice.on(57);   // A4 starts sounding
 //     voice.off();    // and stops

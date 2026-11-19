@@ -1,6 +1,6 @@
 // @8bitscript/sprites — moving objects, on whichever machine is being built.
 //
-//     import { sprites } from "@8bitscript/sprites";
+//     use @8bitscript::sprites::sprites;
 //
 //     sprites.begin(12);                       // this program moves twelve
 //     sprites.setShape(0, 0x2A);               // a shape the machine layer understands

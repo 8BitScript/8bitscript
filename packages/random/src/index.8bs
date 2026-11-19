@@ -1,6 +1,6 @@
 // @8bitscript/random — a small, deterministic pseudo-random generator.
 //
-//     import { random } from "@8bitscript/random";
+//     use @8bitscript::random::random;
 //
 //     random.seed(1234);
 //     let roll: utinyint = random.range(6) + 1; // 1..6

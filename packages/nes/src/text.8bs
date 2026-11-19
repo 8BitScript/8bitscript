@@ -3,7 +3,7 @@
 // Named by "8bitscript".exports["./text"] in this package's package.json,
 // and what
 //
-//     import { text } from "@8bitscript/text";
+//     use @8bitscript::text::text;
 //
 // resolves to when the build is for the NES. Built on the PPU port protocol
 // @8bitscript/nes exports — read that file first for the two VRAM rules

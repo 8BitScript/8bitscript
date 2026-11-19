@@ -4,7 +4,7 @@
 // package.json, and by "8bitscript".entry.c64 in @8bitscript/raster's, so a
 // portable program writes
 //
-//     import { raster, Slot } from "@8bitscript/raster";
+//     use @8bitscript::raster::{raster, Slot};
 //
 //     raster.clear();
 //     raster.at(0, Slot.BORDER, 0);        // black border over the picture

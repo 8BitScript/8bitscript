@@ -2,8 +2,8 @@
 //
 // Named by "8bitscript".exports["./keys"] in this package's package.json, for
 //
-//     import { keyboard } from "@8bitscript/pet/keyboard";
-//     import { Key } from "@8bitscript/pet/keys";
+//     use @8bitscript::pet::keyboard::keyboard;
+//     use @8bitscript::pet::keys::Key;
 //
 //     if (keyboard.pressed(Key.SPACE)) { ... }
 //

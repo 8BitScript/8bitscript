@@ -3,7 +3,7 @@
 // The module entry point named by the "8bitscript".entry field in this
 // package's package.json, resolved and linked for:
 //
-//     import { borderColor, backgroundColor, memoryPointer } from "@8bitscript/c128";
+//     use @8bitscript::c128::{borderColor, backgroundColor, memoryPointer};
 //
 // The surface is the hardware, one register at a time. What a program
 // usually wants sits one layer up, in this package's own implementations of

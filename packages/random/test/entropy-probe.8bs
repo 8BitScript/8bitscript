@@ -1,7 +1,7 @@
 // Every call @8bitscript/random/entropy offers, linked the way a program
 // built from inside the package tests it: the import is relative because a
 // package does not resolve its own name; a consumer writes
-// `import { entropy } from "@8bitscript/random/entropy"`. A relative import
+// `use @8bitscript::random::entropy::entropy;`. A relative import
 // takes machine twins exactly as the subpath does (the resolver's
 // chooseVariant), so linking this for the C64 and the Atari 8-bit reaches
 // entropy.c64.8bs and entropy.atari8.8bs — which is what entropy.test.mjs

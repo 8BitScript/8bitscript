@@ -4,7 +4,7 @@
 //
 // Named by "8bitscript".exports["./banks"] in this package's package.json:
 //
-//     import { banks } from "@8bitscript/c128/banks";
+//     use @8bitscript::c128::banks::banks;
 //
 //     let kib: usmallint = banks.kib();   // 64, or 192 with the mod
 //

@@ -3,7 +3,7 @@
 //
 // Named by "8bitscript".exports["./mouse"] in this package's package.json:
 //
-//     import { mouse } from "@8bitscript/c64/mouse";
+//     use @8bitscript::c64::mouse::mouse;
 //
 //     mouse.select(Mouse.PORT_1);      // once, at start-up
 //     ...

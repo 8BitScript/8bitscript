@@ -3,8 +3,8 @@
 //
 // Named by "8bitscript".exports["./rasterline"] in this package's
 // package.json, and by "8bitscript".entry.web in @8bitscript/raster's,
-// so a portable program's `import { raster, Slot } from
-// "@8bitscript/raster"` gets this file on the web runtime.
+// so a portable program's `use @8bitscript::raster::{raster, Slot};`
+// gets this file on the web runtime.
 //
 // Unlike the C64's rasterline, which is a thin translation onto an
 // address-form list underneath (./raster.8bs), this file IS the whole

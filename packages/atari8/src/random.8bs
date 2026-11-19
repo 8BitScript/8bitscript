@@ -2,7 +2,7 @@
 //
 // Named by "8bitscript".exports["./random"] in this package's package.json:
 //
-//     import { random } from "@8bitscript/atari8/random";
+//     use @8bitscript::atari8::random::random;
 //
 //     let seed: utinyint = random.byte();
 //
