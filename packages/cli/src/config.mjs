@@ -55,7 +55,7 @@ export function configPathOf(dir) {
  * The project's 8bitscript.config.ts (or the older 8bs.config.ts), if present.
  * A `.ts` config imports straight through: Node 26 imports TypeScript with
  * type stripping, so it is an ordinary module, not a parsed format. An old
- * `8bitscript.config.ts` alone in the directory is an error, not a skip.
+ * `8bitscript.config.8bs` alone in the directory is an error, not a skip.
  *
  * @param {string} dir
  * @param {string} [label] Prefixes a load error, e.g. "8bs build".

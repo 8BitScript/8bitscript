@@ -73,6 +73,9 @@ const TASK_TYPE = '8bs';
 // everything that hides a project copy has to be listed here: installed
 // packages, git internals, and the per-session worktrees the agent tooling
 // keeps under .claude/worktrees, each a whole second checkout of the repo.
+// Old-name configs already reported, so a refresh does not pop the error again.
+const reportedStale = new Set();
+
 const SEARCH_EXCLUDE = '{**/node_modules/**,**/.git/**,**/.claude/worktrees/**}';
 
 /** The workspace folder a directory belongs to, for scoping tasks. */
@@ -598,6 +601,8 @@ class Projects {
     const checkout = this.checkoutFlag();
     const stale = await vscode.workspace.findFiles(`**/${STALE_CONFIG}`, SEARCH_EXCLUDE);
     for (const old of staleConfigsOnly(found.map((uri) => uri.fsPath), stale.map((uri) => uri.fsPath))) {
+      if (reportedStale.has(old)) continue;
+      reportedStale.add(old);
       this.output.appendLine(staleConfigMessage(old));
       void vscode.window.showErrorMessage(staleConfigMessage(old));
     }
