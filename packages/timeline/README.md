@@ -9,16 +9,16 @@ frame numbers, so a showcase is a sequence rather than a loop:
 pnpm add @8bitscript/timeline
 ```
 
-```
-import { timeline } from "@8bitscript/timeline";
+```8bs
+use @8bitscript::timeline::timeline;
 
-timeline.start();                   // frame 0 is now
-while (true) {
+timeline::start();                   // frame 0 is now
+loop {
     waitFrame();
-    timeline.tick();                // once a frame, first thing
-    if (timeline.at(120)) { ... }   // exactly once, on frame 120
-    if (timeline.after(300)) { ... }
-    if (timeline.every(8)) { ... }  // frames 0, 8, 16, ...
+    timeline::tick();                // once a frame, first thing
+    if timeline::at(120) { /* ... */ }   // exactly once, on frame 120
+    if timeline::after(300) { /* ... */ }
+    if timeline::every(8) { /* ... */ }  // frames 0, 8, 16, ...
 }
 ```
 
@@ -33,7 +33,7 @@ while (true) {
 | `every(n)` | True once every `n` frames — exact for `n` dividing 256, off by a beat at the wrap otherwise (`%` is 8-bit on the 6502 targets) |
 
 In `.8bx` a cue is the conditional the language already has —
-`{timeline.at(120) && <Logo />}` — not a wrapper component: a slotted
+`{timeline::at(120) && <Logo />}` — not a wrapper component: a slotted
 component runs its children unconditionally between its two halves and
 could not gate anything. A frame is one `tick()`: whatever the machine's
 own frame sync decided a frame is. [`examples/swarm`](../examples/swarm)'s

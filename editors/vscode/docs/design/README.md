@@ -238,7 +238,7 @@ The launcher UI can be built today as drawn **except** for these, each a small c
 1. **Program metadata** in the config schema: `programs.<name>.{title, description, group, define}`. The schema
    forbids unknown keys today (`additionalProperties: false`), so this is a schema + CLI change.
 2. **`define`**: the compiler has no run-time or build-time input. Proposed: a config `define: { SEED: { type:'number', default: 7 } }`
-   per program, a `--define NAME=value` flag on `run`/`build`, and an `import { SEED } from "#define"` intrinsic folded at compile
+   per program, a `--define NAME=value` flag on `run`/`build`, and an `use "#define"::SEED` intrinsic folded at compile
    time (the repo rule: knowable at compile time ⇒ compile time). Until it exists, the Inputs section stays hidden.
 3. **A capability report**: `8bs targets --json` (or a new `8bs capabilities --json`) answering, per *(program, machine)*:
    `{ editor: {ok, reason}, browser: {ok, reason}, native: {ok, reason, emulator, installed} }`. Today the extension keeps

@@ -27,16 +27,16 @@ Do not describe more than this as working:
   `setVramAddress()`, `locateTextMap()`, and the `mapBank`/`mapLow` it
   fills — that the package's two portable surfaces are built on:
   `src/screen.8bs` (behind `@8bitscript/screen`, as `@8bitscript/cx16/screen`)
-  and `src/text.8bs` (behind `@8bitscript/text`). `screen.setColors()`'s
+  and `src/text.8bs` (behind `@8bitscript/text`). `screen::setColors()`'s
   border is real but *made*: VERA's border color has nowhere to show by
   default (the active display area fills the 640×480 output), so it insets
   the active area by 16 pixels on every side and that ring takes the
   color. Its background is *painted*: there is no register for it, so
   every text cell's attribute byte is rewritten through VERA's data port.
-  `text.putChar(cell, code)` takes ASCII — ISO mode is what makes tile
+  `text::putChar(cell, code)` takes ASCII — ISO mode is what makes tile
   index equal the character code — on the 76×56 grid the border inset
-  leaves visible (the map is 80×60; `text.COLUMNS` is 76 and
-  `text.CELL_COUNT` 4256, so a program never addresses a cell it cannot
+  leaves visible (the map is 80×60; `text::COLUMNS` is 76 and
+  `text::CELL_COUNT` 4256, so a program never addresses a cell it cannot
   see), whose map base is read from VERA's `L1_MAPBASE` at runtime, not
   assumed. `locate()` finds a cell's row by a reciprocal multiply on the
   cell's split bytes (see the package), not a divide — `high` and `row`
@@ -86,7 +86,7 @@ Do not describe more than this as working:
   KERNAL's PETSCII set at VRAM `$1A800`, through `L1_TILEBASE`) — on
   VERA's line interrupt, every split landing on its own picture line,
   whole, frame after frame. `#fact(video.raster)` is true and
-  `raster.COLORS`, `FINE_SCROLL` and `CHARSET` all are. The section
+  `raster::COLORS`, `FINE_SCROLL` and `CHARSET` all are. The section
   "Raster splits" below is the mechanism and the measurements.
 - There is no `--profile` for the X16 yet — no banked-RAM size, no
   video-output (VGA/composite) profile, no expansion-card capabilities.
@@ -117,22 +117,22 @@ Cite these freely; each was read in the source named, not recalled.
 | VRAM `$1F9C0-$1F9FF` is the PSG, `$1FA00-$1FBFF` the palette, `$1FC00-$1FFFF` sprite attributes. | `video.c` `ADDR_PSG_START` etc. |
 | PCM FIFO is 4096 bytes. | `vera_pcm.c` `fifo[4096]` |
 | Layer registers (`$9F2D-$9F3A`) read back their written values; the `$9F29-$9F2C` group is multiplexed by DCSEL. | `video.c` `video_read` |
-| RAM bank select is `$0000`, ROM bank `$0001`; banked RAM beyond the installed banks reads as open bus; ROM banks 0-31 are internal, 32+ are cartridge. | `memory.c` |
-| Slow I/O: the emulator charges 3 extra CPU cycles per access to `$9F40-$9F5F` (YM2151, "IO2") **and** to `$9FA0-$9FFF` (IO5-IO7). `$9F60-$9F9F` (IO3, IO4) is not penalised. | `memory.c` `real_read6502`/write |
+| RAM bank select is `$0000`, ROM bank `$0001`; banked RAM beyond the installed banks reads as open bus; ROM banks 0-31 are internal, 32+ are cartridge. | `memory::c` |
+| Slow I/O: the emulator charges 3 extra CPU cycles per access to `$9F40-$9F5F` (YM2151, "IO2") **and** to `$9FA0-$9FFF` (IO5-IO7). `$9F60-$9F9F` (IO3, IO4) is not penalised. | `memory::c` `real_read6502`/write |
 | Switching the screen editor into or out of ISO mode (`CHR$(15)`/`CHR$(143)`) clears the screen. | `kernal/cbm/editor.s`, `isosto: … jsr clsr` |
-| The KERNAL's text mode is layer 1, 1bpp, 128×64 map at `$1B000`, charset at `$1F000` — ROM build constants, not a contract; read `L1_MAPBASE`. | `kernal/drivers/x16/screen.s` `screen_init`, `inc/io.inc` |
-| `MEMTOP` with carry set returns the banked-RAM bank count in A (`$00` = 256). | `kernal/cbm/memory.s` `gettop` |
-| The KERNAL's RAM sizing ends by selecting bank 1 (`lda #1 / sta ram_bank`), leaving it as the user's bank; bank 0 is its own workspace. | `kernal/drivers/x16/memory.s` |
+| The KERNAL's text mode is layer 1, 1bpp, 128×64 map at `$1B000`, charset at `$1F000` — ROM build constants, not a contract; read `L1_MAPBASE`. | `kernal/drivers/x16/screen::s` `screen_init`, `inc/io.inc` |
+| `MEMTOP` with carry set returns the banked-RAM bank count in A (`$00` = 256). | `kernal/cbm/memory::s` `gettop` |
+| The KERNAL's RAM sizing ends by selecting bank 1 (`lda #1 / sta ram_bank`), leaving it as the user's bank; bank 0 is its own workspace. | `kernal/drivers/x16/memory::s` |
 | `$FF80` is the KERNAL revision byte — **negative** (two's complement) on prerelease builds, e.g. `$CE` for "R50 next". | `kernal/vectors.s` |
-| The KERNAL's own interrupt-time VERA users (mouse-cursor sprite, cursor blink) wrap their work in `screen_save_state`/`screen_restore_state`, which save VERA CTRL, the DCSEL=2 register (FX_CTRL) and ADDR0. So the default IRQ handler does not corrupt a program's VERA address state. | `ps2mouse.s`, `editor.s`, `screen.s` |
-| `memory_copy`/`memory_fill` detect the `$9F00` I/O page and do not increment through it — which is what lets them stream through a VERA data port. | `kernal/memory.s` |
+| The KERNAL's own interrupt-time VERA users (mouse-cursor sprite, cursor blink) wrap their work in `screen_save_state`/`screen_restore_state`, which save VERA CTRL, the DCSEL=2 register (FX_CTRL) and ADDR0. So the default IRQ handler does not corrupt a program's VERA address state. | `ps2mouse.s`, `editor.s`, `screen::s` |
+| `memory_copy`/`memory_fill` detect the `$9F00` I/O page and do not increment through it — which is what lets them stream through a VERA data port. | `kernal/memory::s` |
 | Switching into ISO mode (`CHR$(15)` through CHROUT) before `main()` was verified on a linked build (pre-0.2.0). The native backend does not yet emit that start-up. | disassembly of a linked build (pre-0.2.0) |
 | With a nonzero VSTART, VERA's layer line 0 lands two lines above the active area's top edge (the layer line counter starts on the VSTART line through a two-line register-history pipeline). | `video.c` ~1029-1063, and on screen |
 | The catalog's stock fact sheet: grid 76×56 of 8×8 (the map's 80×60 less the border inset), 256 palette entries, 2 colors per cell, 256 glyphs in the text layer's tileset, 2×2 blocks (the PETSCII set in the ROM font), bitmap, 2 layers with fine scroll each; 128 sprites, up to 64×64, 255 colors at 8 bpp; 16 PSG + 8 FM + 1 PCM = 25 voices, envelopes on the FM side, noise on the PSG, a volume per voice, no filter or random source; keyboard and mouse through the KERNAL (`input.mouse` is true on the stock machine: the emulator's mouse is always there), 2 SNES pad ports (*to verify*: some boards carry 4), no joystick ports; the SD card to save to; 38655 bytes of low RAM (`$0801`–`$9EFF`), 512 KiB banked by default (the `ram` values change it). **`video.spritesPerLine` is 46**: the VERA reference gives a 798-cycle deadline per line and 13–17 cycles for the smallest sprite (8 px, 4 bpp), so 798 ÷ 17 = 46 of those is the worst case; the biggest (64 px, 8 bpp, 99–147 cycles) fits 5. The sheet states the small-sprite figure, and an actors package must say which size its own count assumes. | `src/text.8bs`; the `link.ld`, palette and sprite-budget rows above; VERA Programmer's Reference, "Sprite renderer / line buffer" (fetched 2026-09-05); `package.json` (read) |
-| `@8bitscript/cx16/banks` — `banks.kib()`: the count is the first page above a power of two that the machine does not really have. Two shapes, both tested: a mirror of page 1 (a board that keeps fewer than 8 bank bits wraps, and every page tested is one above a power of two, so a wrap lands on page 1), confirmed with a second marker; or nothing at all, caught by writing two different bytes and reading both back. **x16emu is the second shape**: with `-ram 64`, a byte written to page 200 read back as `$A0` (the window's own address high byte) and page 9 read `$3E` — writes to a page the machine does not have are dropped and reads float. Page 0 is never written (KERNAL workspace) and page 1 is left selected. Under x16emu the probe printed 64 / 512 / 2048 KiB for `ram=64`, `512`, `2048`. Cost: `test/banks-probe.8bs` is 1179 bytes of program with the probe and 1000 with the size written in — 179 bytes. | `src/banks.8bs`; three screenshots and one diagnostic build (ran); `test/banks.test.mjs` |
-| **x16emu starts with the mouse free (no `-capture`), on purpose — and it used to start captured, also on purpose.** Captured, the emulated pointer and the host pointer agree exactly; uncaptured, the KERNAL mouse gets relative motion and the two can drift. #230 removed the flag, #231 put it back for the drift, and on 2026-09-21 it came out again: in use, uncaptured tracking is decent enough for Studio, and the pointer being free to leave the window for the editor matters more. ⇧⌘M (Ctrl+M on Linux/Windows) captures when tracking has to be exact, and again releases; a click does *not* capture (src/video.c's SDL_MOUSEBUTTONDOWN only presses the emulated button; only `mousegrab_toggle()` grabs). `8bs run cx16` prints that shortcut once per launch. | `package.json` (`run.x16emu`); `test/mouse.test.mjs`, `packages/cli/test/hardware.test.mjs`; `packages/cli/src/run.mjs` (`CX16_MOUSE_NOTE`) |
+| `@8bitscript/cx16/banks` — `banks::kib()`: the count is the first page above a power of two that the machine does not really have. Two shapes, both tested: a mirror of page 1 (a board that keeps fewer than 8 bank bits wraps, and every page tested is one above a power of two, so a wrap lands on page 1), confirmed with a second marker; or nothing at all, caught by writing two different bytes and reading both back. **x16emu is the second shape**: with `-ram 64`, a byte written to page 200 read back as `$A0` (the window's own address high byte) and page 9 read `$3E` — writes to a page the machine does not have are dropped and reads float. Page 0 is never written (KERNAL workspace) and page 1 is left selected. Under x16emu the probe printed 64 / 512 / 2048 KiB for `ram=64`, `512`, `2048`. Cost: `test/banks-probe.8bs` is 1179 bytes of program with the probe and 1000 with the size written in — 179 bytes. | `src/banks.8bs`; three screenshots and one diagnostic build (ran); `test/banks::test.mjs` |
+| **x16emu starts with the mouse free (no `-capture`), on purpose — and it used to start captured, also on purpose.** Captured, the emulated pointer and the host pointer agree exactly; uncaptured, the KERNAL mouse gets relative motion and the two can drift. #230 removed the flag, #231 put it back for the drift, and on 2026-09-21 it came out again: in use, uncaptured tracking is decent enough for Studio, and the pointer being free to leave the window for the editor matters more. ⇧⌘M (Ctrl+M on Linux/Windows) captures when tracking has to be exact, and again releases; a click does *not* capture (src/video.c's SDL_MOUSEBUTTONDOWN only presses the emulated button; only `mousegrab_toggle()` grabs). `8bs run cx16` prints that shortcut once per launch. | `package.json` (`run.x16emu`); `test/mouse::test.mjs`, `packages/cli/test/hardware.test.mjs`; `packages/cli/src/run.mjs` (`CX16_MOUSE_NOTE`) |
 | **`8bs run cx16 --web --x16emu` is the same x16emu in a browser tab** (plain `--web`, without `--x16emu`, now builds this package through the wasm backend instead, the same as pet/vic20/c64 — see the "Native System Emulation in WASM" plan). X16Community ships a WebAssembly build with each release (`x16emu_wasm-<tag>.zip`, `make wasm`, ROM embedded in `x16emu.data`); the CLI pins r49 by URL and SHA-256, unpacks it into `~/.cache/8bitscript/setup/x16emu-wasm/r49/` on first use (no Emscripten, no sudo), and serves it from loopback with the freshly built `.prg` and a page of its own. The page hands Emscripten the *native* argv (`-ram 512 -prg program.prg -run` — the catalog's flags, the controller's, unchanged), not upstream's `x16emu.html`, whose loader only knows a handful of URL parameters. Confirmed 2026-09-21 under headless Chromium: Studio's `main-cx16.prg` boots (menubar, `INPUT KEYS MOUSE`, pointer). The mouse follows the argv as in the row above: with `-capture`, a click on the canvas takes it through the Pointer Lock API and Esc gives it back (verified, also from a cross-origin frame); with the stock free launch the emulator's own grab toggle is a Pointer Lock request from a key press — **Ctrl+M, on a Mac too**: ⇧⌘M never reaches the emulator in the browser (verified). The native window keeps ⇧⌘M. The page says which mode it is in and posts it to a framing page. The native build is r50 from source and the wasm is r49; nothing in `packages/cx16` has needed the difference yet — check again when bumping the pin. | `packages/cli/src/setup/cx16-web.mjs` (the pin), `packages/cli/src/web-emulator.mjs` (page, server), `packages/cli/test/{setup-cx16-web,web-emulator}.test.mjs` |
-| `@8bitscript/cx16/mouse` — `$FF68` mouse_config A=1, size from `$FF5F` screen_mode (carry set; 80×60 in KERNAL text), parks at (319, 239); `$FF71` mouse_scan is required because FRAME_SYNC.cx16's `sei` silences the KERNAL IRQ that would have scanned; `$FF6B` mouse_get into `$80`–`$84` — which is **inside ZPKERNAL** (`$80`–`$90`, on top of `tmp2` at `$80`–`$81` and PRIMM's `imparm` at `$82`–`$83`), not unclaimed space, and not "past BASIC's zero page": BASIC's own is `$D4`–`$FE`, *above* it. It is safe anyway, for a reason worth writing down rather than rediscovering: `_mouse_get` writes only `0,x`..`3,x` and touches no zero page of its own, `mouse_get` holds `php`/`sei`, `poll()` holds `sei` across the whole block, and no other KERNAL call intervenes between the call and the copy-out. The buffer address is this package's free choice (`mouse_get` takes it in X), so moving it into the program's own `$22`–`$7F` window would make it safe by construction instead. Presence is the `input.mouse` fact, not a flag stored across an opaque `asm6502` call. After screen.8bs insets the display, the firmware sprite is on the screenshot at (335, 254); `pointerCell()` is `x>>3`, `y>>3` in that active-area space (an earlier draft subtracted the inset again and sat two cells off). Probe 1184 B / 25 B RAM, green border under x16emu when present(). | `src/mouse.8bs`; `test/mouse-probe.8bs` (ran); `packages/pointer/test/pointer.test.mjs` |
+| `@8bitscript/cx16/mouse` — `$FF68` mouse_config A=1, size from `$FF5F` screen_mode (carry set; 80×60 in KERNAL text), parks at (319, 239); `$FF71` mouse_scan is required because FRAME_SYNC.cx16's `sei` silences the KERNAL IRQ that would have scanned; `$FF6B` mouse_get into `$80`–`$84` — which is **inside ZPKERNAL** (`$80`–`$90`, on top of `tmp2` at `$80`–`$81` and PRIMM's `imparm` at `$82`–`$83`), not unclaimed space, and not "past BASIC's zero page": BASIC's own is `$D4`–`$FE`, *above* it. It is safe anyway, for a reason worth writing down rather than rediscovering: `_mouse_get` writes only `0,x`..`3,x` and touches no zero page of its own, `mouse_get` holds `php`/`sei`, `poll()` holds `sei` across the whole block, and no other KERNAL call intervenes between the call and the copy-out. The buffer address is this package's free choice (`mouse_get` takes it in X), so moving it into the program's own `$22`–`$7F` window would make it safe by construction instead. Presence is the `input.mouse` fact, not a flag stored across an opaque `asm6502` call. After screen.8bs insets the display, the firmware sprite is on the screenshot at (335, 254); `pointerCell()` is `x>>3`, `y>>3` in that active-area space (an earlier draft subtracted the inset again and sat two cells off). Probe 1184 B / 25 B RAM, green border under x16emu when present(). | `src/mouse.8bs`; `test/mouse-probe.8bs` (ran); `packages/pointer/test/pointer::test.mjs` |
 
 ## Corrections to the research notes
 
@@ -321,7 +321,7 @@ off. The handler:
   pla / rti` (kernal/cbm/irq.s), spelled `pla / tay / pla / tax / pla /
   rti` here because `asm6502` takes NMOS opcodes only.
 
-`input.poll()` and `mouse.poll()` used to `sei` before their KERNAL
+`input.poll()` and `mouse::poll()` used to `sei` before their KERNAL
 calls and never `cli`: harmless under `waitFrame()`, fatal to a live
 raster handler (the probe's setValue never showed). They now `php / sei
 … plp`, so the I flag comes back as it was — off in a `waitFrame()`
@@ -416,7 +416,7 @@ borders and the background strip read per row):
 ### Troubleshooting
 
 - **No splits at all, or splits for one frame**: something set the I flag
-  and left it. `test/raster.test.mjs`'s `input.poll()` mutation (the
+  and left it. `test/raster::test.mjs`'s `input.poll()` mutation (the
   `plp` removed) fails on the setValue'd border above line 40.
 - **A split one line early, its line split left/right**: the composer
   delay is short — re-run the `ldy` sweep. The test's `ldy #20` mutation
@@ -440,7 +440,7 @@ borders and the background strip read per row):
   module wrote none, and played nothing, until this was found), and a
   waveform byte with the waveform in bits 7:6 (0 pulse, 1 sawtooth, 2
   triangle, 3 noise) and a pulse width below. `@8bitscript/audio`'s X16 twin
-  plays its `audio.tone` on voice 0 with `psg.play`; `packages/audio/AGENTS.md`
+  plays its `audio::tone` on voice 0 with `psg.play`; `packages/audio/AGENTS.md`
   has the capture recipe (`-wav`, `SDL_AUDIODRIVER=dummy`).
 
 ### Storage, input, expansion, testing
@@ -462,7 +462,7 @@ borders and the background strip read per row):
 
 ### raster.frame(): the video-frame counter
 
-`raster.frame()` (`raster.FRAME_COUNTER` is true here) returns the video frames
+`raster::frame()` (`raster::FRAME_COUNTER` is true here) returns the video frames
 since `enable()`, wrapping at 256. The handler adds one (`inc $0408`) each time
 a pass over the planned lines ends, and `enable()` zeroes the byte, so it
 advances once a frame however slowly the loop reading it runs; it counts only
@@ -485,8 +485,8 @@ What belongs here is what the next person touching it must keep true:
   each frame, linear 4 bpp, left pixel in the **high** nibble.
   `src/index.cx16.8bs` takes `bind(slot, index, value)` with `index < 32` as
   palette and the rest as pixels. `packages/compiler/test/media-cx16.test.mjs` pins the
-  lowering's bytes, `test/graphics.test.mjs` reads the driver's result off a
-  screenshot, and `packages/graphics/test/graphics.test.mjs` pins the numbers
+  lowering's bytes, `test/graphics::test.mjs` reads the driver's result off a
+  screenshot, and `packages/graphics/test/graphics::test.mjs` pins the numbers
   the two share; change one side and one of them says so.
 - **VERA's sprite attributes are eight bytes, not four.** A sprite's pixel
   address is in 32-byte units (`byte0` = bits 12:5, `byte1` low nibble =
@@ -500,10 +500,10 @@ What belongs here is what the next person touching it must keep true:
   sprite data at `$13000`), palette in entries `128 + N * 16`
   (`$1FB00 + N * 32`). A new VRAM user picks outside `$4000–$BFFF` and
   palette entries 128–255.
-- **The Y line.** With a nonzero `DC_VSTART` (`screen.blank()`) a sprite
+- **The Y line.** With a nonzero `DC_VSTART` (`screen::blank()`) a sprite
   lands one line above where the text grid's matching pixel is: x16emu
   puts a sprite at (X, Y) on screenshot row `16 + Y - 1`. The driver reads
-  `DC_VSTART` once and adds the line, so `graphics.place(0, 0)` and text
+  `DC_VSTART` once and adds the line, so `graphics::place(0, 0)` and text
   cell 0 share a corner. Measured with a one-pixel marker, not derived.
 - **Interrupt safety.** `DC_VIDEO` is changed once, with DCSEL put back; the
   data port writes stream through ADDR0, which the raster handler and the
@@ -531,7 +531,7 @@ What belongs here is what the next person touching it must keep true:
     Pointing the sprite at a different palette offset would show *another
     object's* colours and was rejected for that reason.
   - **The mouse** (sprite 0, `$FF68`) is never written: a test with
-    `mouse.begin()` and `mouse.poll()` in the loop shows the arrow at the
+    `mouse::begin()` and `mouse::poll()` in the loop shows the arrow at the
     centre and all four objects whole beside it.
 - **Eight objects, and why not more.** An object owns a palette block
   (entries 128–255 = 8 blocks) and a 4096-byte window (`$4000`–`$BFFF` = 8
@@ -558,7 +558,7 @@ hardware sprites do not exist there. What the page does draw is
 `packages/cli/src/web-layout.mjs` `REAL_MACHINE_LAYOUT.cx16`:
 
 - a text screen of 76 x 56 cells on the synthetic host font, written by the
-  `.web` twins (`text.cx16.web.8bs`, `screen.cx16.web.8bs`);
+  `.web` twins (`text::cx16.web.8bs`, `screen::cx16.web.8bs`);
 - **VERA's own default palette** for entries 0-15 (`VERA_PALETTE`: the C64's
   names in the C64's order, but VERA's colours — blue is `$00A`, `#0000aa`,
   which is what x16emu draws for `BorderColor.BLUE`; the C64's `#40318d` was
@@ -580,8 +580,8 @@ hardware sprites do not exist there. What the page does draw is
   refused to build here). It reads `inputOffset` once a frame — arrows, Enter
   for confirm, Escape for cancel, and a gamepad's D-pad or left stick, A/START
   and B/SELECT, which the page folds into the same byte — at
-  `text.CELL_COUNT * 2 + 2` (8514: there is no address override for this
-  machine, so it is `agreementFor()`'s default behind `text.cx16.web.8bs`'s two
+  `text::CELL_COUNT * 2 + 2` (8514: there is no address override for this
+  machine, so it is `agreementFor()`'s default behind `text::cx16.web.8bs`'s two
   planes; `packages/cli/test/web-cx16-input.test.mjs` pins the three together).
   No mouse: `pointer()` is false. `Input.CONFIRM_LABELS` is the native file's
   `RETURN OR START`, since a pad's START confirms here too.
@@ -590,15 +590,15 @@ hardware sprites do not exist there. What the page does draw is
 - the **portable raster list** (`rasterline.cx16.web.8bs`): the same Slot numbers, 32
   entries, 3-byte stride and `at`/`insert`/`setValue`/`commit`/`enable` rules as the VERA
   handler's file, held in the twin and copied to the page's raster region on
-  `commit()`/`enable()`, which the page applies at each picture line. `raster.frame()` is
+  `commit()`/`enable()`, which the page applies at each picture line. `raster::frame()` is
   real: the page adds one to a byte past the glyph table (`frameOffset`, this machine's
   layout only) each frame it releases, and `frame()` is the distance since `enable()`.
   What the model does not do — VERA's own timing, palette values past 15, the KERNAL's
   PETSCII set for `CHARSET`, the wrapped value above a list's first entry — is in
-  `wasm.limits`. `packages/cli/test/web-cx16-raster.test.mjs` pins the offsets to
+  `wasm.limits`. `packages/cli/test/web-cx16-raster::test.mjs` pins the offsets to
   the layout and the twin's names to the native file's.
 
-Not there: sound (8BS2211, `.8ba` has no wasm driver and `audio.tone` is not
+Not there: sound (8BS2211, `.8ba` has no wasm driver and `audio::tone` is not
 wired for this build), the mouse and the X16-only modules that talk to VERA, the
 KERNAL or the banks (`@8bitscript/cx16/mouse`, `/pointer`, `/psg`, `/banks`).
 The list is `wasm.limits` in this package's manifest, shown by

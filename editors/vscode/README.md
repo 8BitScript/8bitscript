@@ -112,7 +112,7 @@ With this extension enabled, the default file icon theme is **8BitScript**
   text between tags stays plain
 - **Snippets** for the constructs that compile — `program`, `loop`,
   `countdown`, `print`, `#frames`, `#package`, `#define`, `const`, `let`, `for`, `array`,
-  `table`, `address`, `namespace`, `asm6502`, `poke`/`peek`. Nothing is offered that the compiler would
+  `table`, `address`, `mod`, `asm6502`, `poke`/`peek`. Nothing is offered that the compiler would
   reject, and the compiler's own test suite is what holds that
 - `//` line comments and `/* */` blocks, so comment-toggling works, and a
   `/** */` block continues its `*` column on Enter
@@ -122,21 +122,21 @@ With this extension enabled, the default file icon theme is **8BitScript**
   - **Diagnostics** — lexical, syntax, and range errors, as you type
   - **Hover** — documentation for built-in types (`utinyint`, `int`, ...),
     constructs (`string`, `volatile`, `ptr`, `array`, `asm6502`,
-    `@address`, `memory.read`/`memory.write`, `port.read`/`port.write`), the builtins
+    `#[address]`, `memory::read`/`memory::write`, `port::read`/`port::write`), the builtins
     `#frames(...)` and its `seconds` unit, `#system()`, `#fact(...)`,
     `#package("version")`, `#define("NAME", default)`, and `waitFrame()`, and a member of
-    a named import's own namespace — `screen.blank(...)` shows its
+    a named `use` import's own module — `screen::blank(...)` shows its
     signature and doc comment, read from whichever module the import
     actually resolves to
   - **Completion** — built-in type names in type position (after `:` or
     inside `ptr<...>`/`array<...>`/`volatile<...>`), the compile-time
     functions after a `#`, the unit words inside a `#frames(...)` call, and
     — right after `object.` — the members a named import brings in
-    (`screen.bl` offers `blank`) — inside a template's `${...}` field as
+    (`screen::bl` offers `blank`) — inside a template's `${...}` field as
     much as outside one
   - **Your own names** — hover on a component, function, variable, const,
     parameter or `state` field shows its declaration and the comment above
-    it, following an import to the file it comes from; completion offers
+    it, following a `use` to the file it comes from; completion offers
     what is visible from the cursor; **Go to Definition** (F12) lands on
     the declaration, in this file or another
   - **8BX** — in an `.8bx` file, `<` offers the components in scope (and
@@ -584,10 +584,10 @@ build and run for real; every other target is still refused.
 ## The grammar is provisional
 
 8BitScript's syntax is not fully specified yet. `syntaxes/8bs.tmLanguage.json`
-covers the TypeScript-derived surface the project documentation actually
+covers the Rust-style surface the project documentation actually
 shows, the primitive integer types (both the friendly spelling — `utinyint`,
 `int`, ... — and the low-level `u8`/`i8`-style aliases), and the hardware
-escape hatches that already exist: `@address` decorators,
+escape hatches that already exist: `#[address]` decorators,
 `volatile`/`ptr`/`array`, and `asm6502` blocks. A keyword the language turns
 out not to have simply never matches, so a wrong guess costs a word that does
 not color rather than a broken file.

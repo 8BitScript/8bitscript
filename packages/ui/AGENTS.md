@@ -32,12 +32,12 @@ imports a machine package.
 `@8bitscript/ui` has no bare entry, and that is deliberate. Every component
 is a subpath —
 
-```
-import { menubar } from "@8bitscript/ui/menubar";
+```8bs
+use @8bitscript::ui::menubar::menubar;
 ```
 
 — so a program links the components it names and nothing else. There is
-nothing sensible for `import ... from "@8bitscript/ui"` to mean on a machine
+nothing sensible for `use @8bitscript::ui::...` to mean on a machine
 where the whole program has 3583 bytes to live in.
 
 Adding a component is a file in `src/` and a key in `package.json`'s
@@ -48,11 +48,13 @@ Adding a component is a file in `src/` and a key in `package.json`'s
 A component holds no list of what it contains. The caller runs the calls
 that draw it, in order, every time:
 
-```
-menubar.begin(0, text.COLUMNS);
-menubar.item("FILE");
-if (menubar.item("EDIT")) { drawEditMenu(); }
-menubar.end();
+```8bs
+menubar::begin(0, text::COLUMNS);
+menubar::item("FILE");
+if menubar::item("EDIT") {
+    drawEditMenu();
+}
+menubar::end();
 ```
 
 This is not a workaround for a language that has no arrays of strings yet.
@@ -73,9 +75,11 @@ would decide, for everyone, that hovering selects and that left means
 previous. So the bar offers `next()`, `previous()`, `deselect()` and
 `point(cell)`, and the *program* writes
 
-```
-input.poll();
-if (input.left()) { menubar.previous(); }
+```8bs
+input::poll();
+if input::left() {
+    menubar::previous();
+}
 ```
 
 which is four bytes of policy in the one place that knows what the policy
@@ -88,8 +92,8 @@ it is not in this package's dependencies.
 Every claim here was checked against each machine's `text.8bs`, and every
 one of them shapes a component's design:
 
-- **Three of the nine targets have no per-cell color.** `text.putColor`
-  and `text.setColor` are deliberately empty functions on the **PET** (no
+- **Three of the nine targets have no per-cell color.** `text::putColor`
+  and `text::setColor` are deliberately empty functions on the **PET** (no
   color RAM at all), the **Atari 8-bit** in stock GR.0 (ANTIC 2 has none;
   `textmode=gr1` is a different build with four playfield colors per
   character), and the **NES**
@@ -110,7 +114,7 @@ one of them shapes a component's design:
   nine, PET included, because a PET cell really does hold two colors —
   they are simply not a program's to set. That near-miss is why
   `video.colorPerCell` was added rather than reused.
-- **Reverse video is a text mode, not a portable glyph.** `text.setReverse`
+- **Reverse video is a text mode, not a portable glyph.** `text::setReverse`
   inverts cells printed after it: a reverse space is a solid block in the
   cell's color, which is how a selected menu item becomes a filled bar.
   The portable character set still has no inverted copies of its own —
@@ -175,7 +179,7 @@ Seven things about it that are decisions, not accidents:
   component may only draw from the portable character set, and `putChar`
   converts ASCII to a screen code, so there is no portable route to an
   arbitrary shape. `icon()` exists as its own call so that when a glyph
-  capability arrives — a redefinable character, or a `text.putCode` escape
+  capability arrives — a redefinable character, or a `text::putCode` escape
   hatch — it starts drawing a real mark and **no program changes**. Adding
   it as `item("8")` would have made that a breaking change later.
 - **The bar hit-tests a pointer but never moves under one.** `point()` in,
@@ -184,7 +188,7 @@ Seven things about it that are decisions, not accidents:
 
 - **`begin` takes a cell and a width, not a row.** Every `text` call takes a
   flat cell index, and a bar that is told its width can sit inside something
-  narrower than the screen. `begin(0, text.COLUMNS)` is the full top row.
+  narrower than the screen. `begin(0, text::COLUMNS)` is the full top row.
 - **Padding is the same width selected or not.** Reverse spaces fill the
   button without shifting the bar. At padding 0 there is no cell either
   side of the label and the filled ends are not drawn.
@@ -192,7 +196,7 @@ Seven things about it that are decisions, not accidents:
   answers for the highlight. Which item is selected must not depend on how
   wide the machine's screen is.
 - **The color goes on with `setColor`, and invert with `setReverse`.**
-  There is no `text.getColor` to put the caller's setting back with, so a
+  There is no `text::getColor` to put the caller's setting back with, so a
   bar leaves the text color set to the bar's and reverse off after each
   item. A program that cares picks its color on the line after the bar.
 
@@ -209,7 +213,7 @@ a drop-down does:
 ```
 
 The same calls as the bar, with the same meanings — `begin(at, cells)`
-takes the top-left cell and the row width, rows follow `text.COLUMNS`
+takes the top-left cell and the row width, rows follow `text::COLUMNS`
 apart; `item(name)` draws the next row and returns whether it is the lit
 one; `end()`; `select` / `selected` / `deselect` / `next` / `previous`;
 `point(cell)` / `pointed()`; `count()`; `clipped()`; `setColors`;
@@ -248,7 +252,7 @@ native backend: `menu_item` is **296 bytes on the X16 and the C64, 289
 on a 32K PET**, against `menubar_item`'s 425 and 418 on the same builds
 — the row is a print and two fills, where the bar's item is three prints
 and the hit-slot bookkeeping. Studio's own `drawMenu()`, which runs the
-open menu's entries through `pick()`, is 222; `menubar.itemAt()`, which
+open menu's entries through `pick()`, is 222; `menubar::itemAt()`, which
 tells it where to put the menu, 39.
 
 ### What it costs
@@ -291,7 +295,7 @@ Re-measured 2026-09-07 after the selected item became inverted rather than
 recolored: `menubar_item` is 466 bytes on a C64 and 384 on the X16
 (measured from Studio's linked image, pre-0.2.0). The extra
 against the 285-byte `item()` below is two padding `print`s per item — a
-reverse space is the filled end of the button — plus `text.setReverse`.
+reverse space is the filled end of the button — plus `text::setReverse`.
 `currentReverse` is one byte of BSS in every text package that implements
 invert; unused `highlightColor` is stored by `setColors` and then dropped
 by the linker.
@@ -330,7 +334,7 @@ verified pixel-identical in VICE:
 | --- | --- |
 | Raw 6502 assembly, layout in a 24-byte table | 99 |
 | Hand-written C, the same table | 178 |
-| 8BitScript: four bare `text.print` calls, no layout at all | 446 |
+| 8BitScript: four bare `text::print` calls, no layout at all | 446 |
 | 8BitScript: the layout precomputed by hand, with a movable highlight | 455 |
 | **8BitScript: this component** | **809** |
 
@@ -351,12 +355,12 @@ reason: they are what the portable layer costs. 99 bytes buys one bar, on
 one machine, with the labels the programmer typed. Nothing in the 446 is
 waste anyone has found — three separate attempts to cut it (emitting
 assembly instead of C, pre-converting strings to screen codes, dropping
-`volatile` from `@address` arrays) each turned out to be worth 2, 10 and 0
+`volatile` from `#[address]` arrays) each turned out to be worth 2, 10 and 0
 bytes respectively; see
 [the compiler](../../docs/compiler.md#what-a-call-costs-on-a-6502-measured).
 
 **The one thing to know before changing how anything here draws:
-`text.print` is cheap and `text.putChar` is dear.** `print` does a machine's
+`text::print` is cheap and `text::putChar` is dear.** `print` does a machine's
 per-run setup once and then walks the string. `putChar` is self-sufficient,
 so every call re-runs that setup (on a C64, `jsr setupVideo` and the
 character-set register), converts ASCII to a screen code, and builds a
@@ -365,7 +369,7 @@ into wherever it was called. A routine built out of `putChar` pays that per
 cell; one built out of `print` pays once per string.
 
 **The second thing: do not hold state across a call.** Anything still live
-when `item()` calls `text.print` has to survive it, and a 6502 calling
+when `item()` calls `text::print` has to survive it, and a 6502 calling
 convention pays for that by pushing zero-page registers to a soft stack
 on entry and popping them on exit (measured pre-0.2.0). With the bookkeeping written after the drawing — the natural
 order — that prologue and epilogue was about 130 bytes and ran even on the
@@ -392,7 +396,7 @@ enough to be worth writing down rather than rediscovering:
   item, and it is why `item()` prints padding spaces rather than leaving
   them as blanks.
 - **The blanking loop is 16 bytes**, measured by removing it — not the
-  ~150 it looks like. A `text.fill(cell, count, code)` primitive in
+  ~150 it looks like. A `text::fill(cell, count, code)` primitive in
   `@8bitscript/text` was proposed here to remove it and would have been
   nine files of work for 16 bytes. Measure before you optimize; this table
   exists so the next person does not repeat that.
@@ -405,7 +409,7 @@ precomputed by hand the way a compiler could precompute it — the whole bar
 as one `const string` with its padding already in it, plus `const array`
 tables of where each item starts and how long it is — draws the identical
 picture in **455 bytes against this component's 809**, which is nine bytes
-more than four bare `text.print` calls that do no layout at all. The layout
+more than four bare `text::print` calls that do no layout at all. The layout
 is not what costs; doing the layout on a 6502 is. Those same tables are
 exactly what a bar that answers a click, an arrow key or `ALT`+letter needs,
 so this is not features traded for size. The design, the measurements and

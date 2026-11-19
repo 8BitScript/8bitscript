@@ -31,11 +31,11 @@ Do not describe more than this as working:
 2. **`src/daw/`** — the DAW module. `daw.8bs` draws the module;
    `MenuBar.8bx` is the top row (reverse video across the grid, sample
    labels FILE EDIT SONG TRACK VIEW HELP); `StatusBar.8bx` is the bottom row
-   (sample text and the live `columns X rows`). Both read `text.columns()`
-   and `text.rows()` on every draw, so they fit any grid, fluid or fixed.
+   (sample text and the live `columns X rows`). Both read `text::columns()`
+   and `text::rows()` on every draw, so they fit any grid, fluid or fixed.
    Text stays on the portable character set and the portable `TextColor`s.
 3. **`src/mark.8bg`** — the logo as media, drawn at the stage origin.
-4. **`src/chime.8ba`** — a one-shot sample on start via `audio.play()`.
+4. **`src/chime.8ba`** — a one-shot sample on start via `audio::play()`.
 5. **Commander X16 baseline** — `baseline: 'cx16'` in the config, mouse as
    `input.primary`. Other machines are compared to that build.
 
@@ -81,8 +81,8 @@ Same list as before — nothing behind the shell is built:
 - **Storage** — load/save and host mount routes for Launch in Studio.
 
 Assets on disk should be **media source**: `.8bg` for pictures, `.8ba` for
-audio — see [`docs/project/graphics.md`](../../docs/project/graphics.md) and
-[`docs/project/audio.md`](../../docs/project/audio.md).
+audio — see [`docs/project/graphics::md`](../../docs/project/graphics.md) and
+[`docs/project/audio::md`](../../docs/project/audio.md).
 
 ## Launching
 

@@ -10,13 +10,13 @@ machine's own entropy sources where it has one:
 pnpm add @8bitscript/random
 ```
 
-```
-import { random } from "@8bitscript/random"; // the default: a 16-bit LCG
+```8bs
+use @8bitscript::random::random; // the default: a 16-bit LCG
 // or
-import { table } from "@8bitscript/random/table"; // a precomputed lookup table
+use @8bitscript::random::table::table; // a precomputed lookup table
 
-random.seed(1234);
-let roll: utinyint = random.range(6) + 1; // 1..6
+random::seed(1234);
+let roll: utinyint = random::range(6) + 1; // 1..6
 ```
 
 | Call | What it does |
@@ -34,7 +34,7 @@ already keeps its own running counter (frames elapsed is the usual one).
 
 | | `@8bitscript/random` | `@8bitscript/random/table` |
 | --- | --- | --- |
-| How `next()` works | `state = state * 25173 + 13849`, return the high byte | `TABLE[index]`, then `index++` |
+| How `next()` works | `state = state * 25173 + 13849`, return the high byte | `TABLE[index]`, then `index += 1` |
 | Cost per call | A 16-bit multiply and add | One indexed load |
 | Period | 65536 | 256 |
 | `next()` distribution | Every byte exactly 256 times per period | Every byte exactly once per 256 consecutive calls — the table is a permutation of 0-255 |
@@ -129,14 +129,14 @@ beat.
 
 ## `/entropy`: hardware where a machine has it
 
-```
-import { entropy } from "@8bitscript/random/entropy";
+```8bs
+use @8bitscript::random::entropy::entropy;
 
-entropy.begin();                      // first statement of main() — see below
+entropy::begin(); // first statement of main() — see below
 // every frame:
-entropy.tick();
+entropy::tick();
 // when a number is wanted:
-let cell: utinyint = entropy.range(16);
+let cell: utinyint = entropy::range(16);
 ```
 
 | Call | C64 | Atari 8-bit | The other seven |
@@ -149,7 +149,7 @@ let cell: utinyint = entropy.range(16);
 One import; the compiler picks the file. `src/entropy.8bs` is the portable
 generator, and `entropy.c64.8bs` and `entropy.atari8.8bs` beside it are
 the machine twins the resolver takes for those two builds on its own — the
-same rule that makes `screen.nes.8bs` the NES's `screen.8bs`. A program
+same rule that makes `screen::nes.8bs` the NES's `screen.8bs`. A program
 never names them.
 
 **What it is for.** A game that wants every spawn, every shuffle, to be
@@ -178,18 +178,18 @@ much unpredictability as a machine with no entropy source can offer. The
 hardware twins make it empty, so the call inlines away to nothing there.
 
 **`range()` and `bits()`: forwarded in software, written out on the two
-hardware twins.** The software `entropy` calls `random.range()` and
-`random.bits()` — one copy of the rejection loop. A forwarder used to cost 8
+hardware twins.** The software `entropy` calls `random::range()` and
+`random::bits()` — one copy of the rejection loop. A forwarder used to cost 8
 bytes a target; the compiler now folds a `return f(x);` delegate away
 (measured again: 231 bytes of program on the PET either way). The C64 and
-Atari twins read a register, so each carries its own loop over `random.byte()`
+Atari twins read a register, so each carries its own loop over `random::byte()`
 (`entropy_range` is 71 bytes on the C64, `entropy_bits` 30, each with its register read inlined). Reads a few cycles
 apart are not independent samples of the noise — hardware entropy is for a
 seed or a shuffle, not for statistics — but the arithmetic favours no
 outcome. `entropy.test.mjs` checks the bodies.
 
 **Not yet on the C128 or MEGA65.** Both have a SID and answer
-`#fact(audio.entropy)` true, but neither machine package has a `./random`
+`#fact(audio::entropy)` true, but neither machine package has a `./random`
 module yet, so `/entropy` is the software generator there until one exists
 — one more twin each, once it does.
 

@@ -24,7 +24,7 @@ write today, compiled into the honest 6502 machine code they've always
 wanted. And the very same program builds for the web, so your friends
 without a VIC-20 can play too.
 
-It looks like TypeScript. It compiles like C. It runs like it was written
+It looks like Rust. It compiles like C. It runs like it was written
 in 1983 by someone who really knew the chip.
 
 ## Why you'll want one
@@ -57,7 +57,7 @@ error 8BS1021: 300 does not fit in u8 (0..255)
 ```
 
 **NO ASSEMBLY REQUIRED. (UNLESS YOU WANT TO.)**
-`asm6502 { … }` blocks, `@address` registers, and `memory.write` are part
+`asm6502 { … }` blocks, `#[address]` registers, and `memory::write` are part
 of the language, not a trapdoor. Drop to the chip in the middle of a
 function whenever the hardware deserves it.
 
@@ -74,14 +74,14 @@ as the native one. What wraps on the C64 wraps in Chrome.
 
 **Hello, World.** One file. Every machine. Zero edits.
 
-```ts
-import { screen } from "@8bitscript/screen";
-import { text } from "@8bitscript/text";
+```8bs
+use @8bitscript::screen::screen;
+use @8bitscript::text::text;
 
-export function main(): void {
-    screen.blank();
-    text.print(0, "Hello World!");
-    text.releaseCursor();
+pub fn main() {
+    screen::blank();
+    text::print(0, "Hello World!");
+    text::releaseCursor();
 }
 ```
 
@@ -102,23 +102,27 @@ $ 8bs run c64
 **A game loop.** Tap left or right — keyboard, joystick, or pad, whichever
 the machine has — and an `8` steps along the top row.
 
-```ts
-import { screen } from "@8bitscript/screen";
-import { text } from "@8bitscript/text";
-import { input } from "@8bitscript/input";
+```8bs
+use @8bitscript::screen::screen;
+use @8bitscript::text::text;
+use @8bitscript::input::input;
 
-let x: utinyint = 20;
+let mut x: utinyint = 20;
 
-export function main(): void {
-    screen.blank();
-    input.begin();
-    while (true) {
-        waitFrame();            // one tick of the machine's own refresh
-        input.poll();           // keyboard, joystick, or pad — whatever's plugged in
-        text.print(x, " ");
-        if (input.left() && x > 0) { x--; }
-        if (input.right() && x < text.COLUMNS - 1) { x++; }
-        text.print(x, "8");
+pub fn main() {
+    screen::blank();
+    input::begin();
+    loop {
+        waitFrame(); // one tick of the machine's own refresh
+        input::poll(); // keyboard, joystick, or pad — whatever's plugged in
+        text::print(x, " ");
+        if input::left() && x > 0 {
+            x -= 1;
+        }
+        if input::right() && x < text::COLUMNS - 1 {
+            x += 1;
+        }
+        text::print(x, "8");
     }
 }
 ```
@@ -127,14 +131,14 @@ export function main(): void {
 it's the screen and border colour. Here it is the 8BitScript way, then
 the assembler's way:
 
-```ts
-import { screen } from "@8bitscript/screen";
-import { text } from "@8bitscript/text";
+```8bs
+use @8bitscript::screen::screen;
+use @8bitscript::text::text;
 
-export function main(): void {
-    screen.blank();
-    memory.write(36879, 10);    // POKE 36879,10 — the VIC-20's screen and border colour
-    text.print(0, "BORDER: RED");
+pub fn main() {
+    screen::blank();
+    memory::write(36879, 10); // POKE 36879,10 — the VIC-20's screen and border colour
+    text::print(0, "BORDER: RED");
     asm6502 {                   // or say it to the chip yourself
         lda #10
         sta $900F
@@ -244,7 +248,7 @@ pnpm add -D @8bitscript/cli
 ```
 
 ```ts
-// 8bitscript.config.8bs
+// 8bitscript.config.ts
 export default {
   entry: 'src/main.8bs',
   targets: { c64: {}, vic20: {}, web: {} },
@@ -264,13 +268,14 @@ the brochure.
 ## The fine print
 
 Breaking changes arrive between releases, and some constructs you'd
-expect from TypeScript aren't here yet. What's listed above is what
+expect from Rust aren't here yet. What's listed above is what
 compiles today; the manual's
 [Not yet available](https://8bitscript.org/language/not-yet) page is
 the rest.
 
-It is not TypeScript — it borrows the syntax and nothing else. Existing
-TypeScript won't compile, and npm packages written for Node won't import.
+It is not Rust — it borrows the syntax and nothing else. Existing
+Rust won't compile, there is no borrow checker, no traits and no crates, and
+npm packages written for Node won't import.
 8BitScript's own packages *are* on npm, though, and yours can be too.
 
 Want to help build the Apple II backend? See

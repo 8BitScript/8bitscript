@@ -34,7 +34,7 @@ Four calls and one const, the same on every machine:
 | --- | --- |
 | `DRAWS` | **A const**: does this machine draw an arrow at all? |
 | `begin()` | Once, at start-up, after `input.begin()` |
-| `setColor(c)` | The arrow's color, in the same numbers `text.setColor` takes |
+| `setColor(c)` | The arrow's color, in the same numbers `text::setColor` takes |
 | `update()` | Once a frame, after `input.poll()` |
 | `hide()` | Off the screen until the next `update()` |
 
@@ -50,7 +50,7 @@ Three things about that surface are decisions:
 - **`poll()` then `update()`, once each a frame.** This is `input`'s
   ordering rule extended by one call, and it is the whole contract between
   the two packages: `input.poll()` advances the machine's pointer state and
-  `pointer.update()` draws whatever it advanced to. A program that never
+  `pointer::update()` draws whatever it advanced to. A program that never
   polls gets an arrow that never moves.
 - **`update()` takes no arguments**, and reads the machine's own pointer
   state rather than a cell handed in. `input.pointerCell()` is in *cells*
@@ -88,8 +88,8 @@ Those are different statements and the headers make both:
   that one or never drawing at all.
 
 It costs those machines nothing. `DRAWS` is a const and every body is
-empty, so `if (pointer.DRAWS)` folds away and the fold removes the calls —
-`packages/pointer/test/pointer.test.mjs` asserts every layer's functions
+empty, so `if pointer::DRAWS` folds away and the fold removes the calls —
+`packages/pointer/test/pointer::test.mjs` asserts every layer's functions
 are bodiless in the IR on a machine with no pointer.
 
 ## The bug this package was written against, and the rule it produced
@@ -104,10 +104,10 @@ every time it was asked.** The converter runs continuously, so two reads
 in one frame are two different moments, and they disagreed: in the same
 frame, `input.pointer()` said *no pointer* and a read a few instructions
 later said there was one. `input.poll()` therefore refused to update the
-cell while `pointer.update()` showed the sprite, or the reverse — and on
+cell while `pointer::update()` showed the sprite, or the reverse — and on
 the frame the screenshot caught, `update()` had hidden it.
 
-The fix was to read the pots **once** in `mouse.poll()` and answer both
+The fix was to read the pots **once** in `mouse::poll()` and answer both
 questions from that one reading, which is what the file's own header always
 said the discipline was. The rule for any layer here:
 
@@ -127,7 +127,7 @@ still prove almost everything, and the way it does is worth copying:
 - A **1351** reads its zero on both axes until it is moved, so **a fitted
   C64 or C128 puts the arrow in the top-left corner of the screen and a
   build with the mouse taken out puts nothing there.** That is a difference
-  a headless run can see, and `pointer.test.mjs` asserts it by counting
+  a headless run can see, and `pointer::test.mjs` asserts it by counting
   white pixels in the two blank rows a probe program keeps clear for the
   purpose — 58 with a mouse, 0 without, under both x64sc and x128.
 - The **X16** parks at the *center*: mouse_config with a nonzero size
@@ -172,7 +172,7 @@ What a screenshot cannot answer, and what needs a human at the machine:
    `"8bitscript".exports`.
 3. Add the target to this package's `"8bitscript".entry` and its
    `dependencies`.
-4. Run `packages/pointer/test/pointer.test.mjs`: it links
+4. Run `packages/pointer/test/pointer::test.mjs`: it links
    a probe for all nine and checks the surface is the same
    everywhere. Add a pixel assertion for your machine's emulator if it
    draws anything.

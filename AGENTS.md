@@ -61,7 +61,7 @@ pattern to follow rather than exceptions:
 - `#fact(...)`, `#system()` and `#frames(x, seconds)` are resolved before
   any target toolchain runs, so a branch on another machine's hardware
   costs that machine nothing.
-- A **template** — `text.print(0, \`TICK ${ticks:1}\`)` — is laid out during
+- A **template** — `text::print(0, \`TICK ${ticks:1}\`)` — is laid out during
   compilation into `print` and `printNumber` calls with every cell already
   worked out. Nothing formats at run time.
 - `const`s are inlined, `const` arrays are data in the image and never in
@@ -85,7 +85,7 @@ So, when adding anything:
   is almost always smaller than the code that would recompute it, and it
   lives in the program image rather than in RAM.
 - **Measure it, in bytes, and write the number down.** The backend's own
-  size report (`memory.program`, `memory.variables` from `build()`) is the
+  size report (`memory::program`, `memory::variables` from `build()`) is the
   measurement. Until that report exists, no new size claim can be made;
   the numbers already recorded in this repository stay as the reference.
   [The compiler](docs/compiler.md#what-a-call-costs-on-a-6502-measured)
@@ -131,8 +131,8 @@ it is a wrong program.
   runtime probe: the width is a property of the build.
 - **Don't assume a framebuffer.** A target may be character-cell, tile/
   nametable, sprite/display-list, or bitmap based, or some mix. A portable
-  drawing API has to describe intent (`sprites.place(...)`,
-  `background.setTile(...)`), not "write this RGB value at this pixel."
+  drawing API has to describe intent (`sprites::place(...)`,
+  `background::setTile(...)`), not "write this RGB value at this pixel."
 - **Don't assume a flat, unbanked address space.** C128 in particular maps
   128K of RAM through one 64K CPU window at a time. A pointer that is
   directly dereferenceable and an address that lives in another bank are not
@@ -330,8 +330,8 @@ the change everywhere it is described, in the same commit:
 ### Names say which side they are on
 
 A `const` is `UPPER_SNAKE` (`OPTION_COUNT`, `BorderColor.BLUE`,
-`text.CELL_COUNT`); a variable starts with a lower-case letter; functions
-and parameters are `camelCase`; namespaces and types are `PascalCase`. The
+`text::CELL_COUNT`); a variable starts with a lower-case letter; functions
+and parameters are `camelCase`; modules and types are `PascalCase`. The
 checker enforces the first two (`8BS1034`), so every `.8bs` file in this
 repository — packages, examples, and the programs inside tests and docs —
 follows them. A capitalized name is a compile-time value, and that is the

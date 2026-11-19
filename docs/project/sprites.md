@@ -53,7 +53,7 @@ document says so rather than implying a precedent.
 
 ### 1. Two limits, two consts, stated for a size
 
-`sprites.MAX` is how many objects the layer holds; `sprites.PER_LINE`
+`sprites::MAX` is how many objects the layer holds; `sprites::PER_LINE`
 is what one scanline can show *of the object size the layer draws*. On
 the X16 that is 128 and "46 at 8 px, 4 bpp"; on the NES 64 hardware
 entries make 16 objects of 16×16 in 8×16 mode, 4 of them per line; on
@@ -87,7 +87,7 @@ the ROM image (NES, where it is the *only* way on NROM), strip bytes
 per parity (PET: 9–18 bytes a parity, 36–72 a frame, *estimate*).
 
 The language cannot do this itself — no array parameters, no expression
-in a namespace const — so the mechanism is a **generator**: `8bs shapes
+in a `mod` const — so the mechanism is a **generator**: `8bs shapes
 <bitmap>` emitting `shapes.8bs` and its machine twins, exactly the
 twin-file pattern `examples/swarm/src/shapes.8bs` /
 `shapes.c64.8bs` uses by hand today. Until it exists, the hand-written
@@ -112,7 +112,7 @@ Where it can, the layer keeps a save-under buffer per object and
 **restores every dirty object before drawing any** — which retires, on
 those machines, the cell layer's "another sprite in the cell I am
 leaving" scan and its per-row count (the portable cell layer, where
-`RESTORES` is false, still carries them). `sprites.RESTORES` folds to
+`RESTORES` is false, still carries them). `sprites::RESTORES` folds to
 true or false;
 `setBackground()` stays as the fallback where it is false, and text
 under a sprite is lost only there.
@@ -129,11 +129,11 @@ but the charset). A `pin(n)` / priority hint is later.
 
 ### 7. Cost is the plan, and the plan is native
 
-The C64's `multiplex.update()` was ~16,000 cycles for 16 sprites in the
+The C64's `multiplex::update()` was ~16,000 cycles for 16 sprites in the
 compiler's generic code; the research estimated hand assembly with
 tables at page-aligned fixed addresses at ~3,300 (Cadaver's persistent
 insertion sort at 26 cycles per in-order element, an unrolled frame
-table, emission through `raster.spriteEntries`'s layout) and ~5,850 for
+table, emission through `raster::spriteEntries`'s layout) and ~5,850 for
 24. Built and measured the same day: ~9,500 for 16 in a window that also
 holds the VIC's bad lines, the sprites' DMA and the handler's dozen
 interrupts (~40% of it); the routine itself is nearer 6,500 — the
@@ -148,7 +148,7 @@ the ~250–550 hand-written *(estimate)*.
 
 ## Corrections to frame.md's sprite table, from the research
 
-- **NES**: the cell layer is not free there. `text.putChar` is a queued
+- **NES**: the cell layer is not free there. `text::putChar` is a queued
   PPU run through a 48-byte vblank queue (~12 cells a frame): sixteen
   moving glyphs overflow every frame and tear. Written into the
   package README the same day.
@@ -186,7 +186,7 @@ the ~250–550 hand-written *(estimate)*.
    under xpet. The swarm's PET is the 3032 from here: the twin's tables
    (252 bytes of shape patterns, 72 of save-under) put the example past
    the 2001's 4K.
-3. Native `multiplex.update`: shipped as `native/6502/multiplex.s`, the
+3. Native `multiplex::update`: shipped as `native/6502/multiplex::s`, the
    tables in page $06, the same steps and drops as the 8BitScript body
    it replaced (the x64sc sprite and multiplex probes passed unchanged).
    ~9,500 cycles for sixteen where the compiled body was ~16,000 — with
