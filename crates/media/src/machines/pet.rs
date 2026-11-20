@@ -4,7 +4,7 @@ use crate::audio::song::EncodedSong;
 use crate::audio::{Air, Song};
 use crate::graphics::Sprite;
 use crate::machine::{AudioLowered, Facts, Frame, GraphicsLowered, MachineMedia, MediaSlots, Pcm};
-use std::collections::BTreeMap;
+use indexmap::IndexMap;
 
 /// The pet media module.
 #[derive(Debug, Clone, Copy, Default)]
@@ -25,7 +25,7 @@ impl MachineMedia for Pet {
     fn lower_audio(
         &self,
         _air: &Air,
-        _pcm_by_sample: &BTreeMap<String, Pcm>,
+        _pcm_by_sample: &IndexMap<String, Pcm>,
         _facts: &Facts,
         _file: &str,
         _encode_song: &dyn Fn(&Song) -> EncodedSong,

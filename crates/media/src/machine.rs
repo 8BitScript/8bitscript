@@ -16,11 +16,11 @@ use crate::audio::song::{EncodedSong, SongEvent};
 use crate::audio::{Air, Song};
 use crate::graphics::Sprite;
 use diagnostics::Diagnostic;
+use indexmap::IndexMap;
 use serde_json::Value;
-use std::collections::BTreeMap;
 
 /// The machine facts object (`facts['audio.voices']`, ...).
-pub type Facts = BTreeMap<String, Value>;
+pub type Facts = IndexMap<String, Value>;
 
 /// A decoded picture frame: `{width, height, rgba}`.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -43,6 +43,8 @@ pub struct MediaSlots {
     pub graphics: u32,
     pub audio: u32,
     pub audio_bytes: u32,
+    /// `shared.petShapes`: absent until the PET module first writes it.
+    pub pet_shapes: Option<u32>,
 }
 
 /// `{tile, bytes}` of a `chrPatches` entry.
@@ -97,7 +99,7 @@ pub trait MachineMedia {
     fn lower_audio(
         &self,
         air: &Air,
-        pcm_by_sample: &BTreeMap<String, Pcm>,
+        pcm_by_sample: &IndexMap<String, Pcm>,
         facts: &Facts,
         file: &str,
         encode_song: &dyn Fn(&Song) -> EncodedSong,
