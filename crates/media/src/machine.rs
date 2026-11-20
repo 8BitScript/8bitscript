@@ -101,6 +101,7 @@ pub struct GraphicsLowered {
     pub height: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub chr_patches: Option<Vec<ChrPatch>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub diagnostics: Option<Vec<Diagnostic>>,
 }
 
@@ -236,8 +237,10 @@ mod tests {
             data: Some(vec![255.0, 300.0, 1.0]),
             ..GraphicsLowered::default()
         };
-        assert_eq!(serde_json::to_string(&lowered).unwrap(),
-            r#"{"data":[255,300,1]}"#);
+        assert_eq!(
+            serde_json::to_string(&lowered).unwrap(),
+            r#"{"data":[255,300,1]}"#
+        );
     }
 
     #[test]
