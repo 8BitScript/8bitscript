@@ -188,7 +188,7 @@ importers:
   editors/vscode:
     devDependencies:
       '@vscode/vsce':
-        specifier: ^3.2.1
+        specifier: ^3.9.2
         version: 3.9.2(supports-color@10.2.2)
       esbuild:
         specifier: 0.28.1
