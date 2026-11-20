@@ -63,7 +63,7 @@
 // are not the same two directions unshifted (this machine's un-shifted
 // pair is right and down, matching the C64's).
 
-export namespace Key {
+pub mod Key {
     // select 0 — VIA2 port B bit 0
     const DIGIT_1: utinyint = 0;
     const DIGIT_3: utinyint = 1;

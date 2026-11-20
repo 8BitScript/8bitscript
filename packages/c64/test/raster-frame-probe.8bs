@@ -8,47 +8,47 @@
 // counted loop passes it moved by one, and if the handler never counted it
 // did not move. Twelve passes all agreeing paint the playfield green, the
 // first that does not paints it red. See test/raster-frame.test.mjs.
-import { raster, Slot } from "@8bitscript/raster";
-import { screen, BorderColor, BackgroundColor } from "../src/screen.8bs";
+use @8bitscript::raster::{raster, Slot};
+use super::src::screen::{screen, BorderColor, BackgroundColor};
 
-let previousHigh: utinyint = 0;
-let polled: utinyint = 0;
+let mut previousHigh: utinyint = 0;
+let mut polled: utinyint = 0;
 
 // Count a frame boundary when the line's bit 8 goes from set to clear.
-function poll(): void {
-    let high: utinyint = memory.read(0xD011) & 0x80;
-    if (previousHigh != 0 && high == 0) {
+fn poll() {
+    let high: utinyint = memory::read(0xD011) & 0x80;
+    if previousHigh != 0 && high == 0 {
         polled = polled + 1;
     }
     previousHigh = high;
 }
 
-export function main(): void {
-    screen.blank(BorderColor.BLACK, BackgroundColor.BLUE);
-    raster.clear();
-    raster.at(0, Slot.BORDER, 0);
-    raster.enable();
-    let bad: utinyint = 0;
-    let pass: utinyint = 0;
-    while (pass < 12) {
-        let framesBefore: utinyint = raster.frame();
+pub fn main() {
+    screen::blank(BorderColor::BLACK, BackgroundColor::BLUE);
+    raster::clear();
+    raster::at(0, Slot::BORDER, 0);
+    raster::enable();
+    let mut bad: utinyint = 0;
+    let mut pass: utinyint = 0;
+    while pass < 12 {
+        let framesBefore: utinyint = raster::frame();
         let polledBefore: utinyint = polled;
-        while (polled - polledBefore < 3) {
+        while polled - polledBefore < 3 {
             poll();
         }
-        let framesSeen: utinyint = raster.frame() - framesBefore;
+        let framesSeen: utinyint = raster::frame() - framesBefore;
         let polledSeen: utinyint = polled - polledBefore;
-        if (framesSeen + 1 < polledSeen || polledSeen + 1 < framesSeen) {
+        if framesSeen + 1 < polledSeen || polledSeen + 1 < framesSeen {
             bad = 1;
         }
         pass = pass + 1;
     }
-    if (bad == 0) {
-        screen.setBackground(BackgroundColor.GREEN);
+    if bad == 0 {
+        screen::setBackground(BackgroundColor::GREEN);
     } else {
-        screen.setBackground(BackgroundColor.RED);
+        screen::setBackground(BackgroundColor::RED);
     }
-    while (true) {
+    loop {
         poll();
     }
 }

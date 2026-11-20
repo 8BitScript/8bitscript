@@ -52,34 +52,34 @@
 // packages/compiler/AGENTS.md), measured again here: the entropy probe is
 // 231 bytes of program on the PET either way. The two hardware twins read a
 // register instead, so they carry their own loop over `random.byte()`.
-import { random } from "./index.8bs";
+use self::index::random;
 
-export namespace entropy {
+pub mod entropy {
     // Nothing to claim on a machine with no entropy source. Empty, so it
     // inlines away and costs these seven targets no bytes.
-    function begin(): void {
+    fn begin() {
     }
 
     // One step per frame, whether or not a number is wanted — see the
     // header for why the sequence should follow the player's timing.
-    function tick(): void {
-        random.next();
+    fn tick() {
+        random::next();
     }
 
     // The generator's next byte, 0-255.
-    function next(): utinyint {
-        return random.next();
+    fn next() -> utinyint {
+        return random::next();
     }
 
     // A value from 0 up to (not including) bound, exactly uniform — the
     // default generator's `range()`, whose note explains the rejection.
-    function range(bound: utinyint): utinyint {
-        return random.range(bound);
+    fn range(bound: utinyint) -> utinyint {
+        return random::range(bound);
     }
 
     // The top `count` bits of the next byte (1 to 8): a value from 0 up to
     // 2^count, exactly uniform, no rejection.
-    function bits(count: utinyint): utinyint {
-        return random.bits(count);
+    fn bits(count: utinyint) -> utinyint {
+        return random::bits(count);
     }
 }

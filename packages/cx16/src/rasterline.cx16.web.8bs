@@ -59,37 +59,37 @@
 
 // What the picture does at a line, named without an address. The numbers
 // are arbitrary and the same in all nine rasterline files.
-export namespace Slot {
-    const BORDER: utinyint = 0;     // DC_BORDER, a palette index
+pub mod Slot {
+    const BORDER: utinyint = 0; // DC_BORDER, a palette index
     const BACKGROUND: utinyint = 1; // the background's palette entry, set to stock color 0-15
-    const SCROLL_X: utinyint = 2;   // the horizontal fine scroll, 0-7
-    const CHARSET: utinyint = 3;    // 0 the boot (ISO) set, else the alternate (capitals) set
+    const SCROLL_X: utinyint = 2; // the horizontal fine scroll, 0-7
+    const CHARSET: utinyint = 3; // 0 the boot (ISO) set, else the alternate (capitals) set
 }
 
 const LIST_CONTROL: usmallint = 8516; // agreementFor(76x56).rasterControlOffset
-const LIST_COUNT: usmallint = 8517;   // .rasterCountOffset
-const LIST_BASE: usmallint = 8518;    // .rasterBase
-const FRAME_BYTE: usmallint = 9350;   // .frameOffset: one past the glyph table, the page's per-frame counter
+const LIST_COUNT: usmallint = 8517; // .rasterCountOffset
+const LIST_BASE: usmallint = 8518; // .rasterBase
+const FRAME_BYTE: usmallint = 9350; // .frameOffset: one past the glyph table, the page's per-frame counter
 
 // The program's own list: 32 entries of line, slot, value.
-let entries: array<utinyint, 96>;
-let entryCount: utinyint = 0;
-let listDirty: bool = true;
-let enabled: bool = false;
+let mut entries: [utinyint; 96];
+let mut entryCount: utinyint = 0;
+let mut listDirty: bool = true;
+let mut enabled: bool = false;
 // The page's frame byte as it stood at enable().
-let frameBase: utinyint = 0;
+let mut frameBase: utinyint = 0;
 
-export namespace raster {
-    const ENTRIES: utinyint = 32;    // the list's capacity
-    const STRIDE: utinyint = 3;      // bytes per entry: line, slot, value
-    const FINE_SCROLL: bool = true;  // Slot.SCROLL_X entries are accepted: the page shifts the line
-    const COLORS: bool = true;       // Slot.BORDER/BACKGROUND entries are accepted
-    const CHARSET: bool = true;      // Slot.CHARSET entries are accepted: the page switches sets at the line
+pub mod raster {
+    const ENTRIES: utinyint = 32; // the list's capacity
+    const STRIDE: utinyint = 3; // bytes per entry: line, slot, value
+    const FINE_SCROLL: bool = true; // Slot.SCROLL_X entries are accepted: the page shifts the line
+    const COLORS: bool = true; // Slot.BORDER/BACKGROUND entries are accepted
+    const CHARSET: bool = true; // Slot.CHARSET entries are accepted: the page switches sets at the line
     const FRAME_COUNTER: bool = true; // frame() counts video frames since enable(): the page adds one per frame
     const ALT_TILEBASE: utinyint = 0xD4; // the native alternate set's L1_TILEBASE; unused here, kept so the names match
 
     // Empty the list. What shows keeps showing until the next commit().
-    function clear(): void {
+    fn clear() {
         entryCount = 0;
         listDirty = true;
     }
@@ -97,12 +97,12 @@ export namespace raster {
     // Append: at picture line `line`, give `slot` the value `value`. False,
     // and nothing added, if the slot is unknown, the list is full, or the
     // line is above the last entry's.
-    function at(line: utinyint, slot: utinyint, value: utinyint): bool {
-        if (slot > Slot.CHARSET || entryCount >= raster.ENTRIES) {
+    fn at(line: utinyint, slot: utinyint, value: utinyint) -> bool {
+        if slot > Slot::CHARSET || entryCount >= raster::ENTRIES {
             return false;
         }
         let offset: utinyint = entryCount * 3;
-        if (entryCount > 0 && line < entries[offset - 3]) {
+        if entryCount > 0 && line < entries[offset - 3] {
             return false;
         }
         entries[offset] = line;
@@ -116,12 +116,12 @@ export namespace raster {
     // In order: the same as `at`, at any line — the entries below it slid
     // down a place. False, and nothing added, if the slot is unknown or the
     // list is full.
-    function insert(line: utinyint, slot: utinyint, value: utinyint): bool {
-        if (slot > Slot.CHARSET || entryCount >= raster.ENTRIES) {
+    fn insert(line: utinyint, slot: utinyint, value: utinyint) -> bool {
+        if slot > Slot::CHARSET || entryCount >= raster::ENTRIES {
             return false;
         }
-        let offset: utinyint = entryCount * 3;
-        while (offset > 0 && entries[offset - 3] > line) {
+        let mut offset: utinyint = entryCount * 3;
+        while offset > 0 && entries[offset - 3] > line {
             entries[offset] = entries[offset - 3];
             entries[offset + 1] = entries[offset - 2];
             entries[offset + 2] = entries[offset - 1];
@@ -136,19 +136,19 @@ export namespace raster {
     }
 
     // How many entries the list holds.
-    function count(): utinyint {
+    fn count() -> utinyint {
         return entryCount;
     }
 
     // Hand the list over: copy it to the page's region, whole, so the page
     // paints either the list it had or this one and never a half of each.
     // Live from the next paint.
-    function commit(): void {
+    fn commit() {
         let bytes: utinyint = entryCount * 3;
-        for (let i: utinyint = 0; i < bytes; i++) {
-            memory.write(LIST_BASE + i, entries[i]);
+        for i: utinyint in 0..bytes {
+            memory::write(LIST_BASE + i, entries[i]);
         }
-        memory.write(LIST_COUNT, entryCount);
+        memory::write(LIST_COUNT, entryCount);
         listDirty = false;
     }
 
@@ -157,42 +157,42 @@ export namespace raster {
     // with no commit when the list has not changed since the last one, and so
     // it does here. False, and nothing written, if the offset is not a multiple
     // of 3 or names no entry.
-    function setValue(entry: utinyint, value: utinyint): bool {
-        if (entry % 3 != 0 || entry >= entryCount * 3) {
+    fn setValue(entry: utinyint, value: utinyint) -> bool {
+        if entry % 3 != 0 || entry >= entryCount * 3 {
             return false;
         }
         entries[entry + 2] = value;
-        if (!listDirty) {
-            memory.write(LIST_BASE + entry + 2, value);
+        if !listDirty {
+            memory::write(LIST_BASE + entry + 2, value);
         }
         return true;
     }
 
     // Start applying: commits the list, which shows from the next paint, and
     // marks where frame() counts from.
-    function enable(): void {
-        if (enabled) {
+    fn enable() {
+        if enabled {
             return;
         }
         enabled = true;
-        frameBase = memory.read(FRAME_BYTE);
-        raster.commit();
-        memory.write(LIST_CONTROL, 1);
+        frameBase = memory::read(FRAME_BYTE);
+        raster::commit();
+        memory::write(LIST_CONTROL, 1);
     }
 
     // Video frames since enable(), wrapping at 256: the page adds one to its
     // frame byte each time it releases a frame, which is once per video frame
     // however slowly the game loop runs.
-    function frame(): utinyint {
-        return memory.read(FRAME_BYTE) - frameBase;
+    fn frame() -> utinyint {
+        return memory::read(FRAME_BYTE) - frameBase;
     }
 
     // The plain, unsplit picture again; the list is kept.
-    function disable(): void {
-        if (!enabled) {
+    fn disable() {
+        if !enabled {
             return;
         }
         enabled = false;
-        memory.write(LIST_CONTROL, 0);
+        memory::write(LIST_CONTROL, 0);
     }
 }
