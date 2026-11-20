@@ -18,8 +18,8 @@ pub use expr::{
     Record, RecordField, Ref, StringByte, StringLength, StringLiteral, Unop,
 };
 pub use program::{
-    BackendInput, ChrPatch, FrameHook, Function, Global, GlobalInit, Hardware, HardwareBuild,
-    IrString, Param, Remark,
+    ArrayElement, BackendInput, ChrPatch, FrameHook, Function, Global, GlobalInit, Hardware,
+    HardwareBuild, IrString, Param, Remark,
 };
 pub use stmt::{
     Asm, Assign, Block, Break, Continue, For, If, Local, MemoryWrite, PortWrite, Return, Stmt,

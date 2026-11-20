@@ -410,16 +410,16 @@ pub fn expr_kind(node: &Expr) -> &'static str {
 #[must_use]
 pub fn expr_type(node: &Expr) -> Option<&str> {
     match node {
-        Expr::Binop(n) => Some(&n.ty),
+        Expr::Binop(n) => n.ty.as_deref(),
         Expr::Call(n) => n.ty.as_option().map(String::as_str),
         Expr::Const(n) => n.ty.as_deref(),
-        Expr::Index(n) => Some(&n.ty),
+        Expr::Index(n) => n.ty.as_deref(),
         Expr::MemoryRead(n) => Some(&n.ty),
-        Expr::Ref(n) => n.ty.as_deref(),
+        Expr::Ref(n) => n.ty.as_option().map(String::as_str),
         Expr::String(n) => n.ty.as_option().map(String::as_str),
         Expr::StringByte(n) => Some(&n.ty),
         Expr::StringLength(n) => Some(&n.ty),
-        Expr::Unop(n) => Some(&n.ty),
+        Expr::Unop(n) => n.ty.as_deref(),
         Expr::Cond(n) => n.ty.as_option().map(String::as_str),
         Expr::PortRead(n) => Some(&n.ty),
         Expr::NamespaceCall(n) => n.ty.as_option().map(String::as_str),
@@ -1009,7 +1009,9 @@ mod tests {
     fn reference(name: &str, ty: Option<&str>) -> Expr {
         Expr::Ref(Ref {
             name: name.to_string(),
-            ty: ty.map(str::to_string),
+            ty: ty.map_or(jsnum::Nullable::Absent, |t| {
+                jsnum::Nullable::Value(t.to_string())
+            }),
             start: None,
             length: None,
         })
@@ -1020,7 +1022,7 @@ mod tests {
             operator: op.to_string(),
             left: Box::new(left),
             right: Box::new(right),
-            ty: ty.to_string(),
+            ty: Some(ty.to_string()),
         })
     }
 
@@ -1222,7 +1224,7 @@ mod tests {
         let u = Expr::Unop(Unop {
             operator: "-".into(),
             argument: Box::new(c),
-            ty: "tinyint".into(),
+            ty: Some("tinyint".into()),
         });
         assert_eq!((expr_kind(&u), expr_type(&u)), ("unop", Some("tinyint")));
     }
@@ -1284,7 +1286,7 @@ mod tests {
         let un = Expr::Unop(Unop {
             operator: "!".into(),
             argument: Box::new(reference("a", None)),
-            ty: "bool".into(),
+            ty: Some("bool".into()),
         });
         assert!(is_pure(Some(&un)));
     }
@@ -1387,7 +1389,7 @@ mod tests {
         let un = Expr::Unop(Unop {
             operator: "!".into(),
             argument: Box::new(konst(1, None)),
-            ty: "bool".into(),
+            ty: Some("bool".into()),
         });
         assert_eq!(l.expr(&un), Ok(()));
         assert_eq!(
@@ -1417,8 +1419,8 @@ mod tests {
         let ix = Expr::Index(mos_ir::Index {
             array: Box::new(reference("a", None)),
             index: Box::new(konst(0, None)),
-            element_type: "utinyint".into(),
-            ty: "utinyint".into(),
+            element_type: Some("utinyint".into()),
+            ty: Some("utinyint".into()),
         });
         assert!(
             l.expr(&ix)
@@ -1490,7 +1492,7 @@ mod tests {
             operator: "&".into(),
             left: Box::new(narrow_left.clone()),
             right: Box::new(konst(0x1ff, None)),
-            ty: "usmallint".into(),
+            ty: Some("usmallint".into()),
         });
         l.expr8(&node).unwrap();
         assert_eq!(l.program, vec![lda_imm(5)]);
@@ -1498,7 +1500,7 @@ mod tests {
             operator: "|".into(),
             left: Box::new(narrow_left.clone()),
             right: Box::new(konst(0x0f, None)),
-            ty: "usmallint".into(),
+            ty: Some("usmallint".into()),
         });
         l.expr8(&or).unwrap();
         assert_eq!(
@@ -1512,7 +1514,7 @@ mod tests {
             operator: "^".into(),
             left: Box::new(narrow_left),
             right: Box::new(konst(0x100, None)),
-            ty: "usmallint".into(),
+            ty: Some("usmallint".into()),
         });
         l.expr8(&xor).unwrap();
         assert_eq!(l.program.len(), 4);
