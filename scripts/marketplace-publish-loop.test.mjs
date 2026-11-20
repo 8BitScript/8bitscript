@@ -18,7 +18,7 @@ function stub(dir, name, body) {
 //   az-tokens   one line per `az account get-access-token`, in order
 //   az-fail     if present, `az account get-access-token` fails
 //   node-fail   number of leading `node` calls that fail
-function run({ env = {}, tokens = ['tok-first-AAA', 'tok-second-BBB', 'tok-third-CCC'], azFail = false, raw = false, nodeFail = 0 }) {
+function run({ env = {}, tokens = ['tok-first-AAA', 'tok-second-BBB', 'tok-third-CCC'], azFail = false, raw = false, nodeFail = 0, curlEmpty = false, loginFail = false }) {
   const dir = mkdtempSync(join(tmpdir(), 'mkt-loop-'));
   try {
     const bin = join(dir, 'bin');
@@ -26,6 +26,7 @@ function run({ env = {}, tokens = ['tok-first-AAA', 'tok-second-BBB', 'tok-third
     writeFileSync(join(dir, 'az-tokens'), tokens.join('\n') + '\n');
     if (azFail) writeFileSync(join(dir, 'az-fail'), '');
     if (raw) writeFileSync(join(dir, 'az-raw'), '');
+    if (loginFail) writeFileSync(join(dir, 'az-login-fail'), '');
     writeFileSync(join(dir, 'node-fail'), String(nodeFail));
     stub(bin, 'az', `
 if [ "$1 $2" = "account get-access-token" ]; then
@@ -37,10 +38,14 @@ if [ "$1 $2" = "account get-access-token" ]; then
   sed -n "$((n > 3 ? 3 : n))p" "${dir}/az-tokens"
 elif [ "$1" = login ]; then
   echo "login $*" >> "${dir}/az.log"
+  [ -e "${dir}/az-login-fail" ] && exit 1
+  exit 0
 else
   exit 2
 fi`);
-    stub(bin, 'curl', `echo '{"value":"jwt-secret-ZZZ"}'`);
+    stub(bin, 'curl', `
+echo "curl $*" >> "${dir}/curl.log"
+${curlEmpty ? 'exit 0' : `echo '{"value":"jwt-secret-ZZZ"}'`}`);
     stub(bin, 'sleep', 'exit 0');
     stub(bin, 'node', `
 echo "node aad=\${VSCE_AAD_TOKEN:-} pat=\${VSCE_PAT:-}" >> "${dir}/node.log"
@@ -73,7 +78,7 @@ exit 0`);
       .split('\n')
       .filter((line) => !line.startsWith('::add-mask::'))
       .join('\n');
-    return { status: result.status, output, visible, azLog: read('az.log'), nodeLog: read('node.log') };
+    return { status: result.status, output, visible, azLog: read('az.log'), curlLog: read('curl.log'), nodeLog: read('node.log') };
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -94,7 +99,28 @@ test('a later attempt signs in again and uses the new token', () => {
   assert.match(r.azLog, /login --service-principal -u client --tenant tenant --federated-token jwt-secret-ZZZ/);
   assert.match(r.output, /^::add-mask::jwt-secret-ZZZ$/m);
   assert.match(r.output, /^::add-mask::tok-second-BBB$/m);
+  assert.match(r.curlLog, /audience=api:\/\/AzureADTokenExchange/);
+  assert.match(r.curlLog, /Authorization: bearer request-token/);
 });
+
+for (const [name, opts] of [
+  ['the OIDC request returns nothing', { curlEmpty: true }],
+  ['az login exits non-zero', { loginFail: true }],
+]) {
+  test(`when ${name} on attempt 2, the PAT is used and no stale token is read`, () => {
+    const r = run({
+      env: { AZURE_LOGIN_OUTCOME: 'success', VSCE_PAT: 'pat-value' },
+      nodeFail: 1,
+      ...opts,
+    });
+    assert.equal(r.status, 0);
+    assert.equal(r.nodeLog, 'node aad=tok-first-AAA pat=pat-value\nnode aad= pat=pat-value\n');
+    // Only attempt 1 read an access token; the failed login stopped attempt 2 from asking az.
+    assert.equal(r.azLog.split('\n').filter((l) => l === 'get-access-token').length, 1);
+    assert.match(r.output, /Azure sign-in again failed on attempt 2/);
+    assert.ok(!r.visible.includes('tok-first-AAA') && !r.visible.includes('tok-second-BBB'));
+  });
+}
 
 test('the PAT is used when az cannot give a token', () => {
   const r = run({ env: { AZURE_LOGIN_OUTCOME: 'success', VSCE_PAT: 'pat-value' }, azFail: true });
@@ -111,9 +137,10 @@ test('a multi-line token is rejected and the PAT is used', () => {
   });
   assert.equal(r.status, 0);
   assert.equal(r.nodeLog, 'node aad= pat=pat-value\n');
+  assert.ok(!r.visible.includes('line-one-LEAK'), 'rejected token leaked');
 });
 
-test('without Azure sign-in or a PAT every attempt fails and the loop exits 1', () => {
+test('with az get-access-token failing and no PAT, every attempt fails and the loop exits 1', () => {
   const r = run({ env: { AZURE_LOGIN_OUTCOME: 'success' }, azFail: true });
   assert.equal(r.status, 1);
   assert.equal(r.nodeLog, '');

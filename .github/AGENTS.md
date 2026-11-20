@@ -78,8 +78,9 @@ token from `azure/login`. `az` hands back that cached token for about an
 hour and cannot renew it once the GitHub OIDC assertion behind it has
 expired, so each later attempt requests a new OIDC token and runs
 `az login --federated-token` again before reading the access token. If
-that fails, or the token is not a single non-empty line, the attempt
-uses `VSCE_PAT` when it is set. A failed Azure step does not stop the
+that sign-in fails, the attempt does not read the cached token and uses
+`VSCE_PAT` when it is set; the same goes for a token that is not a single
+non-empty line. A failed Azure step does not stop the
 job, and Open VSX is unaffected.
 
 Until `AZURE_CLIENT_ID` exists the job skips the Azure steps and uses

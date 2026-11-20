@@ -8,7 +8,8 @@
 # until it is close to expiry (about an hour), and cannot renew it once the
 # GitHub OIDC assertion behind it has expired, so every later attempt first
 # requests a new GitHub OIDC token and signs in again. If any part of that
-# fails, or the token is not one non-empty line, the attempt uses VSCE_PAT
+# fails (get_token is then not called, since az would return its stale
+# cached token), or the token is not one non-empty line, the attempt uses VSCE_PAT
 # when it is set.
 #
 # Never capture output with $(...) around anything that prints an
@@ -49,15 +50,23 @@ get_token() {
 for attempt in $(seq 1 "$max"); do
   token=""
   if [ "${AZURE_LOGIN_OUTCOME:-}" = success ]; then
+    # A failed sign-in must not fall through to get_token: az would hand
+    # back the stale cached token. The attempt goes straight to the PAT.
+    signed_in=1
     if [ "$attempt" -gt 1 ]; then
-      relogin || echo "Azure sign-in again failed on attempt $attempt."
+      relogin || {
+        signed_in=0
+        echo "Azure sign-in again failed on attempt $attempt."
+      }
     fi
-    get_token || token=""
+    if [ "$signed_in" = 1 ]; then
+      get_token || token=""
+    fi
     if [ -z "$token" ]; then
       if [ -n "${VSCE_PAT:-}" ]; then
-        echo "Could not get an Entra token; using VSCE_PAT for this attempt."
+        echo "No usable Entra token; using VSCE_PAT for this attempt."
       else
-        echo "Could not get an Entra token and VSCE_PAT is not set."
+        echo "No usable Entra token and VSCE_PAT is not set."
       fi
     fi
   else
