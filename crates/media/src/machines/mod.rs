@@ -75,6 +75,10 @@ mod tests {
         let facts = Facts::new();
         let enc = |s: &Song| encode_song(&air, s);
         for n in NAMES {
+            // Machines with a ported module are covered by `tests/machine_media.rs`.
+            if matches!(n, "c64" | "cx16" | "vic20") {
+                continue;
+            }
             let m = for_machine(n).unwrap();
             let mut slots = crate::machine::MediaSlots::default();
             assert_eq!(
