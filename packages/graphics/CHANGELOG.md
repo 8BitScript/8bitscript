@@ -1,5 +1,19 @@
 # @8bitscript/graphics
 
+## 0.25.1
+
+### Patch Changes
+
+- Updated dependencies [b71b2a5]
+  - @8bitscript/web@0.26.0
+  - @8bitscript/sprites@0.26.0
+  - @8bitscript/c64@0.26.0
+  - @8bitscript/cx16@0.26.0
+  - @8bitscript/nes@0.26.0
+  - @8bitscript/pet@0.26.0
+  - @8bitscript/system@0.26.0
+  - @8bitscript/vic20@0.26.0
+
 ## 0.25.0
 
 ### Minor Changes

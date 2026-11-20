@@ -18,6 +18,7 @@ run(process.execPath, [
   'site/test/build-all.test.mjs',
   'site/test/layout.test.mjs',
   'scripts/require-changeset.test.mjs',
+  'scripts/marketplace-publish-loop.test.mjs',
   'scripts/oracle/corpus.test.mjs',
   'scripts/oracle/mos-tap/tap.test.mjs',
   'scripts/oracle/front-tap/tap.test.mjs',

@@ -253,7 +253,7 @@ export function catalogSchema(ast, file) {
       file,
     });
   }
-  return { namespaces, extras };
+  return { namespaces, extras, file };
 }
 
 function parseCatalogFile(file) {

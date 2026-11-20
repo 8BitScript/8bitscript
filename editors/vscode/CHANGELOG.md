@@ -1,5 +1,11 @@
 # 8bitscript-lang
 
+## 0.26.0
+
+### Patch Changes
+
+- 2c0412e: Update the packaging tool used to build the VS Code extension.
+
 ## 0.25.0
 
 ### Minor Changes
