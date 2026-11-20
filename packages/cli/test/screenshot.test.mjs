@@ -14,6 +14,12 @@
 // build at all (captureScreenshot's own logic is covered directly,
 // against a hand-built wasm fixture, in web-screenshot.test.mjs and
 // wasm-host.test.mjs).
+//
+// The four release-target tests (pet, c64, vic20, cx16) launch a real
+// emulator, which opens a window on a developer machine. They run only
+// when EIGHTBS_EMULATOR_TESTS=1 is set (CI and the headless xvfb runs
+// set it); otherwise they skip. They also skip when the emulator is not
+// on PATH.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
@@ -43,6 +49,15 @@ const PROBE_SOURCE = [
   '    memory::write(0x8000, sum);',
   '}',
 ].join('\n');
+
+const EMULATOR_OPT_IN = 'EIGHTBS_EMULATOR_TESTS';
+
+/** Skip reason when emulator launches are not opted in, else undefined. */
+function emulatorOptOut() {
+  return process.env[EMULATOR_OPT_IN] === '1'
+    ? undefined
+    : `set ${EMULATOR_OPT_IN}=1 to launch real emulators`;
+}
 
 function onPath(name) {
   const binary = process.platform === 'win32' ? `${name}.exe` : name;
@@ -100,6 +115,8 @@ for (const target of PARKED_TARGETS) {
 
 for (const [target, emulator] of [['c64', 'x64sc'], ['vic20', 'xvic'], ['cx16', 'x16emu']]) {
   test(`${target}: --screenshot produces a PNG via ${emulator}`, async (t) => {
+    const optOut = emulatorOptOut();
+    if (optOut) { t.skip(optOut); return; }
     if (!onPath(emulator)) { t.skip(`${emulator} not on PATH`); return; }
     await withProbe(async (scratch, entry) => {
       const shot = join(scratch, 'out.png');
@@ -112,6 +129,8 @@ for (const [target, emulator] of [['c64', 'x64sc'], ['vic20', 'xvic'], ['cx16', 
 }
 
 test('pet: --screenshot produces a PNG via xpet', async (t) => {
+  const optOut = emulatorOptOut();
+  if (optOut) { t.skip(optOut); return; }
   if (!onPath('xpet')) { t.skip('xpet not on PATH'); return; }
   await withProbe(async (scratch, entry) => {
     const shot = join(scratch, 'out.png');
