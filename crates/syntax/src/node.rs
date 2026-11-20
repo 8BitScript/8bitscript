@@ -19,12 +19,13 @@ pub struct Node {
     pub id: NodeId,
     pub start: u32,
     pub length: u32,
-    /// Assigned after construction by the parser (`parser/index.mjs:464`),
-    /// so it is visited last by the walker.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub decorators: Option<Vec<Node>>,
     #[serde(flatten)]
     pub kind: NodeKind,
+    /// Assigned after construction by the parser (`parser/index.mjs:464`),
+    /// so it is visited last by the walker. It is also written last, after
+    /// the flattened `kind`, so the JSON key order is the parser's.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub decorators: Option<Vec<Node>>,
 }
 
 impl Node {
