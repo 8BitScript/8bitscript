@@ -3,6 +3,7 @@
 pub mod aliases;
 pub mod imports;
 pub mod package;
+pub mod posix;
 pub mod specifier;
 pub mod tap;
 pub mod variants;
