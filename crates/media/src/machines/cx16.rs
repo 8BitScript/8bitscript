@@ -54,12 +54,21 @@ fn facts_number(v: &Value) -> f64 {
         Value::String(s) => string_to_number(s),
         Value::Bool(b) => f64::from(u8::from(*b)),
         Value::Null => 0.0,
-        Value::Array(a) => match a.as_slice() {
-            [] => 0.0,
-            [one] => facts_number(one),
-            _ => f64::NAN,
-        },
+        Value::Array(_) => string_to_number(&join_string(v)),
         Value::Object(_) => f64::NAN,
+    }
+}
+
+/// `String(v)` of a JSON value as `Array.prototype.join(",")` builds it:
+/// `null` is "", nested arrays recurse, objects are "[object Object]".
+fn join_string(v: &Value) -> String {
+    match v {
+        Value::Null => String::new(),
+        Value::Bool(b) => b.to_string(),
+        Value::Number(n) => number_to_string(n.as_f64().unwrap_or(f64::NAN)),
+        Value::String(s) => s.clone(),
+        Value::Array(a) => a.iter().map(join_string).collect::<Vec<_>>().join(","),
+        Value::Object(_) => "[object Object]".to_string(),
     }
 }
 

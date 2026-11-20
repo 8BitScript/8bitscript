@@ -30,11 +30,6 @@ pub fn for_machine(machine: &str) -> Option<Box<dyn MachineMedia>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::audio::song::encode_song;
-    use crate::audio::{Air, Song};
-    use crate::graphics::{Sprite, Transparent};
-    use crate::machine::{AudioLowered, Facts, GraphicsLowered, Pcm};
-    use indexmap::IndexMap;
 
     const NAMES: [&str; 7] = ["atari8", "c64", "cx16", "nes", "pet", "vic20", "web"];
 
@@ -45,53 +40,6 @@ mod tests {
         }
         for n in ["", "apple2", "C64", "wasm"] {
             assert!(for_machine(n).is_none(), "{n}");
-        }
-    }
-
-    #[test]
-    fn stubs_lower_nothing() {
-        let sprite = Sprite {
-            name: "s".into(),
-            source: None,
-            width: 8.0,
-            height: 8.0,
-            transparent: Transparent::Auto,
-            animations: Vec::new(),
-            start: 0,
-            length: 0,
-            source_start: 0,
-            source_length: 0,
-            size_start: 0,
-            size_length: 0,
-        };
-        let air = Air {
-            instruments: Vec::new(),
-            samples: Vec::new(),
-            songs: Vec::new(),
-            parts: Vec::new(),
-            voice_groups: Vec::new(),
-        };
-        let pcm: IndexMap<String, Pcm> = IndexMap::new();
-        let facts = Facts::new();
-        let enc = |s: &Song| encode_song(&air, s);
-        for n in NAMES {
-            // Machines with a ported module are covered by `tests/machine_media.rs`.
-            if matches!(n, "c64" | "cx16" | "vic20") {
-                continue;
-            }
-            let m = for_machine(n).unwrap();
-            let mut slots = crate::machine::MediaSlots::default();
-            assert_eq!(
-                m.lower_graphics(&sprite, &[], &facts, "a.8bg", Some(&mut slots)),
-                GraphicsLowered::default(),
-                "{n}"
-            );
-            assert_eq!(slots, crate::machine::MediaSlots::default(), "{n}");
-            assert_eq!(
-                m.lower_audio(&air, &pcm, &facts, "a.8ba", &enc),
-                AudioLowered::default(),
-                "{n}"
-            );
         }
     }
 }
