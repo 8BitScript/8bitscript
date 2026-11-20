@@ -364,6 +364,7 @@ impl Parser<'_> {
                             NodeKind::CallExpression {
                                 callee: Box::new(expression),
                                 args,
+                                instance: None,
                             },
                         );
                         continue;

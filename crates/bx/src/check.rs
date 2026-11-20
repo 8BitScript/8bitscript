@@ -463,7 +463,7 @@ fn entries(n: &Node) -> Vec<(&'static str, &Node)> {
         | NodeKind::UpdateExpression { argument, .. } => {
             out.push(("argument", &**argument));
         }
-        NodeKind::CallExpression { callee, args } => {
+        NodeKind::CallExpression { callee, args, .. } => {
             out.push(("callee", &**callee));
             many(&mut out, "args", args);
         }

@@ -11,7 +11,7 @@ mod token;
 mod walk;
 
 pub use kind::{SOURCE_EXTENSIONS, SourceKind};
-pub use node::{Node, NodeId, NodeKind};
+pub use node::{Node, NodeId, NodeKind, StateField};
 pub use normalize::{Difference, differences, normalize};
 pub use span::{Span, utf16_len};
 pub use token::{PartKind, TemplatePart, Token, TokenKind};
