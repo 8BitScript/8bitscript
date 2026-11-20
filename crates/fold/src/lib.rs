@@ -3,3 +3,4 @@
 pub mod facts;
 pub mod json;
 pub mod package;
+pub mod tap;

@@ -9,6 +9,7 @@ pub mod kinds;
 pub mod lexer;
 pub mod machine;
 pub mod machines;
+pub mod tap;
 
 use audio::Air;
 use diagnostics::Diagnostic;

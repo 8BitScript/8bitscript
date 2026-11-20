@@ -22,6 +22,7 @@ name = "bx"
 version = "0.0.0"
 dependencies = [
  "diagnostics",
+ "front-replay",
  "indexmap",
  "jsnum",
  "sema",
@@ -51,6 +52,7 @@ name = "fold"
 version = "0.0.0"
 dependencies = [
  "diagnostics",
+ "front-replay",
  "indexmap",
  "jsnum",
  "serde",
@@ -79,6 +81,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "front-replay"
+version = "0.0.0"
+dependencies = [
+ "serde_json",
+]
+
+[[package]]
 name = "front-wasm"
 version = "0.0.0"
 dependencies = [
@@ -101,6 +110,7 @@ name = "i18n"
 version = "0.0.0"
 dependencies = [
  "diagnostics",
+ "front-replay",
  "indexmap",
  "jsnum",
  "lexer",
@@ -153,6 +163,7 @@ name = "lower"
 version = "0.0.0"
 dependencies = [
  "diagnostics",
+ "front-replay",
  "indexmap",
  "jsnum",
  "mos-ir",
@@ -167,6 +178,7 @@ name = "media"
 version = "0.0.0"
 dependencies = [
  "diagnostics",
+ "front-replay",
  "indexmap",
  "jsnum",
  "media-tools",
@@ -296,6 +308,7 @@ name = "resolver"
 version = "0.0.0"
 dependencies = [
  "diagnostics",
+ "front-replay",
  "i18n",
  "indexmap",
  "jsnum",
@@ -309,6 +322,7 @@ name = "sema"
 version = "0.0.0"
 dependencies = [
  "diagnostics",
+ "front-replay",
  "indexmap",
  "jsnum",
  "serde",
@@ -448,9 +462,17 @@ dependencies = [
 name = "xtask"
 version = "0.0.0"
 dependencies = [
+ "bx",
+ "fold",
+ "front-replay",
+ "i18n",
+ "lower",
+ "media",
  "mos",
  "mos-ir",
  "oracle",
+ "resolver",
+ "sema",
  "serde_json",
 ]
 
