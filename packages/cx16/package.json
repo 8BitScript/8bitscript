@@ -193,6 +193,9 @@
       "presets": {}
     }
   },
+  "dependencies": {
+    "@8bitscript/graphics-tools": "workspace:*"
+  },
   "files": [
     "src",
     "media"
