@@ -3,6 +3,7 @@
 use diagnostics::is_source_file;
 use indexmap::IndexMap;
 use jsnum::{is_js_whitespace, object_key_order};
+use serde::Deserialize;
 use serde_json::Value;
 
 use crate::posix;
@@ -15,25 +16,37 @@ fn is_alias_prefix(prefix: &str) -> bool {
     !rest.is_empty() && rest.chars().all(|c| c != '/' && !is_js_whitespace(c))
 }
 
-/// Turn a config `imports` value into absolute directory paths. `None` is `undefined`, `Value::Null` is `null`.
+/// A config `imports` value that is present: `null`, an object with its keys in document order, or anything else.
 ///
-/// The entries come in `serde_json`'s key order, and `object_key_order` (integer-like keys first) is
+/// `serde_json::Value` objects lose key order here (no `preserve_order`), so the object arm holds an
+/// [`IndexMap`], which `serde_json` fills in the order the keys appear in the text.
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(untagged)]
+pub enum ConfigImports {
+    Null(()),
+    Object(IndexMap<String, Value>),
+    Other(Value),
+}
+
+/// Turn a config `imports` value into absolute directory paths. `None` is `undefined`.
+///
+/// Entries are visited in insertion order, then `object_key_order` (integer-like keys first) is
 /// applied on top, as `Object.entries` would.
 ///
 /// # Errors
 /// The JS error text when the shape is wrong, a prefix is malformed, or a directory is not relative.
 pub fn resolve_import_aliases(
-    imports: Option<&Value>,
+    imports: Option<&ConfigImports>,
     project_dir: &str,
 ) -> Result<IndexMap<String, String>, String> {
     match imports {
-        None | Some(Value::Null) => Ok(IndexMap::new()),
-        Some(Value::Object(map)) => {
+        None | Some(ConfigImports::Null(())) => Ok(IndexMap::new()),
+        Some(ConfigImports::Object(map)) => {
             let entries: Vec<(String, Value)> =
                 map.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
             resolve_import_alias_entries(&entries, project_dir)
         }
-        Some(_) => Err(
+        Some(ConfigImports::Other(_)) => Err(
             "8bitscript.config.ts's imports must be an object of @prefix \u{2192} directory path"
                 .to_string(),
         ),
@@ -118,4 +131,28 @@ pub fn aliased_subpath(specifier: &str, prefix: &str, path_form: bool) -> Option
     }
     let rest = if seen >= skip { &specifier[cut..] } else { "" };
     (is_source_file(rest) || (path_form && is_path_form(rest))).then(|| rest.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn object_entries_keep_document_order() {
+        // JS reports the first bad entry in insertion order: "bad", not "@a" (sorted order).
+        let imports: ConfigImports = serde_json::from_str(r#"{"bad":"x","@a":".."}"#).unwrap();
+        let error = resolve_import_aliases(Some(&imports), "/p").unwrap_err();
+        assert_eq!(
+            error,
+            "8bitscript.config.ts's imports key \"bad\" must be a single @-prefix with no / (e.g. '@lib')"
+        );
+    }
+
+    #[test]
+    fn shapes_parse() {
+        let null: ConfigImports = serde_json::from_str("null").unwrap();
+        assert_eq!(null, ConfigImports::Null(()));
+        let other: ConfigImports = serde_json::from_str("[1]").unwrap();
+        assert!(resolve_import_aliases(Some(&other), "/p").is_err());
+    }
 }

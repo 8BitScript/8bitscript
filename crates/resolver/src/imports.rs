@@ -32,11 +32,11 @@ impl From<&Token> for ScanToken {
 #[serde(rename_all = "camelCase")]
 pub struct Import {
     pub specifier: String,
-    pub start: u32,
-    pub length: u32,
     /// Set for a path-form `use`, whose extension is searched for.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub path_form: bool,
+    pub start: u32,
+    pub length: u32,
 }
 
 fn is_word(tok: Option<&&ScanToken>, word: &str) -> bool {
@@ -128,7 +128,10 @@ fn find_use(t: &[&ScanToken], i: usize) -> Option<Import> {
         specifier: specifier.join("/"),
         path_form: true,
         start: first.start,
-        length: last.start + last.length - first.start,
+        length: last
+            .start
+            .saturating_add(last.length)
+            .saturating_sub(first.start),
     })
 }
 

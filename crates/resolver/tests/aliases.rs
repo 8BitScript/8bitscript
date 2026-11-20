@@ -3,8 +3,8 @@
 
 use indexmap::IndexMap;
 use resolver::aliases::{
-    aliased_subpath, is_path_form, longest_alias_prefix, resolve_import_alias_entries,
-    resolve_import_aliases,
+    ConfigImports, aliased_subpath, is_path_form, longest_alias_prefix,
+    resolve_import_alias_entries, resolve_import_aliases,
 };
 use serde_json::{Value, json};
 
@@ -39,7 +39,10 @@ fn exports_match_js() {
                 } else if args[0].get("$undefined").is_some() {
                     resolve_import_aliases(None, dir)
                 } else {
-                    resolve_import_aliases(Some(&args[0]), dir)
+                    resolve_import_aliases(
+                        Some(&serde_json::from_value(args[0].clone()).unwrap()),
+                        dir,
+                    )
                 };
                 let got = match got {
                     Ok(map) => json!({ "ok": true, "importAliases": map }),
@@ -79,4 +82,68 @@ fn alias_order_follows_insertion() {
     ];
     let got = resolve_import_alias_entries(&entries, "/p").unwrap();
     assert_eq!(got.keys().collect::<Vec<_>>(), ["@z", "@a"]);
+}
+
+#[derive(serde::Deserialize)]
+struct OrderedFixture {
+    rows: Vec<OrderedRow>,
+}
+
+#[derive(serde::Deserialize)]
+struct OrderedRow {
+    #[serde(rename = "fn")]
+    name: String,
+    args: Vec<Value>,
+    result: OrderedOutcome,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(untagged)]
+enum OrderedOutcome {
+    Aliases(OrderedResult),
+    Other(#[allow(dead_code)] Value),
+}
+
+#[derive(serde::Deserialize)]
+struct OrderedResult {
+    #[serde(rename = "importAliases")]
+    import_aliases: Option<IndexMap<String, String>>,
+}
+
+/// `Value` objects sort their keys, so the JS insertion order is checked on the raw fixture text.
+#[test]
+fn alias_maps_keep_js_key_order() {
+    let fixture: OrderedFixture =
+        serde_json::from_str(include_str!("fixtures/aliases.json")).unwrap();
+    let mut checked = 0;
+    for row in &fixture.rows {
+        let OrderedOutcome::Aliases(OrderedResult {
+            import_aliases: Some(expected),
+        }) = &row.result
+        else {
+            continue;
+        };
+        if row.name != "resolveImportAliases" {
+            continue;
+        }
+        let dir = row.args[1].as_str().unwrap();
+        let got = if let Some(entries) = row.args[0].get("$entries") {
+            let entries: Vec<(String, Value)> = entries
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|e| (e[0].as_str().unwrap().to_string(), e[1].clone()))
+                .collect();
+            resolve_import_alias_entries(&entries, dir)
+        } else if row.args[0].get("$undefined").is_some() {
+            resolve_import_aliases(None, dir)
+        } else {
+            let imports: ConfigImports = serde_json::from_value(row.args[0].clone()).unwrap();
+            resolve_import_aliases(Some(&imports), dir)
+        }
+        .unwrap();
+        assert!(got.keys().eq(expected.keys()), "{:?}", row.args);
+        checked += 1;
+    }
+    assert!(checked > 10);
 }

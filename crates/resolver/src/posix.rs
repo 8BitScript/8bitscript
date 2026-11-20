@@ -10,19 +10,36 @@ pub fn basename(p: &str) -> &str {
     }
 }
 
-/// `path.dirname(p)`.
+/// `path.dirname(p)`, scanning from the end as Node does (so `a//b` gives `a/` and `//a` gives `//`).
 #[must_use]
 pub fn dirname(p: &str) -> &str {
-    let t = p.trim_end_matches('/');
-    if t.is_empty() {
-        return if p.starts_with('/') { "/" } else { "." };
+    let bytes = p.as_bytes();
+    if bytes.is_empty() {
+        return ".";
     }
-    match t.rfind('/') {
-        None => ".",
-        Some(i) => {
-            let head = t[..i].trim_end_matches('/');
-            if head.is_empty() { "/" } else { head }
+    let has_root = bytes[0] == b'/';
+    let mut end = None;
+    let mut matched_slash = true;
+    for i in (1..bytes.len()).rev() {
+        if bytes[i] == b'/' {
+            if !matched_slash {
+                end = Some(i);
+                break;
+            }
+        } else {
+            matched_slash = false;
         }
+    }
+    match end {
+        None => {
+            if has_root {
+                "/"
+            } else {
+                "."
+            }
+        }
+        Some(1) if has_root => "//",
+        Some(i) => &p[..i],
     }
 }
 
@@ -68,7 +85,9 @@ mod tests {
         assert_eq!(dirname("a/b.8bs"), "a");
         assert_eq!(dirname("b.8bs"), ".");
         assert_eq!(dirname("/b"), "/");
-        assert_eq!(dirname("a//b"), "a");
+        assert_eq!(dirname("a//b"), "a/");
+        assert_eq!(dirname("//a"), "//");
+        assert_eq!(dirname("a/b/"), "a");
         assert_eq!(dirname("/"), "/");
         assert_eq!(dirname(""), ".");
     }
