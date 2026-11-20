@@ -75,11 +75,12 @@ pub fn file(
             hex_upper(load, 0)
         ));
     }
-    let offset = code_start - PRG_ORIGIN;
-    if offset + body.len() as i64 > UNUSED_VECTOR_HANDLER - PRG_ORIGIN {
+    let offset = code_start.saturating_sub(PRG_ORIGIN);
+    let end = offset.saturating_add(body.len() as i64);
+    if end > UNUSED_VECTOR_HANDLER - PRG_ORIGIN {
         return Err(format!(
             "the NES program ends at ${}, past the ${} start of the 6502's vector table",
-            hex_upper(PRG_ORIGIN + offset + body.len() as i64, 0),
+            hex_upper(PRG_ORIGIN.saturating_add(end), 0),
             hex_upper(UNUSED_VECTOR_HANDLER, 0)
         ));
     }

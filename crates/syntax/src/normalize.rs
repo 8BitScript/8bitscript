@@ -139,11 +139,9 @@ fn block_of(map: &mut Map<String, Value>, key: &str) {
 
 /// N6: the import source without its source extension, and no `usePath`. The
 /// old tree never has `usePath`, so its quoted path is stripped to meet the
-/// new tree's path form; a node that says `usePath: false` keeps its source.
+/// new tree's path form. The new parser only ever says `usePath: true`.
 fn import_source(map: &mut Map<String, Value>) {
-    if map.remove("usePath") == Some(Value::Bool(false)) {
-        return;
-    }
+    map.remove("usePath");
     let Some(Value::Object(source)) = map.get_mut("source") else {
         return;
     };

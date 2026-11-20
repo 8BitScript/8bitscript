@@ -94,7 +94,7 @@ impl Lowerer<'_> {
     /// An 8-bit binary operation into A.
     ///
     /// # Errors
-    /// A `LowerError` text, or an `unported:` text from a wide method.
+    /// A `LowerError` text.
     pub fn binop(&mut self, node: &Expr) -> Result<(), String> {
         let Expr::Binop(Binop {
             operator,
@@ -219,7 +219,7 @@ impl Lowerer<'_> {
     /// Both operands into the shared routine's cells, then `JSR`.
     ///
     /// # Errors
-    /// A `LowerError` text, or an `unported:` text from a wide method.
+    /// A `LowerError` text.
     pub fn multiply_into(&mut self, node: &Expr) -> Result<(), String> {
         let Expr::Binop(Binop { left, right, .. }) = node else {
             return Err(not_binop("multiplyInto"));
@@ -415,7 +415,7 @@ impl Lowerer<'_> {
     /// The branch for one condition, as the flags allow.
     ///
     /// # Errors
-    /// A `LowerError` text, or an `unported:` text from a wide method.
+    /// A `LowerError` text.
     pub fn condition(&mut self, node: &Expr, target: &str, want_true: bool) -> Result<(), String> {
         if has_type(node) {
             require8_bit(expr_type(node), &format!("'{}'", expr_kind(node)))?;
@@ -474,7 +474,7 @@ impl Lowerer<'_> {
     /// A comparison branched straight off the flags.
     ///
     /// # Errors
-    /// A `LowerError` text, or an `unported:` text from a wide method.
+    /// A `LowerError` text.
     pub fn comparison_branch(
         &mut self,
         node: &Expr,
@@ -715,7 +715,7 @@ impl Lowerer<'_> {
     /// Lowers one statement, returning what it declared.
     ///
     /// # Errors
-    /// A `LowerError` text, or an `unported:` text from a wide method.
+    /// A `LowerError` text.
     pub fn statement(&mut self, node: &Stmt) -> Result<Option<Declared>, String> {
         match node {
             Stmt::MemoryWrite(_) => {
@@ -926,7 +926,7 @@ impl Lowerer<'_> {
     /// many characters, through two zero-page pointers.
     ///
     /// # Errors
-    /// A `LowerError` text, or an `unported:` text from a wide method.
+    /// A `LowerError` text.
     pub fn string_copy(&mut self, node: &Stmt) -> Result<(), String> {
         let Stmt::StringCopy(StringCopy { target, source, .. }) = node else {
             return Err("stringCopy: needs both a source and a target".to_string());
@@ -956,7 +956,7 @@ impl Lowerer<'_> {
     /// `memory.read(address)` into A.
     ///
     /// # Errors
-    /// A `LowerError` text, or an `unported:` text from a wide method.
+    /// A `LowerError` text.
     pub fn memory_read(&mut self, node: &Expr) -> Result<(), String> {
         let Expr::MemoryRead(read) = node else {
             return Err("memoryRead: no address to read from".to_string());
@@ -984,7 +984,7 @@ impl Lowerer<'_> {
     /// `memory.write(address, value)`.
     ///
     /// # Errors
-    /// A `LowerError` text, or an `unported:` text from a wide method.
+    /// A `LowerError` text.
     pub fn memory_write(&mut self, statement: &Stmt) -> Result<(), String> {
         let Stmt::MemoryWrite(MemoryWrite { address, value, .. }) = statement else {
             return Err("memoryWrite: no address to write to".to_string());

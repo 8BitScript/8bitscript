@@ -148,7 +148,7 @@ fn the_binary_replays_with_the_real_stubs() {
         &base,
         "p/main/c64",
         "1-0.jsonl",
-        &[json!({"seq": 0, "fn": "lower", "args": [], "result": {}})],
+        &[json!({"seq": 0, "fn": "allocate", "args": [], "result": {}})],
     );
     let out = Command::new(env!("CARGO_BIN_EXE_xtask"))
         .args(["tap", base.to_str().unwrap()])
@@ -164,4 +164,86 @@ fn the_binary_replays_with_the_real_stubs() {
         .output()
         .unwrap();
     assert_eq!(usage.status.code(), Some(2));
+}
+
+#[test]
+fn front_dispatch_skips_every_stub_and_the_media_functions() {
+    use xtask::front::replay;
+    let mut counters = Counters::default();
+    for name in [
+        "bind",
+        "bindImportedComponents",
+        "check",
+        "scanDeclaredTypes",
+        "layoutTemplate",
+        "checkBx",
+        "elaborateBx",
+        "applyCatalogCharset",
+        "resolveCatalogSpecifier",
+        "foldCompileTime",
+        "lower",
+        "findImports",
+        "pathFormSpecifiers",
+        "resolveSpecifier",
+        "nativeSourcesBeside",
+        "parseMediaModule",
+        "elaborateMedia",
+    ] {
+        assert_eq!(
+            replay(name, &json!({}), &mut counters),
+            Some(Replay::Skip),
+            "{name}"
+        );
+    }
+    assert_eq!(replay("link", &json!({}), &mut counters), None);
+}
+
+#[test]
+fn an_unknown_front_function_filter_is_an_error() {
+    let base = dir("front-fn");
+    write(
+        &base,
+        "p/main/c64",
+        "1-0.jsonl",
+        &[json!({"seq": 0, "fn": "bind", "args": [], "result": null})],
+    );
+    let out = Command::new(env!("CARGO_BIN_EXE_xtask"))
+        .args(["tap", base.to_str().unwrap(), "--front", "--fn", "nosuch"])
+        .output()
+        .unwrap();
+    assert_eq!(out.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&out.stderr).contains("nosuch"));
+    let ok = Command::new(env!("CARGO_BIN_EXE_xtask"))
+        .args(["tap", base.to_str().unwrap(), "--front", "--fn", "bind"])
+        .output()
+        .unwrap();
+    assert_eq!(ok.status.code(), Some(0));
+}
+
+#[test]
+fn front_compare_outcomes_and_the_front_flag() {
+    use front_replay::{Replay as Front, compare};
+    let a = json!({"a": [1, 2]});
+    let b = json!({"a": [1, 3]});
+    assert_eq!(compare(&a, &a), Front::Match);
+    assert_eq!(
+        compare(&a, &b),
+        Front::Mismatch("/a/1".into(), json!(2), json!(3))
+    );
+    let base = dir("front");
+    write(
+        &base,
+        "p/main/c64",
+        "1-0.jsonl",
+        &[json!({"seq": 0, "fn": "bind", "args": [], "result": null})],
+    );
+    let out = Command::new(env!("CARGO_BIN_EXE_xtask"))
+        .args(["tap", base.to_str().unwrap(), "--front"])
+        .output()
+        .unwrap();
+    assert_eq!(out.status.code(), Some(0));
+    assert_eq!(
+        String::from_utf8_lossy(&out.stdout).trim(),
+        "tap: 1 calls, 0 ERROR, 1 SKIP"
+    );
 }

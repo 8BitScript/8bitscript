@@ -45,7 +45,7 @@ fn sources(v: &Value) -> Vec<NativeSource> {
 #[test]
 fn assemble_chr_rom_matches_js() {
     let rows: Vec<Value> = serde_json::from_str(include_str!("fixtures/chr_nes.json")).unwrap();
-    assert_eq!(rows.len(), 52);
+    assert_eq!(rows.len(), 54);
     let (mut ok, mut err, mut threw) = (0, 0, 0);
     for row in &rows {
         let name = row["name"].as_str().unwrap();
@@ -74,7 +74,7 @@ fn assemble_chr_rom_matches_js() {
 #[test]
 fn nes_file_matches_js() {
     let rows: Vec<Value> = serde_json::from_str(include_str!("fixtures/image_nes.json")).unwrap();
-    assert_eq!(rows.len(), 24);
+    assert_eq!(rows.len(), 25);
     let image = image_for(Machine::Nes).unwrap();
     let (mut ok, mut err, mut threw) = (0, 0, 0);
     for row in &rows {

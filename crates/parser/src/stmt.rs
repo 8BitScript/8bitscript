@@ -359,26 +359,28 @@ impl Parser<'_> {
     fn parse_state(&mut self) -> Option<Node> {
         let declaration = self.parse_variable_named(None, "a name")?;
         let (start, end) = (declaration.start, declaration.start + declaration.length);
-        match declaration.kind {
-            NodeKind::VariableDeclaration {
+        // `parse_variable_named` only ever builds a `VariableDeclaration`.
+        let NodeKind::VariableDeclaration {
+            name,
+            type_annotation,
+            initializer,
+            exported,
+            ..
+        } = declaration.kind
+        else {
+            return None;
+        };
+        Some(Node::new(
+            start,
+            end,
+            NodeKind::StateDeclaration {
+                kind: "state".to_string(),
                 name,
                 type_annotation,
                 initializer,
                 exported,
-                ..
-            } => Some(Node::new(
-                start,
-                end,
-                NodeKind::StateDeclaration {
-                    kind: "state".to_string(),
-                    name,
-                    type_annotation,
-                    initializer,
-                    exported,
-                },
-            )),
-            kind => Some(Node::new(start, end, kind)),
-        }
+            },
+        ))
     }
 
     fn parse_variable_named(&mut self, start_override: Option<u32>, what: &str) -> Option<Node> {

@@ -7,6 +7,14 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+bx = { path = "../crates/bx" }
+fold = { path = "../crates/fold" }
+front-replay = { path = "../crates/front-replay" }
+i18n = { path = "../crates/i18n" }
+lower = { path = "../crates/lower" }
+media = { path = "../crates/media" }
+resolver = { path = "../crates/resolver" }
+sema = { path = "../crates/sema" }
 mos = { path = "../crates/mos" }
 oracle = { path = "../crates/oracle" }
 mos-ir = { path = "../crates/mos-ir" }

@@ -1,0 +1,18 @@
+[package]
+name = "i18n"
+description = "Locale catalogs for the front-end port"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+diagnostics = { path = "../diagnostics" }
+indexmap = { version = "2", features = ["serde"] }
+jsnum = { path = "../jsnum" }
+lexer = { path = "../lexer" }
+parser = { path = "../parser" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+syntax = { path = "../syntax" }
+front-replay = { path = "../front-replay" }
