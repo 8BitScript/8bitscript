@@ -13,8 +13,18 @@ pub fn replay(record: &Value) -> Replay {
     let Some(args) = record.get("args").and_then(Value::as_array) else {
         return Replay::Skip;
     };
-    if record.get("throw").is_some() {
-        return Replay::Skip;
+    if let Some(thrown) = record.get("throw") {
+        // R7.11: the JS call threw. Rust never throws; the one recorded R7.8 site is a root that is
+        // not a Program (`check` returns empty there). Any other throw is a mismatch.
+        let root = args
+            .first()
+            .and_then(|a| a.get("type"))
+            .and_then(Value::as_str);
+        return if root == Some("Program") {
+            Replay::Mismatch("/throw".into(), thrown.clone(), Value::Null)
+        } else {
+            Replay::Skip
+        };
     }
     let mut ast: Option<Node> = match args.first() {
         None | Some(Value::Null) => None,

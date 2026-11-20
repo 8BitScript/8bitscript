@@ -64,7 +64,7 @@ impl<'a> Scopes<'a> {
 
     /// The scope with this id.
     #[must_use]
-    pub fn get(&self, id: ScopeId) -> &Scope<'a> {
+    pub(crate) fn get(&self, id: ScopeId) -> &Scope<'a> {
         &self.scopes[id.0 as usize]
     }
 

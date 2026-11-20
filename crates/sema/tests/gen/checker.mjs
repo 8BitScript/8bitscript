@@ -272,6 +272,8 @@ fn dups() { dup = 1; }
 let i: u8 = 0;
 fn g() { for (i = 0; i < 4; i++) { } }
 `,
+  // A namespace whose member failed to parse: the tree holds a null in `members`.
+  nullMember: 'mod m { fn ; pub let a: u8 = 0; }\nlet b: u8 = 1;\n',
   empty: '',
   clean: `use self::geo::{a};
 const MAX: u8 = 9;

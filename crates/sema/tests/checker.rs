@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 use front_replay::{Replay, compare};
 use sema::checker::immutable::check_immutable_lets;
 use sema::tap::check;
-use serde_json::Value;
+use serde_json::{Value, json};
 use syntax::{Node, number_nodes};
 
 fn rows() -> Vec<Value> {
@@ -36,4 +36,18 @@ fn checker_matches_js() {
     assert_eq!(seen.len(), 2, "{seen:?}");
     assert!(seen["check"] >= 90, "{seen:?}");
     assert!(seen["checkImmutableLets"] >= 25, "{seen:?}");
+}
+
+#[test]
+fn root_that_is_not_a_program_is_empty() {
+    use sema::checker::{CheckOptions, check};
+    for root in [
+        json!({"type": "BlockStatement", "start": 0, "length": 2, "body": []}),
+        json!({"type": "ExpressionStatement", "start": 0, "length": 2,
+               "expression": {"type": "Identifier", "start": 0, "length": 1, "name": "a"}}),
+    ] {
+        let mut ast: Node = serde_json::from_value(root).unwrap();
+        number_nodes(&mut ast);
+        assert!(check(Some(&ast), "x.8bs", None, CheckOptions::default()).is_empty());
+    }
 }

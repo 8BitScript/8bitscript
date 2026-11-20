@@ -215,9 +215,9 @@ fn check_functions(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let declared = scan_declared_types(Some(ast));
-    let body: &[Node] = match &ast.kind {
-        NodeKind::Program { body } => body,
-        _ => &[],
+    // `check` returns before this for any root that is not a Program.
+    let NodeKind::Program { body } = &ast.kind else {
+        return;
     };
     let consts: HashSet<&str> = body
         .iter()
@@ -297,8 +297,9 @@ fn check_functions(
             if let NodeKind::ExpressionStatement { expression } = &n.kind
                 && is_template_call(Some(expression))
             {
-                if let NodeKind::CallExpression { args, .. } = &expression.kind {
-                    let template = &args[1];
+                if let NodeKind::CallExpression { args, .. } = &expression.kind
+                    && let Some(template) = args.get(1)
+                {
                     placed.insert(std::ptr::from_ref(template));
                     diagnostics.extend(layout_template(template, &scope, file, source).diagnostics);
                 }
@@ -391,6 +392,12 @@ pub fn check(
     let Some(ast) = ast else {
         return diagnostics;
     };
+    // R7.8: JS throws in checkFunctions (`ast.body.filter`) for a root that is not a Program, and
+    // reads an array-bodied root (a BlockStatement) as the top level. Neither caller can produce
+    // one, so Rust returns the empty result at entry instead of carrying on with a substitute.
+    if !matches!(ast.kind, NodeKind::Program { .. }) {
+        return diagnostics;
+    }
 
     check_functions(ast, file, source, &mut diagnostics);
     diagnostics.extend(check_immutable_lets(ast, file));
