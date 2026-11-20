@@ -99,7 +99,7 @@ impl World {
         };
 
         let mut scope_keys: Vec<u64> = graph.scopes.keys().copied().collect();
-        scope_keys.sort_unstable();
+        scope_keys.sort();
         let mut roots: Vec<u64> = Vec::new();
         for root in bounds.iter().filter_map(|b| bound_root(b)) {
             if !roots.contains(&root) {
@@ -131,7 +131,7 @@ impl World {
             scope_lists.push(list);
         }
         let mut symbol_keys: Vec<u64> = graph.symbols.keys().copied().collect();
-        symbol_keys.sort_unstable();
+        symbol_keys.sort();
         let mut symbol_ids = HashMap::new();
         let mut symbol_lists: Vec<Vec<u64>> = vec![Vec::new(); roots.len()];
         for n in symbol_keys {

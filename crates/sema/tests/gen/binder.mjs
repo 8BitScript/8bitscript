@@ -202,6 +202,44 @@ rows.push(...take('bindImportedComponents again over a linked bound'));
   rows.push(...take('bindImportedComponents source missing'));
 }
 
+// --- probe cases: odd import shapes and deep shadowing ------------------------------------
+
+const libLookup = { './lib.8bx': libBound };
+link('same import twice', `use "./lib.8bx"::{Menu};\nuse "./lib.8bx"::{Menu};\n`, libLookup);
+link('component imported three times under aliases', `use "./lib.8bx"::{Menu as A, Menu as B, Menu as C};\n`, libLookup);
+link('import then local of the same name', `use "./lib.8bx"::{Menu};\ncomponent Menu() {}\n`, libLookup);
+link('local then import of the same name', `component Menu() {}\nuse "./lib.8bx"::{Menu};\n`, libLookup);
+link('namespace member imported by name', `use "./lib.8bx"::{g, M};\n`, libLookup);
+link('missing module and missing symbol', `use "./nowhere.8bx"::{X};\nuse "./lib.8bx"::{Absent};\n`, libLookup);
+link('empty source string', `use ""::{Menu};\n`, { '': libBound });
+link('empty source string, no answer', `use ""::{Menu};\n`, libLookup);
+link('path form', `use plib::Menu;\n`, { plib: libBound });
+{
+  const self = bound('self import', `use "./self.8bx"::{Me, f};\npub component Me() {}\npub fn f() {}\n`, 'self.8bx').result;
+  bindImportedComponents(self, (s2) => ({ './self.8bx': self })[s2] ?? null);
+  rows.push(...take('bindImportedComponents module imports itself'));
+}
+{
+  const { result } = bound('deep shadowing', `use "./lib.8bx"::{v};
+let v = 1;
+fn f(v: u8, w: u8) {
+    let v = 2;
+    for (let mut v: u8 = 0; v < 3; v += 1) { let v = 4; { let v = 5; } }
+    if v == 1 { let v = 6; } else { let v = 7; if v == 2 { let w = 8; } }
+    while v > 0 { let v = 9; v -= 1; }
+}
+mod v { let v = 10; fn v(v: u8) { let v = 11; } }
+component v(v: u8) { state v: u8 = 0; let w = 1; if w == 1 { let v = 12; } }
+`, 'shadow.8bx');
+  const scopes = [result.scopes[0], ...new Set(result.scopeOf.values())];
+  for (const scope of scopes) {
+    for (const name of ['v', 'w', 'f']) {
+      resolveSymbolTapped(scope, name);
+      rows.push(...take(`resolveSymbol deep shadowing ${name}`));
+    }
+  }
+}
+
 // --- resolveSymbol and componentOf -------------------------------------------------------
 
 {
