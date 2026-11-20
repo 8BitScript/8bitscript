@@ -72,11 +72,15 @@ user-assigned managed identity (federated credential subject
 `repo:8BitScript/8bitscript:environment:marketplace`, publisher
 `8bitscript`), then `az account get-access-token --resource
 499b84ac-1321-427f-aa17-267ca6975798` yields a token that is masked and
-passed to `publish-marketplace.mjs` as `VSCE_AAD_TOKEN`. Each of the six
-attempts reads the token again; az returns its cached one, valid for about
-an hour, and an attempt after it expires uses `VSCE_PAT` when set or fails. A failed Azure step does not stop the
-job: the attempt uses `VSCE_PAT` when it is set, and Open VSX is
-unaffected.
+passed to `publish-marketplace.mjs` as `VSCE_AAD_TOKEN`. The retry loop
+is `scripts/marketplace-publish-loop.sh`. The first attempt uses the
+token from `azure/login`. `az` hands back that cached token for about an
+hour and cannot renew it once the GitHub OIDC assertion behind it has
+expired, so each later attempt requests a new OIDC token and runs
+`az login --federated-token` again before reading the access token. If
+that fails, or the token is not a single non-empty line, the attempt
+uses `VSCE_PAT` when it is set. A failed Azure step does not stop the
+job, and Open VSX is unaffected.
 
 Until `AZURE_CLIENT_ID` exists the job skips the Azure steps and uses
 `VSCE_PAT`. Once an Entra release has shipped, the owner deletes the
