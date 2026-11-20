@@ -92,13 +92,6 @@ jobs:
       - name: Package VSIX
         working-directory: editors/vscode
         run: pnpm exec vsce package --out /tmp/8bitscript.vsix
-      # v0.8.0: three attempts 30s apart (~2 minutes of retrying) still lost
-      # to a live Azure DevOps Services outage on the gallery backend
-      # (`/_apis/gallery` returning 503 "Sorry! Our services aren't
-      # available right now" on every attempt). Six attempts a minute apart
-      # gives ~5 minutes of retrying, which comfortably outlasts the
-      # multi-minute outages this endpoint is known for — see the WAIT_MS
-      # comment in publish-marketplace.mjs.
       # Preferred sign-in: Microsoft Entra through GitHub OIDC and a
       # user-assigned managed identity. Skipped until the owner sets the
       # AZURE_CLIENT_ID variable on the `marketplace` environment. It must
@@ -113,21 +106,43 @@ jobs:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           allow-no-subscriptions: true
+      # v0.8.0: three attempts 30s apart (~2 minutes of retrying) still lost
+      # to a live Azure DevOps Services outage on the gallery backend
+      # (`/_apis/gallery` returning 503 "Sorry! Our services aren't
+      # available right now" on every attempt). Six attempts a minute apart
+      # gives ~5 minutes of retrying, which comfortably outlasts the
+      # multi-minute outages this endpoint is known for — see the WAIT_MS
+      # comment in publish-marketplace.mjs.
       # 499b84ac-1321-427f-aa17-267ca6975798 is the Azure DevOps resource.
-      # An Entra token expires, and one attempt can wait many minutes on the
-      # gallery, so each attempt fetches a fresh token. If the fetch fails
-      # the attempt uses VSCE_PAT when set.
+      # An Entra access token and the GitHub OIDC assertion behind it both
+      # expire, and `az account get-access-token` returns its cached token
+      # until it is close to expiry. One attempt can wait many minutes on
+      # the gallery, so each attempt requests a new GitHub OIDC token, signs
+      # in with it again, and only then reads the access token. If any of
+      # that fails the attempt uses VSCE_PAT when it is set.
       - name: Publish to Visual Studio Marketplace
         id: vsce
         if: ${{ env.VSCE_PAT != '' || steps.azlogin.outcome == 'success' }}
         continue-on-error: true
         env:
           AZURE_LOGIN_OUTCOME: ${{ steps.azlogin.outcome }}
+          AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
         run: |
+          entra_token() {
+            jwt=$(curl -sSf -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+              "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=api://AzureADTokenExchange" | jq -r .value) || return 1
+            [ -n "$jwt" ] && [ "$jwt" != null ] || return 1
+            echo "::add-mask::$jwt"
+            az login --service-principal -u "$AZURE_CLIENT_ID" --tenant "$AZURE_TENANT_ID" \
+              --federated-token "$jwt" --allow-no-subscriptions --output none || return 1
+            az account get-access-token --resource 499b84ac-1321-427f-aa17-267ca6975798 \
+              --query accessToken -o tsv
+          }
           for attempt in 1 2 3 4 5 6; do
             token=""
             if [ "$AZURE_LOGIN_OUTCOME" = success ]; then
-              token=$(az account get-access-token --resource 499b84ac-1321-427f-aa17-267ca6975798 --query accessToken -o tsv) || token=""
+              token=$(entra_token) || token=""
               if [ -n "$token" ]; then
                 echo "::add-mask::$token"
               elif [ -n "$VSCE_PAT" ]; then
