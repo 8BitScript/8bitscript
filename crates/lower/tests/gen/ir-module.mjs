@@ -264,6 +264,17 @@ mod M {
 }
 let d: string<
 `,
+  // A literal past the i64 range: the IR value saturates, the message keeps the JS number.
+  'huge literal': `let g: u8 = 99999999999999999999;
+const BIG: i32 = 99999999999999999999;
+let h: u8 = BIG;
+let a: [u8; 1] = [99999999999999999999];
+let b: [u8; 1] = [-BIG];
+`,
+  // Negating a saturated const must not overflow.
+  'negated huge const': `const X: i32 = -99999999999999999999;
+let g: i16 = -X;
+`,
 };
 
 const rows = [];

@@ -129,10 +129,20 @@ pub struct ArrayReference {
     pub array: Option<ArrayDesc>,
 }
 
-/// A JS number held as an IR integer (R2.1). Values are whole and far inside `i64` in practice.
+/// A JS number held as an IR integer (R2.1): `as i64` saturates (NaN to 0). Reachable with an
+/// out-of-range literal; the IR value saturates and a message prints the JS number (`last_wide`).
 #[allow(clippy::cast_possible_truncation)]
 fn int(value: f64) -> i64 {
     value as i64
+}
+
+/// A value the saturating `int` could not hold.
+fn is_wide(value: i64) -> bool {
+    value.unsigned_abs() >= 9_200_000_000_000_000_000
+}
+
+fn wide_of(value: f64) -> Option<f64> {
+    (value.abs() >= 9.2e18).then_some(value)
 }
 
 fn span(node: &Node) -> (Option<i64>, Option<i64>) {
@@ -230,6 +240,11 @@ pub struct Lowering {
     pub unported_function: bool,
     /// Set when lowering reached a call expression, which is not ported yet.
     pub unported_call: bool,
+    /// The JS number behind the last constant lowered, when it is past the `i64` range and so
+    /// saturated in the IR (R2.1). A diagnostic prints it, as JS does, not the saturated value.
+    pub last_wide: Option<f64>,
+    /// Set when a namespace member `VariableDeclaration` had no name (JS reports or throws).
+    pub skipped_unnamed_member: bool,
 }
 
 impl Lowering {
@@ -467,7 +482,7 @@ impl Lowering {
         // place, and one node shared between calls would be renamed twice.
         let cell_at = |offset: i64| -> Expr {
             if let Expr::Const(c) = &cell {
-                let value = c.value + offset;
+                let value = c.value.saturating_add(offset);
                 return Expr::Const(Const {
                     value,
                     ty: Some(narrowest_integer_type(value as f64)),
@@ -657,7 +672,10 @@ impl Lowering {
                     }
                 }
                 // A declaration whose name the parser could not read: it said so.
-                NodeKind::VariableDeclaration { name: None, .. } => {}
+                // R7.8: skipped with no diagnostic; the flag lets a replay tell a JS throw here.
+                NodeKind::VariableDeclaration { name: None, .. } => {
+                    self.skipped_unnamed_member = true
+                }
                 _ => self.report(
                     member,
                     format!(
@@ -810,6 +828,11 @@ impl Lowering {
         let mut init: Option<Expr> = None;
         if let Some(initializer) = initializer.as_deref() {
             init = self.expression(Some(initializer));
+            // A call is not lowered yet (P3-15). JS lowers it to a call node and refuses it just
+            // below, so this global is never declared; stop here the same way.
+            if init.is_none() && self.unported_call {
+                return;
+            }
             // A bare name that is not an own const is either an imported const, left for the
             // linker, or a name this module declares, which is refused here and now.
             match &init {
@@ -1206,7 +1229,10 @@ impl Lowering {
                 if c.value < min || c.value > max {
                     self.push_error(
                         codes::VALUE_OUT_OF_RANGE,
-                        format!("{} does not fit in {ty} ({min}..{max})", c.value),
+                        format!(
+                            "{} does not fit in {ty} ({min}..{max})",
+                            self.shown(c.value)
+                        ),
                         element.start,
                         element.length,
                     );
@@ -1366,7 +1392,10 @@ impl Lowering {
         {
             self.push_error(
                 codes::VALUE_OUT_OF_RANGE,
-                format!("{} does not fit in {ty} ({min}..{max})", c.value),
+                format!(
+                    "{} does not fit in {ty} ({min}..{max})",
+                    self.shown(c.value)
+                ),
                 at.start,
                 at.length,
             );
@@ -1432,7 +1461,7 @@ impl Lowering {
                 codes::INDEX_OUT_OF_RANGE,
                 format!(
                     "index {} is outside an array<{}, {}>: elements are 0..{}",
-                    c.value,
+                    self.shown(c.value),
                     array.ty,
                     number_to_string(array.length),
                     number_to_string(array.length - 1.0)
@@ -1479,15 +1508,26 @@ impl Lowering {
         None
     }
 
+    /// A constant as JS prints it in a message: the number it held, not its saturated IR value.
+    fn shown(&self, value: i64) -> String {
+        match self.last_wide {
+            Some(wide) if is_wide(value) => number_to_string(wide),
+            _ => number_to_string(value as f64),
+        }
+    }
+
     /// An AST expression as IR (`expression(node)`, `ir/index.mjs:1386`).
     #[allow(clippy::too_many_lines)]
     pub fn expression(&mut self, node: Option<&Node>) -> Option<Expr> {
         let node = node?; // a hole the parser already reported
         match &node.kind {
-            NodeKind::IntegerLiteral { value, .. } => Some(Expr::Const(Const {
-                value: int(*value),
-                ty: Some(narrowest_integer_type(*value)),
-            })),
+            NodeKind::IntegerLiteral { value, .. } => {
+                self.last_wide = wide_of(*value);
+                Some(Expr::Const(Const {
+                    value: int(*value),
+                    ty: Some(narrowest_integer_type(*value)),
+                }))
+            }
             NodeKind::BooleanLiteral { value } => Some(Expr::Const(Const {
                 value: i64::from(*value),
                 ty: Some("bool".to_string()),
@@ -1562,7 +1602,12 @@ impl Lowering {
                 if let Expr::Const(c) = &argument
                     && (operator == "-" || operator == "+")
                 {
-                    let value = if operator == "-" { -c.value } else { c.value };
+                    let value = if operator == "-" {
+                        self.last_wide = self.last_wide.map(|w| -w);
+                        c.value.saturating_neg()
+                    } else {
+                        c.value
+                    };
                     // The value's own sign decides its type here, not the operand's.
                     return Some(Expr::Const(Const {
                         value,
@@ -1634,6 +1679,7 @@ impl Lowering {
         // A const declared in this module is its value, here and now — but a parameter of the
         // same name shadows it, ordinary lexical scoping.
         if !shadowed && let Some(value) = self.own_consts.get(name) {
+            self.last_wide = wide_of(*value);
             return Some(Expr::Const(Const {
                 value: int(*value),
                 ty: self.own_const_types.get(name).cloned(),
@@ -1761,6 +1807,7 @@ pub struct Lowered {
     pub diagnostics: Vec<Diagnostic>,
     pub unported_function: bool,
     pub unported_call: bool,
+    pub skipped_unnamed_member: bool,
 }
 
 /// `lower(ast, file, source)` as far as this unit goes: [`Lowering::program`] on a fresh
@@ -1775,5 +1822,6 @@ pub fn lower_module(ast: &Node, file: &str, source: Option<&str>) -> Lowered {
         diagnostics: lowering.diagnostics,
         unported_function: lowering.unported_function,
         unported_call: lowering.unported_call,
+        skipped_unnamed_member: lowering.skipped_unnamed_member,
     }
 }
