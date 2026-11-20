@@ -34,17 +34,30 @@ function resolveVsixPath(input) {
 
 const vsixPath = resolveVsixPath(process.argv[2]);
 
+// Sign-in: a Microsoft Entra access token (VSCE_AAD_TOKEN, from GitHub OIDC
+// through azure/login) wins over a personal access token (VSCE_PAT). Azure
+// DevOps retires global PATs on 2026-12-01. vsce's own
+// `--azure-credential` path hands the Entra token to the same client it
+// uses for a PAT (`getBasicHandler('OAuth', token)` in @vscode/vsce
+// out/util.js), so the gallery sees `Basic base64("OAuth:<token>")` for
+// both; this script does the same instead of a Bearer header vsce never
+// sends. The token is never logged.
+const aadToken = process.env.VSCE_AAD_TOKEN;
 const pat = process.env.VSCE_PAT;
-if (!pat) {
-  process.stderr.write('VSCE_PAT is not set.\n');
+const credential = aadToken || pat;
+if (!credential) {
+  process.stderr.write('Neither VSCE_AAD_TOKEN nor VSCE_PAT is set.\n');
   process.exit(1);
 }
+process.stdout.write(
+  `Marketplace sign-in: ${aadToken ? 'Microsoft Entra token' : 'personal access token'}.\n`,
+);
 
 const pkg = JSON.parse(await readFile(join(ROOT, 'editors/vscode/package.json'), 'utf8'));
 const publisher = pkg.publisher;
 const name = pkg.name;
 const version = pkg.version;
-const auth = `Basic ${Buffer.from(`OAuth:${pat}`).toString('base64')}`;
+const auth = `Basic ${Buffer.from(`OAuth:${credential}`).toString('base64')}`;
 
 async function gallery(method, path, { body, timeoutMs = WAIT_MS } = {}) {
   const controller = new AbortController();
