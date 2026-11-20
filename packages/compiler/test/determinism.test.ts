@@ -11,14 +11,14 @@ import type { BuildOptions, IrProgram } from '../src/mos/index.ts';
 import { link } from '../index.mjs';
 import { loadCatalog, resolveHardware } from '../../cli/src/hardware.mjs';
 
-const MAIN = 'import { limit } from "./lib.8bs";\nexport function main(): void {\n    let x: u16 = limit;\n}\n';
+const MAIN = 'use self::lib::limit;\npub fn main() {\n    let x: u16 = limit;\n}\n';
 
 test('a reversed directory listing gives the same variant diagnostic', async () => {
   const dir = await mkdtemp(join(tmpdir(), '8bs-determinism-'));
   const realReaddir = fs.readdirSync;
   try {
     for (const name of ['lib.nes.8bs', 'lib.c64.8bs', 'lib.pet.8bs', 'lib.atari8.8bs']) {
-      await writeFile(join(dir, name), 'export let limit: u16 = 1;');
+      await writeFile(join(dir, name), 'pub let mut limit: u16 = 1;');
     }
     const entry = join(dir, 'main.8bs');
     const messageFor = () => link(MAIN, entry, { machine: 'web' }).diagnostics.map((d: { message: string }) => d.message);
@@ -43,7 +43,7 @@ test('a reversed directory listing gives the same variant diagnostic', async () 
 });
 
 test('two builds in one process give an equal listing', async () => {
-  const src = 'let n: utinyint = 0;\n\nexport function main(): void {\n    while (n < 10) {\n        n += 1;\n    }\n}\n';
+  const src = 'let mut n: utinyint = 0;\n\npub fn main() {\n    while n < 10 {\n        n += 1;\n    }\n}\n';
   const resolved = resolveHardware(loadCatalog('pet'), { profile: '3032' });
   assert.ok(resolved.ok, resolved.ok ? '' : resolved.error);
   const linked = link(src, '/virtual/game.8bs', { machine: 'pet', facts: resolved.hardware.facts });

@@ -3,65 +3,65 @@
 // graphics.update() after waitFrame(), while the PPU is in vertical blank.
 const SLOTS: utinyint = 8;
 const TILES_PER: utinyint = 16; // 4 frames × 4 tiles
-let tiles: array<u8, 128>;
-let tileCount: array<u8, 8>;
-let frameCount: array<u8, 8>;
-let interval: array<u8, 8>;
-let tick: array<u8, 8>;
-let frame: array<u8, 8>;
-let px: array<u8, 8>;
-let py: array<u8, 8>;
-let shown: array<u8, 8>;
-let paused: array<u8, 8>;    // 1: automatic stepping paused
-let started: bool = false;
+let mut tiles: [u8; 128];
+let mut tileCount: [u8; 8];
+let mut frameCount: [u8; 8];
+let mut interval: [u8; 8];
+let mut tick: [u8; 8];
+let mut frame: [u8; 8];
+let mut px: [u8; 8];
+let mut py: [u8; 8];
+let mut shown: [u8; 8];
+let mut paused: [u8; 8]; // 1: automatic stepping paused
+let mut started: bool = false;
 
-function writeOam(addr: utinyint, y: utinyint, tile: utinyint, attr: utinyint, x: utinyint): void {
-    memory.write(0x2003, addr);
-    memory.write(0x2004, y);
-    memory.write(0x2004, tile);
-    memory.write(0x2004, attr);
-    memory.write(0x2004, x);
+fn writeOam(addr: utinyint, y: utinyint, tile: utinyint, attr: utinyint, x: utinyint) {
+    memory::write(0x2003, addr);
+    memory::write(0x2004, y);
+    memory::write(0x2004, tile);
+    memory::write(0x2004, attr);
+    memory::write(0x2004, x);
 }
 
-function hideRest(start: utinyint): void {
-    let addr: utinyint = start;
-    while (addr != 0) {
-        memory.write(0x2003, addr);
-        memory.write(0x2004, 0xFF);
+fn hideRest(start: utinyint) {
+    let mut addr: utinyint = start;
+    while addr != 0 {
+        memory::write(0x2003, addr);
+        memory::write(0x2004, 0xFF);
         addr = addr + 4;
     }
 }
 
-export namespace graphics {
+pub mod graphics {
     // The portable contract (index.8bs): what this machine answers.
     const MAX: utinyint = 8;
-    const FRAMES: utinyint = 4;               // of a WIDTH x HEIGHT picture: TILES_PER tiles a slot, 4 per frame
-    const WIDTH: utinyint = 16;               // 2 x 2 tiles
+    const FRAMES: utinyint = 4; // of a WIDTH x HEIGHT picture: TILES_PER tiles a slot, 4 per frame
+    const WIDTH: utinyint = 16; // 2 x 2 tiles
     const HEIGHT: utinyint = 16;
-    const COLORS: utinyint = 3;               // one OAM palette
-    const RECOLORS: bool = false;             // color() is a no-op: not yet
+    const COLORS: utinyint = 3; // one OAM palette
+    const RECOLORS: bool = false; // color() is a no-op: not yet
     const STEP_X: utinyint = 1;
     const STEP_Y: utinyint = 1;
-    const RESTORES: bool = true;              // OAM draws over the background and leaves it whole
-    const TRANSPARENT: bool = true;           // colour 0 of a sprite is clear
+    const RESTORES: bool = true; // OAM draws over the background and leaves it whole
+    const TRANSPARENT: bool = true; // colour 0 of a sprite is clear
 
-    function bind(slot: utinyint, index: utinyint, value: utinyint): void {
-        if (slot >= SLOTS) {
+    fn bind(slot: utinyint, index: utinyint, value: utinyint) {
+        if slot >= SLOTS {
             return;
         }
-        if (index < TILES_PER) {
+        if index < TILES_PER {
             tiles[slot * TILES_PER + index] = value;
         }
     }
 
-    function meta(slot: utinyint, frames: utinyint, every: utinyint, kind: utinyint, width: utinyint, height: utinyint): void {
-        if (slot >= SLOTS) {
+    fn meta(slot: utinyint, frames: utinyint, every: utinyint, kind: utinyint, width: utinyint, height: utinyint) {
+        if slot >= SLOTS {
             return;
         }
         frameCount[slot] = frames;
         interval[slot] = every;
         paused[slot] = 0;
-        if (width >= 16) {
+        if width >= 16 {
             tileCount[slot] = 4;
         } else {
             tileCount[slot] = 1;
@@ -69,15 +69,15 @@ export namespace graphics {
         started = true;
         // Show sprites: PPUMASK bits 4 and 2, keep the background bits the
         // screen package already turned on (0x0A).
-        memory.write(0x2001, 0x1E);
+        memory::write(0x2001, 0x1E);
     }
 
-    function place(slot: utinyint, x: usmallint, y: usmallint): void {
-        if (slot >= SLOTS) {
+    fn place(slot: utinyint, x: usmallint, y: usmallint) {
+        if slot >= SLOTS {
             return;
         }
         px[slot] = x;
-        if (y > 239) {
+        if y > 239 {
             py[slot] = 239;
         } else {
             py[slot] = y;
@@ -87,63 +87,63 @@ export namespace graphics {
     }
 
     // update() writes OAM only for shown slots and hides the rest.
-    function hide(slot: utinyint): void {
-        if (slot >= SLOTS) {
+    fn hide(slot: utinyint) {
+        if slot >= SLOTS {
             return;
         }
         shown[slot] = 0;
     }
 
-    function setFrame(slot: utinyint, n: utinyint): void {
-        if (slot >= SLOTS) {
+    fn setFrame(slot: utinyint, n: utinyint) {
+        if slot >= SLOTS {
             return;
         }
-        if (frameCount[slot] == 0) {
+        if frameCount[slot] == 0 {
             return;
         }
-        if (n >= frameCount[slot]) {
+        if n >= frameCount[slot] {
             n = frameCount[slot] - 1;
         }
         frame[slot] = n;
         tick[slot] = 0;
     }
 
-    function animate(slot: utinyint, on: bool): void {
-        if (slot >= SLOTS) {
+    fn animate(slot: utinyint, on: bool) {
+        if slot >= SLOTS {
             return;
         }
         paused[slot] = 1;
-        if (on) {
+        if on {
             paused[slot] = 0;
         }
     }
 
     // Not yet: re-pointing a sprite at another OAM palette is the NES
     // fork's job. graphics.RECOLORS is false.
-    function color(slot: utinyint, c: utinyint): void {
+    fn color(slot: utinyint, c: utinyint) {
     }
 
-    function update(): void {
-        if (!started) {
+    fn update() {
+        if !started {
             return;
         }
-        let addr: utinyint = 0;
-        for (let slot: utinyint = 0; slot < SLOTS; slot++) {
-            if (shown[slot] == 0) {
+        let mut addr: utinyint = 0;
+        for slot: utinyint in 0..SLOTS {
+            if shown[slot] == 0 {
                 continue;
             }
-            if (frameCount[slot] >= 2 && paused[slot] == 0) {
+            if frameCount[slot] >= 2 && paused[slot] == 0 {
                 tick[slot] = tick[slot] + 1;
-                if (tick[slot] >= interval[slot]) {
+                if tick[slot] >= interval[slot] {
                     tick[slot] = 0;
                     frame[slot] = frame[slot] + 1;
-                    if (frame[slot] >= frameCount[slot]) {
+                    if frame[slot] >= frameCount[slot] {
                         frame[slot] = 0;
                     }
                 }
             }
-            let per: utinyint = 1;
-            if (tileCount[slot] == 4) {
+            let mut per: utinyint = 1;
+            if tileCount[slot] == 4 {
                 per = 4;
             }
             let base: utinyint = slot * TILES_PER + frame[slot] * per;
@@ -151,7 +151,7 @@ export namespace graphics {
             let x: utinyint = px[slot];
             writeOam(addr, y, tiles[base], 0, x);
             addr = addr + 4;
-            if (tileCount[slot] == 4) {
+            if tileCount[slot] == 4 {
                 writeOam(addr, y, tiles[base + 1], 0, x + 8);
                 addr = addr + 4;
                 writeOam(addr, y + 8, tiles[base + 2], 0, x);
@@ -161,6 +161,6 @@ export namespace graphics {
             }
         }
         hideRest(addr);
-        memory.write(0x2001, 0x1E);
+        memory::write(0x2001, 0x1E);
     }
 }

@@ -69,7 +69,7 @@ const literalAssigns = (node, name) => assignsTo(node, name).filter((a) => a.val
 // `@address` needs beside it) is resolved to that const's value.
 const namespaceConsts = (file, name) => {
   const text = readFileSync(join(C64_SRC, file), 'utf8');
-  const start = text.indexOf(`export namespace ${name}`);
+  const start = text.indexOf(`pub mod ${name}`);
   assert.ok(start >= 0, `${file}: has a ${name} namespace`);
   const moduleConsts = Object.fromEntries([...text.matchAll(/^const (\w+): \w+ = (0x[0-9A-Fa-f]+|\d+);/gm)].map(([, n, v]) => [n, Number(v)]));
   const body = text.slice(start, text.indexOf('\n}', start));
@@ -111,7 +111,7 @@ test('the screen, the character set, the sprite pointers and the shapes are all 
 });
 
 test('the arrays over the bank are declared at the addresses Video names, with the sizes the layout gives', () => {
-  const ir = linked('import { screenRam, colorRam, spritePointers, spriteShapes } from "./geometry.8bs";\nexport function main(): void { screenRam[0] = 1; colorRam[0] = 1; spritePointers[0] = 1; spriteShapes[0] = 1; }');
+  const ir = linked('use self::geometry::{screenRam, colorRam, spritePointers, spriteShapes};\npub fn main() {\n    screenRam[0] = 1;\n    colorRam[0] = 1;\n    spritePointers[0] = 1;\n    spriteShapes[0] = 1;\n}');
   const global = (name) => ir.globals.find((g) => g.name === name);
   assert.deepEqual([global('screenRam').address, global('screenRam').array], [VIDEO.SCREEN, VIDEO.CELL_COUNT]);
   assert.deepEqual([global('colorRam').address, global('colorRam').array], [VIDEO.COLOR, VIDEO.CELL_COUNT]);
@@ -131,7 +131,10 @@ test('index.8bs names the VIC-II, SID, CIA and processor-port registers at their
     cia1PortA: 0xDC00, cia1PortB: 0xDC01, cia1DirectionA: 0xDC02, cia1DirectionB: 0xDC03, cia1InterruptControl: 0xDC0D,
     cia2PortA: 0xDD00, cia2DirectionA: 0xDD02, reuStatus: 0xDF00, reuAddressControl: 0xDF0A,
   };
-  const program = `import { ${Object.keys(names).join(', ')} } from "./index.8bs";\nexport function main(): void { borderColor = 0; }`;
+  const program = `use self::index::{${Object.keys(names).join(', ')}};
+pub fn main() {
+    borderColor = 0;
+}`;
   const ir = linked(program);
   for (const [name, address] of Object.entries(names)) {
     const g = ir.globals.find((x) => x.name === name);
@@ -146,7 +149,7 @@ test('index.8bs names the VIC-II, SID, CIA and processor-port registers at their
 // ---- the portable surface, through the bank ---------------------------------
 
 test('the c64 screen draws at $E000 with color at $D800, sets $D018 to $84', () => {
-  const src = 'import { screen } from "@8bitscript/screen";\nexport function main(): void { screen.blank(); }';
+  const src = 'use @8bitscript::screen::screen;\npub fn main() {\n    screen::blank();\n}';
   const ir = linked(src, join(HERE, '..', '..', 'studio', 'src', 'main.8bs'));
   assert.equal(ir.globals.find((g) => g.name === 'screenRam').address, 0xE000);
   assert.equal(ir.globals.find((g) => g.name === 'colorRam').address, 0xD800);
@@ -163,7 +166,7 @@ test('the c64 screen draws at $E000 with color at $D800, sets $D018 to $84', () 
 });
 
 test('setupVideo copies the character ROM in place with HIRAM set and CHAREN clear, banks the KERNAL out, selects bank 3 by masking, and runs once', () => {
-  const ir = linked('import { setupVideo } from "./index.8bs";\nexport function main(): void { setupVideo(); setupVideo(); }');
+  const ir = linked('use self::index::setupVideo;\npub fn main() {\n    setupVideo();\n    setupVideo();\n}');
   const setup = fn(ir, 'setupVideo');
   assert.equal(setup.body[0].kind, 'if');
   assert.equal(setup.body[0].test.name, 'videoReady');
@@ -281,7 +284,7 @@ test('the package ships the vector stub as native assembly, and only the raster 
   // A relative import of a file inside the package carries the package's
   // native sources, as a subpath import does — the package's own probe
   // programs under test/ build with the vector stub this way.
-  const ir = linked('import { setupVideo } from "./index.8bs";\nexport function main(): void { setupVideo(); }');
+  const ir = linked('use self::index::setupVideo;\npub fn main() {\n    setupVideo();\n}');
   assert.equal(ir.nativeSources.length, 3, 'raster.s, multiplex.s and text.s; a section no program reaches is dropped at link');
   assert.match(ir.nativeSources[0], /native\/6502\/raster\.s$/);
   assert.match(ir.nativeSources[1], /native\/6502\/multiplex\.s$/);
@@ -302,7 +305,7 @@ test('a program that never imports ./raster links the vector stub only; one that
     // Only ./index.8bs: .init.250 and the rti it points at ride along —
     // the vector-stub-only shape packages/c64/AGENTS.md measured — and
     // nothing of __8bs_c64_raster_install or __8bs_c64_raster_irq does.
-    const stubOnly = linked('import { setupVideo } from "./index.8bs";\nexport function main(): void { setupVideo(); }');
+    const stubOnly = linked('use self::index::setupVideo;\npub fn main() {\n    setupVideo();\n}');
     const stubCode = await buildC64(stubOnly, join(scratch, 'stub.prg'));
     assert.ok(hasBytes(stubCode, STA_FFFA), 'the NMI vector is pointed at the rti');
     assert.ok(hasBytes(stubCode, STA_FFFE), 'and the IRQ vector with it');
@@ -312,8 +315,15 @@ test('a program that never imports ./raster links the vector stub only; one that
     // ./raster.8bs: enable()'s `jsr __8bs_c64_raster_install` reaches the
     // install routine by name, and the handler rides in with it.
     const withRaster = linked([
-      'import { raster, Register } from "./raster.8bs";',
-      'export function main(): void { raster.clear(); raster.at(100, Register.BORDER, 2); raster.enable(); while (true) { waitFrame(); } }',
+      'use self::raster::{raster, Register};',
+      'pub fn main() {',
+      '    raster::clear();',
+      '    raster::at(100, Register::BORDER, 2);',
+      '    raster::enable();',
+      '    loop {',
+      '        waitFrame();',
+      '    }',
+      '}',
     ].join('\n'));
     const rasterCode = await buildC64(withRaster, join(scratch, 'raster.prg'));
     assert.ok(hasBytes(rasterCode, STA_FFFA), 'the stub is still there');
@@ -337,8 +347,8 @@ test('the raster list is two pages at $0200 and $0300 with its state in their ta
   });
   const F = namespaceConsts('raster.8bs', 'Frame');
   assert.deepEqual([F.POSITIONS, F.X_HIGH, F.ENABLE, F.POINTERS, F.COLORS, F.FLAG, F.SIZE], [0, 16, 17, 18, 26, 34, 35]);
-  assert.match(RASTER_SRC, /@address\(LIST_A_ADDRESS\)\nlet rasterList: array<u8, 252>;/);
-  assert.match(RASTER_SRC, /@address\(LIST_B_ADDRESS\)\nlet rasterListB: array<u8, 252>;/);
+  assert.match(RASTER_SRC, /#\[address\(LIST_A_ADDRESS\)\] let mut rasterList: \[u8; 252\];/);
+  assert.match(RASTER_SRC, /#\[address\(LIST_B_ADDRESS\)\] let mut rasterListB: \[u8; 252\];/);
   const R = namespaceConsts('raster.8bs', 'Register');
   assert.deepEqual([R.BORDER, R.BACKGROUND, R.CONTROL_1, R.CONTROL_2, R.MEMORY_POINTER], [0xD020, 0xD021, 0xD011, 0xD016, 0xD018]);
   assert.equal(R.SPRITE_POINTERS, VIDEO.SPRITE_POINTERS);
@@ -347,8 +357,16 @@ test('the raster list is two pages at $0200 and $0300 with its state in their ta
 
 test('raster.at writes the four bytes before it counts the entry and refuses a line below the last; enable silences the CIAs, acknowledges the VIC, installs the handler, then cli', () => {
   const src = [
-    'import { raster, Register } from "./raster.8bs";',
-    'export function main(): void { raster.clear(); raster.at(100, Register.BORDER, 2); raster.at(200, raster.spriteY(1), 60); raster.enable(); while (true) { waitFrame(); } }',
+    'use self::raster::{raster, Register};',
+    'pub fn main() {',
+    '    raster::clear();',
+    '    raster::at(100, Register::BORDER, 2);',
+    '    raster::at(200, raster::spriteY(1), 60);',
+    '    raster::enable();',
+    '    loop {',
+    '        waitFrame();',
+    '    }',
+    '}',
   ].join('\n');
   const ir = linked(src);
   assert.ok(calls(fn(ir, 'main').body, 'raster_at').some((c) => (
@@ -426,9 +444,18 @@ test('bitmap mode: the matrix under I/O at $DC00 leaves the upper-case set intac
 
 test('bitmap: enter sets BMM with the raster bit clear, plot computes the VIC layout, colors go under I/O, and setShape routes by mode', () => {
   const src = [
-    'import { bitmap } from "./bitmap.8bs";',
-    'import { sprites } from "./sprites.8bs";',
-    'export function main(): void { bitmap.enter(true); bitmap.plot(319, 199); bitmap.plotColor(159, 199, 3); bitmap.setCellColors(0, 1, 2); bitmap.fillColors(1, 0); sprites.setShape(0, 96); sprites.setShapeByte(96, 0, 255); bitmap.leave(); }',
+    'use self::bitmap::bitmap;',
+    'use self::sprites::sprites;',
+    'pub fn main() {',
+    '    bitmap::enter(true);',
+    '    bitmap::plot(319, 199);',
+    '    bitmap::plotColor(159, 199, 3);',
+    '    bitmap::setCellColors(0, 1, 2);',
+    '    bitmap::fillColors(1, 0);',
+    '    sprites::setShape(0, 96);',
+    '    sprites::setShapeByte(96, 0, 255);',
+    '    bitmap::leave();',
+    '}',
   ].join('\n');
   const ir = linked(src);
   const enter = fn(ir, 'bitmap_enter');
@@ -487,8 +514,12 @@ test('bitmap: enter sets BMM with the raster bit clear, plot computes the VIC la
 
 test('charset.define writes eight rows at $D000 + 8 * code in one window; restore is the ROM copy again', () => {
   const src = [
-    'import { charset } from "./charset.8bs";',
-    'export function main(): void { charset.define(1, 255, 129, 129, 129, 129, 129, 129, 255); charset.copy(2, 1); charset.restore(); }',
+    'use self::charset::charset;',
+    'pub fn main() {',
+    '    charset::define(1, 255, 129, 129, 129, 129, 129, 129, 255);',
+    '    charset::copy(2, 1);',
+    '    charset::restore();',
+    '}',
   ].join('\n');
   const ir = linked(src);
   // The code is widened to a usmallint local first, then shifted by 3: a
@@ -517,8 +548,14 @@ test('charset.define writes eight rows at $D000 + 8 * code in one window; restor
 
 test('scroll: fine scroll masks the low three bits and keeps $D011 bit 7 clear; a coarse shift copies screen and color RAM together', () => {
   const src = [
-    'import { scroll } from "./scroll.8bs";',
-    'export function main(): void { scroll.setX(5); scroll.setY(3); scroll.setNarrow(true); scroll.shiftLeft(32, 1); scroll.shiftUp(32, 1); }',
+    'use self::scroll::scroll;',
+    'pub fn main() {',
+    '    scroll::setX(5);',
+    '    scroll::setY(3);',
+    '    scroll::setNarrow(true);',
+    '    scroll::shiftLeft(32, 1);',
+    '    scroll::shiftUp(32, 1);',
+    '}',
   ].join('\n');
   const ir = linked(src);
   const setX = assignsTo(fn(ir, 'scroll_setX').body, 'control2')[0].value;
@@ -559,9 +596,15 @@ test('scroll: fine scroll masks the low three bits and keeps $D011 bit 7 clear; 
 
 test('reu transfers set every register then the command: $90 plus the direction, the fault bit answers verify, fillReu fixes the C64 address', () => {
   const src = [
-    'import { reu } from "./reu.8bs";',
-    'let ok: bool = false;',
-    'export function main(): void { reu.stash(0xE000, 1, 0x1000, 1000); reu.fetch(0xE000, 1, 0x1000, 1000); reu.swap(0xE000, 1, 0x1000, 0); ok = reu.verify(0xE000, 1, 0x1000, 1000); reu.fillReu(1, 0, 0, 32); }',
+    'use self::reu::reu;',
+    'let mut ok: bool = false;',
+    'pub fn main() {',
+    '    reu::stash(0xE000, 1, 0x1000, 1000);',
+    '    reu::fetch(0xE000, 1, 0x1000, 1000);',
+    '    reu::swap(0xE000, 1, 0x1000, 0);',
+    '    ok = reu::verify(0xE000, 1, 0x1000, 1000);',
+    '    reu::fillReu(1, 0, 0, 32);',
+    '}',
   ].join('\n');
   const ir = linked(src);
   const transfer = fn(ir, 'transfer');
@@ -616,7 +659,7 @@ test('reu transfers set every register then the command: $90 plus the direction,
 // ---- the region ------------------------------------------------------------------
 
 test('detectRegion is the frame driver\'s probe in 8bitscript: $D012 before $D011, a whole frame watched for line 288', () => {
-  const ir = linked('import { detectRegion, Region } from "./index.8bs";\nlet r: u8 = 0;\nexport function main(): void { r = detectRegion(); if (r == Region.PAL) { memory.write(0xD020, 5); } }');
+  const ir = linked('use self::index::{detectRegion, Region};\nlet mut r: u8 = 0;\npub fn main() {\n    r = detectRegion();\n    if r == Region::PAL {\n        memory::write(0xD020, 5);\n    }\n}');
   const top = fn(ir, 'rasterInTopHalf').body[0].value;
   assert.equal(top.operator, '&&');
   assert.equal(top.left.operator, '<');
@@ -652,9 +695,14 @@ test('detectRegion is the frame driver\'s probe in 8bitscript: $D012 before $D01
 
 test('sprites: place splits a 9-bit X across $D000 and $D010; show sets the picture up; the collision registers are read once', () => {
   const src = [
-    'import { sprites } from "./sprites.8bs";',
-    'let hits: u8 = 0;',
-    'export function main(): void { sprites.setShape(0, sprites.FIRST_BLOCK); sprites.place(0, 300, 100); sprites.show(0); hits = sprites.collisions(); }',
+    'use self::sprites::sprites;',
+    'let mut hits: u8 = 0;',
+    'pub fn main() {',
+    '    sprites::setShape(0, sprites::FIRST_BLOCK);',
+    '    sprites::place(0, 300, 100);',
+    '    sprites::show(0);',
+    '    hits = sprites::collisions();',
+    '}',
   ].join('\n');
   const ir = linked(src);
   const setShape = calls(fn(ir, 'main').body, 'sprites_setShape')[0];
@@ -694,7 +742,7 @@ test('sprites: the namespace\'s numbers are the VIC-II\'s and the layout\'s', ()
 
 const tableOf = (file) => {
   const text = readFileSync(join(C64_SRC, file), 'utf8');
-  const body = text.slice(text.indexOf('export namespace Key'));
+  const body = text.slice(text.indexOf('pub mod Key'));
   return new Map([...body.matchAll(/const (\w+): utinyint = (\d+);/g)].map(([, name, v]) => [name, Number(v)]));
 };
 const KEYS = tableOf('keys.8bs');
@@ -760,10 +808,19 @@ const HOST = {
 
 test('keyboard.scan drives the eight columns through CIA1, inverts once, and leaves port A at $FF for the joysticks', () => {
   const src = [
-    'import { keyboard } from "./keyboard.8bs";',
-    'import { Key } from "./keys.8bs";',
-    'import { joystick, Joystick } from "./joystick.8bs";',
-    'export function main(): void { while (true) { waitFrame(); keyboard.scan(); joystick.scan(); if (keyboard.pressed(Key.SPACE) || joystick.fire(Joystick.PORT_2)) { memory.write(0xD020, 1); } } }',
+    'use self::keyboard::keyboard;',
+    'use self::keys::Key;',
+    'use self::joystick::{joystick, Joystick};',
+    'pub fn main() {',
+    '    loop {',
+    '        waitFrame();',
+    '        keyboard::scan();',
+    '        joystick::scan();',
+    '        if keyboard::pressed(Key::SPACE) || joystick::fire(Joystick::PORT_2) {',
+    '            memory::write(0xD020, 1);',
+    '        }',
+    '    }',
+    '}',
   ].join('\n');
   const ir = linked(src);
   const pressed = calls(fn(ir, 'main').body, 'keyboard_pressed')[0];
@@ -829,8 +886,12 @@ test('the note tables are Fn = round(f * 2^24 / clock) for C0-B6 at A4 = 440 Hz,
 
 test('sid: play sets both frequency bytes then gates on, keeping the waveform; the registers are write-only so the control byte is shadowed', () => {
   const src = [
-    'import { sid, Waveform, Note } from "./sid.8bs";',
-    'export function main(): void { sid.setWaveform(0, Waveform.PULSE); sid.play(0, Note.A4); sid.release(0); }',
+    'use self::sid::{sid, Waveform, Note};',
+    'pub fn main() {',
+    '    sid::setWaveform(0, Waveform::PULSE);',
+    '    sid::play(0, Note::A4);',
+    '    sid::release(0);',
+    '}',
   ].join('\n');
   const ir = linked(src);
   const main = fn(ir, 'main');

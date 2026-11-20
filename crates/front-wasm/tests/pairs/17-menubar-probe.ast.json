@@ -1,30 +1,29 @@
 {
   "body": [
     {
-      "length": 45,
+      "length": 46,
       "source": {
-        "length": 19,
+        "length": 20,
         "start": 305,
         "type": "StringLiteral",
-        "value": "../src/menubar"
+        "value": "../src/menubar.8bx"
       },
       "specifiers": [
         {
           "length": 7,
           "name": "MenuBar",
-          "start": 327,
+          "start": 328,
           "type": "Identifier"
         },
         {
           "length": 8,
           "name": "MenuItem",
-          "start": 336,
+          "start": 337,
           "type": "Identifier"
         }
       ],
       "start": 301,
-      "type": "ImportDeclaration",
-      "usePath": true
+      "type": "ImportDeclaration"
     },
     {
       "body": {
@@ -34,13 +33,13 @@
               {
                 "length": 7,
                 "name": "row",
-                "start": 377,
+                "start": 378,
                 "type": "BxAttribute",
                 "value": {
                   "length": 1,
                   "radix": 10,
                   "raw": "0",
-                  "start": 382,
+                  "start": 383,
                   "type": "IntegerLiteral",
                   "value": 0
                 }
@@ -48,13 +47,13 @@
               {
                 "length": 10,
                 "name": "width",
-                "start": 385,
+                "start": 386,
                 "type": "BxAttribute",
                 "value": {
                   "length": 2,
                   "radix": 10,
                   "raw": "40",
-                  "start": 392,
+                  "start": 393,
                   "type": "IntegerLiteral",
                   "value": 40
                 }
@@ -66,11 +65,11 @@
                   {
                     "length": 12,
                     "name": "label",
-                    "start": 415,
+                    "start": 416,
                     "type": "BxAttribute",
                     "value": {
                       "length": 6,
-                      "start": 421,
+                      "start": 422,
                       "type": "StringLiteral",
                       "value": "FILE"
                     }
@@ -80,7 +79,7 @@
                 "length": 25,
                 "name": "MenuItem",
                 "selfClosing": true,
-                "start": 405,
+                "start": 406,
                 "type": "BxElement"
               },
               {
@@ -88,11 +87,11 @@
                   {
                     "length": 12,
                     "name": "label",
-                    "start": 449,
+                    "start": 450,
                     "type": "BxAttribute",
                     "value": {
                       "length": 6,
-                      "start": 455,
+                      "start": 456,
                       "type": "StringLiteral",
                       "value": "EDIT"
                     }
@@ -102,19 +101,19 @@
                 "length": 25,
                 "name": "MenuItem",
                 "selfClosing": true,
-                "start": 439,
+                "start": 440,
                 "type": "BxElement"
               }
             ],
             "length": 111,
             "name": "MenuBar",
             "selfClosing": false,
-            "start": 368,
+            "start": 369,
             "type": "BxElement"
           }
         ],
         "length": 120,
-        "start": 362,
+        "start": 363,
         "type": "BlockStatement"
       },
       "exported": true,
@@ -122,16 +121,16 @@
       "name": {
         "length": 4,
         "name": "main",
-        "start": 355,
+        "start": 356,
         "type": "Identifier"
       },
       "params": [],
       "returnType": null,
-      "start": 348,
+      "start": 349,
       "type": "FunctionDeclaration"
     }
   ],
-  "length": 483,
+  "length": 484,
   "start": 0,
   "type": "Program"
 }

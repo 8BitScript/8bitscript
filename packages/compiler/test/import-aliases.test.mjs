@@ -19,17 +19,17 @@ test('a project import alias resolves like a relative path from its directory', 
   const root = mkdtempSync(join(tmpdir(), '8bs-alias-'));
   const libDir = join(root, 'src', 'lib');
   mkdirSync(libDir, { recursive: true });
-  writeFileSync(join(libDir, 'rules.8bs'), 'export const SCORE: utinyint = 0;\n');
+  writeFileSync(join(libDir, 'rules.8bs'), 'pub const SCORE: utinyint = 0;\n');
   const consumer = join(root, 'src', 'ui', 'view.8bs');
   mkdirSync(dirname(consumer), { recursive: true });
-  writeFileSync(consumer, 'import { SCORE } from "@lib/rules.8bs";\nexport function draw(): utinyint { return SCORE; }\n');
+  writeFileSync(consumer, 'use "@lib/rules.8bs"::SCORE;\npub fn draw() -> utinyint {\n    return SCORE;\n}\n');
 
   const aliases = resolveImportAliases({ '@lib': 'src/lib' }, root).importAliases;
   const resolved = resolveSpecifier('@lib/rules.8bs', consumer, { importAliases: aliases });
   assert.ok(resolved.path?.endsWith(join('src', 'lib', 'rules.8bs')));
 
   const main = join(root, 'src', 'main.8bs');
-  writeFileSync(main, 'import { draw } from "./ui/view.8bs";\nexport function main(): void { draw(); }\n');
+  writeFileSync(main, 'use self::ui::view::draw;\npub fn main() {\n    draw();\n}\n');
   assert.deepEqual(
     analyze(readFileSync(consumer, 'utf8'), consumer, { resolveImports: true, importAliases: aliases }).map((d) => d.code),
     [],

@@ -3,193 +3,166 @@
   "name": "8BitScript",
   "scopeName": "source.8bs",
   "_comment": [
-    "Tracks the syntax the project has specified so far: the TypeScript-derived",
-    "surface, the machine integer types, the hardware escape hatches",
-    "(@address decorators, volatile/ptr/array, and asm6502 blocks), and the",
-    "compile-time functions (#frames(...), #system()), the reserved runtime builtin",
-    "(waitFrame()) the checker keeps a program from redefining, and string and",
-    "template literals (`TICK ${ticks:1}`) with their ${...} fields. Constructs",
-    "that are still undecided are simply absent — an unmatched keyword costs a",
-    "word that does not color, not a broken file. The language server layers",
-    "semantic tokens over this once it reports them. Keep this in step with",
-    "packages/compiler: a new keyword, type, literal form, or reserved builtin",
-    "there belongs here too (see the repository's AGENTS.md)."
+    "Grammar for the Rust-style .8bs syntax (p3 frontend spec G-01), landing with the flip.",
+    "The scope stays source.8bs. The .8bx grammar includes source.8bs, but its",
+    "component rule changed too: `pub component` replaces `export component`.",
+    "Tokens follow section 5 of the syntax spec: keywords fn mut use pub mod match loop",
+    "in self super crate, r#name, #[attr], ::, ->, =>, .., ..=, assert! style macros,",
+    "#name compile-time calls, asm6502 { } with 6502 mnemonics, backtick templates,",
+    "$FF / 0xFF / 0b1010 numbers. No old keywords (function, namespace, import, export).",
+    "Keep this in step with packages/compiler: a new keyword, type, literal form, or",
+    "reserved builtin there belongs here too (see the repository's AGENTS.md)."
   ],
   "patterns": [
-    {
-      "include": "#comments"
-    },
-    {
-      "include": "#decorators"
-    },
-    {
-      "include": "#imports"
-    },
-    {
-      "include": "#strings"
-    },
-    {
-      "include": "#numbers"
-    },
-    {
-      "include": "#types"
-    },
-    {
-      "include": "#keywords"
-    },
-    {
-      "include": "#declarations"
-    },
-    {
-      "include": "#builtins"
-    },
-    {
-      "include": "#calls"
-    },
-    {
-      "include": "#operators"
-    }
+    { "include": "#comments" },
+    { "include": "#attributes" },
+    { "include": "#asm" },
+    { "include": "#use" },
+    { "include": "#strings" },
+    { "include": "#numbers" },
+    { "include": "#rawIdentifiers" },
+    { "include": "#macros" },
+    { "include": "#types" },
+    { "include": "#declarations" },
+    { "include": "#keywords" },
+    { "include": "#builtins" },
+    { "include": "#paths" },
+    { "include": "#calls" },
+    { "include": "#operators" }
   ],
   "repository": {
     "comments": {
       "patterns": [
-        {
-          "name": "comment.line.double-slash.8bs",
-          "match": "//.*$"
-        },
-        {
-          "name": "comment.block.8bs",
-          "begin": "/\\*",
-          "end": "\\*/"
-        }
+        { "name": "comment.line.double-slash.8bs", "match": "//.*$" },
+        { "name": "comment.block.8bs", "begin": "/\\*", "end": "\\*/" }
       ]
     },
-    "imports": {
+    "attributes": {
+      "comment": "#[address($D020)], #[unroll], #[test], #[cfg(test)]. The first word is the attribute's name; the rest is ordinary source.",
+      "name": "meta.attribute.8bs",
+      "begin": "(#\\[)\\s*([A-Za-z_][A-Za-z0-9_]*)?",
+      "beginCaptures": {
+        "1": { "name": "punctuation.definition.attribute.begin.8bs" },
+        "2": { "name": "entity.name.function.attribute.8bs" }
+      },
+      "end": "\\]",
+      "endCaptures": { "0": { "name": "punctuation.definition.attribute.end.8bs" } },
+      "patterns": [{ "include": "$self" }]
+    },
+    "asm": {
+      "comment": "asm6502 { lda #$01 ; sta $D020 }: the body is assembly, not 8BitScript. The opening brace must be on the same line as asm6502; a brace on the next line is not colored as a block.",
+      "name": "meta.asm.8bs",
+      "begin": "\\b(asm6502)\\s*(\\{)",
+      "beginCaptures": {
+        "1": { "name": "storage.modifier.8bs" },
+        "2": { "name": "punctuation.section.asm.begin.8bs" }
+      },
+      "end": "\\}",
+      "endCaptures": { "0": { "name": "punctuation.section.asm.end.8bs" } },
       "patterns": [
+        { "name": "comment.line.double-slash.8bs", "match": "//.*$" },
+        { "name": "comment.block.8bs", "begin": "/\\*", "end": "\\*/" },
+        { "name": "comment.line.semicolon.8bs", "match": ";.*$" },
         {
-          "name": "meta.import.8bs",
-          "begin": "\\b(import)\\b",
-          "beginCaptures": {
-            "1": {
-              "name": "keyword.control.import.8bs"
-            }
-          },
-          "end": ";|$",
-          "patterns": [
-            {
-              "match": "\\b(from)\\b",
-              "name": "keyword.control.from.8bs"
-            },
-            {
-              "include": "#strings"
-            },
-            {
-              "match": "\\b([A-Za-z_][A-Za-z0-9_]*)\\b",
-              "name": "variable.other.readwrite.8bs"
-            }
-          ]
-        }
+          "name": "keyword.mnemonic.8bs",
+          "match": "\\b(?i:adc|and|asl|bcc|bcs|beq|bit|bmi|bne|bpl|brk|bvc|bvs|clc|cld|cli|clv|cmp|cpx|cpy|dec|dex|dey|eor|inc|inx|iny|jmp|jsr|lda|ldx|ldy|lsr|nop|ora|pha|php|pla|plp|rol|ror|rti|rts|sbc|sec|sed|sei|sta|stx|sty|tax|tay|tsx|txa|txs|tya)\\b"
+        },
+        { "name": "variable.language.register.8bs", "match": ",\\s*(?i:[xy])\\b" },
+        { "name": "keyword.operator.immediate.8bs", "match": "#(?=\\s*[<>$0-9%A-Za-z_])" },
+        { "include": "#numbers" },
+        { "name": "entity.name.label.8bs", "match": "\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*:)" },
+        { "name": "variable.other.readwrite.8bs", "match": "\\b[A-Za-z_][A-Za-z0-9_]*\\b" }
+      ]
+    },
+    "use": {
+      "comment": "use self::geo::{a, b}; use @lib::game::rules::x; use \"./a-b.8bs\"::{c};. The region ends at `;`, or just before the next statement keyword so a missing `;` cannot color the rest of the file. It does not end at a newline, because a `{ ... }` name list may span lines.",
+      "name": "meta.use.8bs",
+      "begin": "\\b(use)\\b",
+      "beginCaptures": { "1": { "name": "keyword.control.import.8bs" } },
+      "end": ";|(?=\\b(?:fn|let|const|mod|pub|use|if|while|loop|for|match|return|break|continue|asm6502)\\b)",
+      "endCaptures": { "0": { "name": "punctuation.terminator.8bs" } },
+      "patterns": [
+        { "include": "#comments" },
+        { "include": "#strings" },
+        { "name": "entity.name.namespace.scope.8bs", "match": "@[A-Za-z0-9_-]+" },
+        { "name": "variable.language.8bs", "match": "\\b(self|super|crate)\\b" },
+        { "name": "keyword.other.as.8bs", "match": "\\bas\\b" },
+        { "name": "punctuation.accessor.8bs", "match": "::" },
+        { "name": "variable.other.readwrite.8bs", "match": "\\b[A-Za-z_][A-Za-z0-9_]*\\b" }
       ]
     },
     "strings": {
       "patterns": [
         {
-          "comment": "A template string: `TICK ${ticks % 10:1} OPTION ${option}`. Each ${...} field holds an ordinary expression (colored as source, via the same rules as the file) and an optional :width — see packages/compiler/src/ir's template layout.",
+          "comment": "A template: `HP ${hp:3}`. Each ${...} field is ordinary source with an optional :width.",
           "name": "string.template.8bs",
           "begin": "`",
           "end": "`",
           "patterns": [
-            {
-              "name": "constant.character.escape.8bs",
-              "match": "\\\\."
-            },
+            { "name": "constant.character.escape.8bs", "match": "\\\\." },
             {
               "name": "meta.template.field.8bs",
               "begin": "\\$\\{",
-              "beginCaptures": {
-                "0": {
-                  "name": "punctuation.definition.template-expression.begin.8bs"
-                }
-              },
+              "beginCaptures": { "0": { "name": "punctuation.definition.template-expression.begin.8bs" } },
               "end": "\\}",
-              "endCaptures": {
-                "0": {
-                  "name": "punctuation.definition.template-expression.end.8bs"
-                }
-              },
+              "endCaptures": { "0": { "name": "punctuation.definition.template-expression.end.8bs" } },
               "patterns": [
-                {
-                  "comment": "The :width after a field's expression — how many cells it takes.",
-                  "match": ":\\s*([0-9]+)",
-                  "captures": {
-                    "1": {
-                      "name": "constant.numeric.decimal.8bs"
-                    }
-                  }
-                },
-                {
-                  "include": "$self"
-                }
+                { "match": ":\\s*([0-9]+)", "captures": { "1": { "name": "constant.numeric.decimal.8bs" } } },
+                { "include": "$self" }
               ]
             }
           ]
         },
         {
+          "comment": "Strings are double-quoted only; 'A' is an error in the new syntax.",
           "name": "string.quoted.double.8bs",
           "begin": "\"",
-          "end": "\"",
-          "patterns": [
-            {
-              "name": "constant.character.escape.8bs",
-              "match": "\\\\."
-            }
-          ]
-        },
-        {
-          "name": "string.quoted.single.8bs",
-          "begin": "'",
-          "end": "'",
-          "patterns": [
-            {
-              "name": "constant.character.escape.8bs",
-              "match": "\\\\."
-            }
-          ]
+          "end": "\"|$",
+          "patterns": [{ "name": "constant.character.escape.8bs", "match": "\\\\." }]
         }
       ]
     },
     "numbers": {
       "patterns": [
         {
-          "comment": "Hexadecimal, in both the C spelling and the 6502-assembly spelling.",
+          "comment": "Hex in the C spelling and the 6502 spelling.",
           "name": "constant.numeric.hex.8bs",
           "match": "\\b0[xX][0-9a-fA-F_]+\\b|\\$[0-9a-fA-F_]+\\b"
         },
         {
-          "comment": "Binary, likewise: bit patterns are written constantly on this hardware.",
+          "comment": "Binary is 0b only; % is the modulo operator.",
           "name": "constant.numeric.binary.8bs",
-          "match": "\\b0[bB][01_]+\\b|%[01_]+\\b"
+          "match": "\\b0[bB][01_]+\\b"
         },
         {
-          "comment": "A decimal fraction such as 0.5 — legal only as the first argument to #frames(...), the compiler's compile-time duration function; the language has no other float syntax.",
+          "comment": "A fraction such as 0.5, legal only inside #frames(...). 0..5 is a range, not a fraction.",
           "name": "constant.numeric.decimal.fraction.8bs",
           "match": "\\b[0-9][0-9_]*\\.[0-9][0-9_]*\\b"
         },
-        {
-          "name": "constant.numeric.decimal.8bs",
-          "match": "\\b[0-9][0-9_]*\\b"
-        }
+        { "name": "constant.numeric.decimal.8bs", "match": "\\b[0-9][0-9_]*\\b" }
       ]
+    },
+    "rawIdentifiers": {
+      "comment": "r#loop: a keyword used as a name.",
+      "name": "variable.other.raw.8bs",
+      "match": "\\br#[A-Za-z_][A-Za-z0-9_]*"
+    },
+    "macros": {
+      "comment": "assert!, assert_eq!, assert_ne!, panic!",
+      "match": "\\b(assert|assert_eq|assert_ne|panic)(!)",
+      "captures": {
+        "1": { "name": "support.function.macro.8bs" },
+        "2": { "name": "support.function.macro.bang.8bs" }
+      }
     },
     "types": {
       "patterns": [
         {
-          "comment": "Type constructors: ptr<u8>, array<u8, 16>, volatile<u8>.",
+          "comment": "Type constructors: ptr<u8>, volatile<u8>, string<16>.",
           "name": "support.type.constructor.8bs",
-          "match": "\\b(ptr|array|volatile)\\b(?=\\s*<)"
+          "match": "\\b(ptr|volatile|string)\\b(?=\\s*<)"
         },
         {
-          "comment": "Sized integers: the MySQL-inspired canonical spelling (tinyint/smallint/mediumint/int, u-prefixed for unsigned) plus the short systems-programming alias (i8/u8...).",
           "name": "support.type.primitive.8bs",
           "match": "\\b(u?tinyint|u?smallint|u?mediumint|u?int|[ui](?:8|16|24|32)|bool|void|string)\\b"
         }
@@ -199,58 +172,53 @@
       "patterns": [
         {
           "name": "keyword.control.8bs",
-          "match": "\\b(if|else|while|for|do|return|break|continue|switch|case|default)\\b"
+          "match": "\\b(if|else|while|loop|for|in|match|return|break|continue)\\b"
         },
+        { "name": "storage.type.8bs", "match": "\\b(fn|let|const|mod)\\b" },
+        { "name": "storage.modifier.8bs", "match": "\\b(pub|mut|asm6502)\\b" },
+        { "name": "keyword.other.as.8bs", "match": "\\bas\\b" },
+        { "name": "variable.language.8bs", "match": "\\b(self|super|crate)\\b" },
+        { "name": "constant.language.boolean.8bs", "match": "\\b(true|false)\\b" },
         {
-          "name": "storage.type.8bs",
-          "match": "\\b(function|let|const|namespace)\\b"
-        },
-        {
-          "name": "storage.modifier.8bs",
-          "match": "\\b(export|import|from|as|asm6502)\\b"
-        },
-        {
-          "name": "constant.language.boolean.8bs",
-          "match": "\\b(true|false)\\b"
+          "comment": "Reserved for later: using one is an error (E3).",
+          "name": "invalid.illegal.reserved.8bs",
+          "match": "\\b(enum|impl|struct|trait|static|type)\\b"
         }
       ]
     },
     "declarations": {
       "patterns": [
         {
-          "comment": "The name in `function name(` is the definition, not a call.",
-          "match": "\\b(function)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "match": "\\b(fn)\\s+([A-Za-z_][A-Za-z0-9_]*)",
           "captures": {
-            "1": {
-              "name": "storage.type.function.8bs"
-            },
-            "2": {
-              "name": "entity.name.function.8bs"
-            }
+            "1": { "name": "storage.type.function.8bs" },
+            "2": { "name": "entity.name.function.8bs" }
           }
         },
         {
-          "comment": "The name bound by `let x` / `const x`.",
-          "match": "\\b(let|const)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "comment": "The name bound by `let x`, `let mut x`, `const X`.",
+          "match": "\\b(let)\\s+(?:(mut)\\s+)?([A-Za-z_][A-Za-z0-9_]*)|\\b(const)\\s+([A-Za-z_][A-Za-z0-9_]*)",
           "captures": {
-            "1": {
-              "name": "storage.type.8bs"
-            },
-            "2": {
-              "name": "variable.other.readwrite.8bs"
-            }
+            "1": { "name": "storage.type.8bs" },
+            "2": { "name": "storage.modifier.8bs" },
+            "3": { "name": "variable.other.readwrite.8bs" },
+            "4": { "name": "storage.type.8bs" },
+            "5": { "name": "variable.other.constant.8bs" }
           }
         },
         {
-          "comment": "The name in `namespace screen {` — the surface a caller writes `screen.setColors(...)` against.",
-          "match": "\\b(namespace)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "match": "\\b(mod)\\s+([A-Za-z_][A-Za-z0-9_]*)",
           "captures": {
-            "1": {
-              "name": "storage.type.8bs"
-            },
-            "2": {
-              "name": "entity.name.namespace.8bs"
-            }
+            "1": { "name": "storage.type.8bs" },
+            "2": { "name": "entity.name.namespace.8bs" }
+          }
+        },
+        {
+          "comment": "for i: u8 in 0..10",
+          "match": "\\b(for)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "keyword.control.8bs" },
+            "2": { "name": "variable.other.readwrite.8bs" }
           }
         }
       ]
@@ -258,98 +226,60 @@
     "builtins": {
       "patterns": [
         {
-          "comment": "#frames(...), the compile-time duration function (packages/compiler/src/fold) — the `#` is the spelling for anything 8bitscript evaluates before the target sees it — as a region so its unit word can be colored only where it *is* a unit: `seconds` is not a reserved name, it is the required second argument — #frames(0.5, seconds) — and anywhere else it is an ordinary identifier.",
+          "comment": "#frames(...) as a region so `seconds` is a unit only there.",
           "begin": "(#frames)\\s*(\\()",
           "beginCaptures": {
-            "1": {
-              "name": "support.function.compile-time.8bs"
-            },
-            "2": {
-              "name": "punctuation.section.arguments.begin.8bs"
-            }
+            "1": { "name": "support.function.compile-time.8bs" },
+            "2": { "name": "punctuation.section.arguments.begin.8bs" }
           },
           "end": "\\)",
-          "endCaptures": {
-            "0": {
-              "name": "punctuation.section.arguments.end.8bs"
-            }
-          },
+          "endCaptures": { "0": { "name": "punctuation.section.arguments.end.8bs" } },
           "patterns": [
-            {
-              "include": "#comments"
-            },
-            {
-              "include": "#numbers"
-            },
-            {
-              "name": "constant.language.unit.8bs",
-              "match": "\\bseconds\\b"
-            }
+            { "include": "#comments" },
+            { "include": "#numbers" },
+            { "name": "constant.language.unit.8bs", "match": "\\bseconds\\b" }
           ]
         },
         {
-          "comment": "#system(), the compile-time machine (packages/compiler/src/fold): the number of the machine a build is for, to compare with the names @8bitscript/system exports.",
-          "match": "(#system)\\s*(\\()\\s*(\\))",
-          "captures": {
-            "1": {
-              "name": "support.function.compile-time.8bs"
-            },
-            "2": {
-              "name": "punctuation.section.arguments.begin.8bs"
-            },
-            "3": {
-              "name": "punctuation.section.arguments.end.8bs"
-            }
-          }
-        },
-        {
-          "comment": "Any other #name: the compile-time spelling, colored as such so a reader sees it is not a runtime call (the compiler reports one it does not know).",
+          "comment": "Any other #name, such as #fact(\"x\") or #system(); `#[` is an attribute and never reaches here.",
           "name": "support.function.compile-time.8bs",
           "match": "#[A-Za-z_][A-Za-z0-9_]*"
         },
         {
-          "comment": "waitFrame() (packages/compiler/src/ir), the reserved runtime builtin function.",
           "name": "support.function.builtin.8bs",
           "match": "\\b(waitFrame)\\b(?=\\s*\\()"
         }
       ]
     },
+    "paths": {
+      "comment": "The module side of `memory::read(a)` or `Color::RED`.",
+      "name": "entity.name.namespace.8bs",
+      "match": "\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*::)"
+    },
     "calls": {
       "patterns": [
         {
-          "comment": "An identifier immediately followed by `(` reads as a call.",
           "name": "entity.name.function.call.8bs",
           "match": "\\b([A-Za-z_][A-Za-z0-9_]*)(?=\\s*\\()"
         },
         {
-          "comment": "The object side of `text.putChar(...)`.",
-          "match": "\\b([A-Za-z_][A-Za-z0-9_]*)(?=\\s*\\.)",
-          "name": "variable.other.object.8bs"
+          "name": "variable.other.object.8bs",
+          "match": "\\b([A-Za-z_][A-Za-z0-9_]*)(?=\\s*\\.(?!\\.))"
         }
       ]
     },
     "operators": {
       "patterns": [
+        { "name": "keyword.operator.range.8bs", "match": "\\.\\.=|\\.\\." },
+        { "name": "keyword.operator.arrow.8bs", "match": "->" },
+        { "name": "keyword.operator.fat-arrow.8bs", "match": "=>" },
+        { "name": "punctuation.accessor.8bs", "match": "::" },
         {
           "name": "keyword.operator.8bs",
-          "match": "\\+\\+|--|<<|>>|&&|\\|\\||[-+*/%&|^~!<>=]=?"
+          "match": "<<=|>>=|&&|\\|\\||<<|>>|[-+*/%&|^]=|[-+*/%&|^~!<>=]=?"
         },
-        {
-          "comment": "The colon introducing a type annotation.",
-          "name": "punctuation.separator.type.8bs",
-          "match": ":"
-        }
-      ]
-    },
-    "decorators": {
-      "patterns": [
-        {
-          "comment": "Hardware placement and similar attributes, e.g. @address(0x900F).",
-          "name": "entity.name.function.decorator.8bs",
-          "match": "@[A-Za-z_][A-Za-z0-9_]*"
-        }
+        { "name": "punctuation.separator.type.8bs", "match": ":" }
       ]
     }
-  },
-  "comment": ""
+  }
 }

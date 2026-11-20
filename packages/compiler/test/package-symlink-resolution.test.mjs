@@ -33,7 +33,7 @@ function writeMachine(dir) {
     name: 'machine',
     '8bitscript': { exports: { './screen': './src/screen.8bs' } },
   });
-  writeFileSync(join(machine, 'src', 'screen.8bs'), 'export namespace screen {}\n');
+  writeFileSync(join(machine, 'src', 'screen.8bs'), 'pub mod screen {\n}\n');
   return machine;
 }
 

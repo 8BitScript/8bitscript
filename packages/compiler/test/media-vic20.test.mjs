@@ -114,14 +114,14 @@ test('sprites in different .8bg files get different slots, so a driver keeps one
     writeFileSync(join(dir, 'p.png'), png);
     writeFileSync(join(dir, 'one.8bg'), 'sprite a { source "./p.png" size 8x8 }\nsprite b { source "./p.png" size 8x8 }\n');
     writeFileSync(join(dir, 'two.8bg'), 'sprite c { source "./p.png" size 8x8 }\n');
-    const program = `import { a, b } from "./one.8bg";
-import { c } from "./two.8bg";
-import { graphics } from "@8bitscript/graphics";
+    const program = `use self::one::{a, b};
+use self::two::c;
+use @8bitscript::graphics::graphics;
 
-export function main(): void {
-    graphics.place(a, 0, 0);
-    graphics.place(b, 8, 0);
-    graphics.place(c, 16, 0);
+pub fn main() {
+    graphics::place(a, 0, 0);
+    graphics::place(b, 8, 0);
+    graphics::place(c, 16, 0);
 }
 `;
     for (const machine of ['vic20', 'c64', 'pet']) {

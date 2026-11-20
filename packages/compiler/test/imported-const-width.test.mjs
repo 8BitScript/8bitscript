@@ -19,7 +19,7 @@ import { build } from '../src/mos/index.ts';
 import { loadCatalog, resolveHardware } from '../../cli/src/hardware.mjs';
 import { linkFiles } from './support/link-files.mjs';
 
-const LIB = `export namespace lib {
+const LIB = `pub mod lib {
     const BASE: usmallint = 24;
     const SMALL: utinyint = 24;
     const FAR: usmallint = 300;
@@ -28,18 +28,18 @@ const LIB = `export namespace lib {
 
 // A second namespace whose const is another module's const: it is settled
 // by the linker's pending pass, which must keep the declared type too.
-const MID = `import { lib } from "./lib.8bs";
-export namespace mid {
-    const ORIGIN: usmallint = lib.BASE;
+const MID = `use self::lib::lib;
+pub mod mid {
+    const ORIGIN: usmallint = lib::BASE;
 }
 `;
 
-const wrap = (body) => `import { lib } from "./lib.8bs";
-import { mid } from "./mid.8bs";
-let out: usmallint = 0;
-let small: utinyint = 0;
-export function main(): void {
-${body}
+const wrap = (body) => `use self::lib::lib;
+use self::mid::mid;
+let mut out: usmallint = 0;
+let mut small: utinyint = 0;
+pub fn main() {
+    ${body};
 }
 `;
 
@@ -53,21 +53,21 @@ function typeOfAssignedSum(body) {
 }
 
 test('a namespace const is inlined with its declared type, so the sum is 16 bits', () => {
-  const value = typeOfAssignedSum('    out = lib.BASE + 236;');
+  const value = typeOfAssignedSum('    out = lib::BASE + 236;');
   assert.equal(value.type, 'usmallint');
   assert.equal(value.left.type, 'usmallint');
   assert.equal(value.left.value, 24);
 });
 
 test('a const settled by the linker (a namespace const named by another) keeps the declared type', () => {
-  const value = typeOfAssignedSum('    out = mid.ORIGIN + 236;');
+  const value = typeOfAssignedSum('    out = mid::ORIGIN + 236;');
   assert.equal(value.type, 'usmallint');
   assert.equal(value.left.type, 'usmallint');
 });
 
 test('a utinyint namespace const stays utinyint, and a wide one stays wide', () => {
-  assert.equal(typeOfAssignedSum('    out = lib.SMALL + 1;').left.type, 'utinyint');
-  assert.equal(typeOfAssignedSum('    out = lib.FAR + 1;').left.type, 'usmallint');
+  assert.equal(typeOfAssignedSum('    out = lib::SMALL + 1;').left.type, 'utinyint');
+  assert.equal(typeOfAssignedSum('    out = lib::FAR + 1;').left.type, 'usmallint');
 });
 
 const c64Hardware = () => {
@@ -90,7 +90,7 @@ async function c64Bytes(body) {
 }
 
 test('on the C64, lib.BASE + 236 builds to the program that stores 260', async () => {
-  const imported = await c64Bytes('    out = lib.BASE + 236;');
+  const imported = await c64Bytes('    out = lib::BASE + 236;');
   const literal = await c64Bytes('    out = 260;');
   assert.deepEqual(imported, literal);
   // And it is not the wrapped value: 24 + 236 in 8 bits is 4.

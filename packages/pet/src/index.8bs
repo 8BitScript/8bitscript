@@ -3,7 +3,7 @@
 // The module entry point named by the "8bitscript".entry field in this
 // package's package.json, resolved and linked for:
 //
-//     import { viaPeripheralControl } from "@8bitscript/pet";
+//     use @8bitscript::pet::viaPeripheralControl;
 //
 // The surface is the hardware, one register at a time. What a program
 // usually wants sits one layer up, in this package's own implementations of
@@ -21,8 +21,7 @@
 // offset 12 — confirmed against the 6522's own register map). Bit 1 chooses
 // the character set: $0C for graphics (upper case), $0E for text (lower
 // case) — the POKE 59468,12 / POKE 59468,14 every PET manual gives.
-@address(0xE84C)
-export let viaPeripheralControl: volatile<u8>;
+#[address(0xE84C)] pub let mut viaPeripheralControl: volatile<u8>;
 
 // PIA1 at $E810 (pet.h's `pia1`, a 6520): the keyboard is here, not on the
 // VIA. PA0-3 select one of the ten matrix rows through a 4-to-10 decoder
@@ -41,8 +40,6 @@ export let viaPeripheralControl: volatile<u8>;
 // waitFrame() returns. $E811 (CRA / DDRA) and $E813 are not exported: CA2
 // is IEEE EOI out on every board after the first, and the retrace flag is
 // the runtime's.
-@address(0xE810)
-export let pia1PortA: volatile<u8>;
+#[address(0xE810)] pub let mut pia1PortA: volatile<u8>;
 
-@address(0xE812)
-export let pia1PortB: volatile<u8>;
+#[address(0xE812)] pub let mut pia1PortB: volatile<u8>;

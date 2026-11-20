@@ -7,17 +7,17 @@
 // each the untouched glyph the old arithmetic would have overwritten
 // (8, 8, 2, 4), so the screenshot says which glyph really changed. See
 // test/charset.test.mjs for the pixels it expects.
-import { screen, BorderColor, BackgroundColor } from "../src/screen.8bs";
-import { charset } from "../src/charset.8bs";
-import { screenRam, colorRam } from "../src/geometry.8bs";
+use super::src::screen::{screen, BorderColor, BackgroundColor};
+use super::src::charset::charset;
+use super::src::geometry::{screenRam, colorRam};
 
-export function main(): void {
-    screen.blank(BorderColor.BLACK, BackgroundColor.BLACK);
-    charset.useUppercase();
-    charset.define(40, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF);
-    charset.define(200, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0);
-    charset.copy(130, 40);
-    charset.setRow(100, 0, 0xFF);
+pub fn main() {
+    screen::blank(BorderColor::BLACK, BackgroundColor::BLACK);
+    charset::useUppercase();
+    charset::define(40, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF);
+    charset::define(200, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0);
+    charset::copy(130, 40);
+    charset::setRow(100, 0, 0xFF);
     // Row 0 of the screen, one glyph per cell: the four redefined ones,
     // then the three neighbours the wrapped writes used to land on.
     screenRam[0] = 40;
@@ -27,16 +27,16 @@ export function main(): void {
     screenRam[4] = 8;
     screenRam[5] = 2;
     screenRam[6] = 4;
-    for (let cell: utinyint = 0; cell < 7; cell++) {
+    for cell: utinyint in 0..7 {
         colorRam[cell] = 1;
     }
     // readRow reads the program's own glyph back (it used to read the
     // ROM's): green border when all three rows match what was defined.
-    if (charset.readRow(200, 3) == 0xF0 && charset.readRow(40, 7) == 0xFF && charset.readRow(100, 0) == 0xFF) {
-        screen.setBorder(BorderColor.GREEN);
+    if charset::readRow(200, 3) == 0xF0 && charset::readRow(40, 7) == 0xFF && charset::readRow(100, 0) == 0xFF {
+        screen::setBorder(BorderColor::GREEN);
     } else {
-        screen.setBorder(BorderColor.RED);
+        screen::setBorder(BorderColor::RED);
     }
-    while (true) {
+    loop {
     }
 }

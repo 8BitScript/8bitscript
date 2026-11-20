@@ -19,7 +19,7 @@ const linkCodes = (src) => link(src, '/t/main.8bs').diagnostics.map((d) => d.cod
 // ---- lowering ---------------------------------------------------------------
 
 test('waitFrame() lowers to its own IR kind, not a call to a function', () => {
-  const { ir, diagnostics } = irOf('export function main(): void { while (true) { waitFrame(); } }');
+  const { ir, diagnostics } = irOf('pub fn main() {\n    loop {\n        waitFrame();\n    }\n}');
   assert.deepEqual(diagnostics, []);
   const loop = ir.functions[0].body[0];
   assert.equal(loop.kind, 'while');
@@ -28,18 +28,18 @@ test('waitFrame() lowers to its own IR kind, not a call to a function', () => {
 });
 
 test('waitFrame() takes no arguments', () => {
-  const { diagnostics } = irOf('export function main(): void { waitFrame(1); }');
+  const { diagnostics } = irOf('pub fn main() {\n    waitFrame(1);\n}');
   assert.deepEqual(diagnostics.map((d) => [d.code, d.message]), [['8BS3001', 'waitFrame() takes no arguments']]);
 });
 
 test('waitFrame() returns nothing and is not an expression', () => {
-  const { diagnostics } = irOf('let x: u8 = 0;\nexport function main(): void { x = waitFrame(); }');
+  const { diagnostics } = irOf('let mut x: u8 = 0;\npub fn main() {\n    x = waitFrame();\n}');
   assert.deepEqual(diagnostics.map((d) => d.code), ['8BS3001']);
   assert.match(diagnostics[0].message, /does not return a value/);
 });
 
 test('a program using waitFrame() links with no unresolved name', () => {
-  const { ir, diagnostics } = link('export function main(): void { waitFrame(); }', '/t/main.8bs');
+  const { ir, diagnostics } = link('pub fn main() {\n    waitFrame();\n}', '/t/main.8bs');
   assert.deepEqual(diagnostics, []);
   assert.equal(ir.functions[0].body[0].kind, 'waitFrame');
 });
@@ -47,13 +47,13 @@ test('a program using waitFrame() links with no unresolved name', () => {
 // ---- the entry rule -----------------------------------------------------------
 
 test('the entry module\'s one exported function is the program, under any name', () => {
-  assert.equal(link('export function main(): void {}', '/t/main.8bs').ir.entry, 'main');
-  assert.equal(link('export function start(): void {}', '/t/main.8bs').ir.entry, 'start');
-  assert.equal(link('export function update(): void {}\nfunction helper(): void {}', '/t/main.8bs').ir.entry, 'update');
+  assert.equal(link('pub fn main() {\n}', '/t/main.8bs').ir.entry, 'main');
+  assert.equal(link('pub fn start() {\n}', '/t/main.8bs').ir.entry, 'start');
+  assert.equal(link('pub fn update() {\n}\nfn helper() {\n}', '/t/main.8bs').ir.entry, 'update');
 });
 
 test('two exported functions in the entry module is 8BS2010, once per function', () => {
-  const { ir, diagnostics } = link('export function main(): void {}\nexport function frame(): void {}', '/t/main.8bs');
+  const { ir, diagnostics } = link('pub fn main() {\n}\npub fn frame() {\n}', '/t/main.8bs');
   assert.equal(ir, null);
   assert.deepEqual(diagnostics.map((d) => d.code), ['8BS2010', '8BS2010']);
   assert.match(diagnostics[0].message, /'main' is one of 2/);
@@ -61,54 +61,54 @@ test('two exported functions in the entry module is 8BS2010, once per function',
 });
 
 test('an exported global or namespace in the entry module is 8BS2010', () => {
-  assert.deepEqual(linkCodes('export let x: u8 = 1;\nexport function main(): void {}'), ['8BS2010']);
+  assert.deepEqual(linkCodes('pub let mut x: u8 = 1;\npub fn main() {\n}'), ['8BS2010']);
   assert.deepEqual(
-    linkCodes('export namespace n { const K: u8 = 1; }\nexport function main(): void {}'),
+    linkCodes('pub mod n {\n    const K: u8 = 1;\n}\npub fn main() {\n}'),
     ['8BS2010'],
   );
 });
 
 test('an entry module exporting nothing is 8BS2010', () => {
-  const { diagnostics } = link('function main(): void {}', '/t/main.8bs');
+  const { diagnostics } = link('fn main() {\n}', '/t/main.8bs');
   assert.deepEqual(diagnostics.map((d) => d.code), ['8BS2010']);
-  assert.match(diagnostics[0].message, /exports nothing/);
+  assert.match(diagnostics[0].message, /has nothing pub/);
 });
 
 test('an entry point with parameters is 8BS2010', () => {
-  const { diagnostics } = link('export function main(n: u8): void {}', '/t/main.8bs');
+  const { diagnostics } = link('pub fn main(n: u8) {\n}', '/t/main.8bs');
   assert.deepEqual(diagnostics.map((d) => d.code), ['8BS2010']);
   assert.match(diagnostics[0].message, /must take no parameters/);
 });
 
 test('the diagnostic points at the offending name', () => {
-  const src = 'export let x: u8 = 1;\nexport function main(): void {}';
+  const src = 'pub let mut x: u8 = 1;\npub fn main() {\n}';
   const [d] = link(src, '/t/main.8bs').diagnostics;
   assert.equal(src.slice(d.start, d.start + d.length), 'x');
 });
 
 test('library modules may export whatever they like', () => {
   // Only the entry is held to one export; a package exports many.
-  const entryOnly = link('export function main(): void {}', '/t/main.8bs');
+  const entryOnly = link('pub fn main() {\n}', '/t/main.8bs');
   assert.deepEqual(entryOnly.diagnostics, []);
 });
 
 // ---- entryOf: the same rule for IR that never went through the linker ----------
 
 test('entryOf reads ir.entry from linked IR and falls back to the sole export otherwise', () => {
-  assert.equal(entryOf(link('export function go(): void {}', '/t/main.8bs').ir), 'go');
-  assert.equal(entryOf(irOf('export function main(): void {}').ir), 'main');
-  assert.equal(entryOf(irOf('export function main(): void {}\nexport function f(): void {}').ir), null);
-  assert.equal(entryOf(irOf('function main(): void {}').ir), null);
+  assert.equal(entryOf(link('pub fn go() {\n}', '/t/main.8bs').ir), 'go');
+  assert.equal(entryOf(irOf('pub fn main() {\n}').ir), 'main');
+  assert.equal(entryOf(irOf('pub fn main() {\n}\npub fn f() {\n}').ir), null);
+  assert.equal(entryOf(irOf('fn main() {\n}').ir), null);
 });
 
 // ---- reserved name and hover ---------------------------------------------------
 
 test('declaring or importing "waitFrame" is 8BS2009 with the right wording', () => {
   for (const src of [
-    'function waitFrame(): void {}',
+    'fn waitFrame() {\n}',
     'let waitFrame: u8 = 1;',
-    'import { waitFrame } from "./x.8bs";',
-    'function f(waitFrame: u8): void {}',
+    'use self::x::waitFrame;',
+    'fn f(waitFrame: u8) {\n}',
   ]) {
     const [d] = analyze(src, 't.8bs');
     assert.equal(d.code, '8BS2009', src);
@@ -119,7 +119,7 @@ test('declaring or importing "waitFrame" is 8BS2009 with the right wording', () 
 });
 
 test('hover explains waitFrame()', () => {
-  const text = 'export function main(): void { while (true) { waitFrame(); } }';
+  const text = 'pub fn main() {\n    loop {\n        waitFrame();\n    }\n}';
   const info = getHoverInfo(text, text.indexOf('waitFrame') + 3);
   assert.ok(info);
   assert.match(info.markdown, /Blocks until the next logical frame/);

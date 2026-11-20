@@ -9,7 +9,7 @@
 // Notes are the .8ba / SID index, octave × 12 + semitone, C0 = 0, A4 = 57.
 // The table covers C3..B7; a note outside it is moved by whole octaves into
 // it, so the pitch class is kept and the octave is what degrades.
-import { setVramAddress } from "@8bitscript/cx16";
+use @8bitscript::cx16::setVramAddress;
 
 const PSG_BANK: utinyint = 1;
 const PSG_LOW: usmallint = 0xF9C0;
@@ -17,7 +17,7 @@ const NOTE_FIRST: utinyint = 36;
 const NOTE_LAST: utinyint = 95;
 
 // Frequency word for notes 36..95 (C3..B7), A4 = 440 Hz.
-const FREQUENCY: array<usmallint, 60> = [
+const FREQUENCY: [usmallint; 60] = [
     351, 372, 394, 418, 442, 469, 497, 526, 557, 591, 626, 663,
     702, 744, 788, 835, 885, 937, 993, 1052, 1115, 1181, 1251, 1326,
     1405, 1488, 1577, 1670, 1770, 1875, 1986, 2105, 2230, 2362, 2503, 2652,
@@ -25,27 +25,27 @@ const FREQUENCY: array<usmallint, 60> = [
     5618, 5952, 6306, 6681, 7079, 7500, 7946, 8418, 8919, 9449, 10011, 10606,
 ];
 
-function writePsg(offset: utinyint, value: utinyint): void {
+fn writePsg(offset: utinyint, value: utinyint) {
     let low: usmallint = PSG_LOW + offset;
     setVramAddress(PSG_BANK, low, 1);
-    memory.write(0x9F23, value);
+    memory::write(0x9F23, value);
 }
 
-function frequencyOf(note: utinyint): usmallint {
-    let n: utinyint = note;
-    while (n < NOTE_FIRST) {
+fn frequencyOf(note: utinyint) -> usmallint {
+    let mut n: utinyint = note;
+    while n < NOTE_FIRST {
         n = n + 12;
     }
-    while (n > NOTE_LAST) {
+    while n > NOTE_LAST {
         n = n - 12;
     }
     return FREQUENCY[n - NOTE_FIRST];
 }
 
-export namespace psg {
-    function reset(): void {
-        let v: utinyint = 0;
-        while (v < 16) {
+pub mod psg {
+    fn reset() {
+        let mut v: utinyint = 0;
+        while v < 16 {
             writePsg(v * 4 + 2, 0);
             v = v + 1;
         }
@@ -53,21 +53,21 @@ export namespace psg {
 
     // Wave: 0 pulse, 1 sawtooth, 2 triangle, 3 noise. Volume 0..15 (the
     // chip has 64 steps; four of them per step here).
-    function play(voice: utinyint, note: utinyint, wave: utinyint, volume: utinyint): void {
+    fn play(voice: utinyint, note: utinyint, wave: utinyint, volume: utinyint) {
         let frequency: usmallint = frequencyOf(note);
         let base: utinyint = voice * 4;
         writePsg(base, frequency % 256);
         writePsg(base + 1, frequency / 256);
-        writePsg(base + 2, 0xC0 | ((volume & 15) * 4));
-        writePsg(base + 3, ((wave & 3) << 6) | 63);
+        writePsg(base + 2, 0xC0 | (volume & 15) * 4);
+        writePsg(base + 3, (wave & 3) << 6 | 63);
     }
 
-    function silence(voice: utinyint): void {
+    fn silence(voice: utinyint) {
         writePsg(voice * 4 + 2, 0);
     }
 
     // Change a voice's volume (0..15, the same steps as `play`) without touching its pitch.
-    function setVolume(voice: utinyint, volume: utinyint): void {
-        writePsg(voice * 4 + 2, 0xC0 | ((volume & 15) * 4));
+    fn setVolume(voice: utinyint, volume: utinyint) {
+        writePsg(voice * 4 + 2, 0xC0 | (volume & 15) * 4);
     }
 }

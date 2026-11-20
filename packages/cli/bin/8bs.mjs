@@ -201,7 +201,7 @@ Implemented:
                                generators, scripts)
                                (a template literal or a ['...'].join('\\n')
                                array; \${expr} is kept), --fences the
-                               \`\`\`8bs fences in Markdown, --all all three.
+                               \`\`\`8bs and \`\`\`8bx fences in Markdown, --all all three.
                                --check writes nothing and exits 1 on any
                                difference or failure. A literal it cannot
                                convert is listed and left alone. This

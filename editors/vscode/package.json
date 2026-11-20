@@ -623,7 +623,7 @@
         "8bitscript.examplesPath": {
           "type": "string",
           "default": "",
-          "description": "A directory of your own examples to list in the launcher's Project dropdown, instead of the ones that ship with the toolchain (@8bitscript/examples). Each subdirectory with an 8bitscript.config.ts (or an older .ts name) is one."
+          "description": "A directory of your own examples to list in the launcher's Project dropdown, instead of the ones that ship with the toolchain (@8bitscript/examples). Each subdirectory with an 8bitscript.config.ts (or 8bs.config.ts) is one."
         },
         "8bitscript.hardware": {
           "type": "object",

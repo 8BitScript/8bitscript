@@ -3,7 +3,7 @@
 // Named by "8bitscript".exports["./screen"] in this package's package.json,
 // and what
 //
-//     import { screen, BorderColor, BackgroundColor } from "@8bitscript/screen";
+//     use @8bitscript::screen::{screen, BorderColor, BackgroundColor};
 //
 // resolves to when the build is for the NES: @8bitscript/screen's entry is
 // keyed by machine and delegates here. Built on the PPU port protocol
@@ -11,7 +11,7 @@
 // this one lives by. Every machine's screen.8bs exports this same surface,
 // which is what lets a program import it from @8bitscript/screen and never
 // name the hardware.
-import { setVramAddress, resetScroll, queueRun, queueByte, nesVerticalBlank } from "./index.8bs";
+use self::index::{setVramAddress, resetScroll, queueRun, queueByte, nesVerticalBlank};
 
 // ---- what "border" means on a machine that has none --------------------
 //
@@ -53,24 +53,24 @@ import { setVramAddress, resetScroll, queueRun, queueByte, nesVerticalBlank } fr
 // is what lets setColors() lay the frame exactly once, on the call that
 // is by construction the last moment a large VRAM write is free.
 
-let renderingEnabled: u8 = 0;
+let mut renderingEnabled: u8 = 0;
 
 // `count` consecutive nametable cells from `address`, one PPUADDR set and
 // then PPUDATA's auto-increment — the cheap way to write a run.
-function fillRun(address: usmallint, count: usmallint, value: utinyint): void {
+fn fillRun(address: usmallint, count: usmallint, value: utinyint) {
     setVramAddress(address);
-    for (let i: usmallint = 0; i < count; i++) {
-        memory.write(0x2007, value);
+    for i: usmallint in 0..count {
+        memory::write(0x2007, value);
     }
 }
 
 // The drawn border: rows 0-1 and 28-29 in full, columns 0-1 and 30-31 of
 // every row between, all tile $80 (solid color index 2 — see font.s).
 // Then the 64-byte attribute table at $23C0, zeroed: palette 0 everywhere.
-function layFrame(): void {
+fn layFrame() {
     fillRun(0x2000, 64, 0x80);
     fillRun(0x2380, 64, 0x80);
-    for (let row: usmallint = 2; row < 28; row++) {
+    for row: usmallint in 2..28 {
         fillRun(0x2000 + row * 32, 2, 0x80);
         fillRun(0x2000 + row * 32 + 30, 2, 0x80);
     }
@@ -83,41 +83,41 @@ function layFrame(): void {
 // rendering starts at the next vertical blank — switching it on mid-frame
 // would draw the rest of that frame from wherever the PPU's address
 // register sits. Every later call returns at once.
-function showPicture(): void {
-    if (renderingEnabled == 1) {
+fn showPicture() {
+    if renderingEnabled == 1 {
         return;
     }
     layFrame();
     setVramAddress(0x3F01);
-    memory.write(0x2007, 0x30); // $3F01: text — white
+    memory::write(0x2007, 0x30); // $3F01: text — white
     resetScroll();
-    while (memory.read(0x2002) < 128) {
+    while memory::read(0x2002) < 128 {
     }
     renderingEnabled = 1;
     // PPUMASK: bit 3 shows the background, bit 1 shows it in the leftmost
     // 8 pixels too — otherwise column 0, the outer edge of the frame, would
     // be clipped to the backdrop color. Sprites stay off.
-    memory.write(0x2001, 0x0A);
+    memory::write(0x2001, 0x0A);
 }
 
 // One palette entry. With the picture on it goes through the write queue
 // and lands at the next vertical blank, like text (see index.8bs); with
 // the picture off the PPU is free and it is written now.
-function setPalette(entry: usmallint, color: utinyint): void {
-    if (renderingEnabled == 1) {
+fn setPalette(entry: usmallint, color: utinyint) {
+    if renderingEnabled == 1 {
         queueRun(entry);
         queueByte(color);
         return;
     }
     setVramAddress(entry);
-    memory.write(0x2007, color);
+    memory::write(0x2007, color);
     resetScroll();
 }
 
-export namespace screen {
-    function setColors(border: u8, background: u8): void {
+pub mod screen {
+    fn setColors(border: u8, background: u8) {
         setPalette(0x3F00, background); // $3F00: the universal backdrop
-        setPalette(0x3F02, border);     // $3F02: the frame tile
+        setPalette(0x3F02, border); // $3F02: the frame tile
         showPicture();
     }
 
@@ -126,7 +126,7 @@ export namespace screen {
     // to leave one as it is. `setBorder` and `setBackground` are one
     // color each, `setColors` the pair; `text.setColor` owns what the
     // next print looks like.
-    function blank(border: utinyint = BorderColor.BLACK, background: utinyint = BackgroundColor.BLACK): void {
+    fn blank(border: utinyint = BorderColor::BLACK, background: utinyint = BackgroundColor::BLACK) {
         // The nametable can only be filled in bulk with the picture off.
         // Before the first call that shows it, it already is; after, this
         // switches it off, fills, and switches it back on at the next
@@ -134,37 +134,37 @@ export namespace screen {
         // scene change. Cells are the 28x26 area inside the frame; tile 32
         // is the blank, as putChar's space is.
         let wasShowing: utinyint = renderingEnabled;
-        if (wasShowing == 1) {
-            memory.write(0x2001, 0x00);
+        if wasShowing == 1 {
+            memory::write(0x2001, 0x00);
             renderingEnabled = 0; // the PPU is free until this switches it back on
         }
         nesVerticalBlank(); // whatever was printed before this, with the PPU free
-        if (border != BorderColor.KEEP) {
+        if border != BorderColor::KEEP {
             setPalette(0x3F02, border);
         }
-        if (background != BackgroundColor.KEEP) {
+        if background != BackgroundColor::KEEP {
             setPalette(0x3F00, background);
         }
-        for (let row: usmallint = 2; row < 28; row++) {
+        for row: usmallint in 2..28 {
             fillRun(0x2000 + row * 32 + 2, 28, 32);
         }
         resetScroll();
-        if (wasShowing == 1) {
-            while (memory.read(0x2002) < 128) {
+        if wasShowing == 1 {
+            while memory::read(0x2002) < 128 {
             }
             renderingEnabled = 1;
-            memory.write(0x2001, 0x0A);
+            memory::write(0x2001, 0x0A);
         } else {
             showPicture();
         }
     }
 
-    function setBackground(background: u8): void {
+    fn setBackground(background: u8) {
         setPalette(0x3F00, background);
         showPicture();
     }
 
-    function setBorder(border: u8): void {
+    fn setBorder(border: u8) {
         setPalette(0x3F02, border);
         showPicture();
     }
@@ -177,7 +177,7 @@ export namespace screen {
     // disappears with them.
     const RESIZABLE: bool = false;
 
-    function resized(): bool {
+    fn resized() -> bool {
         return false;
     }
 }
@@ -196,7 +196,7 @@ export namespace screen {
 // here passes its own index to setColors() directly. Not visually verified
 // under FCEUX by this project; the chart is NESdev's.
 
-export namespace BorderColor {
+pub mod BorderColor {
     const BLACK: utinyint = 0x0F;
     const WHITE: utinyint = 0x30;
     const RED: utinyint = 0x16;
@@ -210,7 +210,7 @@ export namespace BorderColor {
     const KEEP: utinyint = 255;
 }
 
-export namespace BackgroundColor {
+pub mod BackgroundColor {
     const BLACK: utinyint = 0x0F;
     const WHITE: utinyint = 0x30;
     const RED: utinyint = 0x16;
