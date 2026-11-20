@@ -105,6 +105,7 @@ pub fn main() {
     a = Video::SPRITE_WIDTH;
     a = Video::SPRITE_HEIGHT;
     a = Video::SPRITE_COLORS;
+    a = Video::SPRITE_KIB;
     a = Video::LAYERS;
     b = Video::BITMAP;
     b = Video::SCROLL;

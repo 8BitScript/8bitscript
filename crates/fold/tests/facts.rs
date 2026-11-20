@@ -101,7 +101,7 @@ fn facts_match_js() {
         seen.insert(fn_name.clone());
     }
     assert_eq!(seen.len(), 11, "{seen:?}");
-    assert_eq!(FACTS.len(), 42);
+    assert_eq!(FACTS.len(), 43);
 }
 
 #[test]

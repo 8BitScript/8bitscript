@@ -54,6 +54,7 @@
         "video.spriteWidth": 64,
         "video.spriteHeight": 255,
         "video.spriteColors": 15,
+        "video.spriteKib": 0,
         "video.frameRate": 60,
         "audio.voices": 16,
         "audio.noise": true,
