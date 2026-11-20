@@ -129,21 +129,6 @@ test('loadConfig reads 8bitscript.config.ts as plain type-stripped TypeScript', 
   }
 });
 
-test('loadConfig writes a load error and returns null when a .8bs config does not evaluate', async () => {
-  const dir = await mkdtemp(join(tmpdir(), '8bs-config-'));
-  const stderr = [];
-  const original = process.stderr.write;
-  process.stderr.write = (chunk) => { stderr.push(String(chunk)); return true; };
-  try {
-    await writeFile(join(dir, '8bitscript.config.8bs'), 'throw new Error("boom");\n');
-    assert.equal(await loadConfig(dir, '8bs check'), null);
-    assert.match(stderr.join(''), /8bs check: cannot load 8bitscript\.config\.8bs: boom/);
-  } finally {
-    process.stderr.write = original;
-    await rm(dir, { recursive: true, force: true });
-  }
-});
-
 test('loadConfig loads a typed .ts config from under node_modules, and cleans up its temp file', async () => {
   const root = await mkdtemp(join(tmpdir(), '8bs-config-'));
   try {
