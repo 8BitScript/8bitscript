@@ -102,7 +102,7 @@ fn fixtures_replay() {
                 continue;
             };
             if let Replay::Mismatch(path, js, rust) = compare(expected, &got) {
-                // The JSON error text of a broken package.json is V8's; only its shape is compared.
+                // The JSON error text of a broken package.json is V8's, so that result is skipped.
                 if name == "package broken" && what == "result" {
                     continue;
                 }

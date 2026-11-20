@@ -111,19 +111,53 @@ fn decode_tree(tree: &Value) -> Result<Node, String> {
     Ok(root)
 }
 
-/// A `#package` call whose file name carries a root token: the tap wrote the project's path as
-/// `<project>`, and `#package` reads the file system there, so it needs the project the corpus
-/// cloned for the build. A replay without that project cannot answer it (`fixtures/fold.json`
-/// covers `#package` with real files).
-fn reads_unreachable_package(args: &[Value]) -> bool {
-    let tokenized = args
-        .get(1)
+/// Whether `tree` holds a `#package(..)` call: a CallExpression whose callee is the compile-time
+/// identifier `package`.
+fn has_package_call(tree: &Value) -> bool {
+    match tree {
+        Value::Object(map) => {
+            let is_call = map.get("type").and_then(Value::as_str) == Some("CallExpression")
+                && map.get("callee").is_some_and(|callee| {
+                    callee.get("type").and_then(Value::as_str) == Some("Identifier")
+                        && callee.get("name").and_then(Value::as_str) == Some("package")
+                        && callee.get("compileTime") == Some(&Value::Bool(true))
+                });
+            is_call || map.values().any(has_package_call)
+        }
+        Value::Array(items) => items.iter().any(has_package_call),
+        _ => false,
+    }
+}
+
+/// A `#package` call in a file the tap wrote as `<project>/..`: `#package` reads the file system
+/// there, so only the project the corpus cloned for the build can answer it, and a replay without
+/// that project cannot. `fixtures/fold.json` covers `#package` over real files.
+fn reads_project_package(args: &[Value]) -> bool {
+    args.get(1)
         .and_then(Value::as_str)
-        .is_some_and(|file| file.contains("<project>") || file.contains("<toolchain>"));
-    tokenized
-        && args
-            .first()
-            .is_some_and(|tree| tree.to_string().contains(r#""name":"package""#))
+        .is_some_and(|file| file.starts_with("<project>"))
+        && args.first().is_some_and(has_package_call)
+}
+
+/// `value` of every literal a `#package` fold wrote (its `raw` is `#package(..)`) set to null: the
+/// one part of the tree that depends on the files read.
+fn mask_package_values(tree: &mut Value) {
+    match tree {
+        Value::Object(map) => {
+            let folded = map
+                .get("raw")
+                .and_then(Value::as_str)
+                .is_some_and(|raw| raw.starts_with("#package("));
+            if folded {
+                map.insert("value".to_string(), Value::Null);
+            }
+            for value in map.values_mut() {
+                mask_package_values(value);
+            }
+        }
+        Value::Array(items) => items.iter_mut().for_each(mask_package_values),
+        _ => {}
+    }
 }
 
 /// What one call left behind.
@@ -170,31 +204,49 @@ pub fn run(args: &[Value]) -> Result<Outcome, String> {
     })
 }
 
+/// The BigInt conversion error: V8 words it with the number, the port with its own text, and both
+/// carry this phrase.
+fn same_big_int_error(expected: Option<&str>, message: &str) -> bool {
+    const PHRASE: &str = "cannot be converted to a BigInt";
+    expected.is_some_and(|text| text.contains(PHRASE)) && message.contains(PHRASE)
+}
+
 #[must_use]
 pub fn replay(record: &Value) -> Replay {
     let Some(args) = record.get("args").and_then(Value::as_array) else {
         return Replay::Skip;
     };
-    if record.get("throw").is_some() {
-        return Replay::Skip;
+    let outcome = run(args);
+    if let Some(thrown) = record.get("throw") {
+        // The call threw in JS: the same error is a match; no recorded R7.8 site applies here.
+        let expected = thrown.as_str().map(str::to_string);
+        return match outcome {
+            Err(message) if expected.as_deref() == Some(message.as_str()) => Replay::Match,
+            Err(message) if same_big_int_error(expected.as_deref(), &message) => Replay::Match,
+            Err(message) => Replay::Mismatch("/throw".into(), thrown.clone(), json!(message)),
+            Ok(_) => Replay::Mismatch("/throw".into(), thrown.clone(), Value::Null),
+        };
     }
-    let outcome = match run(args) {
+    let outcome = match outcome {
         Ok(outcome) => outcome,
         Err(message) => return Replay::Mismatch("/args".into(), Value::Null, json!(message)),
     };
     let got = serde_json::to_value(&outcome.diagnostics).unwrap_or(Value::Null);
     let first = compare(record.get("result").unwrap_or(&Value::Null), &got);
     if first != Replay::Match {
-        return if reads_unreachable_package(args) {
-            Replay::Skip
-        } else {
-            first
+        return first;
+    }
+    let mut after = serde_json::to_value(&outcome.ast).unwrap_or(Value::Null);
+    if reads_project_package(args) {
+        // Only the folded values are unknowable here: everything else is compared, and a record
+        // that matches is a skip, not a match.
+        let mut expected = record.get("after").cloned().unwrap_or(Value::Null);
+        mask_package_values(&mut expected);
+        mask_package_values(&mut after);
+        return match compare(&expected, &after) {
+            Replay::Match => Replay::Skip,
+            other => other,
         };
     }
-    let after = serde_json::to_value(&outcome.ast).unwrap_or(Value::Null);
-    let second = compare(record.get("after").unwrap_or(&Value::Null), &after);
-    if second != Replay::Match && reads_unreachable_package(args) {
-        return Replay::Skip;
-    }
-    second
+    compare(record.get("after").unwrap_or(&Value::Null), &after)
 }

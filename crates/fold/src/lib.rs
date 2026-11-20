@@ -750,11 +750,12 @@ impl Fold<'_> {
         let frame_rate = self.options.frame_rate;
         let numerator = big_int(numerator)?;
         let denominator = big_int(denominator)?;
+        let frame_rate_int = big_int(frame_rate)?;
         if denominator.is_zero() {
             return Err("Division by zero".to_string());
         }
         let seconds = to_seconds(BigRational::new(numerator, denominator));
-        let ticks = (clock.ticks)(seconds, &big_int(frame_rate)?);
+        let ticks = (clock.ticks)(seconds, &frame_rate_int);
         let (value, exact) = round_fraction(&ticks);
         let written = format!("#{name}({raw}, {unit_name})");
         let describe = (clock.describe)(frame_rate);
