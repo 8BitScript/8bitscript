@@ -201,8 +201,8 @@ fn replace_with_fact(n: &mut Node, key: &str, value: &Json) {
     let raw = Some(format!("#fact({key})"));
     match value {
         Json::Bool(flag) => replace_with(n, Folded::Boolean(*flag), raw),
-        // A fact that is neither a flag nor a count cannot reach here: a
-        // list fact is refused before, and a sheet holds numbers and flags.
+        // A fact that is neither a flag nor a count is the R7.8 record
+        // `replace_with_fact` in oracle/divergences.toml; the sheet holds numbers and flags.
         Json::Number(count) => replace_with(n, Folded::Integer(*count), raw),
         _ => replace_with(n, Folded::Integer(0.0), raw),
     }

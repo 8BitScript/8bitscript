@@ -204,13 +204,6 @@ pub fn run(args: &[Value]) -> Result<Outcome, String> {
     })
 }
 
-/// The BigInt conversion error: V8 words it with the number, the port with its own text, and both
-/// carry this phrase.
-fn same_big_int_error(expected: Option<&str>, message: &str) -> bool {
-    const PHRASE: &str = "cannot be converted to a BigInt";
-    expected.is_some_and(|text| text.contains(PHRASE)) && message.contains(PHRASE)
-}
-
 #[must_use]
 pub fn replay(record: &Value) -> Replay {
     let Some(args) = record.get("args").and_then(Value::as_array) else {
@@ -222,7 +215,6 @@ pub fn replay(record: &Value) -> Replay {
         let expected = thrown.as_str().map(str::to_string);
         return match outcome {
             Err(message) if expected.as_deref() == Some(message.as_str()) => Replay::Match,
-            Err(message) if same_big_int_error(expected.as_deref(), &message) => Replay::Match,
             Err(message) => Replay::Mismatch("/throw".into(), thrown.clone(), json!(message)),
             Ok(_) => Replay::Mismatch("/throw".into(), thrown.clone(), Value::Null),
         };
