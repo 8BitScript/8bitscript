@@ -53,7 +53,7 @@ test('every layer answers the same four calls and the same const', () => {
     const machinePkg = JSON.parse(readFileSync(join(REPO, 'packages', machine, 'package.json'), 'utf8'));
     const source = readFileSync(join(REPO, 'packages', machine, machinePkg['8bitscript'].exports[`./${subpath}`]), 'utf8');
     for (const call of SURFACE) {
-      assert.match(source, new RegExp(`function ${call}\\(`), `${target} has no ${call}()`);
+      assert.match(source, new RegExp(`fn ${call}\\(`), `${target} has no ${call}()`);
     }
     assert.match(source, /const DRAWS: bool = /, `${target} does not declare DRAWS`);
   }
@@ -91,22 +91,22 @@ test('the arrow is behind the mouse fact, and the fact is what the catalog says'
   assert.equal(fittedC128.facts['input.mouse'], true);
 
   const layer = readFileSync(join(REPO, 'packages', 'c64', 'src', 'pointer.8bs'), 'utf8');
-  assert.match(layer, /const HAS_MOUSE: bool = #fact\(input\.mouse\);/);
+  assert.match(layer, /const HAS_MOUSE: bool = #fact\(input::mouse\);/);
   // Every function that touches the hardware is inside the fact's branch,
   // so a build without a mouse reaches none of it.
-  for (const call of ['sprites.setShape', 'sprites.place', 'sprites.show', 'sprites.hide']) {
+  for (const call of ['sprites::setShape', 'sprites::place', 'sprites::show', 'sprites::hide']) {
     assert.ok(layer.includes(call), `the C64 layer should use ${call}`);
   }
   assert.equal(
-    layer.match(/if \(HAS_MOUSE\) \{/g).length,
+    layer.match(/if HAS_MOUSE \{/g).length,
     SURFACE.length,
     'every call in the surface should gate its body on the mouse fact',
   );
 
   const c128 = readFileSync(join(REPO, 'packages', 'c128', 'src', 'pointer.8bs'), 'utf8');
-  assert.match(c128, /const HAS_MOUSE: bool = #fact\(input\.mouse\);/);
+  assert.match(c128, /const HAS_MOUSE: bool = #fact\(input::mouse\);/);
   assert.equal(
-    c128.match(/if \(HAS_MOUSE\) \{/g).length,
+    c128.match(/if HAS_MOUSE \{/g).length,
     SURFACE.length,
     'every call in the C128 surface should gate its body on the mouse fact',
   );

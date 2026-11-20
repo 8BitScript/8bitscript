@@ -9,8 +9,7 @@ import { basename, dirname, join, resolve as resolvePath } from 'node:path';
 
 import { NodeType } from '../ast/index.mjs';
 import { Codes, diagnostic } from '../diagnostics/index.mjs';
-import { tokenize } from '../lexer/index.mjs';
-import { parse } from '../parser/index.mjs';
+import { parse, tokenize } from '../front/index.mjs';
 import { isLocaleName, isSourceFile, sourceKindOf, stripSourceExtension } from '../source/index.mjs';
 
 export const CATALOG_SPECIFIER = '@8bitscript/i18n/catalog';
@@ -238,7 +237,7 @@ export function catalogSchema(ast, file) {
           continue;
         }
         extras.push({
-          message: `a message catalog may export only namespace string consts; '${member.name?.name ?? member.type}' is not one`,
+          message: `a message catalog may make only mods of string consts pub; '${member.name?.name ?? member.type}' is not one`,
           start: member.start ?? node.start,
           length: member.length ?? node.length,
           file,
@@ -248,7 +247,7 @@ export function catalogSchema(ast, file) {
       continue;
     }
     extras.push({
-      message: `a message catalog may export only namespaces of string consts`,
+      message: `a message catalog may make only mods of string consts pub`,
       start: node.start ?? 0,
       length: node.length ?? 0,
       file,
@@ -284,7 +283,7 @@ export function compareCatalogSchemas(baseline, other, locale) {
       const first = members.values().next().value;
       diagnostics.push(diagnostic(
         Codes.CATALOG_SCHEMA,
-        `locale '${locale}' exports namespace '${ns}', which the default locale does not`,
+        `locale '${locale}' has pub mod '${ns}', which the default locale does not`,
         first?.file ?? other.file, first?.start ?? 0, first?.length ?? 0,
       ));
       continue;
@@ -324,7 +323,7 @@ function emitCatalog(baseline, values) {
     '',
   ];
   for (const [ns, members] of baseline.namespaces) {
-    lines.push(`export namespace ${ns} {`);
+    lines.push(`pub mod ${ns} {`);
     for (const name of members.keys()) {
       const value = values.get(ns)?.get(name) ?? '';
       lines.push(`    const ${name}: string = ${quote8bs(value)};`);
@@ -374,7 +373,7 @@ export function prepareCatalog(options = {}) {
       ok: false,
       diagnostics: [diagnostic(
         Codes.CATALOG,
-        `'${CATALOG_SPECIFIER}' needs a message catalog (src/i18n/<locale>.8bs, or i18n.catalog in 8bitscript.config.8bs)`,
+        `'${CATALOG_SPECIFIER}' needs a message catalog (src/i18n/<locale>.8bs, or i18n.catalog in 8bitscript.config.ts)`,
         options.fromFile ?? '<unknown>', 0, 0,
       )],
     };
@@ -473,7 +472,7 @@ export function resolveCatalogSpecifier(specifier, fromFile, options = {}) {
     if (!catalogDir) {
       return {
         code: Codes.CATALOG,
-        message: `'${CATALOG_SPECIFIER}' needs a message catalog (src/i18n/<locale>.8bs, or i18n.catalog in 8bitscript.config.8bs)`,
+        message: `'${CATALOG_SPECIFIER}' needs a message catalog (src/i18n/<locale>.8bs, or i18n.catalog in 8bitscript.config.ts)`,
       };
     }
     options.i18n = {

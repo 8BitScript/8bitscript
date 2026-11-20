@@ -37,7 +37,7 @@ const parsesClean = (src) => assert.deepEqual(frontEndCodes(src), []);
 // ---- lexer ----------------------------------------------------------------
 
 test('milestone program is clean', () => {
-  clean('let x: u8 = 10;\n\nfunction main(): void {\n    x = x + 1;\n}\n');
+  clean('let mut x: u8 = 10;\n\nfn main() {\n    x = x + 1;\n}\n');
 });
 
 test('numeric literal spellings', () => {
@@ -45,15 +45,22 @@ test('numeric literal spellings', () => {
   clean('let b: u8 = 0xFF;');
   clean('let c: u8 = $FF;');
   clean('let d: u8 = 0b11111111;');
-  clean('let e: u8 = %11111111;');
+});
+
+test('a % is only the modulo operator now: %11111111 is no binary literal', () => {
+  // The old `%11111111` binary spelling is gone (use 0b...). It lexes as the
+  // operator `%` then the number 11111111, and the parser rejects the leading `%`.
+  const toks = tokenize('let e: u8 = %11111111;', 't').tokens.map((t) => t.text);
+  assert.deepEqual(toks.slice(4, 7), ['=', '%', '11111111']);
+  assert.deepEqual(codes('let e: u8 = %11111111;'), ['8BS1101', '8BS1101', '8BS1101']);
 });
 
 test('shipped bug: modulo is not a binary literal', () => {
-  parsesClean('function f(): void { let y: u8 = x%2; }');
-  parsesClean('function f(): void { let y: u8 = a%b; }');
-  parsesClean('function f(): void { x %= 2; }');
-  // In value position, % still reads as binary.
-  const { tokens } = tokenize('let x: u8 = %101;', 't');
+  parsesClean('fn f() { let y: u8 = x%2; }');
+  parsesClean('fn f() { let y: u8 = a%b; }');
+  parsesClean('fn f() { x %= 2; }');
+  // `%` is only ever modulo now; binary is spelled 0b.
+  const { tokens } = tokenize('let x: u8 = 0b101;', 't');
   const literal = tokens.find((t) => t.kind === 'number');
   assert.equal(literal.value, 5);
 });
@@ -91,9 +98,9 @@ test('shipped bug: no token may carry NaN', () => {
 });
 
 test('shipped bug: operators lex by maximal munch, not greed', () => {
-  parsesClean('function f(): void { x=-1; }');
-  parsesClean('function f(): void { let y: bool = a<-1; }');
-  parsesClean('function f(): void { x <<= 1; }');
+  parsesClean('fn f() {\n    x=-1;\n}');
+  parsesClean('fn f() {\n    let y: bool = a<-1;\n}');
+  parsesClean('fn f() {\n    x <<= 1;\n}');
 });
 
 test('empty radix prefix is an invalid literal, not silence', () => {
@@ -105,10 +112,10 @@ test('shipped bug: asm6502 bodies are opaque', () => {
   assert.deepEqual(frontEndCodes('asm6502 {\n lda #$06\n'), ['8BS1007']);
 });
 
-test('unterminated constructs each have one code', () => {
-  assert.deepEqual(frontEndCodes('let s = "abc;'), ['8BS1002']);
+test('unterminated constructs report their own code; an unclosed string or block also gets the 8BS1101 follow-on from the parser (intended)', () => {
+  assert.deepEqual(frontEndCodes('let s = "abc;'), ['8BS1002', '8BS1101']);
   assert.deepEqual(frontEndCodes('/* never closed'), ['8BS1006']);
-  assert.deepEqual(frontEndCodes('function f(): void {'), ['8BS1005', '8BS1101']);
+  assert.deepEqual(frontEndCodes('fn f() {'), ['8BS1005', '8BS1101']);
 });
 
 // ---- parser ---------------------------------------------------------------
@@ -127,14 +134,21 @@ test('milestone AST has the specified shape', () => {
 
 test('full specified surface parses clean', () => {
   parsesClean(`
-@address(0x900F)
-let vicColor: volatile<u8>;
-let buffer: array<u8, 16>;
-let cursor: ptr<u8>;
-export function update(): void {
-    if (input.left()) { cursor--; } else { cursor++; }
-    for (let i: u8 = 0; i < 16; i++) { screen.putChar(i, 10, buffer[i]); }
-    while (true) { break; }
+#[address(0x900F)] let vicColor: volatile<u8>;
+let buffer: [u8; 16];
+let mut cursor: ptr<u8>;
+pub fn update() {
+    if input::left() {
+        cursor -= 1;
+    } else {
+        cursor += 1;
+    }
+    for i: u8 in 0..16 {
+        screen::putChar(i, 10, buffer[i]);
+    }
+    loop {
+        break;
+    }
     asm6502 { lda #$06 }
     return;
 }
@@ -142,7 +156,7 @@ export function update(): void {
 });
 
 test('import aliasing', () => {
-  const src = 'import { putChar as put } from "x";';
+  const src = 'use x::{putChar as put};';
   const { ast } = parse(tokenize(src, 't').tokens, src, 't');
   const spec = ast.body[0].specifiers[0];
   assert.equal(spec.imported, 'putChar');
@@ -179,8 +193,8 @@ test('negated literals use the full span', () => {
 });
 
 test('the rule reaches nested declarations now', () => {
-  assert.deepEqual(frontEndCodes('function f(): void { let x: u8 = 300; }'), ['8BS1021']);
-  assert.deepEqual(frontEndCodes('function f(): void { for (let i: u8 = 300; ; ) {} }'), ['8BS1021']);
+  assert.deepEqual(frontEndCodes('fn f() {\n    let x: u8 = 300;\n}'), ['8BS1021']);
+  assert.deepEqual(frontEndCodes('fn f() {\n    for (let i: u8 = 300; ; ) {\n    }\n}'), ['8BS1021']);
 });
 
 test('expressions are not folded yet', () => {
@@ -202,9 +216,9 @@ test('a construct the compiler cannot lower yet is reported by analyze(), not sa
   assert.deepEqual(codes('let x: u8 = 200 + 100;'), ['8BS3001']);
   // Arrays, locals, and for loops lower now (arrays.test.mjs,
   // locals.test.mjs); a pointer still does not.
-  clean('let a: array<u8, 16>;');
-  clean('function f(): void { let local: u8 = 1; }');
-  clean('export function main(): void { for (;;) { break; } }');
+  clean('let a: [u8; 16];');
+  clean('fn f() {\n    let local: u8 = 1;\n}');
+  clean('pub fn main() {\n    for (; ; ) {\n        break;\n    }\n}');
 });
 
 test('a signed type takes its most negative literal — a negated literal is a literal', () => {
@@ -219,23 +233,23 @@ test('workspace imports resolve through pnpm links', () => {
   const file = join(FIXTURES, 'main.8bs');
   // @8bitscript/text and @8bitscript/vic20 are workspace:* devDependencies
   // of this package; a target package's own subpath resolves the same way.
-  const src = 'import { text } from "@8bitscript/text";\nimport { vic } from "@8bitscript/vic20";\nimport { screen } from "@8bitscript/vic20/screen";\n';
+  const src = 'use @8bitscript::text::text;\nuse @8bitscript::vic20::vic;\nuse @8bitscript::vic20::screen::screen;\n';
   assert.deepEqual(codes(src, file, { resolveImports: true }), []);
 });
 
 test('each resolution failure has its own code', () => {
   const file = join(FIXTURES, 'main.8bs');
   const src = [
-    'import { a } from "@8bitscript/nonexistent";',
-    'import { b } from "markdown-it";',
-    'import { c } from "./missing.8bs";',
+    'use @8bitscript::nonexistent::a;',
+    'use "markdown-it"::b;',
+    'use self::missing::c;',
   ].join('\n');
   assert.deepEqual(codes(src, file, { resolveImports: true }),
     ['8BS2001', '8BS2002', '8BS2004']);
 });
 
 test('resolution is off without a real path', () => {
-  assert.deepEqual(codes('import { a } from "@8bitscript/nonexistent";', 't.8bs',
+  assert.deepEqual(codes('use @8bitscript::nonexistent::a;', 't.8bs',
     { resolveImports: true }), []);
 });
 
@@ -250,19 +264,19 @@ const lowered = (src) => {
 };
 
 test('milestone program lowers cleanly', () => {
-  const { ir, diagnostics } = lowered('let x: u8 = 10;\nexport function main(): void { x = x + 1; }');
+  const { ir, diagnostics } = lowered('let mut x: u8 = 10;\npub fn main() {\n    x = x + 1;\n}');
   assert.equal(diagnostics.length, 0);
   // `u8` is a low-level alias; the IR stores the canonical name it resolves to.
   assert.deepEqual(ir.globals[0], {
     name: 'x', type: 'utinyint', volatile: false, address: null, init: 10, exported: false,
-    start: 4, length: 1, // the name's span, for the linker's entry-export rule
+    start: 8, length: 1, // the name's span, for the linker's entry-export rule
   });
   assert.equal(ir.functions[0].name, 'main');
   assert.equal(ir.functions[0].body[0].kind, 'assign');
 });
 
 test('@address + volatile lowers to a hardware global', () => {
-  const { ir, diagnostics } = lowered('@address(0x900F)\nlet vicColor: volatile<u8>;');
+  const { ir, diagnostics } = lowered('#[address(0x900F)] let vicColor: volatile<u8>;');
   assert.equal(diagnostics.length, 0);
   assert.equal(ir.globals[0].address, 0x900f);
   assert.equal(ir.globals[0].volatile, true);
@@ -278,10 +292,10 @@ test('lowering is exhaustive-with-error, never silent', () => {
   // qualified call, a two-level qualified value, and assigning through
   // member access.
   for (const src of [
-    'export function f(): void { g()(); }',
-    'export function f(): void { a.b.c(); }',
-    'export function f(): void { x = g().y; }',
-    'export function f(): void { a.b = 1; }',
+    'pub fn f() {\n    g()();\n}',
+    'pub fn f() {\n    a::b::c();\n}',
+    'pub fn f() {\n    x = g().y;\n}',
+    'pub fn f() {\n    a::b = 1;\n}',
   ]) {
     const { diagnostics } = lowered(src);
     assert.ok(
@@ -292,27 +306,27 @@ test('lowering is exhaustive-with-error, never silent', () => {
 });
 
 test('compound assignment and updates lower to plain assigns', () => {
-  const { ir } = lowered('let x: u8 = 0;\nexport function f(): void { x += 2; x++; }');
+  const { ir } = lowered('let mut x: u8 = 0;\npub fn f() {\n    x += 2;\n    x += 1;\n}');
   const [a, b] = ir.functions[0].body;
   assert.equal(a.value.operator, '+');
   assert.equal(b.value.right.value, 1);
 });
 
 test('a parameterless call statement lowers to a call', () => {
-  const { ir, diagnostics } = lowered('export function f(): void { g(); }');
+  const { ir, diagnostics } = lowered('pub fn f() {\n    g();\n}');
   assert.equal(diagnostics.length, 0);
   assert.equal(ir.functions[0].body[0].kind, 'call');
   assert.equal(ir.functions[0].body[0].name, 'g');
 });
 
 test('imports lower to records for the linker, not to failures', () => {
-  const { ir, diagnostics } = lowered('import { limit as max } from "./lib.8bs";');
+  const { ir, diagnostics } = lowered('use self::lib::{limit as max};');
   assert.equal(diagnostics.length, 0);
   assert.deepEqual(
     ir.imports[0].specifiers.map(({ imported, local }) => ({ imported, local })),
     [{ imported: 'limit', local: 'max' }],
   );
-  assert.equal(ir.imports[0].source, './lib.8bs');
+  assert.equal(ir.imports[0].source, './lib');
 });
 
 // ---- linker (each case materialises a real module graph on disk) ----------
@@ -333,11 +347,11 @@ const linked = (files, entryName = 'main.8bs') => {
   }
 };
 
-const LIB = 'export let limit: u16 = 12000;\nlet delay: u16 = 0;\nexport function tick(): void { delay = delay + 1; }\n';
+const LIB = 'pub let mut limit: u16 = 12000;\nlet mut delay: u16 = 0;\npub fn tick() {\n    delay = delay + 1;\n}\n';
 
 test('two modules link into one program', () => {
   const { ir, diagnostics } = linked({
-    'main.8bs': 'import { limit } from "./lib.8bs";\nlet count: u16 = 0;\nexport function main(): void { while (count < limit) { count = count + 1; } }',
+    'main.8bs': 'use self::lib::limit;\nlet mut count: u16 = 0;\npub fn main() {\n    while count < limit {\n        count = count + 1;\n    }\n}',
     'lib.8bs': LIB,
   });
   assert.deepEqual(diagnostics, []);
@@ -348,7 +362,7 @@ test('two modules link into one program', () => {
 
 test('aliasing rewrites references to the exported name', () => {
   const { ir, diagnostics } = linked({
-    'main.8bs': 'import { limit as max } from "./lib.8bs";\nlet count: u16 = 0;\nexport function main(): void { count = max; }',
+    'main.8bs': 'use self::lib::{limit as max};\nlet mut count: u16 = 0;\npub fn main() {\n    count = max;\n}',
     'lib.8bs': LIB,
   });
   assert.deepEqual(diagnostics, []);
@@ -358,7 +372,7 @@ test('aliasing rewrites references to the exported name', () => {
 
 test('private names in different modules stay apart', () => {
   const { ir, diagnostics } = linked({
-    'main.8bs': 'import { limit } from "./lib.8bs";\nlet delay: u16 = 0;\nexport function main(): void { delay = limit; }',
+    'main.8bs': 'use self::lib::limit;\nlet mut delay: u16 = 0;\npub fn main() {\n    delay = limit;\n}',
     'lib.8bs': LIB,
   });
   assert.deepEqual(diagnostics, []);
@@ -372,8 +386,8 @@ test('private names in different modules stay apart', () => {
 
 test("the entry module's main always keeps its name", () => {
   const { ir, diagnostics } = linked({
-    'main.8bs': 'import { flag } from "./lib.8bs";\nexport function main(): void { flag = 1; }',
-    'lib.8bs': 'export let flag: u8 = 0;\nexport function main(): void { flag = 2; }',
+    'main.8bs': 'use self::lib::flag;\npub fn main() {\n    flag = 1;\n}',
+    'lib.8bs': 'pub let mut flag: u8 = 0;\npub fn main() {\n    flag = 2;\n}',
   });
   assert.deepEqual(diagnostics, []);
   assert.deepEqual(ir.functions.map((f) => f.name), ['main', 'main_2']);
@@ -382,7 +396,7 @@ test("the entry module's main always keeps its name", () => {
 test('importing a name a module does not export is 8BS2005', () => {
   // `secret` does not exist; `delay` exists but is private. Both are 2005.
   const { ir, diagnostics } = linked({
-    'main.8bs': 'import { secret, delay } from "./lib.8bs";\nexport function main(): void {}',
+    'main.8bs': 'use self::lib::{secret, delay};\npub fn main() {\n}',
     'lib.8bs': LIB,
   });
   assert.equal(ir, null);
@@ -391,14 +405,14 @@ test('importing a name a module does not export is 8BS2005', () => {
 
 test('an import colliding with a local binding is 8BS2006', () => {
   const { diagnostics } = linked({
-    'main.8bs': 'import { limit } from "./lib.8bs";\nlet limit: u16 = 1;\nexport function main(): void {}',
+    'main.8bs': 'use self::lib::limit;\nlet limit: u16 = 1;\npub fn main() {\n}',
     'lib.8bs': LIB,
   });
   assert.deepEqual(diagnostics.map((d) => d.code), ['8BS2006']);
 });
 
 test('a reference that resolves to nothing is 8BS2007, with a span', () => {
-  const src = 'export function main(): void { count = 1; }';
+  const src = 'pub fn main() {\n    count = 1;\n}';
   const { ir, diagnostics } = linked({ 'main.8bs': src });
   assert.equal(ir, null);
   assert.equal(diagnostics[0].code, '8BS2007');
@@ -409,9 +423,9 @@ test('import cycles link rather than recurse', () => {
   // The cycle is between two libraries (the entry exports only its entry
   // point, so it cannot be one side of an import cycle itself).
   const { ir, diagnostics } = linked({
-    'main.8bs': 'import { a } from "./a.8bs";\nexport function main(): void { a = a + 1; }',
-    'a.8bs': 'import { b } from "./b.8bs";\nexport let a: u8 = 1;\nexport function take(): void { a = b; }',
-    'b.8bs': 'import { a } from "./a.8bs";\nexport let b: u8 = 2;\nexport function swap(): void { b = a; }',
+    'main.8bs': 'use self::a::a;\npub fn main() {\n    a = a + 1;\n}',
+    'a.8bs': 'use self::b::b;\npub let mut a: u8 = 1;\npub fn take() {\n    a = b;\n}',
+    'b.8bs': 'use self::a::a;\npub let mut b: u8 = 2;\npub fn swap() {\n    b = a;\n}',
   });
   assert.deepEqual(diagnostics, []);
   assert.deepEqual(ir.globals.map((g) => g.name).sort(), ['a', 'b']);
@@ -419,7 +433,7 @@ test('import cycles link rather than recurse', () => {
 
 test('a bare import links the module in for its declarations', () => {
   const { ir, diagnostics } = linked({
-    'main.8bs': 'import "./lib.8bs";\nexport function main(): void { return; }',
+    'main.8bs': 'use self::lib::{};\npub fn main() {\n    return;\n}',
     'lib.8bs': LIB,
   });
   assert.deepEqual(diagnostics, []);
@@ -428,7 +442,7 @@ test('a bare import links the module in for its declarations', () => {
 
 test('imported calls rewrite across modules', () => {
   const { ir, diagnostics } = linked({
-    'main.8bs': 'import { tick } from "./lib.8bs";\nexport function main(): void { tick(); }',
+    'main.8bs': 'use self::lib::tick;\npub fn main() {\n    tick();\n}',
     'lib.8bs': LIB,
   });
   assert.deepEqual(diagnostics, []);
@@ -439,7 +453,7 @@ test('imported calls rewrite across modules', () => {
 
 test('a call to a name that resolves to nothing is 8BS2007', () => {
   const { ir, diagnostics } = linked({
-    'main.8bs': 'export function main(): void { launch(); }',
+    'main.8bs': 'pub fn main() {\n    launch();\n}',
   });
   assert.equal(ir, null);
   assert.deepEqual(diagnostics.map((d) => d.code), ['8BS2007']);
@@ -456,21 +470,21 @@ test('a call to a name that resolves to nothing is 8BS2007', () => {
 const REPO_ROOT = join(HERE, '..', '..', '..');
 const STUDIO_ENTRY = join(REPO_ROOT, 'studio', 'src', 'main.8bs');
 const CHECKOUT = { checkout: REPO_ROOT };
-const SCREEN_CONSUMER = 'import { screen } from "@8bitscript/screen";\nexport function main(): void { screen.setColors(6, 0); }';
+const SCREEN_CONSUMER = 'use @8bitscript::screen::screen;\npub fn main() {\n    screen::setColors(6, 0);\n}';
 // Two setColor sites: one would be written into main (rule 9), and the
 // question here is whether the function exists on the machine at all.
-const SETCOLOR_CONSUMER = 'import { text, TextColor } from "@8bitscript/text";\nexport function main(): void {\n    text.setColor(TextColor.WHITE);\n    text.print(0, "HI");\n    text.setColor(TextColor.RED);\n    text.print(40, "HI");\n}';
+const SETCOLOR_CONSUMER = 'use @8bitscript::text::{text, TextColor};\npub fn main() {\n    text::setColor(TextColor::WHITE);\n    text::print(0, "HI");\n    text::setColor(TextColor::RED);\n    text::print(40, "HI");\n}';
 
 test('link reports the facts the program\'s own files test — #fact() and the @8bitscript/system consts — and never a package\'s', () => {
   // The text package folds on video.columns for every program that prints;
   // this program tests video.raster and Memory.RAM itself, through both
   // spellings, and Video.COLUMNS under a renamed import.
-  const source = 'import { text } from "@8bitscript/text";\n'
-    + 'import { Memory, Video as V } from "@8bitscript/system";\n'
-    + 'const HAS_RASTER: bool = #fact(video.raster);\n'
-    + 'export function main(): void {\n'
-    + '    if (Memory.RAM < 4096) { text.print(0, "SMALL"); }\n'
-    + '    if (HAS_RASTER && V.COLUMNS == 40) { text.print(0, "BIG"); }\n'
+  const source = 'use @8bitscript::text::text;\n'
+    + 'use @8bitscript::system::{Memory, Video as V};\n'
+    + 'const HAS_RASTER: bool = #fact(video::raster);\n'
+    + 'pub fn main() {\n'
+    + '    if Memory::RAM < 4096 { text::print(0, "SMALL"); }\n'
+    + '    if HAS_RASTER && V::COLUMNS == 40 { text::print(0, "BIG"); }\n'
     + '}';
   const { ir, diagnostics, factsTested } = link(source, STUDIO_ENTRY, { ...CHECKOUT, machine: 'c64', facts: stockFacts('c64') });
   assert.deepEqual(diagnostics.filter((d) => d.severity === 'error'), []);
@@ -539,15 +553,15 @@ test('without a machine, every branch of a conditional entry is validated', () =
   // analyze/`8bs check` resolve imports with no machine in hand: a sound
   // conditional entry is clean, not an error.
   assert.deepEqual(
-    codes('import { screen } from "@8bitscript/screen";', STUDIO_ENTRY, { resolveImports: true, ...CHECKOUT }),
+    codes('use @8bitscript::screen::screen;', STUDIO_ENTRY, { resolveImports: true, ...CHECKOUT }),
     [],
   );
 });
 
 test('errors in an imported module fail the link, against the right file', () => {
   const { ir, diagnostics } = linked({
-    'main.8bs': 'import { limit } from "./lib.8bs";\nexport function main(): void {}',
-    'lib.8bs': 'export let limit: u8 = 300;\n',
+    'main.8bs': 'use self::lib::limit;\npub fn main() {\n}',
+    'lib.8bs': 'pub let mut limit: u8 = 300;\n',
   });
   assert.equal(ir, null);
   assert.equal(diagnostics.length, 1);
@@ -591,7 +605,7 @@ const withFiles = (files, fn) => {
   }
 };
 
-const USES_LIMIT = 'import { limit } from "./lib.8bs";\nlet count: u16 = 0;\nexport function main(): void { count = limit; }';
+const USES_LIMIT = 'use self::lib::limit;\nlet mut count: u16 = 0;\npub fn main() {\n    count = limit;\n}';
 const limitIn = (ir) => ir.globals.find((g) => g.name === 'limit').init;
 
 test('variantOf and isVariantPath: the machine goes before the extension', () => {
@@ -625,8 +639,8 @@ test('an .8bx module links like an .8bs one, takes a machine twin, and is not th
   assert.ok(!isVariantPath('/p/notes.txt'));
   // An .8bx module holding ordinary 8BitScript resolves, links, and takes
   // a machine twin exactly as .8bs does.
-  const uses = 'import { limit } from "./lib.8bx";\nlet count: u16 = 0;\nexport function main(): void { count = limit; }';
-  const files = { 'main.8bs': uses, 'lib.8bx': 'export let limit: u16 = 100;', 'lib.nes.8bx': 'export let limit: u16 = 7;' };
+  const uses = 'use self::lib::limit;\nlet mut count: u16 = 0;\npub fn main() {\n    count = limit;\n}';
+  const files = { 'main.8bs': uses, 'lib.8bx': 'pub let mut limit: u16 = 100;', 'lib.nes.8bx': 'pub let mut limit: u16 = 7;' };
   // A `let` at the top of an .8bx is ordinary code there (spec §2.6 B): a
   // warning that rides along, and the program links all the same.
   const nes = linkedFor(files, { machine: 'nes' });
@@ -635,13 +649,13 @@ test('an .8bx module links like an .8bs one, takes a machine twin, and is not th
   const c64 = linkedFor(files, { machine: 'c64' });
   assert.deepEqual(c64.diagnostics.map((d) => d.severity), ['warning']);
   assert.equal(limitIn(c64.ir), 100);
-  // The extension is part of the specifier: lib.8bs is not lib.8bx.
-  const missing = linkedFor({ 'main.8bs': uses, 'lib.8bs': 'export let limit: u16 = 1;' }, { machine: 'nes' });
-  assert.deepEqual(missing.diagnostics.map((d) => d.code), ['8BS2004']);
+  // A `use` path names no extension: the resolver finds lib.8bs as well as lib.8bx.
+  const plain = linkedFor({ 'main.8bs': uses, 'lib.8bs': 'pub let mut limit: u16 = 1;' }, { machine: 'nes' });
+  assert.deepEqual(plain.diagnostics.map((d) => d.code), []);
 });
 
 test('a .<machine>.8bs twin is what that machine\'s build imports', () => {
-  const files = { 'main.8bs': USES_LIMIT, 'lib.8bs': 'export let limit: u16 = 100;', 'lib.nes.8bs': 'export let limit: u16 = 7;' };
+  const files = { 'main.8bs': USES_LIMIT, 'lib.8bs': 'pub let mut limit: u16 = 100;', 'lib.nes.8bs': 'pub let mut limit: u16 = 7;' };
   const nes = linkedFor(files, { machine: 'nes' });
   assert.deepEqual(nes.diagnostics, []);
   assert.equal(limitIn(nes.ir), 7);
@@ -660,8 +674,8 @@ test('the entry file itself can be a machine\'s version and still import twins',
   // follow the same rule as anyone else's.
   const files = {
     'main.nes.8bs': USES_LIMIT,
-    'lib.8bs': 'export let limit: u16 = 100;',
-    'lib.nes.8bs': 'export let limit: u16 = 7;',
+    'lib.8bs': 'pub let mut limit: u16 = 100;',
+    'lib.nes.8bs': 'pub let mut limit: u16 = 7;',
   };
   const nes = linkedFor(files, { machine: 'nes' }, 'main.nes.8bs');
   assert.deepEqual(nes.diagnostics, []);
@@ -670,9 +684,9 @@ test('the entry file itself can be a machine\'s version and still import twins',
 
 test('naming a machine\'s version explicitly imports exactly that file', () => {
   const files = {
-    'main.8bs': 'import { limit } from "./lib.nes.8bs";\nlet count: u16 = 0;\nexport function main(): void { count = limit; }',
-    'lib.8bs': 'export let limit: u16 = 100;',
-    'lib.nes.8bs': 'export let limit: u16 = 7;',
+    'main.8bs': 'use "./lib.nes.8bs"::limit;\nlet mut count: u16 = 0;\npub fn main() {\n    count = limit;\n}',
+    'lib.8bs': 'pub let mut limit: u16 = 100;',
+    'lib.nes.8bs': 'pub let mut limit: u16 = 7;',
   };
   const c64 = linkedFor(files, { machine: 'c64' });
   assert.deepEqual(c64.diagnostics, []);
@@ -680,7 +694,7 @@ test('naming a machine\'s version explicitly imports exactly that file', () => {
 });
 
 test('a file that exists only in per-machine versions', () => {
-  const files = { 'main.8bs': USES_LIMIT, 'lib.nes.8bs': 'export let limit: u16 = 7;', 'lib.c64.8bs': 'export let limit: u16 = 3;' };
+  const files = { 'main.8bs': USES_LIMIT, 'lib.nes.8bs': 'pub let mut limit: u16 = 7;', 'lib.c64.8bs': 'pub let mut limit: u16 = 3;' };
   // Each machine that has one gets it.
   assert.equal(limitIn(linkedFor(files, { machine: 'nes' }).ir), 7);
   assert.equal(limitIn(linkedFor(files, { machine: 'c64' }).ir), 3);
@@ -710,10 +724,10 @@ test('a file with no version at all is still 8BS2004', () => {
 
 test('a package\'s string entry follows the same rule', () => {
   const files = {
-    'main.8bs': 'import { limit } from "@t/p";\nlet count: u16 = 0;\nexport function main(): void { count = limit; }',
+    'main.8bs': 'use @t::p::limit;\nlet mut count: u16 = 0;\npub fn main() {\n    count = limit;\n}',
     'node_modules/@t/p/package.json': JSON.stringify({ name: '@t/p', '8bitscript': { entry: './src/index.8bs' } }),
-    'node_modules/@t/p/src/index.8bs': 'export let limit: u16 = 100;',
-    'node_modules/@t/p/src/index.nes.8bs': 'export let limit: u16 = 7;',
+    'node_modules/@t/p/src/index.8bs': 'pub let mut limit: u16 = 100;',
+    'node_modules/@t/p/src/index.nes.8bs': 'pub let mut limit: u16 = 7;',
   };
   withFiles(files, (dir) => {
     const entry = join(dir, 'main.8bs');
@@ -743,20 +757,20 @@ test('a checkout root wins over node_modules for @8bitscript/*', () => {
       name: '@8bitscript/text',
       '8bitscript': { entry: './src/index.8bs' },
     }));
-    writeFileSync(join(checkout, 'packages', 'text', 'src', 'index.8bs'), 'export const FROM_CHECKOUT: u8 = 1;\n');
+    writeFileSync(join(checkout, 'packages', 'text', 'src', 'index.8bs'), 'pub const FROM_CHECKOUT: u8 = 1;\n');
     mkdirSync(join(project, 'node_modules', '@8bitscript', 'text', 'src'), { recursive: true });
     writeFileSync(join(project, 'node_modules', '@8bitscript', 'text', 'package.json'), JSON.stringify({
       name: '@8bitscript/text',
       '8bitscript': { entry: './src/index.8bs' },
     }));
-    writeFileSync(join(project, 'node_modules', '@8bitscript', 'text', 'src', 'index.8bs'), 'export const FROM_NPM: u8 = 1;\n');
+    writeFileSync(join(project, 'node_modules', '@8bitscript', 'text', 'src', 'index.8bs'), 'pub const FROM_NPM: u8 = 1;\n');
     const entry = join(project, 'main.8bs');
-    writeFileSync(entry, 'import { FROM_CHECKOUT } from "@8bitscript/text";\n');
+    writeFileSync(entry, 'use @8bitscript::text::FROM_CHECKOUT;\n');
     const published = resolveSpecifier('@8bitscript/text', entry);
     assert.match(published.path, /node_modules/);
     const local = resolveSpecifier('@8bitscript/text', entry, { checkout });
     assert.equal(
-      analyze('import { FROM_CHECKOUT } from "@8bitscript/text";\n', entry, {
+      analyze('use @8bitscript::text::FROM_CHECKOUT;\n', entry, {
         resolveImports: true, checkout,
       }).length,
       0,
@@ -806,10 +820,10 @@ test('analyze, hover, and completion never throw on any prefix of a real program
 
 test('analyze never throws on a statement caught mid-keystroke', () => {
   for (const source of [
-    'if (', 'if (x) {', 'while (', 'while (true)', 'for (', 'return',
-    'let', 'let x: = ', 'const X: u8 =', 'function f(', 'namespace', 'namespace n {',
-    'export ', '@address(', 'asm6502 {', 'memory.write(', 'f(1,', 'x.', '#',
-    'text.print(0, `${', '`${', 'export function main(): void { clearCell =',
+    'if ', 'if x {', 'while ', 'while true', 'for ', 'return',
+    'let', 'let x: = ', 'const X: u8 =', 'fn f(', 'mod', 'mod n {',
+    'pub ', '#[address(', 'asm6502 {', 'memory::write(', 'f(1,', 'x.', 'x::', '#',
+    'text::print(0, `${', '`${', 'pub fn main() { clearCell =',
   ]) {
     assert.doesNotThrow(() => {
       analyze(source, 't.8bs');
@@ -824,8 +838,8 @@ test('analyze never throws on markup caught mid-keystroke', () => {
     '<', '<F', '<Foo', '<Foo ', '<Foo a', '<Foo a=', '<Foo a="', '<Foo a={', '<Foo a={1', '<Foo a={1}', '<Foo a={1} /',
     '<Foo>', '<Foo>text', '<Foo>{', '<Foo>{x', '<Foo><', '<Foo></', '<Foo></Foo', '<>', '<><', '</', '</>',
     'component', 'component F', 'component F(', 'component F() {', 'component F() { <slot', 'component F() { <slot />',
-    'component F() { state', 'component F() { state x', 'component F() { state x: u8 =', 'component F() { function', 'component F() { function f(', 'component F() { function f(): void {',
-    'export function main(): void { <Foo', 'export function main(): void { <Foo></Bar>', '{c ? <A /> :', '<A v={a < ',
+    'component F() { state', 'component F() { state x', 'component F() { state x: u8 =', 'component F() { fn', 'component F() { fn f(', 'component F() { fn f() {',
+    'pub fn main() { <Foo', 'pub fn main() { <Foo></Bar>', '{if c { <A /> } else {', '<A v={a < ',
   ]) {
     assert.doesNotThrow(() => {
       analyze(source, 't.8bx');

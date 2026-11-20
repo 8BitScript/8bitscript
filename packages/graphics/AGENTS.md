@@ -17,12 +17,12 @@ both together; the test fails if a twin and the table disagree.
   the value this machine honestly has. The honest value is the degradation:
   never claim a capability so as to look like another machine. Derive a
   constant from the layer underneath where the twin sits on `@8bitscript/sprites`
-  (`const WIDTH: utinyint = sprites.WIDTH;`), so the two cannot drift; write a
+  (`const WIDTH: utinyint = sprites::WIDTH;`), so the two cannot drift; write a
   literal where the twin owns the number. `FRAMES` is for a picture of
   `WIDTH`×`HEIGHT`.
 - **Positions are playfield pixels.** `place(slot, 0, 0)` lands on text cell
   (0, 0). The twin adds the origin its hardware needs (the C64 adds
-  `sprites.ORIGIN_X`/`ORIGIN_Y`; the X16 adds `DC_VSTART`). A cell machine's
+  `sprites::ORIGIN_X`/`ORIGIN_Y`; the X16 adds `DC_VSTART`). A cell machine's
   origin is 0 and the twin adds nothing. A position not on `STEP_X`/`STEP_Y`
   rounds down; one off the playfield clips and never wraps or writes outside
   the twin's own tables.
@@ -41,13 +41,13 @@ both together; the test fails if a twin and the table disagree.
   placed again". A `show` would make each twin keep a position per slot. A
   program that hides and reshows an object calls `place` again.
 - **A twin may add a call of its own, and a program that uses it is that
-  machine's.** The C64's `graphics.step()` advances the animations and
+  machine's.** The C64's `graphics::step()` advances the animations and
   nothing else, so a program with raster entries of its own can build its
   frame (`docs/project/graphics.md`, "On the C64"). The contract test checks
   the calls above exist and ignores the rest; the portable `index.8bs` has no
   such call, and a portable program never writes one.
 - **Private names don't collide with the public ones.** A twin's private slot
-  count is `SLOTS`; `MAX` is the public constant inside `namespace graphics`.
+  count is `SLOTS`; `MAX` is the public constant inside `mod graphics`.
 
 ## Adding a call or a constant
 

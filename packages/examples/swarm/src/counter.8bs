@@ -11,38 +11,38 @@
 // in ten thousand. It shows the same number timeline.frame() holds
 // because both count the same ticks: `advance()` once an iteration, from
 // the Counter component, beside `timeline.tick()`.
-import { Video } from "@8bitscript/system";
-import { text } from "@8bitscript/text";
+use @8bitscript::system::Video;
+use @8bitscript::text::text;
 
-let digits: array<u8, 5>;      // most significant first, 0-9
-let cell: usmallint = 0;       // where the first digit is
+let mut digits: [u8; 5]; // most significant first, 0-9
+let mut cell: usmallint = 0; // where the first digit is
 
-export namespace counter {
+pub mod counter {
     // Five zeros at `at`, and the count at zero.
-    function begin(at: usmallint): void {
+    fn begin(at: usmallint) {
         cell = at;
-        for (let i: utinyint = 0; i < 5; i++) {
+        for i: utinyint in 0..5 {
             digits[i] = 0;
-            text.putChar(cell + i, 0x30);
-            if (Video.COLOR_PER_CELL) {
-                text.putColor(cell + i, 1); // white, as the title; putChar leaves the cell's colour
+            text::putChar(cell + i, 0x30);
+            if Video::COLOR_PER_CELL {
+                text::putColor(cell + i, 1); // white, as the title; putChar leaves the cell's colour
             }
         }
     }
 
     // One more, and the digits that changed on screen.
-    function advance(): void {
-        let i: utinyint = 4;
-        while (true) {
+    fn advance() {
+        let mut i: utinyint = 4;
+        loop {
             let d: utinyint = digits[i] + 1;
-            if (d < 10) {
+            if d < 10 {
                 digits[i] = d;
-                text.putChar(cell + i, 0x30 + d);
+                text::putChar(cell + i, 0x30 + d);
                 return;
             }
             digits[i] = 0;
-            text.putChar(cell + i, 0x30);
-            if (i == 0) {
+            text::putChar(cell + i, 0x30);
+            if i == 0 {
                 return; // 99999 wraps to 00000, as the timeline's own byte-wide counters do not — it has a usmallint
             }
             i = i - 1;

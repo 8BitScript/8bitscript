@@ -23,9 +23,9 @@ pub(crate) fn reserved_message(word: &str) -> Option<String> {
     }
 }
 
-/// The release that ships `8bs migrate`; the flip change sets the real
-/// version here (syntax spec E21).
-pub const MIGRATE_RELEASE: &str = "<cut release>";
+/// The release that ships `8bs migrate` (syntax spec E21): the first release
+/// after 0.26.0 that carries the flip.
+pub const MIGRATE_RELEASE: &str = "0.27.0";
 
 /// E21: the full text, built from [`MIGRATE_RELEASE`].
 #[must_use]

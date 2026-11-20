@@ -10,7 +10,9 @@ import {
 } from '../index.mjs';
 
 const codes = (src, options) => analyze(src, 't.8bs', options).map((d) => d.code);
-const program = (expr) => `let x: utinyint = ${expr};\nexport function main(): void {}`;
+const program = (expr) => `let x: utinyint = ${expr};
+pub fn main() {
+}`;
 
 test('SYSTEMS keeps the original nine numbers and adds later machines after them', () => {
   const entries = [...SYSTEMS.entries()];
@@ -47,7 +49,7 @@ test('fold: with no machine, #system() is a placeholder and no diagnostic — va
 
 test('link: #system() folds per target through the whole pipeline, into the IR', () => {
   for (const [machine, value] of SYSTEMS) {
-    const src = 'let x: utinyint = 0;\nexport function main(): void {\n    x = #system();\n}\n';
+    const src = 'let mut x: utinyint = 0;\npub fn main() {\n    x = #system();\n}\n';
     const { ir, diagnostics } = link(src, '/p/main.8bs', { machine });
     assert.deepEqual(diagnostics, [], machine);
     const assign = ir.functions[0].body.find((s) => s.kind === 'assign');
@@ -56,7 +58,7 @@ test('link: #system() folds per target through the whole pipeline, into the IR',
 });
 
 test('link: a machine the compiler has no number for is 8BS3002', () => {
-  const src = 'let x: utinyint = #system();\nexport function main(): void {}';
+  const src = 'let x: utinyint = #system();\npub fn main() {\n}';
   const { diagnostics } = link(src, '/p/main.8bs', { machine: 'z80' });
   assert.deepEqual(diagnostics.map((d) => d.code), ['8BS3002']);
 });

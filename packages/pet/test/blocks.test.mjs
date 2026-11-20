@@ -48,7 +48,7 @@ test('blocks never selects the graphics character set: quadrant codes 96-127/224
 // ---- the font's const data, decoded back to pixels -------------------------
 
 function parseArray(name) {
-  const match = SOURCE.match(new RegExp(`const ${name}: array<\\w+, \\d+> = \\[([\\s\\S]*?)\\];`));
+  const match = SOURCE.match(new RegExp(`const ${name}: \\[\\w+; \\d+\\] = \\[([\\s\\S]*?)\\];`));
   assert.ok(match, `const ${name} not found in blocks.8bs`);
   const withoutComments = match[1].replace(/\/\/.*$/gm, '');
   return withoutComments

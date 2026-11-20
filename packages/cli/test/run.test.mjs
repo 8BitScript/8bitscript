@@ -38,14 +38,13 @@ function capture(fn) {
 }
 
 const SUM = [
-  'let sum: utinyint = 0;',
-  'export function main(): void {',
-  '    for (let i: utinyint = 0; i < 10; i++) {',
+  'let mut sum: utinyint = 0;',
+  'pub fn main() {',
+  '    for i: utinyint in 0..10 {',
   '        sum = sum + i;',
   '    }',
-  '    memory.write(0x8000, sum);',
+  '    memory::write(0x8000, sum);',
   '}',
-  '',
 ].join('\n');
 
 test('run() returns 2 and writes the error when --hardware/--profile parsing fails', async () => {
@@ -117,7 +116,7 @@ test('run() with a baseline and a mistyped machine still prints usage, not the b
   const prev = process.cwd();
   try {
     await writeFile(join(dir, 'main.8bs'), SUM);
-    await writeFile(join(dir, '8bitscript.config.8bs'), 'export default { entry: "main.8bs", targets: { c64: {}, web: {} }, baseline: "c64" };\n');
+    await writeFile(join(dir, '8bitscript.config.ts'), 'export default { entry: "main.8bs", targets: { c64: {}, web: {} }, baseline: "c64" };\n');
     process.chdir(dir);
     const { result, stderr } = await capture(() => run(['c65']));
     assert.equal(result, 2);
@@ -134,7 +133,7 @@ test('run() --screenshot of a parked machine is refused in this release', async 
   const prev = process.cwd();
   try {
     await writeFile(join(dir, 'main.8bs'), SUM);
-    await writeFile(join(dir, '8bitscript.config.8bs'), 'export default { entry: "main.8bs", targets: { vectrex: {} } };\n');
+    await writeFile(join(dir, '8bitscript.config.ts'), 'export default { entry: "main.8bs", targets: { vectrex: {} } };\n');
     process.chdir(dir);
     const shot = join(dir, 'out.png');
     const { result, stderr } = await capture(() => run(['vectrex', 'main.8bs', '--screenshot', shot]));

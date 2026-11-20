@@ -1,7 +1,7 @@
 // Project discovery for the side bar.
 //
-// An 8BitScript project is a directory with an `8bitscript.config.8bs` (or
-// an older `.ts` name) in it. That file is the manifest: the CLI
+// An 8BitScript project is a directory with an `8bitscript.config.ts` (or
+// `8bs.config.ts`) in it. That file is the manifest: the CLI
 // already reads it for the entry file and the list of systems the program
 // builds for, so the editor uses the same marker rather than a second list
 // that would have to be kept in step with it. A package.json alone is not
@@ -25,13 +25,49 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-// 8bitscript.config.8bs is the current name; 8bitscript.config.ts (0.4.0
-// through 0.22.x) and the older 8bs.config.ts (every project through
-// 0.3.0) still mark a project so existing ones keep working. Checked in
-// this order — the same order as the CLI's own loader
-// (packages/cli/src/config.mjs), so a directory with more than one is
-// one project under the newest name, never two.
-const CONFIG_FILENAMES = ['8bitscript.config.8bs', '8bitscript.config.ts', '8bs.config.ts'];
+// 8bitscript.config.ts is the current name; the older 8bs.config.ts (every
+// project through 0.3.0) still marks a project. Checked in this order, the
+// same as the CLI's own loader (packages/cli/src/config.mjs), so a directory
+// with more than one is one project under the newest name, never two.
+const CONFIG_FILENAMES = ['8bitscript.config.ts', '8bs.config.ts'];
+
+// The `.8bs` config name of 0.23 through 0.26. It is no longer read, so a
+// project that still has one must be told, not silently emptied.
+const STALE_CONFIG = '8bitscript.config.8bs';
+
+/**
+ * The message for a project whose only config is the old `.8bs` one.
+ *
+ * @param {string} configPath absolute path of the old file
+ */
+function staleConfigMessage(configPath) {
+  return `${configPath} is no longer read: rename it to 8bitscript.config.ts (or run '8bs migrate').`;
+}
+
+/**
+ * The old-name config files among `stale` whose directory has no current
+ * config in `found`.
+ *
+ * @param {string[]} found current config paths
+ * @param {string[]} stale old-name config paths
+ * @returns {string[]}
+ */
+function staleConfigsOnly(found, stale) {
+  const dirs = new Set(found.map((p) => path.dirname(p)));
+  return stale.filter((p) => !dirs.has(path.dirname(p)));
+}
+
+/**
+ * Forget reported old-name configs that are no longer stale (renamed or
+ * removed), so one that comes back is reported again.
+ *
+ * @param {Set<string>} reported
+ * @param {string[]} stillStale
+ */
+function forgetFixedStale(reported, stillStale) {
+  const now = new Set(stillStale);
+  for (const p of reported) if (!now.has(p)) reported.delete(p);
+}
 
 // The canonical name, for messages that talk about the file in the abstract.
 const CONFIG_FILE = CONFIG_FILENAMES[0];
@@ -264,7 +300,7 @@ function quotedStrings(text) {
 }
 
 /**
- * Read `entry` and `targets` out of an 8bitscript.config.8bs.
+ * Read `entry` and `targets` out of an 8bitscript.config.ts.
  *
  * The config is a TypeScript module, which the editor host cannot import; but
  * its documented shape is two literal keys, so a textual read is enough and
@@ -912,7 +948,7 @@ function loadExamples(toolchain) {
 /**
  * The examples under one directory — the `8bitscript.examplesPath` setting,
  * for someone keeping their own set: each subdirectory with an
- * 8bitscript.config.8bs (or 8bs.config.ts) is one, marked as shipped so the
+ * 8bitscript.config.ts (or 8bs.config.ts) is one, marked as shipped so the
  * launcher groups it with the rest.
  *
  * @param {string} dir
@@ -1237,6 +1273,10 @@ module.exports = {
   ALL_TARGETS,
   BINARY,
   CONFIG_FILE,
+  STALE_CONFIG,
+  staleConfigMessage,
+  staleConfigsOnly,
+  forgetFixedStale,
   CONFIG_FILENAMES,
   DEFAULT_ENTRY,
   findConfig,

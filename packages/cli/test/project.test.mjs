@@ -26,26 +26,26 @@ async function cli(dir, args) {
   }
 }
 
-const READS_DEFINES = `import { screen } from "@8bitscript/screen";
-import { text } from "@8bitscript/text";
+const READS_DEFINES = `use @8bitscript::screen::screen;
+use @8bitscript::text::text;
 const SEED: utinyint = #define("SEED", 10);
 const FORCE_BONUS: bool = #define("FORCE_BONUS", false);
-export function main(): void {
-    screen.blank();
-    text.printNumber(0, SEED, 3);
-    if (FORCE_BONUS) {
-        text.print(40, "BONUS");
+pub fn main() {
+    screen::blank();
+    text::printNumber(0, SEED, 3);
+    if FORCE_BONUS {
+        text::print(40, "BONUS");
     }
-    text.releaseCursor();
+    text::releaseCursor();
 }
 `;
 
-const READS_NONE = `import { screen } from "@8bitscript/screen";
-import { text } from "@8bitscript/text";
-export function main(): void {
-    screen.blank();
-    text.print(0, "PLAIN");
-    text.releaseCursor();
+const READS_NONE = `use @8bitscript::screen::screen;
+use @8bitscript::text::text;
+pub fn main() {
+    screen::blank();
+    text::print(0, "PLAIN");
+    text::releaseCursor();
 }
 `;
 
@@ -55,7 +55,7 @@ function fixture() {
   mkdirSync(join(dir, 'src'));
   writeFileSync(join(dir, 'src', 'main.8bs'), READS_NONE);
   writeFileSync(join(dir, 'src', 'bonus.8bs'), READS_DEFINES);
-  writeFileSync(join(dir, '8bitscript.config.8bs'), `export default {
+  writeFileSync(join(dir, '8bitscript.config.ts'), `export default {
   programs: {
     main: { entry: 'src/main.8bs', title: 'The game', group: 'Play' },
     bonus: {
@@ -76,7 +76,7 @@ test('project --json describes the programs, their display fields, and the defin
   const info = JSON.parse(result.stdout);
   assert.equal(info.version, 1);
   assert.equal(info.hasConfig, true);
-  assert.match(info.configPath, /8bitscript\.config\.8bs$/);
+  assert.match(info.configPath, /8bitscript\.config\.ts$/);
   assert.equal(info.configError, null);
   assert.equal(info.targetsListed, true);
   assert.deepEqual(info.targets.map((t) => t.id), ['pet', 'c64']);
@@ -124,7 +124,7 @@ test('a directory with no config is described, not refused', async () => {
 
 test('a config that cannot be loaded is exit 1 with the JSON still printed', async () => {
   const dir = mkdtempSync(join(tmpdir(), '8bs-project-broken-'));
-  writeFileSync(join(dir, '8bitscript.config.8bs'), 'export default {{{');
+  writeFileSync(join(dir, '8bitscript.config.ts'), 'export default {{{');
   const result = await cli(dir, ['project', '--json']);
   assert.equal(result.code, 1);
   const info = JSON.parse(result.stdout);
@@ -135,7 +135,7 @@ test('a config that cannot be loaded is exit 1 with the JSON still printed', asy
 test('a programs block with a mistake costs the reader its programs, not the whole picture', async () => {
   const dir = mkdtempSync(join(tmpdir(), '8bs-project-bad-'));
   mkdirSync(join(dir, 'src'));
-  writeFileSync(join(dir, '8bitscript.config.8bs'), `export default { programs: { a: { entry: 'src/a.8bs', define: { seed: 1 } } }, targets: ['pet'] };\n`);
+  writeFileSync(join(dir, '8bitscript.config.ts'), `export default { programs: { a: { entry: 'src/a.8bs', define: { seed: 1 } } }, targets: ['pet'] };\n`);
   const result = await cli(dir, ['project', '--json']);
   assert.equal(result.code, 0, result.stderr);
   const info = JSON.parse(result.stdout);

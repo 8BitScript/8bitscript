@@ -13,7 +13,7 @@ Targets: [`../shared-release-targets.mjs`](../shared-release-targets.mjs).
 
 ## Size
 
-| Target | `memory.program` |
+| Target | `memory::program` |
 | --- | ---: |
 | C64 | 6475 |
 | PET (4032 32K) | 4968 |

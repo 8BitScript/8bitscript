@@ -21,7 +21,7 @@ each target to that machine's own layer:
 ```
 
 — exactly the way `@8bitscript/text` and `@8bitscript/screen` work. A
-program writes `import { input } from "@8bitscript/input"` and gets one of
+program writes `use @8bitscript::input::input;` and gets one of
 nine files. There is nothing portable to share, because input *is* the
 machine: a keyboard matrix, a shift register, an analogue counter and a
 KERNAL call have nothing in common below the surface this package defines.
@@ -78,8 +78,8 @@ Four things about that surface are decisions:
   rule a program using this package has to hold to, and every layer's
   header repeats it.
 - **The pointer is in cells, not pixels.** A flat cell index is the unit
-  `text.print()` takes and the unit a component hit-tests against
-  (`menubar.point()`), so nothing in between has to know a machine's cell
+  `text::print()` takes and the unit a component hit-tests against
+  (`menubar::point()`), so nothing in between has to know a machine's cell
   size. Layers that read an analogue counter scale and clamp it themselves.
   **Drawing the pointer is a different package.**
   [`@8bitscript/pointer`](../pointer/AGENTS.md) is the visible half: this
@@ -136,8 +136,8 @@ where it shows most clearly.
 - **`#fact(input.mouse)` is a `run` fact.** It means *this build may use a
   mouse* — false on a stock C64, true for `--hardware port1=mouse1351`. A
   layer reads it into a `const` (`HAS_MOUSE`) and wraps every line of
-  pointer handling in `if (HAS_MOUSE)`. On a stock build that is `if
-  (false)`: the code is not reached, not referenced, and not linked.
+  pointer handling in `if HAS_MOUSE`. On a stock build that is `if
+  false`: the code is not reached, not referenced, and not linked.
   Measured on the menubar example: a **C64** mouse costs 490 bytes of
   program and 17 of RAM (1517 B stock against 2007 B with
   `--hardware port1=mouse1351`), and a **C128** mouse 462 bytes and 8 of
@@ -160,7 +160,7 @@ where it shows most clearly.
 
 A global initializer must be a literal or a const (`8BS3001`), so
 `const X: bool = !#fact(...)` does not compile. Write the negation at the
-use site — `if (!COLOR_PER_CELL)` — which folds the same way.
+use site — `if !COLOR_PER_CELL` — which folds the same way.
 
 ## Verify it, or say you did not
 

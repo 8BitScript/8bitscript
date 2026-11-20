@@ -29,25 +29,25 @@ const TWIN = readFileSync(join(CHECKOUT, 'packages', 'graphics', 'src', 'index.p
 
 /** The body of `function name(...)` in the twin, up to its closing brace at four spaces. */
 function body(name) {
-  const start = TWIN.indexOf(`    function ${name}(`);
+  const start = TWIN.indexOf(`    fn ${name}(`);
   assert.ok(start !== -1, `index.pet.8bs defines ${name}()`);
   const end = TWIN.indexOf('\n    }\n', start);
   return TWIN.slice(start, end);
 }
 
-const PROGRAM = `import { graphics } from "@8bitscript/graphics";
-export function main(): void {
-    graphics.place(0, 16, 16);
-    graphics.place(1, 120, 136);
-    graphics.hide(0);
-    graphics.place(0, 16, 48);
-    graphics.animate(1, false);
-    graphics.setFrame(1, 2);
-    graphics.setFrame(1, 9);
-    graphics.animate(1, true);
-    graphics.hide(1);
-    graphics.color(1, 3);
-    graphics.update();
+const PROGRAM = `use @8bitscript::graphics::graphics;
+pub fn main() {
+    graphics::place(0, 16, 16);
+    graphics::place(1, 120, 136);
+    graphics::hide(0);
+    graphics::place(0, 16, 48);
+    graphics::animate(1, false);
+    graphics::setFrame(1, 2);
+    graphics::setFrame(1, 9);
+    graphics::animate(1, true);
+    graphics::hide(1);
+    graphics::color(1, 3);
+    graphics::update();
     return;
 }
 `;
@@ -68,21 +68,21 @@ test('a program calling every graphics operation links on the 2001, 3032, 4032 a
 
 test('setFrame clamps past the last frame to the last frame, and does nothing for an object with no shapes', () => {
   const text = body('setFrame');
-  assert.match(text, /if \(frameCount\[slot\] == 0\) \{\s*return;\s*\}/, 'an object with no shapes is not touched');
-  assert.match(text, /if \(n >= frameCount\[slot\]\) \{\s*n = frameCount\[slot\] - 1;\s*\}/, 'a frame past the end is the last frame');
+  assert.match(text, /if frameCount\[slot\] == 0 \{\s*return;\s*\}/, 'an object with no shapes is not touched');
+  assert.match(text, /if n >= frameCount\[slot\] \{\s*n = frameCount\[slot\] - 1;\s*\}/, 'a frame past the end is the last frame');
   assert.match(text, /tick\[slot\] = 0;/, 'a set frame restarts the interval');
-  assert.match(text, /sprites\.setShape\(slot, base\[slot\] \+ n\);/, 'and is shown through the sprite layer');
+  assert.match(text, /sprites::setShape\(slot, base\[slot\] \+ n\);/, 'and is shown through the sprite layer');
 });
 
 test('animate(false) pauses automatic stepping, animate(true) resumes it, and update() skips a paused object', () => {
   const animate = body('animate');
-  assert.match(animate, /paused\[slot\] = 1;\s*if \(on\) \{\s*paused\[slot\] = 0;\s*\}/);
+  assert.match(animate, /paused\[slot\] = 1;\s*if on \{\s*paused\[slot\] = 0;\s*\}/);
   assert.match(body('update'), /frameCount\[slot\] < 2 \|\| paused\[slot\] != 0/);
 });
 
 test('hide hands the object to the sprite layer, which restores what it covered, and colour is an honest no-op', () => {
-  assert.match(body('hide'), /sprites\.hide\(slot\);/);
+  assert.match(body('hide'), /sprites::hide\(slot\);/);
   assert.match(TWIN, /const RECOLORS: bool = false;/);
-  assert.match(body('color'), /function color\(slot: utinyint, c: utinyint\): void \{\s*$/, 'color takes the contract signature');
+  assert.match(body('color'), /fn color\(slot: utinyint, c: utinyint\) \{\s*$/, 'color takes the contract signature');
   assert.doesNotMatch(body('color').split('\n').slice(1).join('\n'), /\S/, 'and does nothing');
 });

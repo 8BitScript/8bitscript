@@ -34,7 +34,7 @@ Do not describe more than this as working:
 
 - **Portable media.** `media/index.cjs` (`"8bitscript".media`) turns a
   `.8bg` PNG into a 4×4 quadrant-block per animation frame (four row
-  bytes each, for `sprites.defineShape`), or into a small centre block
+  bytes each, for `sprites::defineShape`), or into a small centre block
   if the picture cannot survive the downsample (`8BS2111` either way).
   The sprite layer holds seven shapes in all and a frame spends one, so
   the whole program has seven frames to share, handed out in the order
@@ -42,7 +42,7 @@ Do not describe more than this as working:
   (the linker's per-build `mediaSlots` tally) and warns where a picture
   is cut short or left with none. `packages/graphics/src/index.pet.8bs`
   defines every frame's shape up front and steps them in
-  `graphics.update()`; `test/graphics.test.mjs` is the proof, under xpet
+  `graphics::update()`; `test/graphics.test.mjs` is the proof, under xpet
   on the 2001, 3032, 4032 and 8032. A picture that changes frame near
   the top of the screen can be seen part-old, part-new for that frame —
   the sprite layer redraws against the beam (`packages/sprites`
@@ -57,13 +57,13 @@ Do not describe more than this as working:
   stepping and `animate(true)` resumes it. An object that does not fit the
   screen whole (any cell past the right edge, bottom, or off it) is not
   drawn at all, never wrapped onto the next row. `color` is an honest
-  no-op (`graphics.RECOLORS` false): one ink. The same behaviour is pinned
+  no-op (`graphics::RECOLORS` false): one ink. The same behaviour is pinned
   where CI runs it by `packages/compiler/test/graphics-pet-ops.test.mjs`.
   A capture of a still picture can be torn too when other pictures animate
   (a row of its 2 × 2 cells blank for one look), so every claim there is
   made over a few looks. A `.8ba` song drives the VIA's CB2 square
-  wave when `audio.voices` is 1; the stock 2001 has no speaker
-  (`audio.voices` 0) and playback is omitted (`8BS2211`). Noise samples
+  wave when `audio::voices` is 1; the stock 2001 has no speaker
+  (`audio::voices` 0) and playback is omitted (`8BS2211`). Noise samples
   cannot play on that one square wave.
 
 - `packages/pet/src/index.8bs` exports three registers: `viaPeripheralControl`
@@ -74,37 +74,37 @@ Do not describe more than this as working:
   hardware the package's two portable surfaces need: `src/screen.8bs`
   (behind `@8bitscript/screen`, as `@8bitscript/pet/screen`) and
   `src/text.8bs` (behind `@8bitscript/text`).
-- `screen.setColors()`, `setBorder()`, `setBackground()` and
-  `text.putColor()`/`text.setColor()` all link and are all **deliberately
+- `screen::setColors()`, `setBorder()`, `setBackground()` and
+  `text::putColor()`/`text::setColor()` all link and are all **deliberately
   empty**: the PET has no color hardware and no border. A call to
   `setColor` or `putColor` is deleted before lowering, so a portable
-  program that colors its text pays the PET nothing. `screen.blank()`
+  program that colors its text pays the PET nothing. `screen::blank()`
   writes the space screen code (32) to 1000 cells from `$8000`.
-- `text.putChar(cell, code)` takes ASCII, converts it to a PET screen code
+- `text::putChar(cell, code)` takes ASCII, converts it to a PET screen code
   (`A`–`Z` 65–90 → 1–26; 32–63 unchanged), and writes `$8000 + cell` —
   directly, at any time, with no vertical-blank queue (see "Snow" below for
   why that is correct on every model this target builds for). Before each
   run of text the package writes `$0C` to the PCR so 1–26 render as
   capitals — necessary because the business-keyboard ROMs boot in the
   lower-case set (see the verified table below).
-  `text.COLUMNS` and `text.CELL_COUNT` are `Video.COLUMNS` and
+  `text::COLUMNS` and `text::CELL_COUNT` are `Video.COLUMNS` and
   `Video.CELL_COUNT` from `src/geometry.8bs` (40 and 1000), whose
   `geometry.pet.8032.8bs` twin (80 and 2000) a build whose hardware
   carries the `8032` tag reads instead — the hardware-tag file rule in
-  `docs/packages.md`, and the reason namespace consts may now be
-  initialized from another module's const. `screen.blank()` clears
+  `docs/packages.md`, and the reason `mod` consts may now be
+  initialized from another module's const. `screen::blank()` clears
   `Video.CELL_COUNT` cells the same way. `locate()` is not needed here:
   the screen is a flat array and cell arithmetic is the address.
 - `src/blocks.8bs` (`@8bitscript/pet/blocks`, PET-only — no portable
   `blocks` capability exists to implement): the sixteen quadrant-block
   screen codes (`video.blockWidth`/`blockHeight` = 2 in the fact sheet) as
-  `blocks.quad()`/`blocks.put()`, and a `digits` namespace built on them —
+  `blocks::quad()`/`blocks::put()`, and a `digits` module built on them —
   a 2x3-cell (4x6 pseudo-pixel) tile per digit 0-9 — a classic 3x5
   dot-matrix numeral elongated to fill all 6 rows (its own row 1 repeated,
   no blank row left over), not a scoreboard size: 2 cells wide is what
   makes every leftover space, for 1 to 4 digits alike, come out even, so
-  `digits.printCentered()` can center a game tile's number exactly instead
-  of `text.printNumber`'s odd-leftover bias to one side, and 4 tiles of 8
+  `digits::printCentered()` can center a game tile's number exactly instead
+  of `text::printNumber`'s odd-leftover bias to one side, and 4 tiles of 8
   cells (4 digits x 2) plus 3 gaps is 35, fitting a 40-column screen with
   room to spare. The font has no blank row of its own on purpose: a spare
   cell above or below a digit (however a caller lays a tile out) can only
@@ -115,9 +115,9 @@ Do not describe more than this as working:
   margin above the digit than below (reported directly against
   `~/Development/2048`'s PET build, 2026-09-07); the fix was fitting real
   strokes into every row so nothing but the caller's own placement decides
-  the margin. `digits.draw()` for one digit, `digits.print()` for a
-  zero-padded field the same shape as `text.printNumber`, and
-  `digits.printCentered()` for a number that grows and shrinks (a game
+  the margin. `digits::draw()` for one digit, `digits::print()` for a
+  zero-padded field the same shape as `text::printNumber`, and
+  `digits::printCentered()` for a number that grows and shrinks (a game
   tile's value) centered in a cell-width box instead of padded to a fixed
   one. Every one of the three takes `invert`: QUAD's sixteen codes are
   closed under the bit-7 flip, so an inverted digit reads as dark ink cut
@@ -171,9 +171,9 @@ Do not describe more than this as working:
     the real "user port speaker hack." `xpet` always computes CB2's own
     audio waveform once VICE's master `-sound` is on — there is no VICE
     resource for "is a speaker physically present" — so `attached` is
-    `-sound` (and `audio.voices: 1`) and `none` is `+sound` (and
-    `audio.voices: 0`): what changes is whether there is anything to hear
-    and whether a program compiling against `#fact(audio.voices)` should
+    `-sound` (and `audio::voices: 1`) and `none` is `+sound` (and
+    `audio::voices: 0`): what changes is whether there is anything to hear
+    and whether a program compiling against `#fact(audio::voices)` should
     bother emitting CB2 tones at all, not anything about the emulated
     electrical signal itself. Interactive `8bs run` still opens a muted
     VICE sound device after that `+sound` — GTK3 with no audio clock
@@ -219,10 +219,10 @@ Do not describe more than this as working:
   see "Hazards" below.
 - **Keyboard**, PET-only, the layer a portable `@8bitscript/input` will
   sit on: `@8bitscript/pet/keyboard` (`src/keyboard.8bs`) reads all ten
-  matrix rows into a snapshot once a frame — `keyboard.scan()` right after
-  `waitFrame()` — and answers `keyboard.pressed(key)` / `keyboard.row(n)`
+  matrix rows into a snapshot once a frame — `keyboard::scan()` right after
+  `waitFrame()` — and answers `keyboard::pressed(key)` / `keyboard::row(n)`
   from it; `@8bitscript/pet/keys` (`src/keys.8bs`) names every key as
-  `Key.X = row * 8 + column` for the graphics matrix, with
+  `Key::X = row * 8 + column` for the graphics matrix, with
   `keys.pet.business.8bs` the business matrix a build tagged `business` reads
   instead — the `keyboard` option's twin, not the model's, because the 4032B
   and 3032B carry that keyboard at 40 columns.
@@ -233,7 +233,7 @@ Do not describe more than this as working:
   file, never edit or save. Nothing about the PET's name says so; the
   tier is read from its facts, and the PET fails all three editor gates
   (`video.glyphs` 0, the font is this ROM; `video.sprites` 0;
-  `audio.voices` 1, and one fixed-volume voice plays a tune but does not
+  `audio::voices` 1, and one fixed-volume voice plays a tune but does not
   compose one). RAM is *not* the gate here — a 3032 has 31743 bytes, more
   than the VIC-20 that does edit — so no memory expansion lifts the PET.
   A hi-res board or a SID cartridge would, by changing those facts; see
@@ -274,7 +274,7 @@ under xpet, not recalled.
 | VICE's PET models: 2001, 3008, 3016, 3032, 3032B, 4016, 4032, 4032B, 8032, 8096, 8296, SuperPET. RAM sizes 4/8/16/32/96/128; `-videosize 0/40/80` (0 = from ROM); CRTC "all models from 40xx and above"; `-screen2001` mirrors the 1K screen through `$8FFF` ("otherwise mirrors, if any, only go up to `$87FF`"); `-eoiblank` is a "Model-2001-only quirk"; `CB2Lowpass` filters the emulated CB2 sound; `-petdww` (30xx) and `-pethre` (8296) are hi-res *add-on boards*; Color PET (`$8800` color RAM) and `-sidcart` are third-party extensions. | VICE 3.10 manual §7.7, `xpet -help` |
 | ROM sets: 3032 = kernal-2 + edit-2-**n** (graphics keyboard) + characters-2 (901447-10) + basic-2; 4032 = kernal-4 + edit-4-40-n-50Hz + characters-2 + basic-4; 8032 = kernal-4 + edit-4-80-**b**-50Hz + characters-2 + basic-4; 2001 = kernal-1 + edit-1-n + characters-1 (901447-**08**) + basic-1. | `/opt/homebrew/share/vice/PET/*.vrs` |
 | Measured frame period under VICE's 4032 (PAL): ~19992 cycles, 50.02 Hz. | `FRAME_SYNC.pet` comment (this project's earlier measurement) |
-| The catalog's stock fact sheet: grid 40×25 of 8×8 (80 on the 8032, its `model` value's fact), 2 colors, 2 per cell (normal and reverse), no redefinable glyphs, 2×2 PETSCII blocks, no bitmap, one layer, no scroll, no sprites; one CB2 voice with no volume, envelope, noise, samples or random source; keyboard, no joystick or pad ports; disk; RAM per model (`memory.ram` on each `model` value, from `__ram_size`), nothing banked, no mouse or paddles. | `src/geometry.8bs`, `src/geometry.pet.8032.8bs`; the `__ram_size` and sound rows above; `package.json` (read) |
+| The catalog's stock fact sheet: grid 40×25 of 8×8 (80 on the 8032, its `model` value's fact), 2 colors, 2 per cell (normal and reverse), no redefinable glyphs, 2×2 PETSCII blocks, no bitmap, one layer, no scroll, no sprites; one CB2 voice with no volume, envelope, noise, samples or random source; keyboard, no joystick or pad ports; disk; RAM per model (`memory::ram` on each `model` value, from `__ram_size`), nothing banked, no mouse or paddles. | `src/geometry.8bs`, `src/geometry.pet.8032.8bs`; the `__ram_size` and sound rows above; `package.json` (read) |
 | The sixteen quadrant-block screen codes: eight ROM glyphs at 96-127 (blank, a half, one quadrant alone, or the TL+BR diagonal), byte-identical whether the ROM address's charset-select bit is 0 or 1, and their reverse-video complements at 224-255 cover the remaining eight patterns (top half, the TR+BL diagonal, and every three-quarter pattern). | a script reading `characters-2.901447-10.bin` 8 bytes/glyph, `packages/pet/src/blocks.8bs`, `packages/pet/test/blocks.test.mjs`'s xpet screenshot check |
 | `xpet -drive8type` (both #8 and #9) takes exactly nine values: `0` no drive, `2031` CBM 2031, `2040` CBM 2040, `3040` CBM 3040, `4040` CBM 4040, `1001` CBM 1001 (the SFD-1001), `8050` CBM 8050, `8250` CBM 8250, `9000` CBM D9090/60 — one flag, no image format in it. Units run `-8`/`-9`/`-10`/`-11`; a dual drive's second mechanism is `-8d1` etc. Two tape ports exist (`-1`, `-2`, both "Attach \<name\> as a tape image"), matching PIA1's cassette #1 pins (above) and VIA's cassette #2 pins (below). | `xpet -help`, VICE 3.10, this host |
 | Real capacity per drive, measured rather than recalled: `c1541 -format` an image of each type and read its own directory's free-block count back (a block holds 254 usable data bytes — 256 minus the 2-byte next-track/sector link). D64 (2031, 4040, and 1541 — 2031/4040 named alongside the 1541 as D64-compatible; DOS 2) 664 blocks = 164 KiB; D67 (2040, 3040 — DOS 1) 670 blocks = 166 KiB; D80 (8050) 2052 blocks = 508 KiB; D82 (8250, and the SFD-1001's own single-drive `1001` type — same double-sided 77-track geometry, cross-checked against its documented 1,066,496-byte raw image size) 4133 blocks = 1025 KiB; D90 (`9000`) 29162 blocks = 7233 KiB. The 2040 and 3040 are the same DOS 1 drive, NTSC vs PAL — the 4040 is a different, later DOS (2.0), not a third region. | `c1541 -format` (d64/d67/d80/d82/d90), VICE 3.10, this host; lib1541img/lemon64 (2031+4040 named as D64); Computing History UK (SFD-1001 image size) |
@@ -369,7 +369,7 @@ The catalog's own `speaker` option (above) is this fact made selectable:
 `attached` on a CRTC preset (built in) or chosen explicitly on a non-CRTC
 one (the user-port hack); `xpet -help` has no separate "speaker present"
 resource, so the option's only real levers are VICE's master `-sound`/
-`+sound` and this package's own `audio.voices` fact.
+`+sound` and this package's own `audio::voices` fact.
 
 **Character set** (masswerk *PETSCII Revealed*, pagetable): 128 glyphs
 per set, 8 bytes each; screen-code bit 7 inverts the glyph in hardware
@@ -380,7 +380,7 @@ card suits, circles — and in the text set `$40–$5F` become lower-case
 (the original 2001's 901447-08 ROM has the two cases the other way
 round: shifted letters are the lower-case ones). PETSCII → screen code: `$40–$5F` →
 `$00–$1F`, `$A0–$BF` → `$60–$7F`, `$C0–$DF` → `$40–$5F`, `$20–$3F`
-unchanged. `text.putChar` takes ASCII and does exactly the first of those.
+unchanged. `text::putChar` takes ASCII and does exactly the first of those.
 
 **Keyboard** (keyboards.html, masswerk *PET Keyboard Test*): write row
 `n` (0–9) to `$E810`'s low nibble, read `$E812`, pressed = bit clear.
@@ -533,8 +533,8 @@ unverified:
 ### The model is the hardware, and width is not derivable from RAM
 
 - The catalog's `model` option has a value per model number, and a value
-  fixes **screen width** (40 or 80 — `text.COLUMNS`, `text.CELL_COUNT`,
-  `screen.blank()`'s extent, through the geometry file's tag twin — and
+  fixes **screen width** (40 or 80 — `text::COLUMNS`, `text::CELL_COUNT`,
+  `screen::blank()`'s extent, through the geometry file's tag twin — and
   which xpet model `8bs run` picks) and **keyboard matrix** (graphics on
   3xxx/4xxx, business on the 8032/4032B/3032B: `keys.8bs` and its `keys.pet.business.8bs`
   twin). RAM size is the separate `ram` option's job now (milestone-10-era
@@ -542,10 +542,10 @@ unverified:
   upgrade RAM without changing anything about the screen or keyboard, so
   the catalog no longer ties the two together. Both are still compile-time,
   the way Studio's tier is; a program must never probe the screen width at
-  run time. `cell = y * text.COLUMNS + x` with a 40-column constant on an
+  run time. `cell = y * text::COLUMNS + x` with a 40-column constant on an
   80-column screen is not "narrow" — row 1 lands in the middle of row 0.
   New per-model facts go the same way: the value's tag's version of one
-  small file (`x.pet.8032.8bs`), read through a namespace const, never a
+  small file (`x.pet.8032.8bs`), read through a `mod` const, never a
   copy of a surface — or, for a number, a `facts` entry on the value.
 ### The machine is left in the set the program drew in
 
@@ -583,7 +583,7 @@ unverified:
   prompt rather than in the program's own output — which is the right way
   round.
 - A program that minds can still have it both ways by clearing what it
-  drew before it returns (`screen.blank()`) and writing `$0C` to
+  drew before it returns (`screen::blank()`) and writing `$0C` to
   `viaPeripheralControl` itself: the register is exported, and with
   nothing left on screen there is nothing for the retroactive bit to
   re-render. That is a program's decision to make, not the text package's,
@@ -687,11 +687,11 @@ unverified:
   a key mapping; there is no port. Expect ghosting beyond two
   simultaneous keys.
 - **Read `$E812` once a frame, right after `waitFrame()`, into a
-  snapshot** — `keyboard.scan()` — and answer every question from the
+  snapshot** — `keyboard::scan()` — and answer every question from the
   snapshot. Reading the port clears the retrace flag the frame runtime
   polls; a read anywhere else in the frame can eat an edge and stall a
   whole frame. Anything built on this layer (a portable `input`, a key
-  repeat, a text field) queries `keyboard.pressed()`/`keyboard.row()`,
+  repeat, a text field) queries `keyboard::pressed()`/`keyboard::row()`,
   never the port. Verified frame-exact under xpet (table above).
 - Keys a program can name on every PET are the ones both tables share
   (letters, `DIGIT_n`, SPACE, RETURN, STOP, cursor keys, shifts, the
@@ -704,7 +704,7 @@ unverified:
 - **Never make VIA PB5 an output** (`$E842` bit 5). This is the killer
   poke. Nothing in the toolchain does, and the linker refuses a program
   that would (`8BS3003`, `packages/compiler/src/linker/hazards.mjs`): a
-  `memory.write`, an `@address` assignment, or an element store at `$E842`
+  `memory::write`, an `#[address]` assignment, or an element store at `$E842`
   is allowed only with a compile-time value whose bit 5 is clear, because
   the register's other bits have legitimate uses (cassette motor and
   write, IEEE NRFD/ATN). A runtime value there cannot be proved safe and
@@ -728,9 +728,9 @@ to "verified here" when you do.
 
 `@8bitscript/raster` names a fourth per-line intent, `Slot.CHARSET`
 (value 3: the machine's alternate character set), and two constants a
-program folds on before touching any slot: `raster.COLORS` (whether
+program folds on before touching any slot: `raster::COLORS` (whether
 `BORDER`/`BACKGROUND` do anything — false on the PET, which has no
-border or background register at all) and `raster.CHARSET` (whether
+border or background register at all) and `raster::CHARSET` (whether
 this slot does). Both exist in all thirty-two rasterline files;
 `rasterline.pet.3032.8bs` and `rasterline.pet.4032.8bs` — each model
 value's own twin, resolved by `--hardware model=3032`/`model=4032` the
@@ -792,7 +792,7 @@ read another, loop, write $E84C, move to the next entry. Two fixed
 overhead constants — `BETWEEN_ENTRIES` (31: the LDA/STA/BEQ outer check,
 LDY/BEQ fine check, LDA/STA write, and INX/CPX/BNE between one entry and
 the next) and `FIRST_ENTRY` (39: the same, plus the 8bitscript-generated
-`let n = planCount; if (n == 0) return;` prologue before the first entry)
+`let n = planCount; if n == 0 { return; }` prologue before the first entry)
 — are subtracted from each entry's own delta before the repeated
 subtraction runs, so the loop counts land the write at the right cycle,
 not just the right loop-iteration-count. These two numbers are shared,
@@ -927,7 +927,7 @@ natural next step, following this file's own shape and the 4032's own
 multi-entry methodology above (a coarse, single-mechanism sweep is not
 enough on its own, per the 4032 section's two wrong turns). `examples/fancy`
 does not demonstrate this driver: it is specifically the *colour*-band
-showpiece (`raster.COLORS`), and the PET has no colour register for it to
+showpiece (`raster::COLORS`), and the PET has no colour register for it to
 show — a program that wants to see the PET's split has to write one, the
 way `test/raster-probe.8bs` and `test/raster-probe.pet.4032.8bs` do.
 

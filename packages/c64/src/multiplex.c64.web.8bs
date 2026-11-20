@@ -21,55 +21,46 @@
 // tables (page $06, where a program that peeks them finds them), are
 // multiplex.8bs's. Keep the export list identical to multiplex.8bs:
 // test/c64-web-twin.test.mjs holds the two to the same names.
-import { raster } from "./raster.8bs";
+use self::raster::raster;
 
 const HIDDEN: utinyint = 255;
 // Lines after an entry's own by which n entries on it have all landed.
-const LANDING: array<utinyint, 6> = [0, 2, 3, 3, 3, 4];
-const BIT: array<utinyint, 8> = [1, 2, 4, 8, 16, 32, 64, 128];
-const NOT_BIT: array<utinyint, 8> = [254, 253, 251, 247, 239, 223, 191, 127];
-const ENABLE_MASK: array<utinyint, 9> = [0, 1, 3, 7, 15, 31, 63, 127, 255];
+const LANDING: [utinyint; 6] = [0, 2, 3, 3, 3, 4];
+const BIT: [utinyint; 8] = [1, 2, 4, 8, 16, 32, 64, 128];
+const NOT_BIT: [utinyint; 8] = [254, 253, 251, 247, 239, 223, 191, 127];
+const ENABLE_MASK: [utinyint; 9] = [0, 1, 3, 7, 15, 31, 63, 127, 255];
 
-@address(0x0600)
-let vxLo: array<u8, 24>;
-@address(0x0618)
-let vxHi: array<u8, 24>;
-@address(0x0630)
-let vy: array<u8, 24>;
-@address(0x0648)
-let vShape: array<u8, 24>;
-@address(0x0660)
-let vColor: array<u8, 24>;
-@address(0x0678)
-let order: array<u8, 24>;
-@address(0x06B8)
-let count: volatile<u8>;
-@address(0x06B9)
-let droppedCount: volatile<u8>;
-@address(0x06BA)
-let shownCount: volatile<u8>;
+#[address(0x0600)] let mut vxLo: [u8; 24];
+#[address(0x0618)] let mut vxHi: [u8; 24];
+#[address(0x0630)] let mut vy: [u8; 24];
+#[address(0x0648)] let mut vShape: [u8; 24];
+#[address(0x0660)] let mut vColor: [u8; 24];
+#[address(0x0678)] let mut order: [u8; 24];
+#[address(0x06B8)] let mut count: volatile<u8>;
+#[address(0x06B9)] let mut droppedCount: volatile<u8>;
+#[address(0x06BA)] let mut shownCount: volatile<u8>;
 
 // What each hardware sprite holds as the list runs down the frame.
-let hwY: array<u8, 8>;
-let hwXLo: array<u8, 8>;
-let hwXHi: array<u8, 8>;
-let hwShape: array<u8, 8>;
-let hwColor: array<u8, 8>;
+let mut hwY: [u8; 8];
+let mut hwXLo: [u8; 8];
+let mut hwXHi: [u8; 8];
+let mut hwShape: [u8; 8];
+let mut hwColor: [u8; 8];
 
-let ordered: bool = false;
+let mut ordered: bool = false;
 
-export namespace multiplex {
+pub mod multiplex {
     const MAX: utinyint = 24;
     const GAP: utinyint = 24; // lines from one use of a hardware sprite to the next: 21 rows + landing
 
     // How many virtual sprites are in use, 0-24; those at and past the
     // count are ignored. Resets the sort order.
-    function setCount(n: utinyint): void {
-        if (n > multiplex.MAX) {
-            n = multiplex.MAX;
+    fn setCount(n: utinyint) {
+        if n > multiplex::MAX {
+            n = multiplex::MAX;
         }
         count = n;
-        for (let i: utinyint = 0; i < multiplex.MAX; i++) {
+        for i: utinyint in 0..multiplex::MAX {
             order[i] = i;
             vy[i] = HIDDEN;
         }
@@ -78,7 +69,7 @@ export namespace multiplex {
 
     // Virtual sprite `v` at (x, y) — the VIC's coordinates, as
     // sprites.place — drawn from shape block `block` in `color`.
-    function set(v: utinyint, x: usmallint, y: utinyint, block: utinyint, color: utinyint): void {
+    fn set(v: utinyint, x: usmallint, y: utinyint, block: utinyint, color: utinyint) {
         vxLo[v] = x & 0xFF;
         vxHi[v] = x >> 8;
         vy[v] = y;
@@ -86,27 +77,27 @@ export namespace multiplex {
         vColor[v] = color & 15;
     }
 
-    function place(v: utinyint, x: usmallint, y: utinyint): void {
+    fn place(v: utinyint, x: usmallint, y: utinyint) {
         vxLo[v] = x & 0xFF;
         vxHi[v] = x >> 8;
         vy[v] = y;
     }
 
-    function setShape(v: utinyint, block: utinyint): void {
+    fn setShape(v: utinyint, block: utinyint) {
         vShape[v] = block;
     }
 
-    function setColor(v: utinyint, color: utinyint): void {
+    fn setColor(v: utinyint, color: utinyint) {
         vColor[v] = color & 15;
     }
 
     // Not drawn until placed again.
-    function hide(v: utinyint): void {
+    fn hide(v: utinyint) {
         vy[v] = HIDDEN;
     }
 
     // Virtual sprites the last update() could not fit.
-    function dropped(): utinyint {
+    fn dropped() -> utinyint {
         return droppedCount;
     }
 
@@ -114,17 +105,17 @@ export namespace multiplex {
     // table, and the list entries for the rest — appended to the list being
     // built, in ascending line order. Call it after raster.clear() and before
     // raster.commit(). Returns how many virtual sprites will draw.
-    function update(): utinyint {
-        if (!ordered) {
-            multiplex.setCount(count);
+    fn update() -> utinyint {
+        if !ordered {
+            multiplex::setCount(count);
         }
 
         // 1. sort `order` by y: insertion, from an order that persists.
-        for (let i: utinyint = 1; i < count; i++) {
+        for i: utinyint in 1..count {
             let moving: utinyint = order[i];
             let y: utinyint = vy[moving];
-            let j: utinyint = i;
-            while (j > 0 && vy[order[j - 1]] > y) {
+            let mut j: utinyint = i;
+            while j > 0 && vy[order[j - 1]] > y {
                 order[j] = order[j - 1];
                 j = j - 1;
             }
@@ -132,116 +123,116 @@ export namespace multiplex {
         }
 
         // 2. the eight topmost are hardware sprites 0-7, through the frame table.
-        let shown: utinyint = 0;
-        let xHigh: utinyint = 0;
-        let first: utinyint = count;
-        if (first > 8) {
+        let mut shown: utinyint = 0;
+        let mut xHigh: utinyint = 0;
+        let mut first: utinyint = count;
+        if first > 8 {
             first = 8;
         }
-        for (let h: utinyint = 0; h < 8; h++) {
-            let top: utinyint = HIDDEN;
-            if (h < first) {
+        for h: utinyint in 0..8 {
+            let mut top: utinyint = HIDDEN;
+            if h < first {
                 let v: utinyint = order[h];
                 top = vy[v];
-                if (top != HIDDEN) {
+                if top != HIDDEN {
                     hwXHi[h] = vxHi[v];
-                    if (vxHi[v] != 0) {
+                    if vxHi[v] != 0 {
                         xHigh = xHigh | BIT[h];
                     }
                     hwXLo[h] = vxLo[v];
                     hwShape[h] = vShape[v];
                     hwColor[h] = vColor[v];
-                    raster.setFrameSprite(h, vxLo[v], top, vShape[v], vColor[v]);
-                    shown++;
+                    raster::setFrameSprite(h, vxLo[v], top, vShape[v], vColor[v]);
+                    shown += 1;
                 }
             }
             hwY[h] = top;
         }
-        raster.setFrameHeader(xHigh, ENABLE_MASK[shown]);
+        raster::setFrameHeader(xHigh, ENABLE_MASK[shown]);
 
         // 3. the rest: list entries, hardware sprite k & 7, at the earliest line.
-        let lost: utinyint = 0;
-        let busy: utinyint = 0; // the line the entries so far land by
-        for (let k: utinyint = 8; k < count; k++) {
+        let mut lost: utinyint = 0;
+        let mut busy: utinyint = 0; // the line the entries so far land by
+        for k: utinyint in 8..count {
             let v: utinyint = order[k];
             let y: utinyint = vy[v];
-            if (y == HIDDEN) {
+            if y == HIDDEN {
                 break; // hidden sprites sank to the end
             }
             let h: utinyint = k & 7;
-            if (hwY[h] == HIDDEN) {
+            if hwY[h] == HIDDEN {
                 break; // fewer than eight shown: nothing to reuse
             }
             // The earliest line: this hardware sprite's last y + 21 rows, the
             // line the entries so far land by, or the list's last line,
             // whichever is lowest down. Sixteen bits: a line past 255 cannot
             // land before any y.
-            let line: usmallint = hwY[h];
+            let mut line: usmallint = hwY[h];
             line = line + 21;
-            if (line > 255) {
-                lost++;
+            if line > 255 {
+                lost += 1;
                 continue;
             }
-            if (line < busy) {
+            if line < busy {
                 line = busy;
             }
-            let last: utinyint = raster.lastEntryLine();
-            if (line < last) {
+            let last: utinyint = raster::lastEntryLine();
+            if line < last {
                 line = last;
             }
             // Y always, and the registers that differ from what h now holds.
-            let which: utinyint = 0;
-            let entries: utinyint = 1;
-            if (vShape[v] != hwShape[h]) {
+            let mut which: utinyint = 0;
+            let mut entries: utinyint = 1;
+            if vShape[v] != hwShape[h] {
                 which = which | 1;
-                entries++;
+                entries += 1;
             }
-            if (vxLo[v] != hwXLo[h]) {
+            if vxLo[v] != hwXLo[h] {
                 which = which | 2;
-                entries++;
+                entries += 1;
             }
-            if (vxHi[v] != hwXHi[h]) {
+            if vxHi[v] != hwXHi[h] {
                 which = which | 4;
-                entries++;
+                entries += 1;
             }
-            if (vColor[v] != hwColor[h]) {
+            if vColor[v] != hwColor[h] {
                 which = which | 8;
-                entries++;
+                entries += 1;
             }
-            let landing: usmallint = line;
+            let mut landing: usmallint = line;
             landing = landing + LANDING[entries];
-            if (landing > 255 || landing >= y) {
-                lost++; // too late for this frame
+            if landing > 255 || landing >= y {
+                lost += 1; // too late for this frame
                 continue;
             }
-            if ((which & 4) != 0) {
-                if (vxHi[v] != 0) {
+            if (which & 4) != 0 {
+                if vxHi[v] != 0 {
                     xHigh = xHigh | BIT[h];
                 } else {
                     xHigh = xHigh & NOT_BIT[h];
                 }
             }
-            if (!raster.spriteEntries(line, h, y, vShape[v], vxLo[v], xHigh, vColor[v], which)) {
+            if !raster::spriteEntries(line, h, y, vShape[v], vxLo[v], xHigh, vColor[v], which) {
                 // The list is full: every sprite from k on, which lies lower still.
                 lost = lost + (count - k);
                 break;
             }
             // Hardware sprite h now holds v, and is free again 21 lines on.
-            if ((which & 1) != 0) {
+            if (which & 1) != 0 {
                 hwShape[h] = vShape[v];
             }
-            if ((which & 2) != 0) {
+            if (which & 2) != 0 {
                 hwXLo[h] = vxLo[v];
             }
-            if ((which & 4) != 0) {
+            if (which & 4) != 0 {
                 hwXHi[h] = vxHi[v];
             }
-            if ((which & 8) != 0) {
+            if (which & 8) != 0 {
                 hwColor[h] = vColor[v];
             }
             hwY[h] = y;
             busy = landing;
-            shown++;
+            shown += 1;
         }
         droppedCount = lost;
         shownCount = shown;

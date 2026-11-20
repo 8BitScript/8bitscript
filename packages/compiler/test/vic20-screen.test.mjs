@@ -57,9 +57,9 @@ test('BackgroundColor has all 16 colors the background field can hold, plus KEEP
 
 test('a program using screen.setColors links against the real vic20 package', () => {
   const consumer = [
-    'import { screen, BorderColor, BackgroundColor } from "@8bitscript/vic20/screen";',
-    'export function main(): void {',
-    '    screen.setColors(BorderColor.BLUE, BackgroundColor.BLACK);',
+    'use @8bitscript::vic20::screen::{screen, BorderColor, BackgroundColor};',
+    'pub fn main() {',
+    '    screen::setColors(BorderColor::BLUE, BackgroundColor::BLACK);',
     '}',
   ].join('\n');
   const entryFile = join(FIXTURES, 'screen-consumer.8bs');
@@ -86,8 +86,10 @@ test('referencing a color name a namespace does not have is a compile error', ()
   // only names BorderColor exposes, which is what makes a value like this
   // unrepresentable at all rather than merely unwise.
   const consumer = [
-    'import { screen, BorderColor, BackgroundColor } from "@8bitscript/vic20/screen";',
-    'export function main(): void { screen.setColors(BorderColor.ORANGE, BackgroundColor.BLACK); }',
+    'use @8bitscript::vic20::screen::{screen, BorderColor, BackgroundColor};',
+    'pub fn main() {',
+    '    screen::setColors(BorderColor::ORANGE, BackgroundColor::BLACK);',
+    '}',
   ].join('\n');
   const entryFile = join(FIXTURES, 'screen-consumer-bad.8bs');
   const { ir, diagnostics } = link(consumer, entryFile);
@@ -112,25 +114,25 @@ test('referencing a color name a namespace does not have is a compile error', ()
 //   0x1120..0x112F: border fixed at 5, background 0..15
 //   0x1130: border 14 — past the 3-bit field, so it must wrap to 6
 const PACKING_SOURCE = [
-  'let color: utinyint = 0;',
-  'function setColors(border: utinyint, background: utinyint): void {',
-  '    memory.write(0x1000, (8 | (border & 7)) | (background << 4));',
+  'let mut color: utinyint = 0;',
+  'fn setColors(border: utinyint, background: utinyint) {',
+  '    memory::write(0x1000, 8 | border & 7 | background << 4);',
   '}',
-  'export function main(): void {',
+  'pub fn main() {',
   '    color = 0;',
-  '    while (color < 8) {',
+  '    while color < 8 {',
   '        setColors(color, 15);',
-  '        memory.write(0x1110 + color, memory.read(0x1000));',
+  '        memory::write(0x1110 + color, memory::read(0x1000));',
   '        color = color + 1;',
   '    }',
   '    color = 0;',
-  '    while (color < 16) {',
+  '    while color < 16 {',
   '        setColors(5, color);',
-  '        memory.write(0x1120 + color, memory.read(0x1000));',
+  '        memory::write(0x1120 + color, memory::read(0x1000));',
   '        color = color + 1;',
   '    }',
   '    setColors(14, 0);',
-  '    memory.write(0x1130, memory.read(0x1000));',
+  '    memory::write(0x1130, memory::read(0x1000));',
   '}',
 ].join('\n');
 

@@ -9,7 +9,7 @@
 // The items go where <slot /> is: between begin and end. With every prop
 // a compile-time value, that elaborates to exactly the begin/item/item/end
 // calls a program would write by hand, and costs the same.
-use self::menubar::menubar;
+use "./menubar.8bs"::menubar;
 
 pub component MenuBar(row: utinyint, width: usmallint) {
     menubar::begin(row, width);

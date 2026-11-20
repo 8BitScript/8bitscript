@@ -17,14 +17,14 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const CHECKOUT = join(HERE, '..', '..', '..');
 const TWIN = readFileSync(join(CHECKOUT, 'packages', 'graphics', 'src', 'index.cx16.8bs'), 'utf8');
 
-const PROBE = `import { graphics } from "@8bitscript/graphics";
-export function main(): void {
-    graphics.place(0, 0, 0);
-    graphics.hide(0);
-    graphics.setFrame(0, 1);
-    graphics.animate(0, false);
-    graphics.color(0, 1);
-    graphics.update();
+const PROBE = `use @8bitscript::graphics::graphics;
+pub fn main() {
+    graphics::place(0, 0, 0);
+    graphics::hide(0);
+    graphics::setFrame(0, 1);
+    graphics::animate(0, false);
+    graphics::color(0, 1);
+    graphics::update();
     return;
 }
 `;

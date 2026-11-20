@@ -16,7 +16,7 @@ Regenerate `player.png` / `blip.wav` with `node generate-assets.mjs`; shared mar
 
 ## Size
 
-| Target | `memory.program` |
+| Target | `memory::program` |
 | --- | ---: |
 | C64 | 4485 |
 | PET (4032 32K, speaker) | 3579 |

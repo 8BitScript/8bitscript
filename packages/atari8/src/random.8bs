@@ -2,7 +2,7 @@
 //
 // Named by "8bitscript".exports["./random"] in this package's package.json:
 //
-//     import { random } from "@8bitscript/atari8/random";
+//     use @8bitscript::atari8::random::random;
 //
 //     let seed: utinyint = random.byte();
 //
@@ -40,18 +40,18 @@
 // reproducible in principle and unpredictable in practice — the same as on
 // the machine, for a program's purposes, but not a source of cryptographic
 // randomness on either. Nothing here is.
-import { randomRegister } from "./index.8bs";
+use self::index::randomRegister;
 
-export namespace random {
+pub mod random {
     // One byte from the counter, 0-255.
-    function byte(): utinyint {
+    fn byte() -> utinyint {
         return randomRegister;
     }
 
     // Two bytes as one 16-bit value. See the header: the two reads are
     // consecutive states of one shift register, close together in time, so
     // this is wider than `byte()` but not twice as random.
-    function word(): usmallint {
+    fn word() -> usmallint {
         let high: usmallint = randomRegister;
         let low: usmallint = randomRegister;
         return high * 256 + low;

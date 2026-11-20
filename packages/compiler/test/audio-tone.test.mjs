@@ -48,17 +48,17 @@ const RANGES = {
 };
 const GENERIC = { file: 'index.8bs', low: 0, high: 0, levelMax: 0 };
 
-const PROBE = `import { audio } from "@8bitscript/audio";
-export function main(): void {
-    let low: utinyint = audio.NOTE_LOW;
-    let high: utinyint = audio.NOTE_HIGH;
-    let loud: utinyint = audio.LEVEL_MAX;
-    audio.setLevel(loud);
-    audio.tone(low, 10);
-    audio.tone(high, 0);
-    audio.blip(low, 3);
-    audio.silence();
-    audio.update();
+const PROBE = `use @8bitscript::audio::audio;
+pub fn main() {
+    let low: utinyint = audio::NOTE_LOW;
+    let high: utinyint = audio::NOTE_HIGH;
+    let loud: utinyint = audio::LEVEL_MAX;
+    audio::setLevel(loud);
+    audio::tone(low, 10);
+    audio::tone(high, 0);
+    audio::blip(low, 3);
+    audio::silence();
+    audio::update();
     return;
 }
 `;
@@ -102,11 +102,11 @@ test('every twin source declares NOTE_LOW, NOTE_HIGH, LEVEL_MAX, tone, blip, set
     const src = readFileSync(join(SRC, file), 'utf8');
     assert.match(src, /const NOTE_LOW: utinyint = \d+;/, file);
     assert.match(src, /const NOTE_HIGH: utinyint = \d+;/, file);
-    assert.match(src, /function tone\(note: utinyint, frames: utinyint\): void/, file);
-    assert.match(src, /function silence\(\): void/, file);
+    assert.match(src, /fn tone\(note: utinyint, frames: utinyint\) \{/, file);
+    assert.match(src, /fn silence\(\) \{/, file);
     assert.match(src, /const LEVEL_MAX: utinyint = \d+;/, file);
-    assert.match(src, /function setLevel\(amount: utinyint\): void|function setLevel\(level: utinyint\): void/, file);
-    assert.match(src, /function blip\(note: utinyint, frames: utinyint\): void/, file);
+    assert.match(src, /fn setLevel\(amount: utinyint\) \{|fn setLevel\(level: utinyint\) \{/, file);
+    assert.match(src, /fn blip\(note: utinyint, frames: utinyint\) \{/, file);
   }
 });
 
@@ -121,33 +121,33 @@ test('the level each twin states is the one this table records', () => {
 // luck. These read the sources (the emulator tests in packages/audio/test measure it).
 test('C64: blip is a plucked envelope with no sustain, and drops the gate first so a second note retriggers', () => {
   const src = readFileSync(join(SRC, 'index.c64.8bs'), 'utf8');
-  const blip = /function blip\([^)]*\): void \{([\s\S]*?)\n    \}/.exec(src)[1];
-  assert.match(blip, /sid\.setEnvelope\(0, 0, DECAY\[slow\], 0, 2\);/, 'attack 0, decay from the table, sustain 0, release 2');
-  assert.ok(blip.indexOf('sid.release(0);') < blip.indexOf('sid.play(0, note);'), 'the gate drops before the new note');
-  const tone = /function tone\([^)]*\): void \{([\s\S]*?)\n    \}/.exec(src)[1];
-  assert.match(tone, /sid\.setEnvelope\(0, 0, 9, 8, 6\);/, 'a plain tone puts the sustained envelope back');
-  assert.ok(tone.indexOf('sid.release(0);') < tone.indexOf('sid.play(0, note);'), 'a plain tone retriggers too');
-  assert.match(src, /sid\.setVolume\(level\);/, 'the first ensure() uses the level, not a hard-coded 15');
-  assert.doesNotMatch(src, /sid\.setVolume\(15\)/);
+  const blip = /fn blip\([^)]*\) \{([\s\S]*?)\n    \}/.exec(src)[1];
+  assert.match(blip, /sid::setEnvelope\(0, 0, DECAY\[slow\], 0, 2\);/, 'attack 0, decay from the table, sustain 0, release 2');
+  assert.ok(blip.indexOf('sid::release(0);') < blip.indexOf('sid::play(0, note);'), 'the gate drops before the new note');
+  const tone = /fn tone\([^)]*\) \{([\s\S]*?)\n    \}/.exec(src)[1];
+  assert.match(tone, /sid::setEnvelope\(0, 0, 9, 8, 6\);/, 'a plain tone puts the sustained envelope back');
+  assert.ok(tone.indexOf('sid::release(0);') < tone.indexOf('sid::play(0, note);'), 'a plain tone retriggers too');
+  assert.match(src, /sid::setVolume\(level\);/, 'the first ensure() uses the level, not a hard-coded 15');
+  assert.doesNotMatch(src, /sid::setVolume\(15\)/);
 });
 
 test('VIC-20, X16 and web: blip walks the volume down a step a frame and puts the level back when it ends', () => {
   for (const file of ['index.vic20.8bs', 'index.cx16.8bs', 'index.web.8bs']) {
     const src = readFileSync(join(SRC, file), 'utf8');
-    assert.match(src, /let rest: utinyint = (level|volume);/, `${file}: the step is worked out from the level`);
-    assert.match(src, /if \(shown > fade\) \{\s*shown = shown - fade;\s*\} else \{\s*shown = 0;/, `${file}: update lowers the volume, never below 0`);
+    assert.match(src, /let mut rest: utinyint = (level|volume);/, `${file}: the step is worked out from the level`);
+    assert.match(src, /if shown > fade \{\s*shown = shown - fade;\s*\} else \{\s*shown = 0;/, `${file}: update lowers the volume, never below 0`);
     assert.match(src, /fade = 0;/, `${file}: a plain tone and the end of a blip clear the fade`);
   }
-  assert.match(readFileSync(join(SRC, 'index.vic20.8bs'), 'utf8'), /sound\.volume\(level\);\s*\}\s*\n\s*\/\/ A plucked tone|shown = level;\s*sound\.volume\(level\);/, 'the VIC puts the volume back');
-  assert.match(readFileSync(CX16_PSG, 'utf8'), /function setVolume\(voice: utinyint, volume: utinyint\): void \{\s*writePsg\(voice \* 4 \+ 2, 0xC0 \| \(\(volume & 15\) \* 4\)\);/, 'the PSG can change a voice volume without touching its pitch');
+  assert.match(readFileSync(join(SRC, 'index.vic20.8bs'), 'utf8'), /sound::volume\(level\);\s*\}\s*\n\s*\/\/ A plucked tone|shown = level;\s*sound::volume\(level\);/, 'the VIC puts the volume back');
+  assert.match(readFileSync(CX16_PSG, 'utf8'), /fn setVolume\(voice: utinyint, volume: utinyint\) \{\s*writePsg\(voice \* 4 \+ 2, 0xC0 \| \(volume & 15\) \* 4\);/, 'the PSG can change a voice volume without touching its pitch');
 });
 
 test('PET: one bit has two levels, and level 0 mutes tone and blip', () => {
   const src = readFileSync(join(SRC, 'index.pet.8bs'), 'utf8');
   assert.match(src, /const LEVEL_MAX: utinyint = 1;/);
   assert.match(src, /muted = amount == 0;/);
-  assert.match(src, /function tone\(note: utinyint, frames: utinyint\): void \{\s*if \(songsOn\) \{\s*songs\.stop\(\);\s*\}\s*decayLeft = 0;\s*if \(muted\) \{\s*return;/);
-  assert.match(src, /function blip\([^)]*\): void \{\s*audio\.tone\(note, frames\);/);
+  assert.match(src, /fn tone\(note: utinyint, frames: utinyint\) \{\s*if songsOn \{\s*songs::stop\(\);\s*\}\s*decayLeft = 0;\s*if muted \{\s*return;/);
+  assert.match(src, /fn blip\([^)]*\) \{\s*audio::tone\(note, frames\);/);
 });
 
 test('the range in each twin source is the one this table records', () => {
@@ -169,16 +169,16 @@ test('each twin folds and indexes its pitch table with the range its constants s
   ];
   for (const { file, table: name, low, high } of folds) {
     const src = readFileSync(file, 'utf8');
-    assert.match(src, new RegExp(`while \\(n < ${low}\\) \\{\\s*n = n \\+ 12;`), `${file}: folds up from ${low}`);
-    assert.match(src, new RegExp(`while \\(n > ${high}\\) \\{\\s*n = n - 12;`), `${file}: folds down from ${high}`);
+    assert.match(src, new RegExp(`while n < ${low} \\{\\s*n = n \\+ 12;`), `${file}: folds up from ${low}`);
+    assert.match(src, new RegExp(`while n > ${high} \\{\\s*n = n - 12;`), `${file}: folds down from ${high}`);
     assert.match(src, new RegExp(`return ${name}\\[n - ${low}\\];`), `${file}: indexes ${name} from ${low}`);
   }
   // The X16 states its range by the NOTE_FIRST / NOTE_LAST consts of its PSG module.
   const psg = readFileSync(CX16_PSG, 'utf8');
   assert.match(psg, /const NOTE_FIRST: utinyint = 36;/);
   assert.match(psg, /const NOTE_LAST: utinyint = 95;/);
-  assert.match(psg, /while \(n < NOTE_FIRST\) \{\s*n = n \+ 12;/);
-  assert.match(psg, /while \(n > NOTE_LAST\) \{\s*n = n - 12;/);
+  assert.match(psg, /while n < NOTE_FIRST \{\s*n = n \+ 12;/);
+  assert.match(psg, /while n > NOTE_LAST \{\s*n = n - 12;/);
   assert.match(psg, /return FREQUENCY\[n - NOTE_FIRST\];/);
 });
 
@@ -189,7 +189,7 @@ const cents = (a, b) => 1200 * Math.log2(a / b);
 
 function table(file, name) {
   const src = readFileSync(file, 'utf8');
-  const match = new RegExp(`const ${name}: array<\\w+, (\\d+)> = \\[([^\\]]*)\\];`).exec(src);
+  const match = new RegExp(`const ${name}: \\[\\w+; (\\d+)\\] = \\[([^\\]]*)\\];`).exec(src);
   assert.ok(match, `${name} in ${file}`);
   const values = match[2].split(',').map((s) => s.trim()).filter(Boolean).map(Number);
   assert.equal(values.length, Number(match[1]), `${name} has the length it declares`);
@@ -226,36 +226,36 @@ test('X16: each VERA frequency word is the note it is indexed by, to within a ce
 
 test('X16: the PSG voice writes the channel-enable bits and a waveform (the old module wrote neither, and played nothing)', () => {
   const src = readFileSync(CX16_PSG, 'utf8');
-  assert.match(src, /writePsg\(base \+ 2, 0xC0 \| \(\(volume & 15\) \* 4\)\);/, 'volume with both channel bits');
-  assert.match(src, /writePsg\(base \+ 3, \(\(wave & 3\) << 6\) \| 63\);/, 'waveform in bits 7:6');
+  assert.match(src, /writePsg\(base \+ 2, 0xC0 \| \(volume & 15\) \* 4\);/, 'volume with both channel bits');
+  assert.match(src, /writePsg\(base \+ 3, \(wave & 3\) << 6 \| 63\);/, 'waveform in bits 7:6');
 });
 
 // ---- a program that never plays a song does not pay for songs --------------------------------
 
 import { optimizeReachable } from '../src/linker/optimize.mjs';
 
-const TONE_ONLY = `import { audio } from "@8bitscript/audio";
-export function main(): void {
-    audio.setLevel(audio.LEVEL_MAX);
-    audio.tone(57, 10);
-    audio.blip(60, 3);
-    while (true) {
+const TONE_ONLY = `use @8bitscript::audio::audio;
+pub fn main() {
+    audio::setLevel(audio::LEVEL_MAX);
+    audio::tone(57, 10);
+    audio::blip(60, 3);
+    loop {
         waitFrame();
-        audio.update();
-        if (audio.busy()) {
-            audio.silence();
+        audio::update();
+        if audio::busy() {
+            audio::silence();
         }
     }
 }
 `;
 
-const PLAYS_A_SONG = `import { win } from "./songs.8ba";
-import { audio } from "@8bitscript/audio";
-export function main(): void {
-    audio.play(win);
-    while (true) {
+const PLAYS_A_SONG = `use self::songs::win;
+use @8bitscript::audio::audio;
+pub fn main() {
+    audio::play(win);
+    loop {
         waitFrame();
-        audio.update();
+        audio::update();
     }
 }
 `;

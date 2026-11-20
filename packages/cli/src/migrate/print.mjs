@@ -16,9 +16,11 @@
 // module may assign it), a name that appears in an `asm6502` block, and an
 // array, pointer or string variable that is used as a bare value (it may be
 // written through a copy).
-import {
-  NodeType, TokenKind, scopeLookup, parse, scopeStoreTarget, scopeTargetOf, tokenize, walk, walkScopes,
-} from '@8bitscript/compiler';
+import { NodeType, walk } from '@8bitscript/compiler';
+import { scopeLookup, scopeStoreTarget, scopeTargetOf, walkScopes } from '@8bitscript/compiler/scopes';
+
+import { TokenKind, tokenize } from './legacy/lexer.mjs';
+import { parse } from './legacy/parser.mjs';
 
 const INDENT = '    ';
 
@@ -484,7 +486,10 @@ class Printer {
 
   importLine(s) {
     const specifier = s.source?.value ?? '';
-    const path = usePathOf(specifier, this.options.aliasHeads);
+    // A stem that exists under two source extensions is ambiguous as a `::` path
+    // (8BS2217), so those imports keep the string form, which names the file.
+    const ambiguous = this.options.sameStem?.(specifier) === true;
+    const path = ambiguous ? null : usePathOf(specifier, this.options.aliasHeads);
     const base = path ?? this.string(s.source);
     const names = s.specifiers.map((n) => (n.imported ? `${spellName(n.imported)} as ${spellName(n.name)}` : spellName(n.name)));
     if (names.length === 1 && !s.specifiers[0].imported) return `use ${base}::${names[0]};`;

@@ -1,7 +1,7 @@
 // See size-fact.8bs.
-import { text } from "@8bitscript/text";
+use @8bitscript::text::text;
 
-export function main(): void {
+pub fn main() {
     waitFrame();
-    text.putChar(0, 44);
+    text::putChar(0, 44);
 }

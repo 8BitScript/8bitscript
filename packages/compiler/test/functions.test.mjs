@@ -29,37 +29,37 @@ const loweredCodes = (src) => lowered(src).diagnostics.map((d) => d.code);
 // ---- parameters and return values -----------------------------------------
 
 test('a function may take parameters and return a value', () => {
-  clean('function double(n: utinyint): utinyint { return n * 2; }\nexport function main(): void { double(1); }');
+  clean('fn double(n: utinyint) -> utinyint {\n    return n * 2;\n}\npub fn main() {\n    double(1);\n}');
 });
 
 test('parameters and return type lower onto the IR function record', () => {
-  const { ir, diagnostics } = lowered('function add(a: utinyint, b: utinyint): utinyint { return a + b; }');
+  const { ir, diagnostics } = lowered('fn add(a: utinyint, b: utinyint) -> utinyint {\n    return a + b;\n}');
   assert.equal(diagnostics.length, 0);
   assert.deepEqual(ir.functions[0].params, [{ name: 'a', type: 'utinyint' }, { name: 'b', type: 'utinyint' }]);
   assert.equal(ir.functions[0].returnType, 'utinyint');
 });
 
 test('a parameter references by name inside the body', () => {
-  const { ir } = lowered('function id(n: utinyint): utinyint { return n; }');
+  const { ir } = lowered('fn id(n: utinyint) -> utinyint {\n    return n;\n}');
   assert.equal(ir.functions[0].body[0].value.name, 'n');
 });
 
 test('omitting the return type means void, as before', () => {
-  const { ir, diagnostics } = lowered('export function f(): void { return; }');
+  const { ir, diagnostics } = lowered('pub fn f() {\n    return;\n}');
   assert.equal(diagnostics.length, 0);
   assert.equal(ir.functions[0].returnType, 'void');
 });
 
 test('returning a value from a void function is not compilable', () => {
-  assert.deepEqual(loweredCodes('export function f(): void { return 1; }'), ['8BS3001']);
+  assert.deepEqual(loweredCodes('pub fn f() {\n    return 1;\n}'), ['8BS3001']);
 });
 
 test('a non-void function must return a value, not a bare return', () => {
-  assert.deepEqual(loweredCodes('function f(): utinyint { return; }'), ['8BS3001']);
+  assert.deepEqual(loweredCodes('fn f() -> utinyint {\n    return;\n}'), ['8BS3001']);
 });
 
 test('a parameter of an unsupported type is not compilable', () => {
-  assert.deepEqual(loweredCodes('function f(x: ptr<utinyint>): void { }'), ['8BS3001']);
+  assert.deepEqual(loweredCodes('fn f(x: ptr<utinyint>) {\n}'), ['8BS3001']);
 });
 
 // ---- array parameters -------------------------------------------------------
@@ -71,9 +71,9 @@ test('a parameter of an unsupported type is not compilable', () => {
 
 test('an array parameter carries its element type and length', () => {
   const { ir, diagnostics } = lowered(
-    'const T: array<utinyint, 4> = [1, 7, 13, 19];\n'
-    + 'function pick(t: array<utinyint, 4>, i: utinyint): utinyint { return t[i]; }\n'
-    + 'export function main(): void { let x: utinyint = pick(T, 2); }',
+    'const T: [utinyint; 4] = [1, 7, 13, 19];\n'
+    + 'fn pick(t: [utinyint; 4], i: utinyint) -> utinyint {\n    return t[i];\n}\n'
+    + 'pub fn main() {\n    let x: utinyint = pick(T, 2);\n}',
   );
   assert.deepEqual(diagnostics, []);
   const pick = ir.functions.find((f) => f.name === 'pick');
@@ -83,27 +83,27 @@ test('an array parameter carries its element type and length', () => {
 
 test("an array is handed over by name, and that is the only place its bare name is a value", () => {
   const { ir, diagnostics } = lowered(
-    'const T: array<utinyint, 2> = [1, 2];\n'
-    + 'function f(t: array<utinyint, 2>): utinyint { return t[0]; }\n'
-    + 'export function main(): void { let x: utinyint = f(T); }',
+    'const T: [utinyint; 2] = [1, 2];\n'
+    + 'fn f(t: [utinyint; 2]) -> utinyint {\n    return t[0];\n}\n'
+    + 'pub fn main() {\n    let x: utinyint = f(T);\n}',
   );
   assert.deepEqual(diagnostics, []);
   const call = ir.functions.find((f) => f.name === 'main').body[0].init;
   assert.deepEqual(call.args.map((a) => [a.kind, a.name]), [['ref', 'T']]);
   // Anywhere else, an array's name is still not a value.
   assert.deepEqual(
-    loweredCodes('const T: array<utinyint, 2> = [1, 2];\nfunction f(): void { let x: utinyint = T; }'),
+    loweredCodes('const T: [utinyint; 2] = [1, 2];\nfn f() {\n    let x: utinyint = T;\n}'),
     ['8BS3001'],
   );
   assert.deepEqual(
-    loweredCodes('function f(t: array<utinyint, 2>): void { let x: utinyint = t; }'),
+    loweredCodes('fn f(t: [utinyint; 2]) {\n    let x: utinyint = t;\n}'),
     ['8BS3001'],
   );
 });
 
 test("an array parameter's .length is folded, not carried", () => {
   const { ir, diagnostics } = lowered(
-    'function n(t: array<utinyint, 7>): utinyint { return t.length; }',
+    'fn n(t: [utinyint; 7]) -> utinyint {\n    return t.length;\n}',
   );
   assert.deepEqual(diagnostics, []);
   // A constant in the IR: nothing about the length reaches the machine, and
@@ -114,14 +114,14 @@ test("an array parameter's .length is folded, not carried", () => {
 
 test('an array parameter has no default', () => {
   assert.deepEqual(
-    loweredCodes('const T: array<utinyint, 2> = [1, 2];\nfunction f(t: array<utinyint, 2> = T): void { }'),
+    loweredCodes('const T: [utinyint; 2] = [1, 2];\nfn f(t: [utinyint; 2] = T) {\n}'),
     ['8BS3001'],
   );
 });
 
 test('a call is now usable as an expression, not just a statement', () => {
   const { ir, diagnostics } = lowered(
-    'let x: utinyint = 0;\nfunction one(): utinyint { return 1; }\nexport function main(): void { x = one() + one(); }',
+    'let mut x: utinyint = 0;\nfn one() -> utinyint {\n    return 1;\n}\npub fn main() {\n    x = one() + one();\n}',
   );
   assert.equal(diagnostics.length, 0);
   const assign = ir.functions[1].body[0];
@@ -131,7 +131,7 @@ test('a call is now usable as an expression, not just a statement', () => {
 });
 
 test('a call with arguments lowers each argument', () => {
-  const { ir } = lowered('function add(a: utinyint, b: utinyint): utinyint { return a + b; }\nexport function main(): void { add(1, 2); }');
+  const { ir } = lowered('fn add(a: utinyint, b: utinyint) -> utinyint {\n    return a + b;\n}\npub fn main() {\n    add(1, 2);\n}');
   const call = ir.functions[1].body[0];
   assert.equal(call.kind, 'call');
   assert.deepEqual(call.args.map((a) => a.value), [1, 2]);
@@ -140,7 +140,7 @@ test('a call with arguments lowers each argument', () => {
 // ---- linking: parameters shadow same-named globals -------------------------
 
 test('a parameter shadows a same-named global within its own function', () => {
-  const src = 'let x: utinyint = 1;\nfunction f(x: utinyint): utinyint { return x; }\nexport function main(): void { f(2); }';
+  const src = 'let x: utinyint = 1;\nfn f(x: utinyint) -> utinyint {\n    return x;\n}\npub fn main() {\n    f(2);\n}';
   const { ir, diagnostics } = link(src, 't.8bs');
   assert.deepEqual(diagnostics, []);
   // The parameter is never renamed, and the function body must still refer
@@ -151,7 +151,7 @@ test('a parameter shadows a same-named global within its own function', () => {
 });
 
 test('a genuinely undefined name inside a function body is still 8BS2007', () => {
-  const src = 'export function f(): void { undeclared = 1; }';
+  const src = 'pub fn f() {\n    undeclared = 1;\n}';
   const { ir, diagnostics } = link(src, 't.8bs');
   assert.equal(ir, null);
   assert.deepEqual(diagnostics.map((d) => d.code), ['8BS2007']);
@@ -160,12 +160,12 @@ test('a genuinely undefined name inside a function body is still 8BS2007', () =>
 // ---- the memory.read/memory.write intrinsic --------------------------------
 
 test('memory.write and memory.read parse and lower clean', () => {
-  clean('export function f(): void { memory.write(0x900F, 27); }');
-  assert.deepEqual(loweredCodes('let x: utinyint = 0;\nexport function f(): void { x = memory.read(0x900F); }'), []);
+  clean('pub fn f() {\n    memory::write(0x900F, 27);\n}');
+  assert.deepEqual(loweredCodes('let mut x: utinyint = 0;\npub fn f() {\n    x = memory::read(0x900F);\n}'), []);
 });
 
 test('memory.write lowers to a dedicated IR node with address and value', () => {
-  const { ir, diagnostics } = lowered('export function f(): void { memory.write(36879, 27); }');
+  const { ir, diagnostics } = lowered('pub fn f() {\n    memory::write(36879, 27);\n}');
   assert.equal(diagnostics.length, 0);
   assert.deepEqual(ir.functions[0].body[0], {
     kind: 'memoryWrite',
@@ -177,33 +177,33 @@ test('memory.write lowers to a dedicated IR node with address and value', () => 
 });
 
 test('memory.read is usable as an expression', () => {
-  const { ir, diagnostics } = lowered('let x: utinyint = 0;\nexport function f(): void { x = memory.read(36879); }');
+  const { ir, diagnostics } = lowered('let mut x: utinyint = 0;\npub fn f() {\n    x = memory::read(36879);\n}');
   assert.equal(diagnostics.length, 0);
   assert.equal(ir.functions[0].body[0].value.kind, 'memoryRead');
 });
 
 test('memory.write cannot be used as an expression: it has no value', () => {
   assert.deepEqual(
-    loweredCodes('let x: utinyint = 0;\nexport function f(): void { x = memory.write(1, 2); }'),
+    loweredCodes('let mut x: utinyint = 0;\npub fn f() {\n    x = memory::write(1, 2);\n}'),
     ['8BS3001'],
   );
 });
 
 test('memory.write and memory.read need exactly their fixed arity', () => {
-  assert.deepEqual(loweredCodes('export function f(): void { memory.write(1); }'), ['8BS3001']);
-  assert.deepEqual(loweredCodes('export function f(): void { memory.write(1, 2, 3); }'), ['8BS3001']);
-  assert.deepEqual(loweredCodes('export function f(): void { memory.read(1, 2); }'), ['8BS3001']);
+  assert.deepEqual(loweredCodes('pub fn f() {\n    memory::write(1);\n}'), ['8BS3001']);
+  assert.deepEqual(loweredCodes('pub fn f() {\n    memory::write(1, 2, 3);\n}'), ['8BS3001']);
+  assert.deepEqual(loweredCodes('pub fn f() {\n    memory::read(1, 2);\n}'), ['8BS3001']);
 });
 
 test('an unknown memory.* member is not compilable', () => {
-  assert.deepEqual(loweredCodes('export function f(): void { memory.erase(1); }'), ['8BS3001']);
+  assert.deepEqual(loweredCodes('pub fn f() {\n    memory::erase(1);\n}'), ['8BS3001']);
 });
 
 test('memory.write range-checks literal arguments against usmallint/utinyint', () => {
-  assert.deepEqual(loweredCodes('export function f(): void { memory.write(70000, 1); }'), ['8BS1021']);
-  assert.deepEqual(loweredCodes('export function f(): void { memory.write(1, 300); }'), ['8BS1021']);
-  assert.deepEqual(loweredCodes('export function f(): void { memory.write(65535, 255); }'), []);
-  assert.deepEqual(loweredCodes('export function f(): void { memory.write(0, 0); }'), []);
+  assert.deepEqual(loweredCodes('pub fn f() {\n    memory::write(70000, 1);\n}'), ['8BS1021']);
+  assert.deepEqual(loweredCodes('pub fn f() {\n    memory::write(1, 300);\n}'), ['8BS1021']);
+  assert.deepEqual(loweredCodes('pub fn f() {\n    memory::write(65535, 255);\n}'), []);
+  assert.deepEqual(loweredCodes('pub fn f() {\n    memory::write(0, 0);\n}'), []);
 });
 
 // ---- a params/return + memory.write program, on the IR and (later) native ----
@@ -212,9 +212,11 @@ const irOf = (src) => lowered(src).ir;
 
 test('a function with params/return + memory.write lowers the call into the write', () => {
   const src = [
-    'function scaled(n: utinyint): utinyint { return n * 2; }',
-    'export function main(): void {',
-    '    memory.write(0x1100, scaled(21));',
+    'fn scaled(n: utinyint) -> utinyint {',
+    '    return n * 2;',
+    '}',
+    'pub fn main() {',
+    '    memory::write(0x1100, scaled(21));',
     '}',
   ].join('\n');
   const ir = irOf(src);
@@ -231,9 +233,11 @@ test('a function with params/return + memory.write lowers the call into the writ
 
 test('a function with params/return + memory.write compiles and runs the same on both backends', { skip: NATIVE_BACKEND_PENDING }, async () => {
   const src = [
-    'function scaled(n: utinyint): utinyint { return n * 2; }',
-    'export function main(): void {',
-    '    memory.write(0x1100, scaled(21));',
+    'fn scaled(n: utinyint) -> utinyint {',
+    '    return n * 2;',
+    '}',
+    'pub fn main() {',
+    '    memory::write(0x1100, scaled(21));',
     '}',
   ].join('\n');
   const dir = mkdtempSync(join(tmpdir(), '8bs-fn-test-'));
@@ -252,9 +256,11 @@ test('a function with params/return + memory.write compiles and runs the same on
 
 test('the same program links cleanly through the full pipeline', () => {
   const src = [
-    'function scaled(n: utinyint): utinyint { return n * 2; }',
-    'export function main(): void {',
-    '    memory.write(0x1100, scaled(21));',
+    'fn scaled(n: utinyint) -> utinyint {',
+    '    return n * 2;',
+    '}',
+    'pub fn main() {',
+    '    memory::write(0x1100, scaled(21));',
     '}',
   ].join('\n');
   const { ir, diagnostics } = link(src, 't.8bs');

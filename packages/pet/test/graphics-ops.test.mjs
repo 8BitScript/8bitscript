@@ -64,33 +64,33 @@ function fixtures(dir) {
 function timeline(dir, calls, { body = '', name = 'main' } = {}) {
   fixtures(dir);
   const file = join(dir, `${name}.8bs`);
-  writeFileSync(file, `import { screen } from "@8bitscript/screen";
-import { text } from "@8bitscript/text";
-import { graphics } from "@8bitscript/graphics";
-import { ring } from "./ring.8bg";
-import { walk } from "./walk.8bg";
-import { blink } from "./blink.8bg";
+  writeFileSync(file, `use @8bitscript::screen::screen;
+use @8bitscript::text::text;
+use @8bitscript::graphics::graphics;
+use self::ring::ring;
+use self::walk::walk;
+use self::blink::blink;
 
-export function main(): void {
-    screen.blank();
-${body}
-    let t: usmallint = 0;
-    while (true) {
+pub fn main() {
+    screen::blank();
+    ${body};
+    let mut t: usmallint = 0;
+    loop {
         waitFrame();
-        graphics.update();
+        graphics::update();
         t = t + 1;
-${calls}
+        ${calls};
     }
 }
 `);
   return { file };
 }
 
-const PLACE_ALL = `    graphics.place(ring, 16, 16);
-    graphics.place(walk, 120, 136);
-    graphics.place(blink, 224, 136);`;
+const PLACE_ALL = `    graphics::place(ring, 16, 16);
+    graphics::place(walk, 120, 136);
+    graphics::place(blink, 224, 136);`;
 
-const at = (t, call) => `        if (t == ${t}) { ${call} }`;
+const at = (t, call) => `        if t == ${t} { ${call} }`;
 
 /** Photograph at several program times, in batches (xpet is heavy to start). */
 async function looks(scratch, program, hardware, boot, ts) {
@@ -128,17 +128,17 @@ test('under xpet, hide removes an object, place brings it back, and the frame ca
   const scratch = await mkdtemp(join(tmpdir(), '8bs-pet-ops-'));
   try {
     const program = timeline(scratch, [
-      at(60, 'graphics.hide(ring);'),
-      at(120, 'graphics.place(ring, 16, 48);'),
-      at(180, 'graphics.animate(walk, false);'),
-      at(240, 'graphics.setFrame(walk, 2);'),
-      at(300, 'graphics.setFrame(walk, 9);'),
-      at(360, 'graphics.animate(walk, true);'),
-      at(420, 'graphics.animate(walk, false); graphics.hide(walk);'),
-      at(480, 'graphics.setFrame(walk, 1);'),
-      at(540, 'graphics.place(walk, 120, 136);'),
-      at(600, 'graphics.hide(blink);'),
-      at(660, 'graphics.place(blink, 224, 136);'),
+      at(60, 'graphics::hide(ring);'),
+      at(120, 'graphics::place(ring, 16, 48);'),
+      at(180, 'graphics::animate(walk, false);'),
+      at(240, 'graphics::setFrame(walk, 2);'),
+      at(300, 'graphics::setFrame(walk, 9);'),
+      at(360, 'graphics::animate(walk, true);'),
+      at(420, 'graphics::animate(walk, false); graphics::hide(walk);'),
+      at(480, 'graphics::setFrame(walk, 1);'),
+      at(540, 'graphics::place(walk, 120, 136);'),
+      at(600, 'graphics::hide(blink);'),
+      at(660, 'graphics::place(blink, 224, 136);'),
     ].join('\n'), { body: PLACE_ALL });
     const g = GEOMETRY['3032'];
     const ts = [25, 35, 85, 95, 145, 155, 205, 215, 225, 235, 265, 275, 285, 325, 335, 345,
@@ -186,20 +186,20 @@ test('under xpet, an object that does not fit the screen is not drawn, and does 
   try {
     fixtures(scratch);
     const file = join(scratch, 'main.8bs');
-    writeFileSync(file, `import { screen } from "@8bitscript/screen";
-import { graphics } from "@8bitscript/graphics";
-import { ring } from "./ring.8bg";
-import { walk } from "./walk.8bg";
-import { blink } from "./blink.8bg";
+    writeFileSync(file, `use @8bitscript::screen::screen;
+use @8bitscript::graphics::graphics;
+use self::ring::ring;
+use self::walk::walk;
+use self::blink::blink;
 
-export function main(): void {
-    screen.blank();
-    graphics.place(ring, 312, 16);
-    graphics.place(walk, 16, 200);
-    graphics.place(blink, 400, 40);
-    while (true) {
+pub fn main() {
+    screen::blank();
+    graphics::place(ring, 312, 16);
+    graphics::place(walk, 16, 200);
+    graphics::place(blink, 400, 40);
+    loop {
         waitFrame();
-        graphics.update();
+        graphics::update();
     }
 }
 `);
@@ -216,9 +216,9 @@ export function main(): void {
 test('under xpet, text an object covered comes back when it is hidden', { skip: SKIP }, async () => {
   const scratch = await mkdtemp(join(tmpdir(), '8bs-pet-restore-'));
   try {
-    const say = '    text.print(163, "HELLO");';   // row 4, column 3: under the ring at (16, 32)
-    const covered = timeline(scratch, at(80, 'graphics.hide(ring);'),
-      { body: `${say}\n    graphics.place(ring, 16, 32);`, name: 'covered' });
+    const say = '    text::print(163, "HELLO");';   // row 4, column 3: under the ring at (16, 32)
+    const covered = timeline(scratch, at(80, 'graphics::hide(ring);'),
+      { body: `${say}\n    graphics::place(ring, 16, 32);`, name: 'covered' });
     const bare = timeline(scratch, '', { body: say, name: 'bare' });
     const g = GEOMETRY['3032'];
     const [withRing, without] = await Promise.all([
@@ -252,10 +252,10 @@ test('under xpet, hide, place and setFrame behave alike on the 2001, the CRTC 40
     // Ninety frames between calls: the models start the program at different
     // frames, and the 4032 and 8032 are the 50 Hz ones.
     const program = timeline(scratch, [
-      at(2, 'graphics.animate(walk, false); graphics.animate(blink, false);'),
-      at(60, 'graphics.hide(ring);'),
-      at(150, 'graphics.place(ring, 16, 48);'),
-      at(240, 'graphics.setFrame(walk, 3);'),
+      at(2, 'graphics::animate(walk, false); graphics::animate(blink, false);'),
+      at(60, 'graphics::hide(ring);'),
+      at(150, 'graphics::place(ring, 16, 48);'),
+      at(240, 'graphics::setFrame(walk, 3);'),
     ].join('\n'), { body: PLACE_ALL });
     for (const [model, hardware] of cases) {
       const g = GEOMETRY[model];

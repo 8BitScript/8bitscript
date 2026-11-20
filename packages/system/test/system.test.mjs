@@ -41,13 +41,13 @@ test('the package is one file: no per-machine versions are needed any more', () 
 // package: Studio's pnpm-linked node_modules is how an installed project
 // would find @8bitscript/system too.
 const PROBE = join(HERE, 'system-probe.8bs');
-const program = (name) => `import { System } from "@8bitscript/system";
-let hit: utinyint = 0;
-export function main(): void {
-    if (#system() == System.${name}) {
+const program = (name) => `use @8bitscript::system::System;
+let mut hit: utinyint = 0;
+pub fn main() {
+    if #system() == System::${name} {
         hit = 1;
     }
-    while (true) {
+    loop {
         waitFrame();
     }
 }
@@ -74,12 +74,12 @@ test('with no machine in hand, the program checks clean', () => {
 // factConstName() spells it, and every machine's stock sheet — and every
 // non-default hardware value's — folds into it without a range error.
 
-const sheet = [...index.matchAll(/const ([A-Z_]+): ([a-z]+) = #fact\(([a-z.A-Z]+)\);/g)]
-  .map(([, name, type, key]) => ({ name, type, key }));
+const sheet = [...index.matchAll(/const ([A-Z_]+): ([a-z]+) = #fact\(([a-z:A-Z]+)\);/g)]
+  .map(([, name, type, key]) => ({ name, type, key: key.replace('::', '.') }));
 const namespaceOf = (key) => {
-  const at = index.indexOf(`#fact(${key})`);
+  const at = index.indexOf(`#fact(${key.replace('.', '::')})`);
   const before = index.slice(0, at);
-  return before.match(/export namespace (\w+) \{(?![\s\S]*export namespace)/)?.[1];
+  return before.match(/pub mod (\w+) \{(?![\s\S]*pub mod)/)?.[1];
 };
 
 test('every program fact is one const on the sheet, in the namespace and with the name the compiler spells', () => {
@@ -92,18 +92,40 @@ test('every program fact is one const on the sheet, in the namespace and with th
   }
 });
 
-const SHEET_PROBE = `import { Video, Audio, Input, Storage, Memory } from "@8bitscript/system";
-let a: usmallint = 0;
-let b: bool = false;
-export function main(): void {
-    a = Video.COLUMNS; a = Video.ROWS; a = Video.PALETTE; a = Video.GLYPHS; a = Video.SPRITES; a = Video.SPRITES_PER_LINE;
-    a = Video.SPRITE_WIDTH; a = Video.SPRITE_HEIGHT; a = Video.SPRITE_COLORS; a = Video.LAYERS;
-    b = Video.BITMAP; b = Video.SCROLL; b = Video.RASTER;
-    a = Audio.VOICES; b = Audio.NOISE; b = Audio.ENVELOPE; b = Audio.FILTER; b = Audio.PCM; b = Audio.VOLUME; b = Audio.ENTROPY;
-    b = Input.KEYBOARD; a = Input.JOYSTICKS; a = Input.PADS; b = Input.MOUSE; b = Input.PADDLES;
-    b = Storage.SAVE;
-    a = Memory.RAM; b = Memory.BANKED; a = Memory.BANKED_KIB;
-    while (true) {
+const SHEET_PROBE = `use @8bitscript::system::{Video, Audio, Input, Storage, Memory};
+let mut a: usmallint = 0;
+let mut b: bool = false;
+pub fn main() {
+    a = Video::COLUMNS;
+    a = Video::ROWS;
+    a = Video::PALETTE;
+    a = Video::GLYPHS;
+    a = Video::SPRITES;
+    a = Video::SPRITES_PER_LINE;
+    a = Video::SPRITE_WIDTH;
+    a = Video::SPRITE_HEIGHT;
+    a = Video::SPRITE_COLORS;
+    a = Video::LAYERS;
+    b = Video::BITMAP;
+    b = Video::SCROLL;
+    b = Video::RASTER;
+    a = Audio::VOICES;
+    b = Audio::NOISE;
+    b = Audio::ENVELOPE;
+    b = Audio::FILTER;
+    b = Audio::PCM;
+    b = Audio::VOLUME;
+    b = Audio::ENTROPY;
+    b = Input::KEYBOARD;
+    a = Input::JOYSTICKS;
+    a = Input::PADS;
+    b = Input::MOUSE;
+    b = Input::PADDLES;
+    b = Storage::SAVE;
+    a = Memory::RAM;
+    b = Memory::BANKED;
+    a = Memory::BANKED_KIB;
+    loop {
         waitFrame();
     }
 }
@@ -128,14 +150,14 @@ test('every machine\'s stock sheet, and every hardware value\'s, fits the sheet\
 // the machine's text package draws on, on the stock machine and on the
 // 80-column PET — the case that proves a hardware value's facts and its
 // file twin arrive together.
-const GRID_PROBE = `import { text } from "@8bitscript/text";
-import { Video } from "@8bitscript/system";
-export function main(): void {
-    let textColumns: utinyint = text.COLUMNS;
-    let factColumns: utinyint = Video.COLUMNS;
-    let textCells: usmallint = text.CELL_COUNT;
-    let factRows: utinyint = Video.ROWS;
-    while (true) {
+const GRID_PROBE = `use @8bitscript::text::text;
+use @8bitscript::system::Video;
+pub fn main() {
+    let textColumns: utinyint = text::COLUMNS;
+    let factColumns: utinyint = Video::COLUMNS;
+    let textCells: usmallint = text::CELL_COUNT;
+    let factRows: utinyint = Video::ROWS;
+    loop {
         waitFrame();
     }
 }

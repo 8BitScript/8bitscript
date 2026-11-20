@@ -13,7 +13,7 @@ import { loadCatalog, resolveHardware } from '../../cli/src/hardware.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PET_SRC = join(HERE, '..', '..', 'pet', 'src');
-const CONSUMER = 'import { screen } from "@8bitscript/screen";\nexport function main(): void { screen.blank(); }';
+const CONSUMER = 'use @8bitscript::screen::screen;\npub fn main() {\n    screen::blank();\n}';
 const ENTRY = join(HERE, '..', '..', 'studio', 'src', 'main.8bs');
 
 // Per-profile facts, not just the stock sheet: text.8bs's own
@@ -45,8 +45,11 @@ test('the 40-column profiles blank 1000 cells; the 8032 blanks 2000; no profile 
 
 test('text.COLUMNS and text.CELL_COUNT are the geometry\'s, per profile', () => {
   const src = [
-    'import { text } from "@8bitscript/text";',
-    'export function main(): void { memory.write(0x8000, text.COLUMNS); memory.write(0x8001 + text.CELL_COUNT, 1); }',
+    'use @8bitscript::text::text;',
+    'pub fn main() {',
+    '    memory::write(0x8000, text::COLUMNS);',
+    '    memory::write(0x8001 + text::CELL_COUNT, 1);',
+    '}',
   ].join('\n');
   const entry = join(HERE, 'fixtures', 'pet-columns.8bs'); // does not need to exist: only its directory resolves packages
   const folded = (profile) => {

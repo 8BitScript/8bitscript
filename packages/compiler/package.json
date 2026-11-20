@@ -16,6 +16,7 @@
   "exports": {
     ".": "./index.mjs",
     "./front": "./src/front/index.mjs",
+    "./scopes": "./src/checker/scopes.mjs",
     "./mos": "./src/mos/index.ts",
     "./wasm": "./src/wasm/index.ts",
     "./sm83": "./src/sm83/index.ts",
@@ -50,6 +51,7 @@
     "exports": {
       ".": "./index.mjs",
       "./front": "./src/front/index.mjs",
+      "./scopes": "./src/checker/scopes.mjs",
       "./mos": "./src/mos/index.js",
       "./wasm": "./src/wasm/index.js",
       "./sm83": "./src/sm83/index.js",

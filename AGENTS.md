@@ -61,7 +61,7 @@ pattern to follow rather than exceptions:
 - `#fact(...)`, `#system()` and `#frames(x, seconds)` are resolved before
   any target toolchain runs, so a branch on another machine's hardware
   costs that machine nothing.
-- A **template** — `text.print(0, \`TICK ${ticks:1}\`)` — is laid out during
+- A **template** — `text::print(0, \`TICK ${ticks:1}\`)` — is laid out during
   compilation into `print` and `printNumber` calls with every cell already
   worked out. Nothing formats at run time.
 - `const`s are inlined, `const` arrays are data in the image and never in
@@ -85,7 +85,7 @@ So, when adding anything:
   is almost always smaller than the code that would recompute it, and it
   lives in the program image rather than in RAM.
 - **Measure it, in bytes, and write the number down.** The backend's own
-  size report (`memory.program`, `memory.variables` from `build()`) is the
+  size report (`memory::program`, `memory::variables` from `build()`) is the
   measurement. Until that report exists, no new size claim can be made;
   the numbers already recorded in this repository stay as the reference.
   [The compiler](docs/compiler.md#what-a-call-costs-on-a-6502-measured)
@@ -131,8 +131,8 @@ it is a wrong program.
   runtime probe: the width is a property of the build.
 - **Don't assume a framebuffer.** A target may be character-cell, tile/
   nametable, sprite/display-list, or bitmap based, or some mix. A portable
-  drawing API has to describe intent (`sprites.place(...)`,
-  `background.setTile(...)`), not "write this RGB value at this pixel."
+  drawing API has to describe intent (`sprites::place(...)`,
+  `background::setTile(...)`), not "write this RGB value at this pixel."
 - **Don't assume a flat, unbanked address space.** C128 in particular maps
   128K of RAM through one 64K CPU window at a time. A pointer that is
   directly dereferenceable and an address that lives in another bank are not
@@ -237,7 +237,7 @@ eight of the nine draw nothing today for four quite different reasons.
 [`packages/compiler/AGENTS.md`](packages/compiler/AGENTS.md) is the
 compiler's: the pipeline, and where each layer's rules live. The lexer's
 own file is
-[`packages/compiler/src/lexer/AGENTS.md`](packages/compiler/src/lexer/AGENTS.md)
+[`packages/cli/src/migrate/legacy/AGENTS.md`](packages/cli/src/migrate/legacy/AGENTS.md)
 — a hand-written scanner that never throws, with the token-level rules
 next to the scanner.
 [`editors/vscode/AGENTS.md`](editors/vscode/AGENTS.md) is the one outside
@@ -282,7 +282,7 @@ fell six codes behind the compiler before anyone noticed.
 
 The lexer's own rules —
 never throw, maximal munch, `%` vs binary, opaque `asm6502` bodies — live
-in [`packages/compiler/src/lexer/AGENTS.md`](packages/compiler/src/lexer/AGENTS.md),
+in [`packages/cli/src/migrate/legacy/AGENTS.md`](packages/cli/src/migrate/legacy/AGENTS.md),
 not here. [`packages/compiler/AGENTS.md`](packages/compiler/AGENTS.md)
 is the rest of the front end in brief.
 
@@ -323,15 +323,15 @@ the change everywhere it is described, in the same commit:
 - **Per-package `AGENTS.md` files** (`packages/<target>/AGENTS.md`) if the
   change alters what a target package is allowed or expected to do.
   A lexer change also updates
-  [`packages/compiler/src/lexer/AGENTS.md`](packages/compiler/src/lexer/AGENTS.md);
+  [`packages/cli/src/migrate/legacy/AGENTS.md`](packages/cli/src/migrate/legacy/AGENTS.md);
   a compiler-wide one updates
   [`packages/compiler/AGENTS.md`](packages/compiler/AGENTS.md).
 
 ### Names say which side they are on
 
 A `const` is `UPPER_SNAKE` (`OPTION_COUNT`, `BorderColor.BLUE`,
-`text.CELL_COUNT`); a variable starts with a lower-case letter; functions
-and parameters are `camelCase`; namespaces and types are `PascalCase`. The
+`text::CELL_COUNT`); a variable starts with a lower-case letter; functions
+and parameters are `camelCase`; modules and types are `PascalCase`. The
 checker enforces the first two (`8BS1034`), so every `.8bs` file in this
 repository — packages, examples, and the programs inside tests and docs —
 follows them. A capitalized name is a compile-time value, and that is the

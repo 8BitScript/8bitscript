@@ -46,7 +46,7 @@ test('the probe links clean for the C128, and every answer is a real function in
 });
 
 test('poll() isolates the C64 matrix, then reads K2, then restores $D02F before the sticks', () => {
-  const body = SOURCE.slice(SOURCE.indexOf('function poll'), SOURCE.indexOf('function left'));
+  const body = SOURCE.slice(SOURCE.indexOf('fn poll'), SOURCE.indexOf('fn left'));
   const none1 = body.indexOf('extraKeyboardLines = EXTRA_NONE');
   const k2 = body.indexOf('extraKeyboardLines = EXTRA_K2');
   const none2 = body.indexOf('extraKeyboardLines = EXTRA_NONE', k2);
@@ -69,11 +69,11 @@ test('poll() or\'s the dedicated arrows into held, and the IR writes $D02F', () 
     }
   });
   assert.deepEqual(values, [0xFF, 0xFB, 0xFF], 'none, K2, none — extra bits must not leak into the stick snapshot');
-  const body = SOURCE.slice(SOURCE.indexOf('function poll'), SOURCE.indexOf('function left'));
-  assert.match(body, /extra & Extra\.LEFT/);
-  assert.match(body, /extra & Extra\.RIGHT/);
-  assert.match(body, /extra & Extra\.UP/);
-  assert.match(body, /extra & Extra\.DOWN/);
+  const body = SOURCE.slice(SOURCE.indexOf('fn poll'), SOURCE.indexOf('fn left'));
+  assert.match(body, /extra & Extra::LEFT/);
+  assert.match(body, /extra & Extra::RIGHT/);
+  assert.match(body, /extra & Extra::UP/);
+  assert.match(body, /extra & Extra::DOWN/);
 });
 
 const viceArrows = () => {
@@ -95,7 +95,7 @@ test('the K2 bits agree with VICE\'s C128-mode gtk3_pos.vkm', { skip: vice ? fal
     assert.ok(vice.has(name), `gtk3_pos.vkm maps ${name} in C128 mode`);
     assert.equal(vice.get(name).column, 10, `${name} is extra column K2`);
   }
-  const extraNs = SOURCE.slice(SOURCE.indexOf('namespace Extra'), SOURCE.indexOf('}', SOURCE.indexOf('namespace Extra')));
+  const extraNs = SOURCE.slice(SOURCE.indexOf('mod Extra'), SOURCE.indexOf('}', SOURCE.indexOf('mod Extra')));
   const extra = Object.fromEntries([...extraNs.matchAll(/const (UP|DOWN|LEFT|RIGHT): utinyint = (\d+);/g)].map(([, n, v]) => [n, Number(v)]));
   assert.equal(extra.UP, 1 << vice.get('Up').row);
   assert.equal(extra.DOWN, 1 << vice.get('Down').row);

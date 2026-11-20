@@ -77,7 +77,7 @@ test('diagnostics come back in the old shapes', () => {
 });
 
 test('spans count UTF-16 units', () => {
-  const text = '// \u{1F600}\nlet n = 1;';
+  const text = '// 😀\nlet n = 1;';
   const { tokens } = tokenize(text, 'u.8bs');
   const let_ = tokens.find((t) => t.text === 'let');
   assert.equal(let_.start, text.indexOf('let'));

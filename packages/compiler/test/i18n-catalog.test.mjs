@@ -15,25 +15,23 @@ import { stockFacts } from '../../cli/src/hardware.mjs';
 const CHECKOUT = resolve(import.meta.dirname, '..', '..', '..');
 
 const EN = [
-  'export namespace Game {',
+  'pub mod Game {',
   '    const NAME: string = "2048";',
   '    const SCORE: string = "SCORE";',
   '}',
-  'export namespace Prompt {',
+  'pub mod Prompt {',
   '    const START: string = "PRESS {control}";',
   '}',
-  '',
 ].join('\n');
 
 const DE = [
-  'export namespace Game {',
+  'pub mod Game {',
   '    const NAME: string = "2048";',
   '    const SCORE: string = "PUNKTE";',
   '}',
-  'export namespace Prompt {',
+  'pub mod Prompt {',
   '    const START: string = "{control} DRÜCKEN";',
   '}',
-  '',
 ].join('\n');
 
 function catalogOptions(dir, extras = {}) {
@@ -82,13 +80,12 @@ test('transliterate maps Latin extras; Ü is two portable columns', () => {
 test('prepareCatalog transliterates the selected locale and fills missing keys from the fallback', async () => {
   const dir = await catalogProject({
     de: [
-      'export namespace Game {',
+      'pub mod Game {',
       '    const SCORE: string = "PUNKTE";',
       '}',
-      'export namespace Prompt {',
+      'pub mod Prompt {',
       '    const START: string = "{control} DRÜCKEN";',
       '}',
-      '',
     ].join('\n'),
   });
   try {
@@ -106,15 +103,14 @@ test('prepareCatalog transliterates the selected locale and fills missing keys f
 test('prepareCatalog reports extra keys and placeholder mismatches', async () => {
   const dir = await catalogProject({
     de: [
-      'export namespace Game {',
+      'pub mod Game {',
       '    const NAME: string = "2048";',
       '    const SCORE: string = "PUNKTE";',
       '    const EXTRA: string = "NEIN";',
       '}',
-      'export namespace Prompt {',
+      'pub mod Prompt {',
       '    const START: string = "{name} DRUECKEN";',
       '}',
-      '',
     ].join('\n'),
   });
   try {
@@ -129,10 +125,10 @@ test('prepareCatalog reports extra keys and placeholder mismatches', async () =>
 });
 
 test('prepareCatalog puts the catalog file on a namespace diagnostic with no members', async () => {
-  const dir = await catalogProject({ de: `${DE}export namespace Extra {}\n` });
+  const dir = await catalogProject({ de: `${DE}\npub mod Extra {}\n` });
   try {
     const prepared = prepareCatalog({ locale: 'de', i18n: catalogOptions(dir) });
-    const hit = prepared.diagnostics.find((d) => d.message.includes("namespace 'Extra'"));
+    const hit = prepared.diagnostics.find((d) => d.message.includes("pub mod 'Extra'"));
     assert.ok(hit, JSON.stringify(prepared.diagnostics));
     assert.equal(hit.file, join(dir, 'src', 'i18n', 'de.8bs'));
   } finally {
@@ -158,14 +154,13 @@ test('charset: strict refuses a non-portable catalog character', async () => {
 test('link folds i18n.format and .length; --locale de picks the German catalog', async () => {
   const dir = await catalogProject();
   const main = [
-    'import { Game, Prompt } from "@8bitscript/i18n/catalog";',
-    'import { i18n } from "@8bitscript/i18n";',
-    'import { Input } from "@8bitscript/input";',
-    'export function main(): void {',
-    '    memory.write(0x8000, i18n.format(Prompt.START, { control: Input.CONFIRM_LABEL }).length);',
-    '    memory.write(0x8001, Game.SCORE.length);',
+    'use @8bitscript::i18n::catalog::{Game, Prompt};',
+    'use @8bitscript::i18n::i18n;',
+    'use @8bitscript::input::Input;',
+    'pub fn main() {',
+    '    memory::write(0x8000, i18n::format(Prompt::START, { control: Input::CONFIRM_LABEL }).length);',
+    '    memory::write(0x8001, Game::SCORE.length);',
     '}',
-    '',
   ].join('\n');
   await writeFile(join(dir, 'main.8bs'), main);
   try {
@@ -195,19 +190,20 @@ test('link folds i18n.format and .length; --locale de picks the German catalog',
 
 test('hover on i18n.format names the compile-time interpolation', () => {
   const consumer = join(CHECKOUT, 'packages', 'examples', 'hello-world', 'src', 'hello-world.8bs');
-  const text = 'import { i18n } from "@8bitscript/i18n";\ni18n.format("HI");\n';
+  const text = 'use @8bitscript::i18n::i18n;\ni18n::format("HI");\n';
   const info = getHoverInfo(text, text.indexOf('format') + 3, { path: consumer, checkout: CHECKOUT });
   assert.ok(info);
-  assert.match(info.markdown, /i18n\.format\(template: string\): void/);
+  assert.match(info.markdown, /i18n::format\(template: string\)/);
   assert.match(info.markdown, /Folded at every/);
 });
 
 test('a project without catalogs still links; @8bitscript/i18n/catalog is 8BS1043', async () => {
   const dir = await mkdtemp(join(tmpdir(), '8bs-no-catalog-'));
   const main = [
-    'import { Game } from "@8bitscript/i18n/catalog";',
-    'export function main(): void { memory.write(0x8000, Game.NAME.length); }',
-    '',
+    'use @8bitscript::i18n::catalog::Game;',
+    'pub fn main() {',
+    '    memory::write(0x8000, Game::NAME.length);',
+    '}',
   ].join('\n');
   await writeFile(join(dir, 'main.8bs'), main);
   try {
