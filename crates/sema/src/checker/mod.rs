@@ -405,7 +405,7 @@ pub fn check(
     walk(ast, &mut |n, parent| match &n.kind {
         NodeKind::RecordLiteral { .. } => {
             let format = parent.is_some_and(|p| match &p.kind {
-                NodeKind::CallExpression { callee, args } => {
+                NodeKind::CallExpression { callee, args, .. } => {
                     matches!(&callee.kind, NodeKind::MemberExpression { property, .. }
                             if identifier_name(property) == Some("format"))
                         && args.get(1).is_some_and(|a| std::ptr::eq(a, n))
