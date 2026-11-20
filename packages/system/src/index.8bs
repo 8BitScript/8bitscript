@@ -107,6 +107,7 @@ pub mod Video {
     const SPRITE_WIDTH: utinyint = #fact(video::spriteWidth); // pixels across the largest sprite
     const SPRITE_HEIGHT: utinyint = #fact(video::spriteHeight); // pixels down the largest sprite
     const SPRITE_COLORS: utinyint = #fact(video::spriteColors); // colors one sprite can hold
+    const SPRITE_KIB: utinyint = #fact(video::spriteKib); // KiB of the shared sprite picture pool; 0 where none
 }
 
 // The sound hardware's shape.
