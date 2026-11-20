@@ -19,10 +19,11 @@ Look a task up, not a chapter: every entry is one thing you can do. Each carries
 - [Standard packages](packages.md)
 - [Worked examples](examples.md)
 - [Not yet available](not-yet.md)
+- [Migrating from the old syntax](migrating.md)
 
 ## §0.1 What 8bs and 8bx are
 
-`.8bs` is 8BitScript's core language: a statically compiled, TypeScript-flavored language for the 6502 family and the web, with no garbage collector, no boxing, and no hidden allocation. Range-checked fixed-width integers, arrays and strings laid out at compile time, and `asm6502` as a first-class construct rather than an escape hatch.
+`.8bs` is 8BitScript's core language: a statically compiled, Rust-flavored language for the 6502 family and the web, with no garbage collector, no boxing, and no hidden allocation. Range-checked fixed-width integers, arrays and strings laid out at compile time, and `asm6502` as a first-class construct rather than an escape hatch.
 
 `.8bx` is a second source kind that shares the exact same pipeline (lexer → parser → fold → binder → checker → linker → backend) but additionally understands element syntax and `component` declarations — composition, not a UI framework. A component is a function; an element is a call to it. There is no virtual DOM, no retained tree, no runtime object graph: everything a `.8bx` file describes is elaborated away before any backend sees it, so a declarative `<Board />` costs exactly what calling `board()` by hand would.
 

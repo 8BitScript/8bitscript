@@ -21,7 +21,7 @@ the linker touches the filesystem.
 | binder | AST | symbols, scopes, binding diagnostics |
 | checker | AST | type/range/component diagnostics |
 | 8BX elaboration | AST with BX nodes | core AST: a component is a function (two, around its `<slot />`), an element is a call to it; `state` is a template global per field, cloned per instance by the linker (no BX in backends) |
-| IR / backends | AST | the image, once a backend emits one. MOS (6502 family, including HuC6280 `ST0`/`ST1`/`ST2`), SM83 (Game Boy), Z80 (with `port.read`/`port.write` for `IN`/`OUT`), 6809, 8048, F8, and WebAssembly |
+| IR / backends | AST | the image, once a backend emits one. MOS (6502 family, including HuC6280 `ST0`/`ST1`/`ST2`), SM83 (Game Boy), Z80 (with `port::read`/`port::write` for `IN`/`OUT`), 6809, 8048, F8, and WebAssembly |
 
 Two source kinds share this pipeline, and two more join it as their own
 front ends:
@@ -72,7 +72,7 @@ optimized IR; they do not parse 8BX. A component call whose arguments are
 all compile-time values is inlined by the linker's optimizer, so a static
 composition costs what hand-written calls would. A `const` is inlined
 with the type it was declared with, whichever module it is read from — a
-namespace member's declared type travels on the IR namespace
+`mod` member's declared type travels on the IR namespace
 (`constTypes`), so an imported `usmallint` that holds 24 does not shrink to
 the narrowest type that fits 24 and wrap a sum at 8 bits.
 
@@ -80,8 +80,8 @@ Catalog diagnostics (`packages/compiler/src/i18n`):
 
 | Code | Means |
 | --- | --- |
-| 8BS1043 | `@8bitscript/i18n/catalog` with no `src/i18n/<locale>.8bs`, or a file that is not exported namespaces of string consts |
-| 8BS1044 | Two locale catalogs do not export the same namespaces and string const names |
+| 8BS1043 | `@8bitscript/i18n/catalog` with no `src/i18n/<locale>.8bs`, or a file that is not `pub mod`s of string consts |
+| 8BS1044 | Two locale catalogs do not export the same `pub mod`s and string const names |
 | 8BS1045 | A catalog string's `{name}` placeholders do not match the default locale's |
 | 8BS1046 | `i18n.format` could not fold: a missing param, a non-const argument, or a record used somewhere other than as its second argument |
 | 8BS1047 | `#define(...)` is not a name in quotes (capitals, digits, `_`) and a default that is a whole number, `true`/`false`, or a string |
@@ -152,7 +152,7 @@ of `$18` without walking every instruction to find where it's read.
 `8bs build --remarks` prints what the linker's own optimizer
 (`linker/optimize.mjs`) actually did, as a diagnostic — severity
 `'remark'`, never a warning or an error, and never counted as a
-problem. Today, the one thing it reports is a program's own `@unroll`:
+problem. Today, the one thing it reports is a program's own `#[unroll]`:
 how many copies of the loop's body replaced it, and roughly how many IR
 nodes that came to. Off by default (`8bs build` with no flag is
 unchanged, byte for byte); `optimizeReachable()` collects remarks on
@@ -161,7 +161,7 @@ bothers returning and printing them, the same "pay only if used" split
 `--size`'s `sizeReport` and `--debug`'s listing already follow.
 
 Unlike `--size` and `--debug`, this exists on the `mos` backend (the
-6502-family targets `@unroll` and the automatic loop-unrolling work
+6502-family targets `#[unroll]` and the automatic loop-unrolling work
 described in `docs/roadmap.md` are scoped to today) only — the
 WebAssembly backend does not yet return a `remarks` field.
 

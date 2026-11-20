@@ -210,14 +210,14 @@ modules emulate it (`port1` = `mouse`). No keyboard.
   address once and stream. Tile data, the BAT, and the SATB all live
   there; allocate VRAM at build time (BAT at `$0000` in the SDK's
   convention *to verify*, SATB at `$7F00` in the test program).
-- Text: no text mode. `text.print` = BAT entries naming font tiles in
+- Text: no text mode. `text::print` = BAT entries naming font tiles in
   a 32/40/64-column BAT (256/320/512 wide) × 28/30 rows, written through
   the port — during vblank or not (VDC writes outside vblank are allowed
   but steal display cycles; snow is not a PCE problem *to verify*).
-  `text.COLUMNS` is a property of the width profile. Mednafen crops to
+  `text::COLUMNS` is a property of the width profile. Mednafen crops to
   lines 4–235 by default: keep row 0 and row 29 out of anything that
   must be seen.
-- `screen.setBorder()` = VCE `$100`; `setBackground()` = BG palette 0
+- `screen::setBorder()` = VCE `$100`; `setBackground()` = BG palette 0
   color 0 (`$000`) *(rule to verify)*. Both are real registers.
 - Vblank is where SATB DMA and VRAM→VRAM DMA run; the SATB the program
   edits is in VRAM and reaches the hardware one frame later — the NES's

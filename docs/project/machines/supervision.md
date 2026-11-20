@@ -162,11 +162,11 @@ port: 4-bit bidirectional, two players. No keyboard, no mouse. The
 ### Video: a 2-bpp bitmap and a window
 
 - Everything is bytes in VRAM: 4 pixels per byte, 4 greys, no color.
-  `screen.setBackground()` is a fill (DMA a 16-byte pattern or `memset`);
+  `screen::setBackground()` is a fill (DMA a 16-byte pattern or `memset`);
   `setBorder()` is inert — the LCD is the whole 160×160 window.
-- No text mode: `text.print` renders a font into the bitmap — 20×20
+- No text mode: `text::print` renders a font into the bitmap — 20×20
   cells at 8×8 (40 bytes per glyph row at 2 bpp) or 26×26 at 6×6; the
-  package chooses and `text.COLUMNS` says which. Reverse video is free
+  package chooses and `text::COLUMNS` says which. Reverse video is free
   (invert the 2-bit value); "color" is one of four greys per pixel.
 - Two scroll registers (`$2002`/`$2003`) and a VRAM wider than the LCD
   (192 vs 160 per the SDK) give a *hardware window*: coarse scrolling by

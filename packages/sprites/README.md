@@ -23,14 +23,14 @@ know:
 pnpm add @8bitscript/sprites
 ```
 
-```
-import { sprites } from "@8bitscript/sprites";
+```8bs
+use @8bitscript::sprites::sprites;
 
-sprites.begin(12);                                  // this program moves twelve, ≤ sprites.MAX
-sprites.setShape(0, shape);                          // a sprite block on the C64, an ASCII code elsewhere
-sprites.place(0, sprites.ORIGIN_X + 40, sprites.ORIGIN_Y + 80);
+sprites::begin(12); // this program moves twelve, ≤ sprites.MAX
+sprites::setShape(0, shape); // a sprite block on the C64, an ASCII code elsewhere
+sprites::place(0, sprites::ORIGIN_X + 40, sprites::ORIGIN_Y + 80);
 // each frame, after waitFrame():
-sprites.update();
+sprites::update();
 ```
 
 | Call | What it does |
@@ -42,7 +42,7 @@ sprites.update();
 | `hide(n)` | Not drawn until placed again |
 | `extend(on)` | Objects may draw above and below the playfield — the C64's border opens; a no-op elsewhere |
 | `update()` | The frame's plan, built and handed over whole; returns how many sprites draw |
-| `plan()` | The same, inside a program's own `raster.clear()` … `raster.commit()` bracket |
+| `plan()` | The same, inside a program's own `raster::clear()` … `raster::commit()` bracket |
 | `dropped()` | Sprites the last `update()` could not show |
 | `setBackground(code)` | What a cell sprite leaves behind (a space by default); nothing on the C64 |
 | `left()` `right()` `top()` `bottom()` | Where a sprite's top-left can be and still show — moves with `extend()` on the C64 |
@@ -51,7 +51,7 @@ And consts a program folds on: `MAX` (24 on the C64, 8 on the PET, 16
 in cells), `PER_LINE`, `WIDTH`, `HEIGHT`, `STEP_X`/`STEP_Y` (the
 smallest move that shows: 1, 4 and 8), `RESTORES` (whether what a
 sprite covers survives it: true on the C64 and the PET), `EXTENDS`,
-`ORIGIN_X`, `ORIGIN_Y`. `if (sprites.MAX >= 20)` costs nothing when it
+`ORIGIN_X`, `ORIGIN_Y`. `if sprites::MAX >= 20` costs nothing when it
 is false. The two limits are different kinds of number — `MAX` is what
 the layer holds, `PER_LINE` what one scanline shows of this layer's
 object size — and neither is a frame budget: each twin's header says
@@ -75,7 +75,7 @@ sprite outside the playfield is simply hidden by the border.
 (the sprites, and the border entries when `extend` is on) and commits —
 installing the handler on its first call. A program that also wants
 entries of its own opens and commits the list itself and calls `plan()`
-inside that bracket, and calls `raster.enable()` once itself. Never both.
+inside that bracket, and calls `raster::enable()` once itself. Never both.
 On a cell machine the two are the same call.
 
 ## The PET's quadrant objects
@@ -100,9 +100,9 @@ covered: `update()` erases a moved or hidden sprite's previous cell with
 the background glyph and redraws the sprites that changed; when a mover
 leaves a cell another sprite still stands in, that cell is kept and the
 other sprite is redrawn. Text under a sprite is lost. Colour goes through
-`text.putColor` where `Video.COLOR_PER_CELL` says the machine has it.
+`text::putColor` where `Video.COLOR_PER_CELL` says the machine has it.
 Sixteen sprites cost about half a VIC-20 frame a frame, measured. On the
-NES the cells go through `text.putChar`'s 48-byte vblank queue — about
+NES the cells go through `text::putChar`'s 48-byte vblank queue — about
 twelve cells a frame — so sixteen movers overflow it and tear there; the
 NES's own layer (OAM built per frame) is designed, not built. The design
 and its budgets are in [docs/project/frame.md](../../docs/project/frame.md)

@@ -7,11 +7,11 @@ true, and how to listen without a speaker. Read the root
 
 ## The surface
 
-`audio.bind` / `meta` (called by the `.8ba` lowering), `play`, `music`,
-`update`, and the portable tone: `audio.tone(note, frames)`,
-`audio.blip(note, frames)` (a plucked tone), `audio.setLevel(level)` (the volume),
-`audio.silence()`, `audio.busy()`, and the three constants `audio.NOTE_LOW` / `audio.NOTE_HIGH` /
-`audio.LEVEL_MAX` (15 on the chips with a volume, 1 on the PET's one-bit speaker, 0 with
+`audio::bind` / `meta` (called by the `.8ba` lowering), `play`, `music`,
+`update`, and the portable tone: `audio::tone(note, frames)`,
+`audio::blip(note, frames)` (a plucked tone), `audio::setLevel(level)` (the volume),
+`audio::silence()`, `audio::busy()`, and the three constants `audio::NOTE_LOW` / `audio::NOTE_HIGH` /
+`audio::LEVEL_MAX` (15 on the chips with a volume, 1 on the PET's one-bit speaker, 0 with
 no driver).
 Every twin (`src/index.<machine>.8bs`, and the generic `src/index.8bs` for a
 machine with no driver) exports every one of them, so a portable program links
@@ -35,11 +35,11 @@ all of it on the emulators; `audio-tone.test.mjs` pins the source.
 **Songs.** `src/songs.8bs` is the bank and the sequencer every song-playing twin (C64, VIC-20,
 PET, X16, web) shares; the twins hold only the chip: `startNote()` (what to do with the voice
 for a note's pitch, waveform, volume and decay) and the `silence`/`apply` that lets it go.
-`songs.step()` is called once a frame by `audio.update()` and answers NOTHING / STARTED / ENDED /
+`songs::step()` is called once a frame by `audio::update()` and answers NOTHING / STARTED / ENDED /
 FINISHED. Four things have to stay true, because breaking any of them brings back a drone:
 a song that is not told to loop plays its rows once and then lets the voice go
-(`FINISHED` -> `silence`); `audio.silence()`, `tone` and `blip` all stop the song
-(`songs.stop()`); a note's `length` ends it even if its decay is longer; and the bank is
+(`FINISHED` -> `silence`); `audio::silence()`, `tone` and `blip` all stop the song
+(`songs::stop()`); a note's `length` ends it even if its decay is longer; and the bank is
 indexed by a byte, so `AUDIO_BANK_BYTES` (255, in `media/elaborate.mjs`) is what the compiler
 refuses past (`8BS2216`). `media/audio/song.mjs` encodes `[flags, speed, rows, count]` and five
 bytes an event; the NES and Atari 8-bit keep their own older format. `test/songs.test.mjs` plays
@@ -48,8 +48,8 @@ the web host, which is the quickest way to test the sequencer.
 
 **`note` is the `.8ba` index** — `octave * 12 + semitone`, C0 = 0, A4 = 57,
 the SID's `Note` index — on every machine. A note outside a machine's range is
-folded by whole octaves into it (`while (n < LOW) n += 12`), so the pitch class
-survives. **`frames` counts calls of `audio.update()`**, not time. `tone`
+folded by whole octaves into it (`while n < LOW { n += 12; }`), so the pitch class
+survives. **`frames` counts calls of `audio::update()`**, not time. `tone`
 replaces the tone sounding; `sfxLeft` is the shared countdown that
 `play(slot)` already used.
 
@@ -60,7 +60,7 @@ the notes they were indexed by for as long as nothing measured them.
 
 | Machine | Formula | Range | Where it is checked |
 | --- | --- | --- | --- |
-| C64 | the SID's own `NOTE_PAL` / `NOTE_NTSC`; Fn · clock / 2^24 | C0..B6 | register dump: Fn 7218 → 440.0 Hz on NTSC. The first tone calls `sid.detectRegion()` (two frames, once), because the SID table defaults to PAL and plays NTSC 3.8% sharp |
+| C64 | the SID's own `NOTE_PAL` / `NOTE_NTSC`; Fn · clock / 2^24 | C0..B6 | register dump: Fn 7218 → 440.0 Hz on NTSC. The first tone calls `sid::detectRegion()` (two frames, once), because the SID table defaults to PAL and plays NTSC 3.8% sharp |
 | VIC-20 | soprano voice: Φ2 / (64 · a), a = 7-bit divisor, 1,022,727 Hz | C3..B5 | WAV: A4 443.5 Hz, A5 887.6 Hz. The table is NTSC; PAL's clock is 8% faster |
 | PET | the VIA shifts a bit every 2 (T2 + 2) cycles, an 8-bit pattern: 1,000,000 / (16 (T2 + 2)) Hz | C4..B5 | WAV: A4 441.0, A5 880.5 Hz. The old table was labelled C3..B4 and played C4..B5 |
 | X16 | VERA PSG frequency word = Hz · 2^17 / 48828.125; volume byte needs both channel bits `$C0`; waveform in bits 7:6 | C3..B7 | WAV: 439.9 and 881.0 Hz |

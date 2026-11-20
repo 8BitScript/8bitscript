@@ -19,7 +19,7 @@ the CLI prints, and says what is not decided yet.
 
 | Word | Means | Where it lives |
 | --- | --- | --- |
-| **Project** | The directory with an `8bitscript.config.8bs`. | the config |
+| **Project** | The directory with an `8bitscript.config.ts`. | the config |
 | **Program** | One thing the project builds, from its own `.8bs` entry — the unit an editor lets you run. | `programs` in the config |
 | **System** | A machine plus the hardware fitted to it (`--profile`, `--hardware`, `--pal`); a name for that arrangement. | `systems`, or a machine's own name |
 | **Runtime** | *How* a system is run: natively in its own emulator, as a wasm page (in an editor tab or in a browser), as the real emulator in wasm, or booted bare. | the machine package, via `8bs targets --json` |
@@ -61,7 +61,7 @@ and, for the defines, by the compiler itself, which links each program once
 {
   "version": 1,                       // bumped when a field changes meaning; adding one does not bump it
   "hasConfig": true,                  // false: no config here; the one default program is described
-  "configPath": "/…/8bitscript.config.8bs",
+  "configPath": "/…/8bitscript.config.ts",
   "configError": null,                // set (and exit 1) when a config exists and will not load
   "dir": "/…/vegas-nights", "name": "vegas-nights",
   "frameRate": 60,

@@ -134,7 +134,7 @@ but was not cross-checked against a hardware description.
   written against those names then serves both machines; anything that
   hardcodes `$D01A` is atari8-only by accident.
 - The BIOS has a VBI and color shadows of its own (verified above),
-  at addresses this note did not read. Until they are, `screen.setColors()`
+  at addresses this note did not read. Until they are, `screen::setColors()`
   on this machine either clears NMIEN first (verified to work, and the
   program then owns VCOUNT-polled timing anyway) or writes the BIOS's
   shadows (*to verify*); a hardware-only color write lasts until the next

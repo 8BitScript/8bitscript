@@ -111,7 +111,7 @@ emulator/toolchain source or manual named — not recalled.
 
 ### The CPU is neither a 6502 nor a Z80
 
-- Every device is a byte at `$FF00–$FF7F`; the language's `@address`
+- Every device is a byte at `$FF00–$FF7F`; the language's `#[address]`
   spelling covers it. The Game Boy family is the Phase 8 CPU that does
   not need an I/O-port intrinsic — the Z80 family does (see
   `z80-family.md`). Write registers as addresses, and keep that fact out
@@ -169,7 +169,7 @@ emulator/toolchain source or manual named — not recalled.
   entry is ever added; until then the runtime's own LCD-off helper must
   wait for LY ≥ 144.
 - Tiles are the only pixels. A text capability is a font of 8×8 tiles
-  plus a map write; `text.COLUMNS` is 20 (visible) on a 32-wide map, and
+  plus a map write; `text::COLUMNS` is 20 (visible) on a 32-wide map, and
   the map is where the NES-style "flat cell index" needs a stride of 32,
   not 20. The Window is the natural status bar (it cannot scroll and its
   X is offset by 7).

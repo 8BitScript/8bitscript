@@ -71,7 +71,7 @@ Cite these freely; each was read in the source named, not recalled.
 | `set_horiz_pos(obj, x)`: `sta WSYNC`, divide *x* by 15 by repeated subtraction, `eor #7`, shift into the high nybble, `sta HMP0,x` then `sta RESP0,x`; `apply_hmove()` is `sta WSYNC / sta HMOVE`. The whole horizontal-positioning problem is that a coarse position is *when* you strobe RESPx during the line and a fine one is a −8…+7 nudge applied at the next HMOVE. | `vcslib.S`, `vcslib.h` |
 | Building: the SDK demo compiles with `mos-a26-4k-clang -Os` to a 4096-byte `.bin` and with `mos-a26-3e-clang -Os` (with `MAPPER_CART_ROM_KB(8)`) to 8192 bytes; `.text` for the 4K build starts at `$F000`, `.zp.bss` at `$A0`. | built here |
 | Stella's bankswitch enum (what `-bs`/`-type` accepts): `AUTO, 03E0, 0840, 0FA0, 2IN1…128IN1, 2K, 3E, 3EX, 3EP, 3F, 4A50, 4K, 4KSC, AR, BF, BFSC, BUS, CDF, CM, CTY, CV, DEVC, DF, DFSC, DPC, DPCP, E0, E7, EF, EFF, EFSC, ELF, F0, F4, F4SC, F6, F6SC, F8, F8SC, FA, FA2, FC, FE, GL, JANE, MDM, MVC, SB, TVBOY, UA, UASW, WD, WDSW, WF8, X07`; descriptions such as "F8 (8K Atari)", "F4 (32K Atari)", "E0 (8K Parker Bros)", "AR (Supercharger)"; file extensions (`a26`, `bin`, `rom`, or a scheme name) force a scheme. | upstream `src/emucore/Bankswitch.hxx` |
-| Stella's command line (7.x): `-format <ntsc|pal|secam|…>`, `-lc`/`-rc <controller>` (left/right), `-bs`/`-type <scheme>`, `-audio.enabled <1|0>`, `-snapsavedir <path>`, `-snapname <int|rom>`, `-ssinterval <seconds>` (continuous snapshots), `-holdreset`, `-holdselect`, `-debug`, `-break <address>`, `-fullscreen`, `-palette`, `-tv.filter`, `-plr.ramrandom`, `-exitlauncher`; snapshots also on the F12 hotkey. No "run N frames and exit" option appears in the usage text. | upstream `src/emucore/Settings.cxx`, `docs/index.html` |
+| Stella's command line (7.x): `-format <ntsc|pal|secam|…>`, `-lc`/`-rc <controller>` (left/right), `-bs`/`-type <scheme>`, `-audio::enabled <1|0>`, `-snapsavedir <path>`, `-snapname <int|rom>`, `-ssinterval <seconds>` (continuous snapshots), `-holdreset`, `-holdselect`, `-debug`, `-break <address>`, `-fullscreen`, `-palette`, `-tv.filter`, `-plr.ramrandom`, `-exitlauncher`; snapshots also on the F12 hotkey. No "run N frames and exit" option appears in the usage text. | upstream `src/emucore/Settings.cxx`, `docs/index.html` |
 | Homebrew has `stella` 7.0c (bottled), not installed here. | `brew info stella` |
 
 ## From the sources, not verified here
@@ -173,7 +173,7 @@ before any becomes a profile.
   2800 cycles) and overscan (30 lines ≈ 2280) are where game logic runs.
   The backend must let a program see its generated assembly and cycle
   counts per line (roadmap: "inspection of the generated assembly"), and
-  an `@address` write to WSYNC is an intrinsic with timing semantics, not
+  an `#[address]` write to WSYNC is an intrinsic with timing semantics, not
   a store.
 - `sei`/`cli` are meaningless (no interrupt sources); `brk` is what the
   SDK uses to halt.

@@ -11,21 +11,21 @@ Today there is one component.
 pnpm add @8bitscript/ui
 ```
 
-```
-import { text, TextColor } from "@8bitscript/text";
-import { menubar } from "@8bitscript/ui/menubar";
+```8bs
+use @8bitscript::text::{text, TextColor};
+use @8bitscript::ui::menubar::menubar;
 
-export function main(): void {
-    menubar.setColors(TextColor.WHITE, TextColor.YELLOW);
-    menubar.select(1);
+pub fn main() {
+    menubar::setColors(TextColor::WHITE, TextColor::YELLOW);
+    menubar::select(1);
 
-    menubar.begin(0, text.COLUMNS);
-    menubar.item("FILE");
-    if (menubar.item("EDIT")) {
-        text.print(text.COLUMNS, "EDIT MENU");
+    menubar::begin(0, text::COLUMNS);
+    menubar::item("FILE");
+    if menubar::item("EDIT") {
+        text::print(text::COLUMNS, "EDIT MENU");
     }
-    menubar.item("VIEW");
-    menubar.end();
+    menubar::item("VIEW");
+    menubar::end();
 }
 ```
 
@@ -34,7 +34,7 @@ export function main(): void {
 ```
 
 Every component is its own subpath, so a program links the ones it names
-and nothing else — there is no `import ... from "@8bitscript/ui"`.
+and nothing else — there is no `use @8bitscript::ui::...`.
 
 ## The menu bar
 
@@ -64,8 +64,10 @@ program.
 
 **`item()` returns whether that item is the highlighted one**, so
 
-```
-if (menubar.item("FILE")) { drawFileMenu(); }
+```8bs
+if menubar::item("FILE") {
+    drawFileMenu();
+}
 ```
 
 is how a program hangs behavior off the selection. Nothing moves the
@@ -80,7 +82,7 @@ links for, including targets with no per-cell color: the NES ships
 inverted copies of its font at ASCII+128, and the PET and Atari invert
 with bit 7 of the screen code.
 
-**Drawing goes through `text.print`, and that is worth 423 bytes.**
+**Drawing goes through `text::print`, and that is worth 423 bytes.**
 `print` does a machine's per-run video setup once and then walks the string;
 `putChar` is self-sufficient, so it redoes that setup — and an ASCII
 conversion, and a sixteen-bit pointer build — for every cell, inlined into
@@ -97,7 +99,7 @@ four shapes measured on the way, and the `@8bitscript/text` primitive that
 would take another bite out of it.
 
 **Drawing a bar leaves the text color set to the bar's.** That is how the
-color gets on without a second pass, and there is no `text.getColor` to put
+color gets on without a second pass, and there is no `text::getColor` to put
 your setting back with. Draw the bar, *then* set your own color:
 
 ```

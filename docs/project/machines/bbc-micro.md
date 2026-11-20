@@ -179,7 +179,7 @@ Each is a lead to confirm the first time code depends on it.
   control code eats.
 - There is no border color on a stock machine. The overscan is black
   (or the physical color of the ULA's off-screen state); `&FE22` is a
-  NuLA extension. `screen.setBorder()` is inert; `setBackground()` is a
+  NuLA extension. `screen::setBorder()` is inert; `setBackground()` is a
   palette write of logical color 0.
 - Hardware scroll exists (CRTC R12/R13 with the IC32 wrap) but is coarse
   (8-byte units) and the MOS uses it for text scrolling; treat fine

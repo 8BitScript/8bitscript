@@ -47,7 +47,7 @@ Three things share the word and are easy to confuse:
 | | What it is | How to get it |
 |---|---|---|
 | **The `web` target** | A synthetic machine that exists only as the runtime: 48×27 cells, the host font, 16 colours, `Video.*` facts decided in `packages/web`. 2048's four skins (`--hardware machine=c64`, `pet-2001`, `vic20`) are this target dressed up. | `8bs build --target web`, `8bs run web` |
-| **A machine's wasm build** | The real machine package (`packages/pet`, `vic20`, `c64`, `cx16`) compiled through `@8bitscript/compiler/wasm`. Registers it pins with `@address` are bytes of linear memory; screen RAM and colour RAM are where the machine keeps them; the page paints that memory the way the machine's video chip would. **This is what the policy is about.** | `8bs build --target <m> --web`, `8bs run <m> --web` |
+| **A machine's wasm build** | The real machine package (`packages/pet`, `vic20`, `c64`, `cx16`) compiled through `@8bitscript/compiler/wasm`. Registers it pins with `#[address]` are bytes of linear memory; screen RAM and colour RAM are where the machine keeps them; the page paints that memory the way the machine's video chip would. **This is what the policy is about.** | `8bs build --target <m> --web`, `8bs run <m> --web` |
 | **The vendored real emulator** | `x16emu` compiled to WebAssembly. X16 only. | `8bs run cx16 --web --x16emu` |
 
 ## How a frame gets to the page
@@ -168,12 +168,12 @@ modes, raster timing. Those are items 4 and 6 below.
 | Reverse video (codes 128–255) | ✔ | ✔ | ✔ | ✔ | ✔ |
 | Text colours and palette | ✔ (mono) | ◐ 6 colour-row cells: page palette vs xvic; border and background are read from `$900F` | ◐ Pepto vs VICE | ✔ VERA's default (#317) | ✔ |
 | Portable input | ✔ arrows/Enter/Esc and a gamepad (`input.pet.web.8bs`) | ✔ arrows/Enter/Esc and a gamepad (`input.vic20.web.8bs`) | ✔ arrows/Enter/Esc and a gamepad | ✔ arrows/Enter/Esc, a gamepad and the mouse (`input.cx16.web.8bs`) | ✔ arrows/Enter/Esc and the mouse |
-| Portable raster (`@8bitscript/raster`) | ◐ 3032/4032 only; untested | ✘ `raster_probeRegion` | ◐ lands one picture line early | ◐ all four slots at their lines and a real `raster.frame()` (`rasterline.cx16.web.8bs`); VERA semantics approximated, not yet compared with x16emu | ✔ |
+| Portable raster (`@8bitscript/raster`) | ◐ 3032/4032 only; untested | ✘ `raster_probeRegion` | ◐ lands one picture line early | ◐ all four slots at their lines and a real `raster::frame()` (`rasterline.cx16.web.8bs`); VERA semantics approximated, not yet compared with x16emu | ✔ |
 | C64 address-form raster list (`@8bitscript/c64/raster`) | n/a | n/a | ◐ applied line by line by the page; not the handler's timing | n/a | n/a |
 | Graphics objects (`@8bitscript/graphics`) | ◐ draws (`media-walk`); other ops untested on wasm | ◐ draws (`media-walk`); other ops untested on wasm | ✔ as hardware sprites (24 from eight) | ◐ one flat glyph, not a sprite (#317) | ✔ |
 | Hardware sprites | n/a | n/a | ✔ hires + multicolour, expand, priority, X MSB; no collision registers | ✘ not drawn | n/a |
 | Bitmap / multicolour text | n/a | n/a | ✘ not drawn | ✘ not drawn | n/a |
-| Sound (`audio.tone`, `.8ba`) | ✘ silent | ✘ silent | ✘ silent | ✘ silent | ✔ (Web Audio; not heard in a tab) |
+| Sound (`audio::tone`, `.8ba`) | ✘ silent | ✘ silent | ✘ silent | ✘ silent | ✔ (Web Audio; not heard in a tab) |
 | PAL / 50 Hz | ✘ NTSC | ✘ NTSC | ✘ NTSC | n/a | n/a |
 | Save / storage | ✘ | ✘ | ✘ | ✘ | ✘ (`localStorage` bridge unbuilt) |
 | Cycle-accurate timing | ✘ | ✘ | ✘ | ✘ | n/a |
@@ -193,7 +193,7 @@ Ordered by value over cost. Effort: **S** about a day, **M** a few days,
 | 5 | Palettes and ROM fonts that match the real machines | S–M | — |
 | 6 | Graphics objects on PET, VIC-20 and X16 | M | 1 (PET, VIC-20); a VERA sprite renderer (X16) |
 | 7 | Sound models and a Web Audio host for the four machines | L | — |
-| 8 | Conformance for moving things: raster timing, sprites, scroll; frame-locked captures | M | 4, `raster.frame()` |
+| 8 | Conformance for moving things: raster timing, sprites, scroll; frame-locked captures | M | 4, `raster::frame()` |
 | 9 | A build refuses, or warns, where it cannot draw (graphics objects on a wasm machine that cannot draw them) | S | 6 |
 | 10 | Distribution: a single-file export (a mode without `SharedArrayBuffer` exists where the browser has JSPI — see Hosting below) | M | — |
 | 11 | PAL and 50 Hz; cycles per frame | M | — |
@@ -231,7 +231,7 @@ gamepad the page folds into it; no pointer), and `examples/joystick`, 2048 and t
 keys; `packages/cli/test/web-cx16-input.test.mjs` tallies every press); its `limits`
 line now says what the twin leaves out instead of "does not build". *Raster done
 except the probe:* `rasterline.cx16.web.8bs` applies the portable list at its picture
-lines and `raster.frame()` counts the page's frames, so `examples/fancy` builds and
+lines and `raster::frame()` counts the page's frames, so `examples/fancy` builds and
 draws; the `bands` probe against x16emu is still open (see the handoff below). What
 follows is the original item. `input_poll`
 (keyboard, pad, mouse via the KERNAL) and `raster_commit` (the VERA line-IRQ
@@ -348,7 +348,7 @@ _headers       COOP/COEP for Cloudflare Pages and Netlify
 **Done and verified** (branch `wasm/vic20-raster`):
 
 - `packages/vic20/src/rasterline.vic20.web.8bs`: the wasm twin of the raster layer, with the same
-  surface (`Slot`, `raster.at/insert/setValue/count/commit/enable/disable`, 16 entries, 184 lines,
+  surface (`Slot`, `raster::at/insert/setValue/count/commit/enable/disable`, 16 entries, 184 lines,
   `SCROLL_X` refused, `BORDER` kept to 3 bits), writing the page's picture-line list.
   `examples/fancy` and the new `packages/vic20/test/web-raster-probe.8bs` build through `--web`.
 - The page reads the VIC-20's border and background from the chip's own register
@@ -394,9 +394,9 @@ What is done and verified, headless, no emulator (`pnpm run test:ci` plus the fi
   lowest number in front, priority bit behind glyph pixels. Held by
   `packages/cli/test/web-vic.test.mjs` (16 tests with the pixels written out) and the
   loader-versus-renderer pixel identity test in `web-loader.test.mjs`.
-- **Two twins**: `raster.c64.web.8bs` (native layout byte for byte, `commit()` hands
+- **Two twins**: `raster::c64.web.8bs` (native layout byte for byte, `commit()` hands
   over at once and writes the frame table into the sprite registers) and
-  `multiplex.c64.web.8bs` (the native routine's three steps in plain loops). Held to
+  `multiplex::c64.web.8bs` (the native routine's three steps in plain loops). Held to
   the native signatures by `packages/compiler/test/c64-web-twin.test.mjs`.
 - **End to end**, `packages/cli/test/web-c64-sprites.test.mjs`: hardware sprites at
   exact pixels; the native multiplexer probe (`packages/c64/test/multiplex-probe.8bs`,
@@ -437,7 +437,7 @@ Branch `wasm/x16-input-raster`, rebased on #333. What is done and verified, head
   and draws its bands and wobble.
 - The list is staged in the twin and published to the page only on `commit()` or
   `enable()`, as the native handler does; `setValue` is live only on a committed list.
-- `raster.frame()` is real: `agreementFor({ frameCounter: true })` puts one byte past
+- `raster::frame()` is real: `agreementFor({ frameCounter: true })` puts one byte past
   everything else (X16 only, offset 9350, program data above it); the page adds one each
   time it releases a frame and the headless host does the same through
   `runProgram(..., { onFrame })`; `frame()` is the distance since `enable()`.
@@ -460,7 +460,7 @@ What is **not** done:
   gets a `kind: 'bands'` that reads one left-border column per picture row from each
   capture and compares the rows where the colour changes (tolerance stated; colours reported,
   not failed). The VIC-20's `8bs conform vic20 --program bands` (item 3) is the model.
-- **The mouse** is a six-byte pointer block (present, buttons, x, y) at the very end of the agreement, written only for a build whose `input.mouse` fact is true: the X16 stock, the C64 with `port1=mouse1351`, the Modern web host. The PET, the VIC-20 and the web skins have none — there a touch is only translated to arrow presses (a swipe) or confirm (a tap), and a mouse drag does nothing. On a machine with a pointer a mouse is a pointer, a tap is a click, and a swipe is still arrows, never both for one gesture (`pointerRoute()` in `web-layout.mjs`). No arrow is drawn in the picture: the browser's cursor is the arrow, `pointer.DRAWS` is false on every wasm build. Not yet verified on a touch device or in a real browser; the tests drive the page's handlers with synthetic events.
+- **The mouse** is a six-byte pointer block (present, buttons, x, y) at the very end of the agreement, written only for a build whose `input.mouse` fact is true: the X16 stock, the C64 with `port1=mouse1351`, the Modern web host. The PET, the VIC-20 and the web skins have none — there a touch is only translated to arrow presses (a swipe) or confirm (a tap), and a mouse drag does nothing. On a machine with a pointer a mouse is a pointer, a tap is a click, and a swipe is still arrows, never both for one gesture (`pointerRoute()` in `web-layout.mjs`). No arrow is drawn in the picture: the browser's cursor is the arrow, `pointer::DRAWS` is false on every wasm build. Not yet verified on a touch device or in a real browser; the tests drive the page's handlers with synthetic events.
   A design: a position and a button byte in the layout (X16 only, like the frame byte),
   written from pointer events, with `pointerCell()` mapped onto the 76x56 grid. Studio
   needs it.

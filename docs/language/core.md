@@ -43,16 +43,16 @@ A global's section follows directly from how you declare it — nothing is left 
 | Declaration | Section |
 | --- | --- |
 | `const`, given a value | `.rodata` — program data, read-only |
-| `let`, given a value | `.data` — initialized RAM |
-| `let`, no initializer | `.noinit` — RAM, contents undefined at start |
-| `@address(N) let` | overlays hardware directly at `N` |
+| `let mut`, given a value | `.data` — initialized RAM |
+| `let mut`, no initializer | `.noinit` — RAM, contents undefined at start |
+| `#[address(N)] let mut` | overlays hardware directly at `N` |
 
 Old-BASIC's `POKE` becomes a typed call rather than a magic number pair:
 
 | BASIC | 8BitScript |
 | --- | --- |
-| `POKE 36879,27` | `memory.write(36879, 27);` |
-| `OUT 254,0` (Z80) | `port.write(0xFE, 0);` |
+| `POKE 36879,27` | `memory::write(36879, 27);` |
+| `OUT 254,0` (Z80) | `port::write(0xFE, 0);` |
 
 ## §1.3 Declare and pass an array
 
@@ -84,9 +84,9 @@ text::print(0, `TICK ${ticks:1}`);
 
 ## §1.5 Functions and control flow
 
-Functions with parameters and return values, arithmetic, `if`/`while`/`for` — the ordinary compiled subset. `const`s are inlined at compile time wherever they're used, and keep the type they were declared with across an import: `sprites.ORIGIN_X` is a `usmallint`, so `sprites.ORIGIN_X + 236` is a 16-bit sum.
+Functions (`fn`, with `-> T` for a return value) and parameters, arithmetic, `if`/`while`/`loop`/`for`/`match` — the ordinary compiled subset. `const`s are inlined at compile time wherever they're used, and keep the type they were declared with across an import: `sprites::ORIGIN_X` is a `usmallint`, so `sprites::ORIGIN_X + 236` is a 16-bit sum.
 
-A plain counted `for` loop — `for (let i: T = 0; i < N; i++) { … }`, N a compile-time value — can be marked `@unroll` to pay code size for the cycles a branch back to the loop's top costs every iteration:
+A plain counted `for` loop — `for i: T in 0..N { … }`, N a compile-time value — can be marked `#[unroll]` to pay code size for the cycles a branch back to the loop's top costs every iteration:
 
 ```8bs
 #[unroll] for i: utinyint in 0..8 {
@@ -98,9 +98,9 @@ Refused, by name, when the loop is not that shape, when N is not a small positiv
 
 
 
-## §1.6 Import across files and namespaces
+## §1.6 Use items across files and modules
 
-The linker resolves imports across modules, whether the target is a bare package (`@8bitscript/screen`), a relative `.8bs`/`.8bx`/`.8bg`/`.8ba` file, or a package subpath (`@8bitscript/ui/menubar`, exported via that package's own `"8bitscript"` field). Namespaces group related declarations under one imported name.
+The linker resolves `use` declarations across files, whether the target is a bare package (`@8bitscript/screen`), a relative `.8bs`/`.8bx`/`.8bg`/`.8ba` file, or a package subpath (`@8bitscript/ui/menubar`, exported via that package's own `"8bitscript"` field). A `mod` groups related declarations under one name.
 
 ## §1.7 Override one file per machine (twin files)
 
@@ -108,7 +108,7 @@ Beside `tile.8bs`, a file named `tile.pet.8bs` is used only when building for th
 
 ## §1.8 Drop into assembly and raw memory
 
-`asm6502 { … }` blocks, `@address` decorators, and `memory.read`/`memory.write` are language features, not bolted-on escape hatches — available inline wherever a program genuinely needs the hardware underneath a portable API. Not inside `.8bx`, though — see [§2.7](composition.md#27-the-purity-rule-whats-refused-and-linted-in-8bx).
+`asm6502 { … }` blocks, `#[address]` decorators, and `memory::read`/`memory::write` are language features, not bolted-on escape hatches — available inline wherever a program genuinely needs the hardware underneath a portable API. Not inside `.8bx`, though — see [§2.7](composition.md#27-the-purity-rule-whats-refused-and-linted-in-8bx).
 
 An `asm6502` operand may name the function's own parameters and locals: each is its zero-page slot, so a block can hand a native routine what the function was given —
 
@@ -124,7 +124,7 @@ fn print(cell: usmallint, s: string) {
 }
 ```
 
-A name the frame does not bind is a linker label, as before (`jsr __8bs_c64_raster_install`). A frame slot is data, so `jsr s`, `jmp (s)` or a branch to one is refused. Globals are not reachable this way — they are link-renamed, and a never-assigned one may already have been folded into its value; map hardware with `@address` instead. A function whose block names a parameter still receives it: the optimizer counts a name written in the block's text as a read.
+A name the frame does not bind is a linker label, as before (`jsr __8bs_c64_raster_install`). A frame slot is data, so `jsr s`, `jmp (s)` or a branch to one is refused. Globals are not reachable this way — they are link-renamed, and a never-assigned one may already have been folded into its value; map hardware with `#[address]` instead. A function whose block names a parameter still receives it: the optimizer counts a name written in the block's text as a read.
 
 ## §1.9 Branch on the machine at compile time
 
@@ -170,7 +170,7 @@ const FORCE_BONUS: bool = #define("FORCE_BONUS", false);
 const THEME: string = #define("THEME", "classic");
 ```
 
-A plain build, `8bs check` and the editor all use the default, so the call never fails for want of a value. A build can replace it: `8bs run c64 --define SEED=42 --define FORCE_BONUS=true` (repeatable), or, for one program every time, a `define` block under it in `8bitscript.config.8bs`:
+A plain build, `8bs check` and the editor all use the default, so the call never fails for want of a value. A build can replace it: `8bs run c64 --define SEED=42 --define FORCE_BONUS=true` (repeatable), or, for one program every time, a `define` block under it in `8bitscript.config.ts`:
 
 ```ts
 programs: {

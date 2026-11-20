@@ -10,7 +10,7 @@ A thin slice: one PNG-backed sprite with an animation, compiled through a
 replacement for [`@8bitscript/sprites`](sprites.md),
 [`@8bitscript/screen`](../language/packages.md), or
 [`@8bitscript/text`](../language/packages.md). A program still calls
-`text.print` and `sprites.place` for hand-written work. `.8bg` is how a
+`text::print` and `sprites::place` for hand-written work. `.8bg` is how a
 PNG becomes data those primitives (or a machine's own player) can use.
 
 The source of truth is the media file. The bytes in the image are still
@@ -43,8 +43,8 @@ graphics::place(player, x, y);
 graphics::update();
 ```
 
-`graphics.update()` once a frame advances the animation and draws. Same
-shape as `sprites.update()`. The rest of what a program can say, and what
+`graphics::update()` once a frame advances the animation and draws. Same
+shape as `sprites::update()`. The rest of what a program can say, and what
 each machine answers, is [the portable contract](#the-portable-contract).
 
 Host decode lives in `@8bitscript/graphics-tools` (PNG, no Aseprite, GIF,
@@ -85,11 +85,11 @@ if graphics::FRAMES >= 4 {
 ### Where a position lands
 
 Positions are **playfield pixels**: the origin is the top-left of the
-playfield, y runs down, and `graphics.place(slot, 0, 0)` lands on the same
+playfield, y runs down, and `graphics::place(slot, 0, 0)` lands on the same
 pixel as text cell (0, 0) on every machine. The twin adds whatever its
 hardware needs — the C64's sprite coordinates start at (24, 50), the X16
 adds the display's `DC_VSTART` — so a program never writes
-`sprites.ORIGIN_X`. (That is the one difference from `sprites.place`, the
+`sprites::ORIGIN_X`. (That is the one difference from `sprites::place`, the
 layer underneath, which takes stage coordinates and leaves the origin to
 the program. A program that mixes the two adds the origin to the second.)
 
@@ -179,13 +179,13 @@ nearest evidence for it.
 | Atari 8-bit | A software glyph; frames collapsed (`8BS2111`). Player/missile shapes are a later slice. |
 | VIC-20 | Quadrant-block characters from the ROM, worked out at build time: one cell for a source of 8 pixels or fewer, 2×2 cells for anything larger (scaled down), one screen code a cell a frame, the animation's frames (the first 8) stepping every `every` updates; a picture with almost no ink becomes one glyph (`8BS2111` either way, and each sprite says how many of the 64 pool bytes it takes). Moving or hiding an object blanks the cells it left and puts their colour back to white; cells off the screen are not drawn. See [On the VIC-20](#on-the-vic-20). |
 | Commander X16 | A VERA hardware sprite in its own 15-colour palette; 8, 16, 32 or 64 px a side, real animation frames (`8BS2110` over 15 colours, `8BS2111` for padding or cut frames). See [Commander X16](#commander-x16). |
-| Web | One cell of real art per animation step: `packages/web/media/index.cjs` reduces each frame at build time to an 8×8 bitmap (eight row bytes, bit 0 the leftmost pixel; an 8×8 source is carried pixel for pixel, a larger one by area, a glyph pixel lit at half its source pixels or more), `packages/graphics/src/index.web.8bs` writes it into the runtime's redefinable glyph table (`@8bitscript/web/charset`, character codes 176–255) and draws it as a cell, up to eight pictures of eight steps, stepped every `every` calls to `graphics.update()`. One ink per cell (`graphics.color()` tints it); a source with more than one colour, or a larger size, or steps past eight is adapted and the build says so (`8BS2111`). A true sprite layer is a later item for the web runtime (`packages/web/AGENTS.md`). |
+| Web | One cell of real art per animation step: `packages/web/media/index.cjs` reduces each frame at build time to an 8×8 bitmap (eight row bytes, bit 0 the leftmost pixel; an 8×8 source is carried pixel for pixel, a larger one by area, a glyph pixel lit at half its source pixels or more), `packages/graphics/src/index.web.8bs` writes it into the runtime's redefinable glyph table (`@8bitscript/web/charset`, character codes 176–255) and draws it as a cell, up to eight pictures of eight steps, stepped every `every` calls to `graphics::update()`. One ink per cell (`graphics::color()` tints it); a source with more than one colour, or a larger size, or steps past eight is adapted and the build says so (`8BS2111`). A true sprite layer is a later item for the web runtime (`packages/web/AGENTS.md`). |
 | every other machine | The same glyph path, quantized to that machine's cell size: one glyph per animation step, up to four (`8BS2111` names what was dropped). |
 
 ### On the PET
 
 A picture's frames are the sheet's frames its `animation` names, in that
-order. The sprite layer holds seven shapes (`sprites.SHAPES`), so the
+order. The sprite layer holds seven shapes (`sprites::SHAPES`), so the
 program as a whole can have seven frames: a still picture spends one,
 a four-frame walk four. They are handed out in the order the `.8bg`
 files are imported and the sprites declared; the build says when a
@@ -208,7 +208,7 @@ fully opaque PNG has only its colours to go on, so bright pixels are
 taken for paper and dark ones for ink. Each 4×4 pseudo-pixel is lit
 when at least 30% of the source pixels under it are.
 
-`graphics.update()` counts its own calls — `every 4` is four
+`graphics::update()` counts its own calls — `every 4` is four
 `update()` calls, one per `waitFrame()` in the usual loop — exactly as
 on the C64.
 
@@ -234,7 +234,7 @@ with 8K.
   updates).
 - **`color`** takes the first eight colours: a character's colour RAM bit 3
   would make its cells multicolor, so 8–15 wrap to 0–7 (`color(slot, 9)` is
-  `color(slot, 1)`), the way `text.putColor` does. It shows from the next
+  `color(slot, 1)`), the way `text::putColor` does. It shows from the next
   `update()`. The cells an object leaves are white, not left in its ink, so a
   character stored there later is not tinted.
 - **The pool.** Every object's codes live in one 64-byte pool — an object
@@ -265,7 +265,7 @@ with 8K.
 
 ## What it costs
 
-`packages/examples/media-walk`, `memory.program` then RAM
+`packages/examples/media-walk`, `memory::program` then RAM
 (`8bs build <target> --size`, 2026-09-24; the PET row re-measured
 2026-10-03, after its animation landed — 3591 before the animation
 driver, 3765 with it). The stock PET 2001's 4K is too small (the
@@ -356,7 +356,7 @@ the playfield — x of 320 or more, y of 205 or more — is not drawn, and
 X register is nine bits, and a stage x of 500 (chip X 524) used to set the ninth bit and
 come out at X 268, in the middle of the picture; a stage y near 65535 plus the
 playfield's 50-line offset wraps a 16-bit sum back to a small number, which the
-closed border hides but `sprites.extend(true)` (the opened vertical border) does
+closed border hides but `sprites::extend(true)` (the opened vertical border) does
 not — 192 pixels of a wrapped sprite were measured at the top of the capture.
 Both are in the tests, each fails without its guard.
 
@@ -365,23 +365,23 @@ apart and right to left so that slot order and screen order disagree: exactly
 eight draw, the first eight in slot order (`d0`–`d7`); `d8`–`d11` are dropped,
 every frame, and the same eight show at `--frames 300` and `340`. There is no
 flicker rotation, so a program that needs a ninth on a line decides which one
-loses (spread them over lines, or swap which slots it places). `sprites.dropped()`
+loses (spread them over lines, or swap which slots it places). `sprites::dropped()`
 counts them.
 
-**A raster list in the same frame.** `graphics.update()` owns the list: it clears
-it at the start and commits it at the end, as `sprites.update()` does. So:
+**A raster list in the same frame.** `graphics::update()` owns the list: it clears
+it at the start and commits it at the end, as `sprites::update()` does. So:
 
-- Entries built *before* `graphics.update()` are gone — a border split at picture line 60,
-  built with the portable `raster.clear()`/`raster.at()` first, did not appear.
-- Entries added *after* it, with a second `raster.commit()`, edit the page the first
+- Entries built *before* `graphics::update()` are gone — a border split at picture line 60,
+  built with the portable `raster::clear()`/`raster::at()` first, did not appear.
+- Entries added *after* it, with a second `raster::commit()`, edit the page the first
   commit just handed over. With two entries it was clean; with three, a stray 8 × 6
   patch of a hardware sprite's power-on colour showed at one place in two of three
   runs. The cause was not found (the entry count was 13, nowhere near the 63 the list
   holds), so this order is not offered.
-- The order that is clean builds the whole frame once: `graphics.step()` (this twin's one
+- The order that is clean builds the whole frame once: `graphics::step()` (this twin's one
   addition to the contract — it advances the animations and does nothing else, so a program
-  that uses it is a C64 program), `raster.clear()`, `sprites.plan()`, the program's own
-  entries with `raster.insert()`, and one `raster.commit()` (`raster.enable()` the first
+  that uses it is a C64 program), `raster::clear()`, `sprites::plan()`, the program's own
+  entries with `raster::insert()`, and one `raster::commit()` (`raster::enable()` the first
   frame). Measured with twelve sprites (four of them reused), a border band at picture lines
   100–149 and two more entries at 10 and 20: the band is exactly there (the left border is yellow
   on capture rows 123–173, the entry showing from the line after it), black above
@@ -413,15 +413,15 @@ video memory. Measured under x16emu r50 (ROM `fbe32a60`), headless, with
   transparent pixels: `20x12` is a 32×16 sprite whose padding stays
   background. Larger than 64×64 is cut (`8BS2111`).
 - **Animation.** Frames follow each other in the sprite's own 4096-byte
-  window of video memory (`$4000 + slot * $1000`); `graphics.update()`
+  window of video memory (`$4000 + slot * $1000`); `graphics::update()`
   steps the sprite's address pointer every `every` frames and writes
   nothing else. A frame count that does not fit the window is cut
   (`8BS2111`): 32 frames at 16×16, 8 at 32×16, 2 at 64×64.
 - **Slots.** Eight objects (`MAX`), VERA sprites 1–8. Sprite 0 is the
   KERNAL's mouse cursor and is left alone.
-- **Where it lands.** `graphics.place(x, y)` is a stage pixel: (0, 0) is the
+- **Where it lands.** `graphics::place(x, y)` is a stage pixel: (0, 0) is the
   picture's top-left corner, the same pixel as text cell (0, 0), after
-  `screen.blank()` has inset the display. A sprite's first line sits one
+  `screen::blank()` has inset the display. A sprite's first line sits one
   line above the layers' with a nonzero `DC_VSTART`; the driver reads that
   once when sprites are switched on and adds the line back.
 - **With a raster list.** `raster` entries and sprites share the screen:

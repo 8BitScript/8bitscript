@@ -31,7 +31,7 @@ Emulator: MAME `channelf`.
 
 CPU and scratchpad from the F8 manual. Framebuffer is write-only, not
 a text grid. Controllers are not Atari sticks. No save. Image is a
-cart ROM. `port.write` / `port.read` are the language form for
+cart ROM. `port::write` / `port::read` are the language form for
 `OUTS`/`INS`.
 
 ## Where things live
