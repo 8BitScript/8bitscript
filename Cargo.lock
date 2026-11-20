@@ -181,6 +181,7 @@ dependencies = [
  "front-replay",
  "indexmap",
  "jsnum",
+ "media-tools",
  "serde",
  "serde_json",
 ]
