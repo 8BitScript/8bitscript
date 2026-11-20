@@ -12,7 +12,8 @@ use std::ptr;
 
 use diagnostics::{Diagnostic, Severity, codes, diagnostic};
 use jsnum::{Nullable, js_trim};
-use sema::binder::types::{Bound, Prop, Symbol, SymbolKind};
+use sema::binder::component_of;
+use sema::binder::types::{Bound, ModuleId, Prop, SymbolKind, SymbolRef};
 use syntax::{Node, NodeKind, SourceKind, walk};
 
 /// The options object of `checkBx` (`{ sourceKind = '.8bs', strict = true } = {}`).
@@ -79,24 +80,6 @@ fn is_element(n: Option<&Node>) -> bool {
         n.map(|n| &n.kind),
         Some(NodeKind::BxElement { .. } | NodeKind::BxFragment { .. })
     )
-}
-
-/// `componentOf` (`binder/index.mjs:227`): the component a symbol stands for. The binder port
-/// will own the shared one; this keeps `bx::check` independent of it until then.
-fn component_of<'a>(modules: &'a [Bound], named: Option<&'a Symbol>) -> Option<&'a Symbol> {
-    let sym = named?;
-    if sym.kind == SymbolKind::Component {
-        return Some(sym);
-    }
-    if sym.kind == SymbolKind::Import
-        && let Nullable::Value(link) = sym.component
-    {
-        return modules
-            .get(link.module.0 as usize)?
-            .symbol_table
-            .get(link.symbol.0 as usize);
-    }
-    None
 }
 
 /// The element's text children, already normalized by the parser (§35), as one string.
@@ -185,7 +168,23 @@ fn check_element(ctx: &Context, el: &Node, diagnostics: &mut Vec<Diagnostic>) {
         .symbols
         .get(name)
         .and_then(|id| ctx.bound.symbol_table.get(id.0 as usize));
-    let Some(sym) = component_of(ctx.modules, named) else {
+    // `bound` is one of `modules`; the binder's `component_of` names symbols by module index.
+    let named_ref = ctx
+        .modules
+        .iter()
+        .position(|m| ptr::eq(m, ctx.bound))
+        .and_then(|module| {
+            ctx.bound.symbols.get(name).map(|&symbol| SymbolRef {
+                module: ModuleId(module as u32),
+                symbol,
+            })
+        });
+    let Some(sym) = component_of(ctx.modules, named_ref).and_then(|r| {
+        ctx.modules
+            .get(r.module.0 as usize)?
+            .symbol_table
+            .get(r.symbol.0 as usize)
+    }) else {
         // An import whose module was never looked at cannot be judged; an import that was
         // looked at and is not an exported component can.
         if let Some(named) = named
