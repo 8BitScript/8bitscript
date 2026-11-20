@@ -114,15 +114,15 @@ impl<'a> Cursor<'a> {
         text_match: Option<&str>,
     ) -> Option<&'a MediaToken> {
         let tok = self.at(0)?;
-        if let Some(k) = kind {
-            if tok.kind != k {
-                return None;
-            }
+        if let Some(k) = kind
+            && tok.kind != k
+        {
+            return None;
         }
-        if let Some(m) = text_match {
-            if tok.text != m {
-                return None;
-            }
+        if let Some(m) = text_match
+            && tok.text != m
+        {
+            return None;
         }
         self.pos += 1;
         Some(tok)

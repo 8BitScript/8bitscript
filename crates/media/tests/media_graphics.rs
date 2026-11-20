@@ -12,16 +12,21 @@ use common::{json, norm, rows};
 use media::{check_graphics, parse_graphics, tokenize_media};
 use serde_json::{Value, json as j};
 
-fn clamp_lengths(v: &mut Value) {
+/// The only rows whose checked diagnostics carry a negative length in JS.
+const NEGATIVE_LENGTH_ROWS: [&str; 2] = ["size missing height", "size width only"];
+
+/// Clamps negative lengths; returns how many it changed.
+fn clamp_lengths(v: &mut Value) -> usize {
+    let mut changed = 0;
     if let Value::Array(a) = v {
         for d in a {
-            if let Some(n) = d["length"].as_f64() {
-                if n < 0.0 {
-                    d["length"] = j!(0.0);
-                }
+            if d["length"].as_f64().is_some_and(|n| n < 0.0) {
+                d["length"] = j!(0.0);
+                changed += 1;
             }
         }
     }
+    changed
 }
 
 #[test]
@@ -37,7 +42,13 @@ fn every_row_matches_js() {
         let got =
             j!({ "gir": json(&gir), "diagnostics": json(&diagnostics), "checked": json(&checked) });
         let mut want = norm(&row["result"]);
-        clamp_lengths(&mut want["checked"]);
+        let name = row["name"].as_str().unwrap();
+        let clamped = clamp_lengths(&mut want["checked"]);
+        assert_eq!(
+            clamped > 0,
+            NEGATIVE_LENGTH_ROWS.contains(&name),
+            "unexpected negative length in {name}"
+        );
         assert_eq!(got, want, "{}", row["name"]);
     }
 }

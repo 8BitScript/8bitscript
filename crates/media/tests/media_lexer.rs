@@ -37,3 +37,13 @@ fn unexpected_code_follows_the_source_kind() {
     assert_eq!(g[0].code, "8BS2102");
     assert_eq!(a[0].code, "8BS2202");
 }
+
+#[test]
+fn a_character_outside_the_bmp_shows_as_two_replacement_characters() {
+    // JS reports each surrogate half alone; a Rust string cannot hold one.
+    let (_, d) = tokenize_media("\u{1F600}", "a.8bg", ".8bg");
+    assert_eq!(d.len(), 2);
+    assert_eq!(d[0].message, "unexpected '\u{fffd}'");
+    assert_eq!(d[1].message, "unexpected '\u{fffd}'");
+    assert_eq!((d[0].start, d[1].start), (0, 1));
+}
