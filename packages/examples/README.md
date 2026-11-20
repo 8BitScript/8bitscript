@@ -4,7 +4,7 @@ The example programs that ship with the toolchain. `@8bitscript/cli`
 depends on this package, so installing the CLI installs the examples, and
 the VS Code extension lists them in its launcher beside your own programs
 and beside Studio. Each example is an ordinary project: a directory with an
-`8bitscript.config.8bs`, a program under `src/*.8bs`, and the four source
+`8bitscript.config.ts`, a program under `src/*.8bs`, and the four source
 kinds this release dogfoods — **`.8bs`** (program), **`.8bx`** (composition),
 **`.8bg`** / **`.8ba`** (portable media). Every example imports
 [`shared-release-targets.mjs`](shared-release-targets.mjs) for its `targets`
@@ -19,7 +19,7 @@ directory and an entry.
 
 | Example | What it is | Targets |
 | ------- | ---------- | ------- |
-| `hello-world` | `screen.blank()` then `text.print(0, "Hello World!")` — greeting by hand; `Mark.8bx` + shared mark/chime show the four pillars. | release five |
+| `hello-world` | `screen::blank()` then `text::print(0, "Hello World!")` — greeting by hand; `Mark.8bx` + shared mark/chime show the four pillars. | release five |
 | `joystick` | The controller test app: a labelled map of everything `@8bitscript/input` exposes, with a lamp on each control that flashes when it is pressed. | release five |
 | `fancy` | The raster showpiece: a title wobbling on a sine wave inside colour bands, over `@8bitscript/raster`'s portable per-scanline surface. The two machines that answer `#fact(video.raster)` show the effect; PET/VIC-20/CX16 show a static title, by design. | release five |
 | `hello-8bx` | The same greeting as `hello-world`, drawn through one 8BX component: `Hello.8bx` declares it, `hbx.8bs` is the program that calls it — byte-identical to hello-world on the release PET once media is shared. | release five |
@@ -36,7 +36,7 @@ From inside `hello-world/` (see [`hello-world/README.md`](hello-world/README.md)
 8bs run web
 ```
 
-`memory.program`: **2230** (C64), **1944** (PET 4032 32K), measured 2026-09-24.
+`memory::program`: **2230** (C64), **1944** (PET 4032 32K), measured 2026-09-24.
 
 ## joystick
 
@@ -129,8 +129,8 @@ below — and wobbles the title's three text rows on a 32-step sine wave:
 twelve `Slot.SCROLL_X` entries, one per **two** scanlines (the pitch the
 C64's handler can actually keep — see `packages/c64/AGENTS.md`'s
 wobble-band entry), their lines and slots written once with
-`raster.at()` and only their value bytes rewritten each frame with
-`raster.setValue()`. Under it:
+`raster::at()` and only their value bytes rewritten each frame with
+`raster::setValue()`. Under it:
 
 - **FRAME** — one per trip round the loop, the liveness signal, same as
   joystick. On the machines with no raster it is the only thing that
@@ -173,12 +173,12 @@ Five files, each one kind of thing:
   like any other, so it reads like a demo's part list and costs a 16-bit
   compare a cue.
 - `src/flock.8bs` — *how*: where every sprite is and which way it goes,
-  in stage pixels (`sprites.ORIGIN_X`/`ORIGIN_Y` are the playfield's
+  in stage pixels (`sprites::ORIGIN_X`/`ORIGIN_Y` are the playfield's
   top-left: 24, 50 on the C64, 0, 0 on a cell machine), bouncing off
-  `sprites.left()`/`right()`/`top()`/`bottom()`, which widen on the C64
+  `sprites::left()`/`right()`/`top()`/`bottom()`, which widen on the C64
   when the scene opens the border.
 - `src/counter.8bs` — *the count on screen*: five digits kept in place,
-  one `text.putChar` a frame (a five-digit `printNumber` every frame was
+  one `text::putChar` a frame (a five-digit `printNumber` every frame was
   ~2,800 cycles on the C64 under the compiler's code, a sixth of the
   frame; ~1,265 through `native/6502/text.s`, still more than one poke).
 - `src/shapes.8bs`, `src/shapes.c64.8bs` and `src/shapes.pet.8bs` — *what
@@ -191,9 +191,9 @@ Five files, each one kind of thing:
 What a screenshot shows: before frame 60 the title and the counter;
 from 60 the sprites bouncing; from 180 to 420 on the C64, rings above
 line 50 and below 250 — in the border, which no C64 draws in without
-`sprites.extend(true)`; every 32 frames the colours step along white,
+`sprites::extend(true)`; every 32 frames the colours step along white,
 yellow, cyan, green. `SPRITES` prints what the machine gave (the program
-asks for 16; `sprites.MAX` is 24 on the C64, 16 in cells, 8 on the PET,
+asks for 16; `sprites::MAX` is 24 on the C64, 16 in cells, 8 on the PET,
 whose quadrant objects cost ~2,600 cycles a redraw), `FRAME` climbs once
 an iteration. The flock keeps off the two text rows everywhere but the
 C64, whose sprites are an overlay the text shows through; a PET quadrant
@@ -223,7 +223,7 @@ at hardware frame 515 in a 700-frame screenshot); and **one on the
 C64**, ~15,300 cycles of the frame's 17,095 with the VIC's own steal
 inside — a frame lost on about half the frames that recolour all
 sixteen (FRAME 776 at `--frames 1000`, 789 being every frame). It was
-two the same morning: `multiplex.update()` alone was ~16,000 cycles in
+two the same morning: `multiplex::update()` alone was ~16,000 cycles in
 the compiler's generic code, and is native assembly now
 (`packages/c64/native/6502/multiplex.s`); the counter and the recolour
 each gave back a call a sprite, as the header records. The program's own
@@ -242,7 +242,7 @@ The `hello-world` greeting again, this time as a component. From inside
 
 Two files plus shared media. `src/Hello.8bx` declares the component;
 `src/hbx.8bs` is the program. With shared mark/chime, the release
-PET build matches `hello-world` (**1944** bytes `memory.program`; C64 **2230**).
+PET build matches `hello-world` (**1944** bytes `memory::program`; C64 **2230**).
 See [`hello-8bx/README.md`](hello-8bx/README.md).
 
 ## media-walk
@@ -257,7 +257,7 @@ One PNG sprite, one WAV blip, one two-note song. From inside `media-walk/`:
 
 `Walk.8bx` composes the walk; `src/player.8bg` / `src/theme.8ba` hold the
 hero assets; shared `mark.8bg` / `chime.8ba` match the other examples.
-PET is **4032** 32K with speaker attached. `memory.program`: **4485** (C64),
+PET is **4032** 32K with speaker attached. `memory::program`: **4485** (C64),
 **3579** (PET), measured 2026-09-24. See [`media-walk/README.md`](media-walk/README.md)
 and `docs/project/graphics.md` / `docs/project/audio.md`.
 

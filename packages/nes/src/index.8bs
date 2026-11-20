@@ -9,7 +9,7 @@
 // The module entry point named by the "8bitscript".entry field in this
 // package's package.json, resolved and linked for:
 //
-//     import { setVramAddress, resetScroll } from "@8bitscript/nes";
+//     use @8bitscript::nes::{setVramAddress, resetScroll};
 //
 // What a program usually wants sits one layer up, in this package's own
 // implementations of the portable capability packages — `./src/screen.8bs`
@@ -114,19 +114,19 @@
 // PPUSTATUS read resets the PPUADDR/PPUSCROLL write toggle so the two
 // PPUADDR writes land as a fresh address rather than as a stray second
 // half of whatever came before.
-export function setVramAddress(address: usmallint): void {
-    memory.read(0x2002);
-    memory.write(0x2006, address / 256);
-    memory.write(0x2006, address % 256);
+pub fn setVramAddress(address: usmallint) {
+    memory::read(0x2002);
+    memory::write(0x2006, address / 256);
+    memory::write(0x2006, address % 256);
 }
 
 // PPUCTRL 0: nametable $2000, PPUDATA increments by 1, background patterns
 // from table 0 (where the font is), NMI off — this target polls PPUSTATUS
 // rather than taking the interrupt. Then PPUSCROLL x = 0, y = 0.
-export function resetScroll(): void {
-    memory.write(0x2000, 0x00);
-    memory.write(0x2005, 0x00);
-    memory.write(0x2005, 0x00);
+pub fn resetScroll() {
+    memory::write(0x2000, 0x00);
+    memory::write(0x2005, 0x00);
+    memory::write(0x2005, 0x00);
 }
 
 // ---- the write queue -------------------------------------------------------
@@ -136,13 +136,13 @@ export function resetScroll(): void {
 // adds to it, and `nesVerticalBlank()` writes them all out in order and
 // resets the scroll. Rule 2 above says why.
 const QUEUE_SIZE: utinyint = 48;
-let queue: array<utinyint, QUEUE_SIZE>;
-let queueEnd: utinyint = 0;
-let runCount: utinyint = 0; // where the open run's count byte is
-let runAddress: usmallint = 0; // the open run's VRAM address
+let mut queue: [utinyint; QUEUE_SIZE];
+let mut queueEnd: utinyint = 0;
+let mut runCount: utinyint = 0; // where the open run's count byte is
+let mut runAddress: usmallint = 0; // the open run's VRAM address
 
-export function queueRun(address: usmallint): void {
-    if (queueEnd > QUEUE_SIZE - 4) {
+pub fn queueRun(address: usmallint) {
+    if queueEnd > QUEUE_SIZE - 4 {
         deliverAtVerticalBlank(); // no room for a header and a byte
     }
     queue[queueEnd] = address / 256;
@@ -153,14 +153,14 @@ export function queueRun(address: usmallint): void {
     runAddress = address;
 }
 
-export function queueByte(value: utinyint): void {
-    if (queueEnd == QUEUE_SIZE) {
+pub fn queueByte(value: utinyint) {
+    if queueEnd == QUEUE_SIZE {
         // Full: deliver what there is and reopen the run where it left off.
         queueRun(runAddress + queue[runCount]);
     }
     queue[queueEnd] = value;
-    queueEnd++;
-    queue[runCount]++;
+    queueEnd += 1;
+    queue[runCount] += 1;
 }
 
 // The queue is full before the frame is over: wait for the next vertical
@@ -170,9 +170,9 @@ export function queueByte(value: utinyint): void {
 // own fetch position while it draws, and PPUDATA writes move it. The
 // status read first clears a vertical-blank flag left over from earlier,
 // so the loop waits for the edge and not for a stale flag.
-function deliverAtVerticalBlank(): void {
-    memory.read(0x2002);
-    while (memory.read(0x2002) < 128) {
+fn deliverAtVerticalBlank() {
+    memory::read(0x2002);
+    while memory::read(0x2002) < 128 {
     }
     nesVerticalBlank();
 }
@@ -181,22 +181,22 @@ function deliverAtVerticalBlank(): void {
 // run's PPUADDR write moved it). Called by the frame runtime at the start
 // of vertical blank; by deliverAtVerticalBlank() when the queue is full;
 // by screen.blank() with rendering off.
-export function nesVerticalBlank(): void {
-    let i: utinyint = 0;
-    while (i < queueEnd) {
+pub fn nesVerticalBlank() {
+    let mut i: utinyint = 0;
+    while i < queueEnd {
         setVramAddress(queue[i] * 256 + queue[i + 1]);
-        let n: utinyint = queue[i + 2];
+        let mut n: utinyint = queue[i + 2];
         i = i + 3;
         // Indexed straight off `i`, one byte at a time: an `i + k` index
         // walked a pointer at 23 cycles a byte (measured pre-0.2.0);
         // this is 15.
-        while (n > 0) {
-            memory.write(0x2007, queue[i]);
-            i++;
-            n--;
+        while n > 0 {
+            memory::write(0x2007, queue[i]);
+            i += 1;
+            n -= 1;
         }
     }
-    if (queueEnd > 0) {
+    if queueEnd > 0 {
         queueEnd = 0;
         resetScroll();
     }

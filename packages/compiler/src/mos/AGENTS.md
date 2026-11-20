@@ -106,14 +106,14 @@ this project's `AGENTS.md` files exist to rule out by name.
 ## Milestone 8: 16-bit values
 
 `place`/`putChar`'s own `cell: usmallint` parameter was exactly why
-milestone 7's own gate wasn't the real `text.putChar` — this milestone is
+milestone 7's own gate wasn't the real `text::putChar` — this milestone is
 what closes that gap. A `usmallint` (or `smallint`) is a zp pair
 (`address`, `address + 1`, little-endian); 16-bit parameters, locals,
 assignment, `+`/`-`, and unsigned ordering/equality comparisons are all
 lowered, and a `memoryWrite` whose address is no longer a compile-time
 literal — a real computed address — lowers to `STA (zp),Y`. 16-bit
 **return values** stay refused by name; nothing on the PET's own critical
-path returns one yet (`place`/`putChar` are both `void`), so widening
+path returns one yet (`place`/`putChar` both return nothing), so widening
 `callSite()`'s single-byte "return comes back in A" assumption waits until
 something actually needs it.
 
@@ -151,7 +151,7 @@ widens a narrower value to match a wider declared target (verified against
 `narrowestIntegerType()` gave it, with no coercion node inserted, and
 that's true of a `local`'s initializer and a plain assignment's
 right-hand side too). Refusing that would make the single most ordinary
-call in this whole exercise — `text.putChar(0, 65)` — fail to build.
+call in this whole exercise — `text::putChar(0, 65)` — fail to build.
 `exprTo16()` is the fix: it accepts either width, and for a narrower
 **unsigned** source, evaluates it through `expr()` and zero-extends into a
 fresh zp pair (`STA` the value, `LDA #0`/`STA` the high byte) — exact for
@@ -189,7 +189,7 @@ the language should pick, not this backend's call to make alone. Mixed-width
 `binop16`'s own operands go through `exprTo16()`, not `expr16()`, so
 `cell + i` widens the narrower side exactly like a call argument does —
 `@8bitscript/pet/text`'s own `place(cell + i, s[i])` inside `print()`'s loop
-is exactly this shape, and refusing it would refuse `text.print` itself.
+is exactly this shape, and refusing it would refuse `text::print` itself.
 Comparisons stayed exact-width-or-refuse because nothing on the critical
 path needed otherwise; arithmetic couldn't, because something did.
 
@@ -204,13 +204,13 @@ this note — the same "state a register lives in" discipline the calling
 convention above already holds `A` to.
 
 **Gate, reframed again.** The roadmap's own milestone 8 box says "the PET
-`text.putChar` compiles unchanged and prints at cell 999." It doesn't,
+`text::putChar` compiles unchanged and prints at cell 999." It doesn't,
 yet — not for a 16-bit reason. `@8bitscript/pet/text` also declares `const
-DIGIT_PLACES: array<usmallint, 5>` at module scope (for `printNumber()`),
+DIGIT_PLACES: [usmallint; 5]` at module scope (for `printNumber()`),
 array globals aren't allocated yet (milestone 9's job), and importing the
 module pulls in every one of its globals regardless of which function is
 actually called — so even the already-shipped `hello-world` example
-(`text.print`, nowhere near `printNumber`) fails to build on the PET
+(`text::print`, nowhere near `printNumber`) fails to build on the PET
 **today, unmodified, on trunk**, before this milestone touched anything.
 Same move as milestones 3, 6, and 7: the gate is `place()`, reproduced
 byte-for-byte from the real `text.8bs` source (minus the `toScreen()` call
@@ -314,7 +314,7 @@ sibling) — then low byte, then `INY`, then high byte, matching
 
 **An array of more than 128 two-byte elements does not take that short
 form.** `LowerOptions.arrays` carries each array's `length` (mos/index.ts
-reads it from the global's declared `array<T, N>`), and `wideElements()`
+reads it from the global's declared `[T; N]`), and `wideElements()`
 is true above 128. Doubling the index in A there silently dropped the
 carry — element 185 of a `usmallint` ring read and wrote element 57; the
 80-column PET 8032's marquee in vegas-nights was the program that found
@@ -353,7 +353,7 @@ actually found them, the same way milestone 8's own gate found the
 call-argument widening gap.
 
 - `prepare()` (`text.8bs`) writes `viaPeripheralControl`, a global pinned
-  at `@address(0xE84C)` — above `$00FF`. `ref`/`assign` hardcoded
+  at `#[address(0xE84C)]` — above `$00FF`. `ref`/`assign` hardcoded
   `zeropage` mode for every binding's own address, unconditionally, since
   milestone 4; nothing before this milestone's own gate ever exercised a
   pinned global outside zero page, so nothing caught it. Both now pick the
@@ -371,7 +371,7 @@ call-argument widening gap.
   global this backend never explicitly initialized read whatever was
   already there. `text.8bs`'s own `currentReverse: bool = false` is
   exactly this shape — read by `toScreen()`, written only by
-  `setReverse()`, which `text.print`'s own call path never reaches — and
+  `setReverse()`, which `text::print`'s own call path never reaches — and
   the visible symptom was real: the *same* build, run on two different PET
   profiles, showed `HELLO WORLD` in reverse video on the 8032 and plain on
   the 2001, because the two profiles' boot sequences happened to leave
@@ -389,8 +389,8 @@ call-argument widening gap.
 The goal milestone: `waitFrame()` — a blocking statement, called from
 within a program's own loop, that pauses until the next *logical* frame is
 due, at whatever `frameRate` the project is configured for (default 60,
-`8bitscript.config.8bs`). The real gate: `packages/examples/hello-world/src/
-hello-world.8bs`'s `while (true) { waitFrame(); }` loop — built and run for real
+`8bitscript.config.ts`). The real gate: `packages/examples/hello-world/src/
+hello-world.8bs`'s `loop { waitFrame(); }` loop — built and run for real
 on both the 2001/4K (no CRTC, VICE's own ~60.1Hz) and 8032 (CRTC, a real
 50Hz editor ROM) profiles, the same second-profile discipline milestone
 9's own gate established. Both screenshot `Hello World!` exactly as
@@ -399,10 +399,10 @@ wait neither hang nor corrupt anything on either of the PET's two real,
 differently-clocked vertical-retrace rates.
 
 An earlier draft of this example also called `waitFrame()` once before
-`text.print(...)`, on the theory that a program should sync to a frame
+`text::print(...)`, on the theory that a program should sync to a frame
 boundary before its first draw. That call did nothing on this backend —
 no crt0 or `setupVideo` on any target waits for vblank or any other
-frame boundary at startup, so `screen.blank()`/`text.print(...)` draw
+frame boundary at startup, so `screen::blank()`/`text::print(...)` draw
 immediately regardless. It was removed rather than kept as a
 just-in-case: nothing here demonstrated it doing anything, and the
 compiler should not start inserting a wait like that on its own either —
@@ -433,7 +433,7 @@ exact contract this had to honor: a program that calls `waitFrame()`
 anywhere runs with interrupts off from start-up, because the KERNAL's own
 jiffy-clock IRQ reads `$E812` every frame and would otherwise win the race
 for the CB1 retrace flag before this code ever saw it set; and reading
-`$E812` acknowledges that flag, so `keyboard.scan()`'s own contract is to
+`$E812` acknowledges that flag, so `keyboard::scan()`'s own contract is to
 read it exactly once a frame, right after `waitFrame()` returns, never
 earlier (an earlier read eats a frame the accumulator would otherwise
 count).
@@ -703,7 +703,7 @@ are taken after deletion and still sum to the real bytes.
 
 **The rest.** `i = i + 1`/`- 1`/`± 2` on an 8-bit zp binding is
 INC/DEC (a pinned register is excluded: RMW is different bus traffic).
-A constant condition emits a jump or nothing — `while (true)` pays
+A constant condition emits a jump or nothing — `loop` pays
 zero per iteration. Array indexes that are consts or plain bindings
 load Y directly (LDY #n / LDY zp), a const index on a 2-byte-element
 array doubles at compile time, and `storeIndex` skips its index temp

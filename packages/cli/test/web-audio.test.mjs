@@ -1,4 +1,4 @@
-// audio.tone() on the web host, end to end and rule by rule.
+// audio::tone() on the web host, end to end and rule by rule.
 //
 // The synthetic web host has no speaker in a headless run, and a real browser
 // tab was not available to listen to. What is held here instead is every step
@@ -237,19 +237,19 @@ test('a host with no region, or a browser with no AudioContext, does nothing and
 
 // ---- 4. a real program ------------------------------------------------------
 
-const PROGRAM = `import { audio } from "@8bitscript/audio";
-import { text } from "@8bitscript/text";
+const PROGRAM = `use @8bitscript::audio::audio;
+use @8bitscript::text::text;
 
-export function main(): void {
-    text.print(0, "TONE");
-    audio.tone(57, 30);
-    let n: utinyint = 0;
-    while (true) {
+pub fn main() {
+    text::print(0, "TONE");
+    audio::tone(57, 30);
+    let mut n: utinyint = 0;
+    loop {
         waitFrame();
-        audio.update();
+        audio::update();
         n = n + 1;
-        if (n == 60) {
-            audio.tone(69, 20);
+        if n == 60 {
+            audio::tone(69, 20);
         }
     }
 }
@@ -326,26 +326,26 @@ for (const machine of [undefined, 'pet-2001']) {
 
 // ---- 5. levels and plucked tones ----------------------------------------------
 
-const LEVEL_PROGRAM = `import { audio } from "@8bitscript/audio";
-import { text } from "@8bitscript/text";
+const LEVEL_PROGRAM = `use @8bitscript::audio::audio;
+use @8bitscript::text::text;
 
-export function main(): void {
-    text.print(0, "LEVEL");
-    audio.setLevel(6);
-    audio.blip(57, 6);
-    let n: utinyint = 0;
-    while (true) {
+pub fn main() {
+    text::print(0, "LEVEL");
+    audio::setLevel(6);
+    audio::blip(57, 6);
+    let mut n: utinyint = 0;
+    loop {
         waitFrame();
-        audio.update();
+        audio::update();
         n = n + 1;
-        if (n == 40) {
-            audio.setLevel(15);
-            audio.tone(57, 5);
+        if n == 40 {
+            audio::setLevel(15);
+            audio::tone(57, 5);
         }
-        if (n == 80) {
-            audio.setLevel(0);
-            audio.tone(57, 5);
-            audio.blip(69, 3);
+        if n == 80 {
+            audio::setLevel(0);
+            audio::tone(57, 5);
+            audio::blip(69, 3);
         }
     }
 }
@@ -371,8 +371,8 @@ test("audio.setLevel scales a tone, audio.blip fades to nothing in the frames it
 
 test("the web voice's setLevel and volume write the volume register; on() sounds at the level", async () => {
   const src = readFileSync(join(SRC, 'voice.8bs'), 'utf8');
-  assert.match(src, /memory\.write\(Video\.AUDIO_BASE \+ 3, level\);\s*memory\.write\(Video\.AUDIO_BASE, 1\);/, 'on() uses the level');
-  assert.match(src, /function volume\(amount: utinyint\): void \{\s*memory\.write\(Video\.AUDIO_BASE \+ 3, amount & 15\);/);
+  assert.match(src, /memory::write\(Video::AUDIO_BASE \+ 3, level\);\s*memory::write\(Video::AUDIO_BASE, 1\);/, 'on() uses the level');
+  assert.match(src, /fn volume\(amount: utinyint\) \{\s*memory::write\(Video::AUDIO_BASE \+ 3, amount & 15\);/);
 });
 
 // ---- 6. songs: the bank and the sequencer, frame by frame ------------------------------------
@@ -432,19 +432,19 @@ const ZAP_WAV = (() => {
 })();
 
 // A program that calls `setup` once and `at(n)` before frame n's update, for n = 1, 2, ....
-const songProgram = (setup, steps = {}, imports = 'tick, win, loopy, once, zap') => `import { ${imports} } from "./songs.8ba";
-import { audio } from "@8bitscript/audio";
-import { text } from "@8bitscript/text";
+const songProgram = (setup, steps = {}, imports = 'tick, win, loopy, once, zap') => `use self::songs::{${imports}};
+use @8bitscript::audio::audio;
+use @8bitscript::text::text;
 
-export function main(): void {
-    text.print(0, "SONGS");
-${setup.split('\n').map((line) => `    ${line}`).join('\n')}
-    let n: usmallint = 0;
-    while (true) {
+pub fn main() {
+    text::print(0, "SONGS");
+    ${setup.split('\n').map((line) => `    ${line}`).join('\n')};
+    let mut n: usmallint = 0;
+    loop {
         waitFrame();
-        audio.update();
+        audio::update();
         n = n + 1;
-${Object.entries(steps).map(([at, code]) => `        if (n == ${at}) {\n            ${code}\n        }`).join('\n')}
+        ${Object.entries(steps).map(([at, code]) => `        if n == ${at} {\n            ${code}\n        }`).join('\n')};
     }
 }
 `;
@@ -467,7 +467,7 @@ const note = (name) => ({ C4: 261.63, D4: 293.66, E4: 329.63, G4: 392, A4: 440, 
 const near = (hz, name) => Math.abs(hz - note(name)) < 0.5;
 
 test('a one-shot song plays its rows once: each note from its row, for its length, rests between, then silence for good', async () => {
-  const { timeline } = await run('audio.play(win);', {}, 60);
+  const { timeline } = await run('audio::play(win);', {}, 60);
   const runs = runsOf(timeline);
   // 3 frames a row. C4 on rows 0-1 (frames 0-5, triangle, the chime's volume 9), E4 on row 2 (frames 6-8),
   // row 3 a rest (9-11), G4 on the saw on rows 4-5 (12-17), rows 6-7 rests, and then it is over.
@@ -480,14 +480,14 @@ test('a one-shot song plays its rows once: each note from its row, for its lengt
 });
 
 test('a note with a decay fades by itself within its decay frames, and its length cuts it off if shorter', async () => {
-  const { timeline } = await run('audio.play(tick);', {}, 20);
+  const { timeline } = await run('audio::play(tick);', {}, 20);
   // The click: volume 12, decay 3, length 3 rows at 1 frame a row: 12, then 8, then 4, then gone.
   assert.deepEqual(runsOf(timeline).map((r) => [r.from, r.frames, r.level]), [[0, 1, 12], [1, 1, 8], [2, 1, 4]]);
   assert.ok(timeline.slice(3).every((state) => !state.on));
 });
 
 test('audio.music repeats a song that loops, with no gap at the wrap, and plays a loop-false song once', async () => {
-  const { timeline } = await run('audio.music(loopy);', { 40: 'audio.music(once);' }, 80);
+  const { timeline } = await run('audio::music(loopy);', { 40: 'audio::music(once);' }, 80);
   const runs = runsOf(timeline).filter((r) => r.from < 40);
   // A pattern of 4 rows at 2 frames: A4 for row 0 (2 frames), a rest row, A5 on row 2, a rest row: a lap is 8 frames.
   assert.deepEqual(runs.slice(0, 4).map((r) => [r.from, r.frames]), [[0, 2], [4, 2], [8, 2], [12, 2]]);
@@ -498,46 +498,46 @@ test('audio.music repeats a song that loops, with no gap at the wrap, and plays 
 });
 
 test('audio.silence stops a song mid-way and it does not resume; a tone replaces a song; busy() says which', async () => {
-  const stop = await run('audio.play(win);', { 7: 'audio.silence();' }, 40);
+  const stop = await run('audio::play(win);', { 7: 'audio::silence();' }, 40);
   assert.deepEqual(runsOf(stop.timeline).map((r) => [r.from, r.frames]), [[0, 6], [6, 1]], 'silent from the frame it was called');
-  const replaced = await run('audio.play(win);', { 7: 'audio.tone(57, 4);' }, 40);
+  const replaced = await run('audio::play(win);', { 7: 'audio::tone(57, 4);' }, 40);
   const runs = runsOf(replaced.timeline);
   assert.ok(near(runs.at(-1).hz, 'A4') && runs.at(-1).wave === 'square', 'the tone is an A4 square');
   assert.ok(!runs.some((r) => near(r.hz, 'G4')), 'and the song\'s G4 never comes');
   // busy() is true while a song plays, rests included, and false when it is over and nothing else sounds.
-  const probe = await run('audio.play(once);', { 2: 'if (audio.busy()) { audio.tone(57, 2); }', 14: 'if (audio.busy()) { audio.tone(69, 2); }' }, 24);
+  const probe = await run('audio::play(once);', { 2: 'if audio::busy() { audio::tone(57, 2); }', 14: 'if audio::busy() { audio::tone(69, 2); }' }, 24);
   const heard = runsOf(probe.timeline);
   assert.ok(heard.some((r) => near(r.hz, 'A4')), 'busy() was true during the song');
   assert.ok(!heard.some((r) => near(r.hz, 'A5')), 'and false once the tone it started was over');
 });
 
 test('audio.setLevel scales a song\'s notes: level 6 under a volume-9 note is ceil(6 * 9 / 16) = 4', async () => {
-  const { timeline } = await run('audio.setLevel(6);\naudio.play(win);', {}, 20);
+  const { timeline } = await run('audio::setLevel(6);\naudio::play(win);', {}, 20);
   assert.deepEqual(runsOf(timeline).map((r) => r.level), [4, 4, 6], 'volume 9 -> 4, the saw\'s 15 -> 6');
-  const muted = await run('audio.setLevel(0);\naudio.play(win);', {}, 20);
+  const muted = await run('audio::setLevel(0);\naudio::play(win);', {}, 20);
   assert.ok(muted.timeline.every((state) => !state.on), 'level 0 is silence');
 });
 
 test('a sample plays its synth fallback for eight frames, and two .8ba files get two different handles', async () => {
-  const { timeline } = await run('audio.play(zap);', { 20: 'audio.play(win);' }, 40);
+  const { timeline } = await run('audio::play(zap);', { 20: 'audio::play(win);' }, 40);
   const runs = runsOf(timeline);
   assert.deepEqual([runs[0].from, runs[0].frames, runs[0].wave], [0, 8, 'sawtooth'], 'the saw fallback at 60 frames... eight frames');
   assert.ok(runs.length >= 2 && near(runs[1].hz, 'C4'), 'then the song, from its first note');
   // Two files, each with a song at its own slot 0: both are heard, neither overwrites the other.
   const second = `song second { speed 2 loop false pattern p length 2 { track t { row 0 { note E4; } } } }\n`;
-  const program = `import { win } from "./songs.8ba";
-import { second } from "./more.8ba";
-import { audio } from "@8bitscript/audio";
+  const program = `use self::songs::win;
+use self::more::second;
+use @8bitscript::audio::audio;
 
-export function main(): void {
-    audio.play(win);
-    let n: utinyint = 0;
-    while (true) {
+pub fn main() {
+    audio::play(win);
+    let mut n: utinyint = 0;
+    loop {
         waitFrame();
-        audio.update();
+        audio::update();
         n = n + 1;
-        if (n == 30) {
-            audio.play(second);
+        if n == 30 {
+            audio::play(second);
         }
     }
 }

@@ -159,7 +159,7 @@ export function machineOfVariant(path) {
  * are read as a tag here, which is only ever a wording in a diagnostic —
  * chooseVariant decides by probing with the build's own tags and locale.
  */
-function variantsPresent(path) {
+export function variantsPresent(path) {
   const ext = sourceKindOf(path) ?? '.8bs';
   const stem = basename(stripSourceExtension(path));
   let entries;
@@ -682,7 +682,7 @@ function resolveConditionalEntry(specifier, packageDir, entry, options, seen, na
  * @param {{ machine?: string, tags?: string[], profile?: string, locale?: string, importAliases?: Record<string, string> }} [options]
  *   The machine being built for (one of MACHINES), if one is known;
  *   `importAliases` maps `@prefix` strings to absolute directories from
- *   the project's `imports` in 8bitscript.config.8bs.
+ *   the project's `imports` in 8bitscript.config.ts.
  *   conditional package entries resolve to that machine's branch, and a
  *   `.8bs` file with a `.<machine>.8bs` twin resolves to the twin. With
  *   the build's hardware tags as well (`tags`; the older `profile` is one

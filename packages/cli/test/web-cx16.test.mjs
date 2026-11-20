@@ -107,19 +107,18 @@ test('a .8bg picture on the X16 wasm build is drawn, pixel for pixel, in VERA bl
   try {
     await writePicture(dir);
     await writeFile(join(dir, 'main.8bs'), [
-      'import { screen, BorderColor, BackgroundColor } from "@8bitscript/screen";',
-      'import { graphics } from "@8bitscript/graphics";',
-      'import { dot } from "./dot.8bg";',
+      'use @8bitscript::screen::{screen, BorderColor, BackgroundColor};',
+      'use @8bitscript::graphics::graphics;',
+      'use self::dot::dot;',
       '',
-      'export function main(): void {',
-      '    screen.blank(BorderColor.BLUE, BackgroundColor.BLACK);',
-      '    graphics.place(dot, 0, 0);',
-      '    while (true) {',
+      'pub fn main() {',
+      '    screen::blank(BorderColor::BLUE, BackgroundColor::BLACK);',
+      '    graphics::place(dot, 0, 0);',
+      '    loop {',
       '        waitFrame();',
-      '        graphics.update();',
+      '        graphics::update();',
       '    }',
       '}',
-      '',
     ].join('\n'));
     const png = await shoot(dir, 'main.8bs');
     const blue = rgb(VERA_PALETTE[6]);

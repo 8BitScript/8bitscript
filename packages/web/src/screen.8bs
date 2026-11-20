@@ -4,15 +4,15 @@
 // Named by "8bitscript".exports["./screen"] in this package's package.json,
 // and what
 //
-//     import { screen, BorderColor, BackgroundColor } from "@8bitscript/screen";
+//     use @8bitscript::screen::{screen, BorderColor, BackgroundColor};
 //
 // resolves to when the build is for the web: @8bitscript/screen's entry is
 // keyed by machine and delegates here. Built on the memory-layout agreement
 // @8bitscript/web exports, one layer up from it. Every machine's screen.8bs
 // exports this same surface, which is what lets a program import it from
 // @8bitscript/screen and never name the hardware — or, here, the host.
-import { WebRegisters } from "./index.8bs";
-import { Video } from "./geometry.8bs";
+use self::index::WebRegisters;
+use self::geometry::Video;
 
 // ---- the screen: border and background --------------------------------------
 //
@@ -24,13 +24,13 @@ import { Video } from "./geometry.8bs";
 // the next paint.
 // What resized() compares against. Zero until the first call, which is what
 // makes that first call report a change.
-let lastColumns: utinyint = 0;
-let lastRows: utinyint = 0;
+let mut lastColumns: utinyint = 0;
+let mut lastRows: utinyint = 0;
 
-export namespace screen {
-    function setColors(border: u8, background: u8): void {
-        memory.write(WebRegisters.BORDER_OFFSET, border & 15);
-        memory.write(WebRegisters.BACKGROUND_OFFSET, background & 15);
+pub mod screen {
+    fn setColors(border: u8, background: u8) {
+        memory::write(WebRegisters::BORDER_OFFSET, border & 15);
+        memory::write(WebRegisters::BACKGROUND_OFFSET, background & 15);
     }
 
     // `blank(border, background)`: every cell blank and both colors set —
@@ -38,12 +38,12 @@ export namespace screen {
     // to leave one as it is. `setBorder` and `setBackground` are one
     // color each, `setColors` the pair; `text.setColor` owns what the
     // next print looks like.
-    function blank(border: utinyint = BorderColor.BLACK, background: utinyint = BackgroundColor.BLACK): void {
-        if (border != BorderColor.KEEP) {
-            screen.setBorder(border);
+    fn blank(border: utinyint = BorderColor::BLACK, background: utinyint = BackgroundColor::BLACK) {
+        if border != BorderColor::KEEP {
+            screen::setBorder(border);
         }
-        if (background != BackgroundColor.KEEP) {
-            screen.setBackground(background);
+        if background != BackgroundColor::KEEP {
+            screen::setBackground(background);
         }
         // The live grid, not the map's maximum: the two screen regions are
         // sized for the largest grid this host hands out (see ./geometry.8bs),
@@ -57,25 +57,25 @@ export namespace screen {
         // block that was on it. Leaving the color behind is invisible on a
         // machine whose reverse is a character code; here it is the whole
         // picture.
-        let count: usmallint = Video.cells();
-        for (let cell: usmallint = 0; cell < count; cell++) {
-            memory.write(WebRegisters.CHAR_BASE + cell, 32);
-            memory.write(WebRegisters.COLOR_BASE + cell, 0);
+        let count: usmallint = Video::cells();
+        for cell: usmallint in 0..count {
+            memory::write(WebRegisters::CHAR_BASE + cell, 32);
+            memory::write(WebRegisters::COLOR_BASE + cell, 0);
         }
     }
 
     // Whether this machine's grid can change under a running program. A
     // build-time constant everywhere, so `if (screen.RESIZABLE)` folds the
     // whole branch away on every machine whose grid cannot.
-    const RESIZABLE: bool = Video.RESIZABLE;
+    const RESIZABLE: bool = Video::RESIZABLE;
 
     // True on the one call after the grid changed shape — including the first
     // call of all, so a program lays itself out once without a special case
     // for start-up. Ask once a frame and rebuild the layout when it says so.
-    function resized(): bool {
-        let nowColumns: utinyint = Video.columns();
-        let nowRows: utinyint = Video.rows();
-        if (nowColumns != lastColumns || nowRows != lastRows) {
+    fn resized() -> bool {
+        let nowColumns: utinyint = Video::columns();
+        let nowRows: utinyint = Video::rows();
+        if nowColumns != lastColumns || nowRows != lastRows {
             lastColumns = nowColumns;
             lastRows = nowRows;
             return true;
@@ -83,12 +83,12 @@ export namespace screen {
         return false;
     }
 
-    function setBackground(background: u8): void {
-        memory.write(WebRegisters.BACKGROUND_OFFSET, background & 15);
+    fn setBackground(background: u8) {
+        memory::write(WebRegisters::BACKGROUND_OFFSET, background & 15);
     }
 
-    function setBorder(border: u8): void {
-        memory.write(WebRegisters.BORDER_OFFSET, border & 15);
+    fn setBorder(border: u8) {
+        memory::write(WebRegisters::BORDER_OFFSET, border & 15);
     }
 }
 
@@ -101,7 +101,7 @@ export namespace screen {
 // sixteen colors in the C64's numbering, the palette this target borrows
 // (see setColors above).
 
-export namespace BorderColor {
+pub mod BorderColor {
     const BLACK: utinyint = 0;
     const WHITE: utinyint = 1;
     const RED: utinyint = 2;
@@ -123,7 +123,7 @@ export namespace BorderColor {
     const KEEP: utinyint = 255;
 }
 
-export namespace BackgroundColor {
+pub mod BackgroundColor {
     const BLACK: utinyint = 0;
     const WHITE: utinyint = 1;
     const RED: utinyint = 2;

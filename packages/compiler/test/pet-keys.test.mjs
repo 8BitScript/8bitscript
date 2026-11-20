@@ -17,7 +17,7 @@ const VICE_PET = '/opt/homebrew/share/vice/PET';
 
 const tableOf = (file) => {
   const text = readFileSync(join(PET_SRC, file), 'utf8');
-  const body = text.slice(text.indexOf('export namespace Key'));
+  const body = text.slice(text.indexOf('pub mod Key'));
   return new Map([...body.matchAll(/const (\w+): utinyint = (\d+);/g)].map(([, name, v]) => [name, Number(v)]));
 };
 const GRAPHICS = tableOf('keys.8bs');
@@ -110,9 +110,17 @@ for (const [label, file, table, host] of [
 
 test('the build\'s tags pick the table: Key.SPACE is 74 on a graphics keyboard and 66 on a business one', () => {
   const src = [
-    'import { keyboard } from "./keyboard.8bs";',
-    'import { Key } from "./keys.8bs";',
-    'export function main(): void { while (true) { waitFrame(); keyboard.scan(); if (keyboard.pressed(Key.SPACE)) { memory.write(0x8000, 1); } } }',
+    'use self::keyboard::keyboard;',
+    'use self::keys::Key;',
+    'pub fn main() {',
+    '    loop {',
+    '        waitFrame();',
+    '        keyboard::scan();',
+    '        if keyboard::pressed(Key::SPACE) {',
+    '            memory::write(0x8000, 1);',
+    '        }',
+    '    }',
+    '}',
   ].join('\n');
   const entry = join(PET_SRC, 'phantom-entry.8bs'); // does not exist: only its directory resolves the relative imports
   const pressedSpace = (profile) => {
@@ -137,8 +145,10 @@ test('the build\'s tags pick the table: Key.SPACE is 74 on a graphics keyboard a
 
 test('a graphics-only key name is a link error on a business keyboard, not a silent wrong key', () => {
   const src = [
-    'import { Key } from "./keys.8bs";',
-    'export function main(): void { memory.write(0x8000, Key.EXCLAMATION); }',
+    'use self::keys::Key;',
+    'pub fn main() {',
+    '    memory::write(0x8000, Key::EXCLAMATION);',
+    '}',
   ].join('\n');
   const entry = join(PET_SRC, 'phantom-entry.8bs');
   assert.deepEqual(link(src, entry, { machine: 'pet', profile: '3032' }).diagnostics, []);
@@ -158,10 +168,13 @@ test('a graphics-only key name is a link error on a business keyboard, not a sil
 // than assumed.
 test('an 8032 build carries both its tags, and each file is claimed by only one of them', () => {
   const src = [
-    'import { keyboard } from "./keyboard.8bs";',
-    'import { Key } from "./keys.8bs";',
-    'import { Video } from "./geometry.8bs";',
-    'export function main(): void { memory.write(0x8000, Key.SPACE); memory.write(0x8001, Video.COLUMNS); }',
+    'use self::keyboard::keyboard;',
+    'use self::keys::Key;',
+    'use self::geometry::Video;',
+    'pub fn main() {',
+    '    memory::write(0x8000, Key::SPACE);',
+    '    memory::write(0x8001, Video::COLUMNS);',
+    '}',
   ].join('\n');
   const entry = join(PET_SRC, 'phantom-entry.8bs');
   const { ir, diagnostics } = link(src, entry, { machine: 'pet', tags: ['8032', 'business'] });

@@ -11,7 +11,7 @@
 // the page is told what the model decided.
 //
 // ── The vocabulary ──────────────────────────────────────────────────────────
-//   Project  a folder with an 8bitscript.config.8bs
+//   Project  a folder with an 8bitscript.config.ts
 //   Program  a work unit — one entry of the config's `programs`
 //   System   a machine plus its hardware, region and language
 //   Runtime  where a program runs: `editor` (the WASM build in an editor

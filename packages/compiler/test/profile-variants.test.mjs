@@ -28,18 +28,20 @@ test('variantOf with a profile puts the profile after the machine; isVariantPath
   assert.equal(isVariantPath('/p/geometry.pet.8032.extra.8bs'), false); // one word after the machine
 });
 
-const GEOMETRY_40 = 'export namespace Video {\n    const COLUMNS: utinyint = 40;\n    const CELL_COUNT: usmallint = 1000;\n}\n';
-const GEOMETRY_80 = 'export namespace Video {\n    const COLUMNS: utinyint = 80;\n    const CELL_COUNT: usmallint = 2000;\n}\n';
+const GEOMETRY_40 = 'pub mod Video {\n    const COLUMNS: utinyint = 40;\n    const CELL_COUNT: usmallint = 1000;\n}\n';
+const GEOMETRY_80 = 'pub mod Video {\n    const COLUMNS: utinyint = 80;\n    const CELL_COUNT: usmallint = 2000;\n}\n';
 const LIB = [
-  'import { Video } from "./geometry.8bs";',
-  'export namespace text {',
-  '    const COLUMNS: utinyint = Video.COLUMNS;',
-  '    function fill(): void {',
-  '        for (let cell: usmallint = 0; cell < Video.CELL_COUNT; cell++) { memory.write(0x8000 + cell, 32); }',
+  'use self::geometry::Video;',
+  'pub mod text {',
+  '    const COLUMNS: utinyint = Video::COLUMNS;',
+  '    fn fill() {',
+  '        for cell: usmallint in 0..Video::CELL_COUNT {',
+  '            memory::write(0x8000 + cell, 32);',
+  '        }',
   '    }',
   '}',
 ].join('\n');
-const MAIN = 'import { text } from "./lib.8bs";\nexport function main(): void { text.fill(); memory.write(0x8000, text.COLUMNS); }\n';
+const MAIN = 'use self::lib::text;\npub fn main() {\n    text::fill();\n    memory::write(0x8000, text::COLUMNS);\n}\n';
 const geometryOf = (ir) => {
   const fill = ir.functions.find((f) => f.name === 'text_fill');
   const main = ir.functions.find((f) => f.name === 'main');
@@ -122,7 +124,7 @@ test('an import that names a profile\'s twin outright gets exactly that file, on
   const dir = await mkdtemp(join(tmpdir(), '8bs-profile-variants-'));
   try {
     await writeFile(join(dir, 'geometry.pet.8032.8bs'), GEOMETRY_80);
-    await writeFile(join(dir, 'lib.8bs'), LIB.replace('./geometry.8bs', './geometry.pet.8032.8bs'));
+    await writeFile(join(dir, 'lib.8bs'), LIB.replace('use self::geometry::Video;', 'use "./geometry.pet.8032.8bs"::Video;'));
     await writeFile(join(dir, 'main.8bs'), MAIN);
     const entry = join(dir, 'main.8bs');
     for (const options of [{ machine: 'pet', profile: '3032' }, { machine: 'c64' }, {}]) {

@@ -37,25 +37,24 @@ function silently(fn) {
 // 16-31 (cell rows 2-3) only. `raster.CHARSET` is a folded constant: on a
 // machine that answered false the whole list would fold away.
 const PROGRAM = [
-  'import { raster, Slot } from "@8bitscript/raster";',
-  'import { text } from "@8bitscript/text";',
+  'use @8bitscript::raster::{raster, Slot};',
+  'use @8bitscript::text::text;',
   '',
-  'export function main(): void {',
-  '    let row: usmallint = text.columns();',
-  '    text.print(0, "abc");',
-  '    text.print(row * 2, "abc");',
-  '    text.print(row * 4, "abc");',
-  '    raster.clear();',
-  '    if (raster.CHARSET) {',
-  '        raster.at(16, Slot.CHARSET, 1);',
-  '        raster.at(32, Slot.CHARSET, 0);',
+  'pub fn main() {',
+  '    let row: usmallint = text::columns();',
+  '    text::print(0, "abc");',
+  '    text::print(row * 2, "abc");',
+  '    text::print(row * 4, "abc");',
+  '    raster::clear();',
+  '    if raster::CHARSET {',
+  '        raster::at(16, Slot::CHARSET, 1);',
+  '        raster::at(32, Slot::CHARSET, 0);',
   '    }',
-  '    raster.enable();',
-  '    while (true) {',
+  '    raster::enable();',
+  '    loop {',
   '        waitFrame();',
   '    }',
   '}',
-  '',
 ].join('\n');
 
 /** The 8×8 picture pixels of cell (col, cellRow) as row-bytes, bit 0 leftmost, against `ink`. */

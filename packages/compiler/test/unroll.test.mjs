@@ -21,13 +21,16 @@ import { build } from '../src/mos/index.ts';
 import { loadCatalog, resolveHardware } from '../../cli/src/hardware.mjs';
 
 const codes = (diagnostics) => diagnostics.map((d) => d.code);
-const program = (body) => `export function main(): void {\n${body}\n}\n`;
+const program = (body) => `pub fn main() {
+    ${body};
+}
+`;
 
 test('a plain counted @unroll loop compiles clean', () => {
   const src = program(
-    '    let sum: utinyint = 0;\n'
-    + '    @unroll\n'
-    + '    for (let i: utinyint = 0; i < 4; i++) {\n'
+    '    let mut sum: utinyint = 0;\n'
+    + '    #[unroll]\n'
+    + '    for i: utinyint in 0..4 {\n'
     + '        sum = sum + 1;\n'
     + '    }\n',
   );
@@ -36,18 +39,18 @@ test('a plain counted @unroll loop compiles clean', () => {
 });
 
 test('@unroll on a loop that does not start at 0, or whose bound is not a compile-time value, is 8BS3006', () => {
-  const notFromZero = program('    @unroll\n    for (let i: utinyint = 1; i < 4; i++) {\n    }\n');
+  const notFromZero = program('#[unroll] for i: utinyint in 1..4 {\n}\n');
   const { diagnostics: a } = link(notFromZero, '/x/main.8bs', { machine: 'c64' });
   assert.deepEqual(codes(a), ['8BS3006']);
   assert.match(a[0].message, /plain counted loop/);
 
-  const runtimeBound = 'let n: utinyint = 4;\n' + program('    @unroll\n    for (let i: utinyint = 0; i < n; i++) {\n    }\n');
+  const runtimeBound = 'let n: utinyint = 4;\n' + program('#[unroll] for i: utinyint in 0..n {\n}\n');
   const { diagnostics: b } = link(runtimeBound, '/x/main.8bs', { machine: 'c64' });
   assert.deepEqual(codes(b), ['8BS3006']);
 });
 
 test('@unroll on a loop past UNROLL_DECORATOR_MAX iterations is refused by name, not silently capped', () => {
-  const src = program('    @unroll\n    for (let i: usmallint = 0; i < 5000; i++) {\n    }\n');
+  const src = program('#[unroll] for i: usmallint in 0..5000 {\n}\n');
   const { diagnostics } = link(src, '/x/main.8bs', { machine: 'c64' });
   assert.deepEqual(codes(diagnostics), ['8BS3006']);
   assert.match(diagnostics[0].message, /5000 times, past the 4096/);
@@ -55,10 +58,10 @@ test('@unroll on a loop past UNROLL_DECORATOR_MAX iterations is refused by name,
 
 test('@unroll on a loop whose body breaks or continues is refused: the jump has nowhere to go once the loop is gone', () => {
   const withBreak = program(
-    '    let hit: utinyint = 0;\n'
-    + '    @unroll\n'
-    + '    for (let i: utinyint = 0; i < 4; i++) {\n'
-    + '        if (i == 2) { break; }\n'
+    '    let mut hit: utinyint = 0;\n'
+    + '    #[unroll]\n'
+    + '    for i: utinyint in 0..4 {\n'
+    + '        if i == 2 { break; }\n'
     + '        hit = i;\n'
     + '    }\n',
   );
@@ -68,23 +71,23 @@ test('@unroll on a loop whose body breaks or continues is refused: the jump has 
 });
 
 test('@unroll takes no arguments and applies to nothing but a for loop', () => {
-  const withArg = program('    @unroll(8)\n    for (let i: utinyint = 0; i < 4; i++) {\n    }\n');
+  const withArg = program('#[unroll(8)] for i: utinyint in 0..4 {\n}\n');
   assert.deepEqual(codes(link(withArg, '/x/main.8bs', { machine: 'c64' }).diagnostics), ['8BS3001']);
 
-  const onWhile = program('    let i: utinyint = 0;\n    @unroll\n    while (i < 4) {\n        i = i + 1;\n    }\n');
+  const onWhile = program('let mut i: utinyint = 0;\n#[unroll] while i < 4 {\n    i = i + 1;\n}\n');
   assert.deepEqual(codes(link(onWhile, '/x/main.8bs', { machine: 'c64' }).diagnostics), ['8BS3001']);
 
-  const wrongName = program('    @loop\n    for (let i: utinyint = 0; i < 4; i++) {\n    }\n');
+  const wrongName = program('    #[spin]\n    for i: utinyint in 0..4 {\n    }\n');
   const { diagnostics } = link(wrongName, '/x/main.8bs', { machine: 'c64' });
   assert.deepEqual(codes(diagnostics), ['8BS3001']);
-  assert.match(diagnostics[0].message, /@loop is not a loop decorator/);
+  assert.match(diagnostics[0].message, /@spin is not a loop decorator/);
 });
 
 test('a project const or #fact folded to a small positive count still unrolls (the common case a demoscene loop actually writes)', () => {
   const src = 'const N: utinyint = 6;\n' + program(
-    '    let sum: utinyint = 0;\n'
-    + '    @unroll\n'
-    + '    for (let i: utinyint = 0; i < N; i++) {\n'
+    '    let mut sum: utinyint = 0;\n'
+    + '    #[unroll]\n'
+    + '    for i: utinyint in 0..N {\n'
     + '        sum = sum + i;\n'
     + '    }\n',
   );
@@ -145,9 +148,9 @@ test('a for loop with no @unroll and a non-string-copy body is left as a loop, n
 
 test('build({ remarks: true }) returns an 8BS9001 remark naming the unroll count; without the option, none is returned', async () => {
   const src = program(
-    '    let sum: utinyint = 0;\n'
-    + '    @unroll\n'
-    + '    for (let i: utinyint = 0; i < 4; i++) {\n'
+    '    let mut sum: utinyint = 0;\n'
+    + '    #[unroll]\n'
+    + '    for i: utinyint in 0..4 {\n'
     + '        sum = sum + i;\n'
     + '    }\n',
   );

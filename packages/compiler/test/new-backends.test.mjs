@@ -12,14 +12,13 @@ import { build as build8048 } from '../src/i8048/index.ts';
 import { build as buildF8 } from '../src/f8/index.ts';
 
 const SOURCE = [
-  'let sum: utinyint = 0;',
-  'export function main(): void {',
-  '    for (let i: utinyint = 0; i < 10; i++) {',
+  'let mut sum: utinyint = 0;',
+  'pub fn main() {',
+  '    for i: utinyint in 0..10 {',
   '        sum = sum + i;',
   '    }',
-  '    memory.write(0x80, sum);',
+  '    memory::write(0x80, sum);',
   '}',
-  '',
 ].join('\n');
 
 function hardware(output, load) {
@@ -71,15 +70,14 @@ test('a Game Gear cart starts at a CRT0, not the program, and carries TMR SEGA',
 
 test('a print of a string literal folds to stores the same way MOS hello-world does', async () => {
   const src = [
-    'export function main(): void {',
+    'pub fn main() {',
     '    print(0, "Hi");',
     '}',
-    'function print(cell: usmallint, s: string): void {',
-    '    for (let i: utinyint = 0; i < s.length; i++) {',
-    '        memory.write(0x9800 + cell + i, s[i]);',
+    'fn print(cell: usmallint, s: string) {',
+    '    for i: utinyint in 0..s.length {',
+    '        memory::write(0x9800 + cell + i, s[i]);',
     '    }',
     '}',
-    '',
   ].join('\n');
   const { ir, diagnostics } = link(src, '/p/main.8bs', { machine: 'gb' });
   assert.deepEqual(diagnostics, []);
@@ -99,7 +97,7 @@ test('a print of a string literal folds to stores the same way MOS hello-world d
 });
 
 test('port.write lowers to IR', () => {
-  const src = 'export function main(): void { port.write(0xFE, 1); }\n';
+  const src = 'pub fn main() {\n    port::write(0xFE, 1);\n}\n';
   const { ir, diagnostics } = link(src, '/p/main.8bs', { machine: 'spectrum' });
   assert.deepEqual(diagnostics, []);
   const found = JSON.stringify(ir).includes('portWrite');

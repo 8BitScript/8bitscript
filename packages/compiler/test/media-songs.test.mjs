@@ -132,18 +132,18 @@ song first { speed 2 loop false pattern p length 2 { track t { row 0 { note C4; 
 const FILE_B = `song second { speed 2 pattern p length 2 { track t { row 0 { note E4; } } } }
 song third { speed 2 pattern p length 2 { track t { row 0 { note G4; } } } }
 `;
-const MAIN = `import { zap, first } from "./a.8ba";
-import { second, third } from "./b.8ba";
-import { audio } from "@8bitscript/audio";
+const MAIN = `use self::a::{zap, first};
+use self::b::{second, third};
+use @8bitscript::audio::audio;
 
-export function main(): void {
-    audio.play(zap);
-    audio.play(first);
-    audio.play(second);
-    audio.music(third);
-    audio.update();
-    let busy: bool = audio.busy();
-    audio.silence();
+pub fn main() {
+    audio::play(zap);
+    audio::play(first);
+    audio::play(second);
+    audio::music(third);
+    audio::update();
+    let busy: bool = audio::busy();
+    audio::silence();
 }
 `;
 
@@ -191,8 +191,8 @@ test('a program whose samples and songs do not fit the 255-byte bank is 8BS2216,
   const rows = Array.from({ length: 40 }, (_, i) => `row ${i} { note ${['C4', 'E4', 'G4', 'B4'][i % 4]}; }`).join(' ');
   const big = (name) => `song ${name} { speed 1 pattern p length 40 { track t { ${rows} } } }\n`;
   // 4 + 40 * 5 = 204 bytes a song: the first fits, the second does not.
-  withAudioProject({ 'a.8ba': big('one'), 'b.8ba': big('two'), 'main.8bs': 'import { one } from "./a.8ba";\nimport { two } from "./b.8ba";\nimport { audio } from "@8bitscript/audio";\nexport function main(): void {\n    audio.play(one);\n    audio.play(two);\n}\n' }, (dir) => {
-    const { diagnostics } = linkProject(dir, 'c64', 'import { one } from "./a.8ba";\nimport { two } from "./b.8ba";\nimport { audio } from "@8bitscript/audio";\nexport function main(): void {\n    audio.play(one);\n    audio.play(two);\n}\n');
+  withAudioProject({ 'a.8ba': big('one'), 'b.8ba': big('two'), 'main.8bs': 'use self::a::one;\nuse self::b::two;\nuse @8bitscript::audio::audio;\npub fn main() {\n    audio::play(one);\n    audio::play(two);\n}\n' }, (dir) => {
+    const { diagnostics } = linkProject(dir, 'c64', 'use self::a::one;\nuse self::b::two;\nuse @8bitscript::audio::audio;\npub fn main() {\n    audio::play(one);\n    audio::play(two);\n}\n');
     const full = diagnostics.filter((d) => d.code === Codes.AUD_BANK_FULL);
     assert.equal(full.length, 1);
     assert.match(full[0].message, /'two'/);

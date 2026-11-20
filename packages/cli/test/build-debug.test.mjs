@@ -24,12 +24,11 @@ function capture(fn) {
 }
 
 const SCORE = [
-  'let score: utinyint = 0;',
-  'export function main(): void {',
+  'let mut score: utinyint = 0;',
+  'pub fn main() {',
   '    score += 1;',
-  '    memory.write(0x8000, score);',
+  '    memory::write(0x8000, score);',
   '}',
-  '',
 ].join('\n');
 
 test('compile() --debug writes .lst and .8bs.debug.json beside the artifact, and neither without it', async () => {

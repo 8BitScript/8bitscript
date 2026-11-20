@@ -4,7 +4,7 @@ import test from 'node:test';
 import { NodeType, analyze, normalizeBxText, parse, tokenize } from '../index.mjs';
 
 test('parses brace attribute values on elements', () => {
-  const src = 'component Hud(score: usmallint, over: bool) { }\nexport function main(): void { <Hud score={score} over={over} />; }\n';
+  const src = 'component Hud(score: usmallint, over: bool) {\n}\npub fn main() {\n    <Hud score={score} over={over} />;\n}\n';
   const { tokens } = tokenize(src, 't.8bx', { sourceKind: '.8bx' });
   const { diagnostics } = parse(tokens, src, 't.8bx', { sourceKind: '.8bx' });
   assert.equal(diagnostics.filter((d) => d.code === '8BS1039' || d.code === '8BS1101').length, 0);
@@ -21,7 +21,7 @@ test('parses a self-closing element in .8bx', () => {
 });
 
 test('`export component` parses, and the declaration says so', () => {
-  const src = 'export component Foo(x: utinyint = 1) { }\ncomponent Bar() { }\n';
+  const src = 'pub component Foo(x: utinyint = 1) {\n}\ncomponent Bar() {\n}\n';
   const { tokens } = tokenize(src, 't.8bx', { sourceKind: '.8bx' });
   const { ast, diagnostics } = parse(tokens, src, 't.8bx', { sourceKind: '.8bx' });
   assert.deepEqual(diagnostics, []);
@@ -33,7 +33,7 @@ test('`export component` parses, and the declaration says so', () => {
 });
 
 test('`let component` still parses in .8bs', () => {
-  const src = 'let component: u8 = 1;\nexport function main(): void { component = 2; }\n';
+  const src = 'let mut component: u8 = 1;\npub fn main() {\n    component = 2;\n}\n';
   const { tokens } = tokenize(src, 't.8bs');
   const { diagnostics } = parse(tokens, src, 't.8bs');
   assert.deepEqual(diagnostics, []);
@@ -43,7 +43,7 @@ test('a diagnostic inside an attribute expression carries the file offset, not t
   // The reason the parser reads tokens rather than re-scanning text: the
   // `}` after `1 +` sits at a known offset of the file, and that is where
   // the syntax diagnostic points; an unknown prop points at its name.
-  const src = 'component A(v: utinyint) { }\nexport function main(): void { <A v={1 +} nope={2} />; }\n';
+  const src = 'component A(v: utinyint) { }\npub fn main() { <A v={1 +} nope={2} />; }\n';
   const diags = analyze(src, 't.8bx', { sourceKind: '.8bx' });
   const syntax = diags.find((d) => d.code === '8BS1101');
   assert.ok(syntax, JSON.stringify(diags));
@@ -84,7 +84,7 @@ test('a comment child, a member name, a string attribute, and an element in a ?:
 });
 
 test('a mistyped closing tag and a stray token inside a tag are reported at the token, and parsing continues', () => {
-  const src = 'component A() { }\ncomponent B() { }\nexport function main(): void { <A></B>; <A #x />; }\n';
+  const src = 'component A() { }\ncomponent B() { }\npub fn main() { <A></B>; <A #x />; }\n';
   const diags = analyze(src, 't.8bx', { sourceKind: '.8bx' });
   const mismatch = diags.find((d) => /expected <\/A>, found <\/B>/.test(d.message));
   assert.ok(mismatch);

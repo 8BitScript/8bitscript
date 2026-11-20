@@ -1,6 +1,6 @@
 // @8bitscript/system — the machine a build is for, by name and by fact.
 //
-//     import { System, Video, Audio, Input, Storage, Memory } from "@8bitscript/system";
+//     use @8bitscript::system::{System, Video, Audio, Input, Storage, Memory};
 //
 //     if (#system() == System.PET) { ... }        // which machine
 //     if (Video.SPRITES == 0) { ... }             // what it has
@@ -28,39 +28,39 @@
 // The names are the ones `8bs build --target` accepts. The numbers are
 // arbitrary and stable: a machine keeps its number when others are added,
 // so a saved file that records one stays readable.
-export namespace System {
-    const WEB: utinyint = 0;      // the browser runtime
-    const VIC20: utinyint = 1;    // Commodore VIC-20
-    const C64: utinyint = 2;      // Commodore 64
-    const PET: utinyint = 3;      // Commodore PET
-    const C128: utinyint = 4;     // Commodore 128
-    const ATARI8: utinyint = 5;   // Atari 400/800/XL/XE
-    const NES: utinyint = 6;      // Nintendo Entertainment System
-    const CX16: utinyint = 7;     // Commander X16
-    const MEGA65: utinyint = 8;   // MEGA65
-    const PLUS4: utinyint = 9;    // Commodore Plus/4
-    const ORIC: utinyint = 10;    // Oric-1 / Atmos
-    const APPLE2: utinyint = 11;    // Apple II
-    const BBC: utinyint = 12;    // BBC Micro
-    const ATARI5200: utinyint = 13;    // Atari 5200
-    const LYNX: utinyint = 14;    // Atari Lynx
-    const PCE: utinyint = 15;    // PC Engine / TurboGrafx-16
-    const SUPERVISION: utinyint = 16;    // Watara Supervision
-    const ATARI2600: utinyint = 17;    // Atari 2600
-    const ATARI7800: utinyint = 18;    // Atari 7800
-    const GB: utinyint = 19;    // Game Boy
-    const GBC: utinyint = 20;    // Game Boy Color
-    const SMS: utinyint = 21;    // Sega Master System
-    const GAMEGEAR: utinyint = 22;    // Sega Game Gear
-    const SG1000: utinyint = 23;    // Sega SG-1000
-    const MSX: utinyint = 24;    // MSX
-    const COLECO: utinyint = 25;    // ColecoVision
-    const SPECTRUM: utinyint = 26;    // ZX Spectrum
-    const CPC: utinyint = 27;    // Amstrad CPC
-    const COCO: utinyint = 28;    // Tandy Color Computer
-    const VECTREX: utinyint = 29;    // Vectrex
-    const ODYSSEY2: utinyint = 30;    // Magnavox Odyssey²
-    const CHANNELF: utinyint = 31;    // Fairchild Channel F
+pub mod System {
+    const WEB: utinyint = 0; // the browser runtime
+    const VIC20: utinyint = 1; // Commodore VIC-20
+    const C64: utinyint = 2; // Commodore 64
+    const PET: utinyint = 3; // Commodore PET
+    const C128: utinyint = 4; // Commodore 128
+    const ATARI8: utinyint = 5; // Atari 400/800/XL/XE
+    const NES: utinyint = 6; // Nintendo Entertainment System
+    const CX16: utinyint = 7; // Commander X16
+    const MEGA65: utinyint = 8; // MEGA65
+    const PLUS4: utinyint = 9; // Commodore Plus/4
+    const ORIC: utinyint = 10; // Oric-1 / Atmos
+    const APPLE2: utinyint = 11; // Apple II
+    const BBC: utinyint = 12; // BBC Micro
+    const ATARI5200: utinyint = 13; // Atari 5200
+    const LYNX: utinyint = 14; // Atari Lynx
+    const PCE: utinyint = 15; // PC Engine / TurboGrafx-16
+    const SUPERVISION: utinyint = 16; // Watara Supervision
+    const ATARI2600: utinyint = 17; // Atari 2600
+    const ATARI7800: utinyint = 18; // Atari 7800
+    const GB: utinyint = 19; // Game Boy
+    const GBC: utinyint = 20; // Game Boy Color
+    const SMS: utinyint = 21; // Sega Master System
+    const GAMEGEAR: utinyint = 22; // Sega Game Gear
+    const SG1000: utinyint = 23; // Sega SG-1000
+    const MSX: utinyint = 24; // MSX
+    const COLECO: utinyint = 25; // ColecoVision
+    const SPECTRUM: utinyint = 26; // ZX Spectrum
+    const CPC: utinyint = 27; // Amstrad CPC
+    const COCO: utinyint = 28; // Tandy Color Computer
+    const VECTREX: utinyint = 29; // Vectrex
+    const ODYSSEY2: utinyint = 30; // Magnavox Odyssey²
+    const CHANNELF: utinyint = 31; // Fairchild Channel F
 }
 
 // The fact sheet. Each const is one #fact(...) — the value the machine
@@ -86,58 +86,58 @@ export namespace System {
 
 // The display: the text grid the portable `text` draws on, and what the
 // display is made of beyond it.
-export namespace Video {
-    const COLUMNS: utinyint = #fact(video.columns);             // cells across
-    const ROWS: utinyint = #fact(video.rows);                   // cells down
-    const CELL_WIDTH: utinyint = #fact(video.cellWidth);        // pixels across one cell
-    const CELL_HEIGHT: utinyint = #fact(video.cellHeight);      // pixels down one cell
-    const PALETTE: usmallint = #fact(video.palette);            // colors on screen at once
-    const CELL_COLORS: utinyint = #fact(video.cellColors);      // colors one cell can hold
-    const COLOR_PER_CELL: bool = #fact(video.colorPerCell);     // one cell's color can be set without changing its neighbors'
-    const GLYPHS: usmallint = #fact(video.glyphs);              // characters redefinable at run time; 0 = fixed font
-    const BLOCK_WIDTH: utinyint = #fact(video.blockWidth);      // pseudo-pixels across a cell from block glyphs; 0 = none
-    const BLOCK_HEIGHT: utinyint = #fact(video.blockHeight);    // pseudo-pixels down a cell; 0 = none
-    const BITMAP: bool = #fact(video.bitmap);                   // a pixel-addressable mode exists
-    const LAYERS: utinyint = #fact(video.layers);               // independent background layers
-    const SCROLL: bool = #fact(video.scroll);                   // hardware fine scroll
-    const RASTER: bool = #fact(video.raster);                   // the picture can change part-way down the screen
-    const COLOR_BLEND: bool = #fact(video.colorBlend);           // two palette indices can be flicker-blended into a shade neither shows alone
-    const SPRITES: utinyint = #fact(video.sprites);             // hardware sprites in total; 0 = software objects
-    const SPRITES_PER_LINE: utinyint = #fact(video.spritesPerLine); // what one scanline can show
-    const SPRITE_WIDTH: utinyint = #fact(video.spriteWidth);    // pixels across the largest sprite
-    const SPRITE_HEIGHT: utinyint = #fact(video.spriteHeight);  // pixels down the largest sprite
-    const SPRITE_COLORS: utinyint = #fact(video.spriteColors);  // colors one sprite can hold
+pub mod Video {
+    const COLUMNS: utinyint = #fact(video::columns); // cells across
+    const ROWS: utinyint = #fact(video::rows); // cells down
+    const CELL_WIDTH: utinyint = #fact(video::cellWidth); // pixels across one cell
+    const CELL_HEIGHT: utinyint = #fact(video::cellHeight); // pixels down one cell
+    const PALETTE: usmallint = #fact(video::palette); // colors on screen at once
+    const CELL_COLORS: utinyint = #fact(video::cellColors); // colors one cell can hold
+    const COLOR_PER_CELL: bool = #fact(video::colorPerCell); // one cell's color can be set without changing its neighbors'
+    const GLYPHS: usmallint = #fact(video::glyphs); // characters redefinable at run time; 0 = fixed font
+    const BLOCK_WIDTH: utinyint = #fact(video::blockWidth); // pseudo-pixels across a cell from block glyphs; 0 = none
+    const BLOCK_HEIGHT: utinyint = #fact(video::blockHeight); // pseudo-pixels down a cell; 0 = none
+    const BITMAP: bool = #fact(video::bitmap); // a pixel-addressable mode exists
+    const LAYERS: utinyint = #fact(video::layers); // independent background layers
+    const SCROLL: bool = #fact(video::scroll); // hardware fine scroll
+    const RASTER: bool = #fact(video::raster); // the picture can change part-way down the screen
+    const COLOR_BLEND: bool = #fact(video::colorBlend); // two palette indices can be flicker-blended into a shade neither shows alone
+    const SPRITES: utinyint = #fact(video::sprites); // hardware sprites in total; 0 = software objects
+    const SPRITES_PER_LINE: utinyint = #fact(video::spritesPerLine); // what one scanline can show
+    const SPRITE_WIDTH: utinyint = #fact(video::spriteWidth); // pixels across the largest sprite
+    const SPRITE_HEIGHT: utinyint = #fact(video::spriteHeight); // pixels down the largest sprite
+    const SPRITE_COLORS: utinyint = #fact(video::spriteColors); // colors one sprite can hold
 }
 
 // The sound hardware's shape.
-export namespace Audio {
-    const VOICES: utinyint = #fact(audio.voices);   // voices at once; 0 = no sound
-    const NOISE: bool = #fact(audio.noise);         // a noise voice
-    const ENVELOPE: bool = #fact(audio.envelope);   // hardware volume envelopes
-    const FILTER: bool = #fact(audio.filter);       // a hardware filter
-    const PCM: bool = #fact(audio.pcm);             // sample playback
-    const VOLUME: bool = #fact(audio.volume);       // a volume per voice
-    const ENTROPY: bool = #fact(audio.entropy);     // a hardware random source
+pub mod Audio {
+    const VOICES: utinyint = #fact(audio::voices); // voices at once; 0 = no sound
+    const NOISE: bool = #fact(audio::noise); // a noise voice
+    const ENVELOPE: bool = #fact(audio::envelope); // hardware volume envelopes
+    const FILTER: bool = #fact(audio::filter); // a hardware filter
+    const PCM: bool = #fact(audio::pcm); // sample playback
+    const VOLUME: bool = #fact(audio::volume); // a volume per voice
+    const ENTROPY: bool = #fact(audio::entropy); // a hardware random source
 }
 
 // The ports, and what this build may find plugged into them.
-export namespace Input {
-    const KEYBOARD: bool = #fact(input.keyboard);   // a keyboard the program can read
-    const JOYSTICKS: utinyint = #fact(input.joysticks); // joystick ports
-    const PADS: utinyint = #fact(input.pads);       // console controller ports
-    const MOUSE: bool = #fact(input.mouse);         // run time: this build may use a mouse
-    const PADDLES: bool = #fact(input.paddles);     // run time: this build may use paddles
+pub mod Input {
+    const KEYBOARD: bool = #fact(input::keyboard); // a keyboard the program can read
+    const JOYSTICKS: utinyint = #fact(input::joysticks); // joystick ports
+    const PADS: utinyint = #fact(input::pads); // console controller ports
+    const MOUSE: bool = #fact(input::mouse); // run time: this build may use a mouse
+    const PADDLES: bool = #fact(input::paddles); // run time: this build may use paddles
 }
 
 // Where bytes can outlive the program.
-export namespace Storage {
-    const SAVE: bool = #fact(storage.save);         // somewhere to persist bytes
-    const KIB: usmallint = #fact(storage.kib);      // KiB that place holds
+pub mod Storage {
+    const SAVE: bool = #fact(storage::save); // somewhere to persist bytes
+    const KIB: usmallint = #fact(storage::kib); // KiB that place holds
 }
 
 // What the program was linked into, and what it may reach beyond it.
-export namespace Memory {
-    const RAM: usmallint = #fact(memory.ram);       // bytes the program is linked to use
-    const BANKED: bool = #fact(memory.banked);      // run time: this build may use RAM beyond the window
-    const BANKED_KIB: usmallint = #fact(memory.bankedKib); // KiB of it the build was fitted with
+pub mod Memory {
+    const RAM: usmallint = #fact(memory::ram); // bytes the program is linked to use
+    const BANKED: bool = #fact(memory::banked); // run time: this build may use RAM beyond the window
+    const BANKED_KIB: usmallint = #fact(memory::bankedKib); // KiB of it the build was fitted with
 }

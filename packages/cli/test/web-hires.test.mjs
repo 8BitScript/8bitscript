@@ -117,18 +117,17 @@ test('raster entries survive lines past 511 on the hires host, in order', async 
   const prev = process.cwd();
   try {
     await writeFile(join(dir, 'main.8bs'), [
-      'import { raster, Slot } from "@8bitscript/raster";',
-      'export function main(): void {',
-      '    raster.clear();',
-      '    raster.at(300, Slot.BACKGROUND, 2);',
-      '    raster.at(700, Slot.BACKGROUND, 5);',
-      '    raster.insert(600, Slot.BORDER, 3);',
-      '    raster.enable();',
-      '    while (true) {',
+      'use @8bitscript::raster::{raster, Slot};',
+      'pub fn main() {',
+      '    raster::clear();',
+      '    raster::at(300, Slot::BACKGROUND, 2);',
+      '    raster::at(700, Slot::BACKGROUND, 5);',
+      '    raster::insert(600, Slot::BORDER, 3);',
+      '    raster::enable();',
+      '    loop {',
       '        waitFrame();',
       '    }',
       '}',
-      '',
     ].join('\n'));
     process.chdir(dir);
     const out = process.stdout.write.bind(process.stdout);

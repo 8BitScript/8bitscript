@@ -11,28 +11,28 @@
 // rewrite went live. Line 61's entry is one line below 60's, and is
 // planned two lines below it (62) — the two-line rule. Line 140 is two
 // entries on one line, one store pair.
-import { raster, Slot } from "@8bitscript/raster";
-import { screen } from "@8bitscript/screen";
-import { text } from "@8bitscript/text";
+use @8bitscript::raster::{raster, Slot};
+use @8bitscript::screen::screen;
+use @8bitscript::text::text;
 
-let frames: usmallint = 0;
+let mut frames: usmallint = 0;
 
-export function main(): void {
-    screen.blank();
-    raster.clear();
-    raster.at(30, Slot.BORDER, 2);
-    raster.at(60, Slot.BACKGROUND, 6);
-    raster.at(61, Slot.BACKGROUND, 2);
-    raster.at(100, Slot.BORDER, 5);
-    raster.at(140, Slot.BORDER, 0);
-    raster.at(140, Slot.BACKGROUND, 7);
-    raster.enable();
-    while (true) {
+pub fn main() {
+    screen::blank();
+    raster::clear();
+    raster::at(30, Slot::BORDER, 2);
+    raster::at(60, Slot::BACKGROUND, 6);
+    raster::at(61, Slot::BACKGROUND, 2);
+    raster::at(100, Slot::BORDER, 5);
+    raster::at(140, Slot::BORDER, 0);
+    raster::at(140, Slot::BACKGROUND, 7);
+    raster::enable();
+    loop {
         waitFrame();
         frames = frames + 1;
-        if (frames == 50) {
-            raster.setValue(3, 5);
+        if frames == 50 {
+            raster::setValue(3, 5);
         }
-        text.printNumber(0, frames, 5);
+        text::printNumber(0, frames, 5);
     }
 }

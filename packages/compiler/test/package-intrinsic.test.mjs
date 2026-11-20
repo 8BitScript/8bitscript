@@ -47,14 +47,14 @@ function stringsOf(files, entry) {
   return { strings: ir?.strings ?? [], diagnostics };
 }
 
-const PRINT = (version, name) => `import { screen } from "@8bitscript/screen";
-import { text } from "@8bitscript/text";
+const PRINT = (version, name) => `use @8bitscript::screen::screen;
+use @8bitscript::text::text;
 const VERSION: string = ${version};
-export function main(): void {
-    screen.blank();
-    text.print(0, VERSION);
-    text.print(40, ${name});
-    text.releaseCursor();
+pub fn main() {
+    screen::blank();
+    text::print(0, VERSION);
+    text::print(40, ${name});
+    text::releaseCursor();
 }
 `;
 
@@ -86,7 +86,7 @@ test('the nearest package.json wins: a module inside a nested package reads its 
     assert.equal(outer.json.version, '1.0.0');
     assert.equal(inner.json.version, '2.0.0');
     assert.equal(inner.path, join(dir, 'inner', 'package.json'));
-    const diagnostics = analyze('const V: string = #package("version");\nexport function main(): void { memory.write(0x8000, 1); }\n', join(dir, 'inner', 'src', 'main.8bs'));
+    const diagnostics = analyze('const V: string = #package("version");\npub fn main() {\n    memory::write(0x8000, 1);\n}\n', join(dir, 'inner', 'src', 'main.8bs'));
     assert.deepEqual(diagnostics, [], 'analyze() resolves from the file, as a build does');
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -98,7 +98,11 @@ test('#package(...) refuses by name anything but one of the readable fields in q
   try {
     writeFileSync(join(dir, 'package.json'), PKG);
     const file = join(dir, 'main.8bs');
-    const diag = (call) => analyze(`const V: string = ${call};\nexport function main(): void { memory.write(0x8000, 1); }\n`, file);
+    const diag = (call) => analyze(`const V: string = ${call};
+pub fn main() {
+    memory::write(0x8000, 1);
+}
+`, file);
     assert.deepEqual(PACKAGE_FIELDS, ['name', 'version']);
     assert.deepEqual(codes(diag('#package("version")')), []);
     assert.deepEqual(codes(diag('#package("name")')), []);
@@ -117,7 +121,7 @@ test('#package(...) refuses by name anything but one of the readable fields in q
 test('no package.json above the file, one that does not parse, or one without the field is 8BS1042 naming it', () => {
   const dir = mkdtempSync(join(tmpdir(), '8bs-package-missing-'));
   try {
-    const program = 'const V: string = #package("version");\nexport function main(): void { memory.write(0x8000, 1); }\n';
+    const program = 'const V: string = #package("version");\npub fn main() {\n    memory::write(0x8000, 1);\n}\n';
     const file = join(dir, 'main.8bs');
     const none = analyze(program, file);
     assert.deepEqual(codes(none), ['8BS1042']);
@@ -138,7 +142,7 @@ test('no package.json above the file, one that does not parse, or one without th
 });
 
 test('text handed to analyze() with no file has no package: the placeholder, and no diagnostic', () => {
-  const diagnostics = analyze('const V: string = #package("version");\nexport function main(): void { memory.write(0x8000, 1); }\n');
+  const diagnostics = analyze('const V: string = #package("version");\npub fn main() {\n    memory::write(0x8000, 1);\n}\n');
   assert.deepEqual(diagnostics, []);
 });
 
@@ -146,7 +150,7 @@ test('the folded literal is checked like any other: a name outside the portable 
   const dir = mkdtempSync(join(tmpdir(), '8bs-package-charset-'));
   try {
     writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: '@scope/thing', version: '1.0.0' }));
-    const diagnostics = analyze('const N: string = #package("name");\nexport function main(): void { memory.write(0x8000, 1); }\n', join(dir, 'main.8bs'));
+    const diagnostics = analyze('const N: string = #package("name");\npub fn main() {\n    memory::write(0x8000, 1);\n}\n', join(dir, 'main.8bs'));
     assert.deepEqual(codes(diagnostics), ['8BS1026']);
   } finally {
     rmSync(dir, { recursive: true, force: true });

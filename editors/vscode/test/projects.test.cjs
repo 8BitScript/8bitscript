@@ -829,3 +829,16 @@ test('an old 8bitscript.config.8bs with no current config is reported, with the 
   assert.deepEqual(staleConfigsOnly([current], [old, both]), [old]);
   assert.match(staleConfigMessage(old), /no longer read: rename it to 8bitscript\.config\.ts/);
 });
+
+test('forgetFixedStale drops reported old-name configs that are no longer stale', () => {
+  const { forgetFixedStale } = require('../src/projects.cjs');
+  const a = path.join(path.sep, 'p', 'a', '8bitscript.config.8bs');
+  const b = path.join(path.sep, 'p', 'b', '8bitscript.config.8bs');
+  const reported = new Set([a, b]);
+  forgetFixedStale(reported, [b]);
+  assert.deepEqual([...reported], [b], 'a was renamed, b is still stale');
+  forgetFixedStale(reported, []);
+  assert.equal(reported.size, 0);
+  // a regression is then reported afresh
+  assert.equal(reported.has(a), false);
+});

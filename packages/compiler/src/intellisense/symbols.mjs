@@ -360,6 +360,12 @@ export function symbolAt(module, offset) {
   const scope = scopeAt(module, token.start);
   const dot = tokens[index - 1];
   const object = tokens[index - 2];
+  // A word in a `use` path is the import's local name, not a member of the
+  // segment before it: `use self::bar::opened;` hovers the `opened` it binds.
+  if (dot?.text === '::' && inUsePath(tokens, index)) {
+    const symbol = resolveSymbol(scope, token.text);
+    return symbol ? { symbol, token } : null;
+  }
   if ((dot?.text === '::' || dot?.text === '.') && object?.kind === TokenKind.Identifier) {
     const owner = resolveSymbol(scope, object.text);
     const namespace = owner ? declared(owner) : null;
@@ -368,6 +374,16 @@ export function symbolAt(module, offset) {
   }
   const symbol = resolveSymbol(scope, token.text);
   return symbol ? { symbol, token } : null;
+}
+
+/** Is the token at `index` inside a `use ...;` statement? */
+function inUsePath(tokens, index) {
+  for (let i = index - 1; i >= 0; i--) {
+    const t = tokens[i];
+    if (t.text === ';' || (t.text === '}' && tokens[i - 1]?.text === ';')) return false;
+    if (t.kind === TokenKind.Keyword && t.text === 'use') return true;
+  }
+  return false;
 }
 
 /**

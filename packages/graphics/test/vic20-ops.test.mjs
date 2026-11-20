@@ -52,26 +52,26 @@ async function execute(body, { layout = 'unexpanded', twin = TWIN } = {}) {
   try {
     // The twin names its geometry by package; a copy in a scratch directory
     // names it by path, which is also how the 8K map is chosen.
-    await writeFile(join(dir, 'twin.8bs'), twin.replace('@8bitscript/vic20/geometry', where.geometry));
-    const source = `import { graphics } from "./twin.8bs";
-import { Video } from ${JSON.stringify(where.geometry)};
+    await writeFile(join(dir, 'twin.8bs'), twin.replace('use @8bitscript::vic20::geometry::Video;', `use ${JSON.stringify(where.geometry)}::Video;`));
+    const source = `use self::twin::graphics;
+use ${JSON.stringify(where.geometry)}::Video;
 
-function snap(base: usmallint): void {
-    for (let i: usmallint = 0; i < ${CELLS}; i++) {
-        memory.write(base + i, memory.read(Video.SCREEN + i));
-        memory.write(base + ${CELLS} + i, memory.read(Video.COLOR + i));
+fn snap(base: usmallint) {
+    for (let mut i: usmallint = 0; i < ${CELLS}; i += 1) {
+        memory::write(base + i, memory::read(Video::SCREEN + i));
+        memory::write(base + ${CELLS} + i, memory::read(Video::COLOR + i));
     }
 }
 
 // The 4K where the web build keeps the twin's own tables (about $2100), a
 // copy of it to compare; above both screens ($1E00 + 506, $1000 + 506).
-function keep(base: usmallint): void {
-    for (let i: usmallint = 0; i < 4096; i++) {
-        memory.write(base + i, memory.read(0x2000 + i));
+fn keep(base: usmallint) {
+    for (let mut i: usmallint = 0; i < 4096; i += 1) {
+        memory::write(base + i, memory::read(0x2000 + i));
     }
 }
 
-export function main(): void {
+pub fn main() {
 ${body}
 }
 `;
@@ -106,8 +106,8 @@ const snap = (k) => `    snap(${SNAP + k * 0x400});`;
 
 /** The binder calls the compiler writes for a sprite: its codes, then its size and speed. */
 function picture(slot, frames, every, width, height, codes) {
-  const bind = codes.map((code, i) => `    graphics.bind(${slot}, ${i}, ${code});`).join('\n');
-  return `${bind}\n    graphics.meta(${slot}, ${frames}, ${every}, 4, ${width}, ${height});`;
+  const bind = codes.map((code, i) => `    graphics::bind(${slot}, ${i}, ${code});`).join('\n');
+  return `${bind}\n    graphics::meta(${slot}, ${frames}, ${every}, 4, ${width}, ${height});`;
 }
 
 /** Every cell of the snapshot is untouched (0, 0) except those in `expected`, a map of "col,row" -> [code, color]. */
@@ -152,22 +152,22 @@ const scenarios = {
   // twice, or a hidden one at update(), changes nothing; place shows it again
   async hide(twin, layout) {
     const memory = await execute(`${picture(0, 1, 4, 16, 16, A)}
-    graphics.color(0, 3);
-    graphics.place(0, 8, 8);
-    graphics.update();
+    graphics::color(0, 3);
+    graphics::place(0, 8, 8);
+    graphics::update();
 ${snap(0)}
-    graphics.hide(0);
-    graphics.update();
+    graphics::hide(0);
+    graphics::update();
 ${snap(1)}
-    graphics.hide(0);
-    graphics.update();
-    graphics.update();
+    graphics::hide(0);
+    graphics::update();
+    graphics::update();
 ${snap(2)}
-    graphics.place(0, 88, 120);
+    graphics::place(0, 88, 120);
 ${snap(3)}
-    graphics.hide(0);
-    graphics.place(0, 8, 8);
-    graphics.update();
+    graphics::hide(0);
+    graphics::place(0, 8, 8);
+    graphics::update();
 ${snap(4)}`, { twin, layout });
     assertCells(snapshot(memory, 0), block(1, 1, A, 3), 'placed, in its ink');
     assertCells(snapshot(memory, 1), blanked(1, 1), 'hidden: cells blanked, color RAM back to white, not left in its ink');
@@ -181,38 +181,38 @@ ${snap(4)}`, { twin, layout });
   async frames(twin, layout) {
     const memory = await execute(`${picture(0, 2, 4, 16, 16, [...F0, ...F1])}
 ${picture(1, 2, 4, 16, 16, [...G0, ...G1])}
-    graphics.place(0, 8, 8);
-    graphics.place(1, 88, 8);
-    graphics.update();
-    graphics.update();
-    graphics.update();
+    graphics::place(0, 8, 8);
+    graphics::place(1, 88, 8);
+    graphics::update();
+    graphics::update();
+    graphics::update();
 ${snap(0)}
-    graphics.update();
+    graphics::update();
 ${snap(1)}
-    graphics.animate(0, false);
-    graphics.update();
-    graphics.update();
-    graphics.update();
-    graphics.update();
-    graphics.update();
-    graphics.update();
+    graphics::animate(0, false);
+    graphics::update();
+    graphics::update();
+    graphics::update();
+    graphics::update();
+    graphics::update();
+    graphics::update();
 ${snap(2)}
-    graphics.setFrame(0, 0);
+    graphics::setFrame(0, 0);
 ${snap(3)}
-    graphics.update();
-    graphics.update();
-    graphics.update();
-    graphics.update();
-    graphics.update();
+    graphics::update();
+    graphics::update();
+    graphics::update();
+    graphics::update();
+    graphics::update();
 ${snap(4)}
-    graphics.setFrame(0, 9);
-    graphics.update();
+    graphics::setFrame(0, 9);
+    graphics::update();
 ${snap(5)}
-    graphics.animate(0, true);
-    graphics.update();
-    graphics.update();
-    graphics.update();
-    graphics.update();
+    graphics::animate(0, true);
+    graphics::update();
+    graphics::update();
+    graphics::update();
+    graphics::update();
 ${snap(6)}`, { twin, layout });
     assertCells(snapshot(memory, 0), { ...block(1, 1, F0, WHITE), ...block(11, 1, G0, WHITE) }, '3 updates, every 4: still frame 0');
     assertCells(snapshot(memory, 1), { ...block(1, 1, F1, WHITE), ...block(11, 1, G1, WHITE) }, '4 updates: frame 1');
@@ -229,25 +229,25 @@ ${snap(6)}`, { twin, layout });
   async color(twin, layout) {
     const memory = await execute(`${picture(0, 1, 4, 16, 16, A)}
 ${picture(1, 1, 4, 16, 16, B)}
-    graphics.place(0, 8, 8);
-    graphics.place(1, 88, 88);
-    graphics.update();
+    graphics::place(0, 8, 8);
+    graphics::place(1, 88, 88);
+    graphics::update();
 ${snap(0)}
-    graphics.color(0, 2);
+    graphics::color(0, 2);
 ${snap(1)}
-    graphics.update();
+    graphics::update();
 ${snap(2)}
-    graphics.color(0, 9);
-    graphics.color(1, 15);
-    graphics.update();
+    graphics::color(0, 9);
+    graphics::color(1, 15);
+    graphics::update();
 ${snap(3)}
-    graphics.color(0, 5);
-    graphics.update();
-    graphics.place(0, 8, 120);
-    graphics.update();
+    graphics::color(0, 5);
+    graphics::update();
+    graphics::place(0, 8, 120);
+    graphics::update();
 ${snap(4)}
-    graphics.hide(0);
-    graphics.update();
+    graphics::hide(0);
+    graphics::update();
 ${snap(5)}`, { twin, layout });
     assertCells(snapshot(memory, 0), { ...block(1, 1, A, WHITE), ...block(11, 11, B, WHITE) }, 'default ink: white');
     assertCells(snapshot(memory, 1), { ...block(1, 1, A, WHITE), ...block(11, 11, B, WHITE) }, 'color() shows from the next update');
@@ -264,19 +264,19 @@ ${snap(5)}`, { twin, layout });
     const memory = await execute(`${picture(0, 8, 4, 16, 16, eight(A))}
 ${picture(1, 8, 4, 16, 16, eight(B))}
 ${picture(2, 1, 4, 16, 16, A)}
-    graphics.place(0, 8, 8);
-    graphics.place(1, 64, 8);
-    graphics.place(2, 120, 8);
-    graphics.update();
+    graphics::place(0, 8, 8);
+    graphics::place(1, 64, 8);
+    graphics::place(2, 120, 8);
+    graphics::update();
 ${snap(0)}
-    graphics.setFrame(2, 3);
-    graphics.color(2, 2);
-    graphics.animate(2, false);
-    graphics.animate(2, true);
-    graphics.hide(2);
-    graphics.place(2, 120, 8);
-    graphics.update();
-    graphics.update();
+    graphics::setFrame(2, 3);
+    graphics::color(2, 2);
+    graphics::animate(2, false);
+    graphics::animate(2, true);
+    graphics::hide(2);
+    graphics::place(2, 120, 8);
+    graphics::update();
+    graphics::update();
 ${snap(1)}`, { twin, layout });
     const both = { ...block(1, 1, A, WHITE), ...block(8, 1, B, WHITE) };
     assertCells(snapshot(memory, 0), both, '32 + 32 bytes fill the pool exactly; the third object (4 more) is not drawn');
@@ -285,10 +285,10 @@ ${snap(1)}`, { twin, layout });
     return execute(`${picture(0, 8, 4, 16, 16, eight(A))}
 ${picture(1, 32, 4, 8, 8, Array.from({ length: 32 }, (_, i) => 101 + (i % 4)))}
 ${picture(2, 1, 4, 8, 8, [108])}
-    graphics.place(0, 8, 8);
-    graphics.place(1, 88, 8);
-    graphics.place(2, 120, 8);
-    graphics.update();
+    graphics::place(0, 8, 8);
+    graphics::place(1, 88, 8);
+    graphics::place(2, 120, 8);
+    graphics::update();
 ${snap(0)}`, { twin, layout }).then((over) => {
       assertCells(snapshot(over, 0), { ...block(1, 1, A, WHITE), '11,1': [101, WHITE] }, '32 + 32 fit; a 1-cell, 1-byte third object does not');
     });
@@ -301,11 +301,11 @@ ${snap(0)}`, { twin, layout }).then((over) => {
 ${picture(1, 1, 4, 16, 16, B)}
 ${picture(2, 1, 4, 16, 16, F0)}
 ${picture(3, 1, 4, 16, 16, G0)}
-    graphics.place(0, 83, 45);
-    graphics.place(1, 336, 8);
-    graphics.place(2, 8, 400);
-    graphics.place(3, 168, 176);
-    graphics.update();
+    graphics::place(0, 83, 45);
+    graphics::place(1, 336, 8);
+    graphics::place(2, 8, 400);
+    graphics::place(3, 168, 176);
+    graphics::update();
 ${snap(0)}`, { twin, layout });
     assertCells(snapshot(memory, 0), { ...block(10, 5, A, WHITE), '21,22': [G0[0], WHITE] }, 'rounded down to a cell; off the playfield not drawn; the corner object keeps only its first cell');
     const where = LAYOUTS[layout];
@@ -318,15 +318,15 @@ ${snap(0)}`, { twin, layout });
   async overlap(twin, layout) {
     const memory = await execute(`${picture(0, 1, 4, 16, 16, A)}
 ${picture(1, 1, 4, 16, 16, B)}
-    graphics.place(0, 8, 8);
-    graphics.place(1, 16, 16);
-    graphics.update();
+    graphics::place(0, 8, 8);
+    graphics::place(1, 16, 16);
+    graphics::update();
 ${snap(0)}
-    graphics.place(0, 8, 8);
-    graphics.update();
+    graphics::place(0, 8, 8);
+    graphics::update();
 ${snap(1)}
-    graphics.hide(1);
-    graphics.update();
+    graphics::hide(1);
+    graphics::update();
 ${snap(2)}`, { twin, layout });
     const stacked = { ...block(1, 1, A, WHITE), ...block(2, 2, B, WHITE) };
     assertCells(snapshot(memory, 0), stacked, 'object 1 on top of object 0');
@@ -340,16 +340,16 @@ ${snap(2)}`, { twin, layout });
   async bounds(twin, layout) {
     const memory = await execute(`${picture(0, 2, 4, 16, 16, [...F0, ...F1])}
     keep(0xB000);
-    graphics.place(8, 8, 8);
-    graphics.place(200, 8, 8);
-    graphics.hide(8);
-    graphics.hide(255);
-    graphics.setFrame(9, 1);
-    graphics.animate(10, false);
-    graphics.color(11, 2);
-    graphics.color(255, 2);
-    graphics.update();
-    graphics.update();
+    graphics::place(8, 8, 8);
+    graphics::place(200, 8, 8);
+    graphics::hide(8);
+    graphics::hide(255);
+    graphics::setFrame(9, 1);
+    graphics::animate(10, false);
+    graphics::color(11, 2);
+    graphics::color(255, 2);
+    graphics::update();
+    graphics::update();
     keep(0xC000);
 ${snap(0)}`, { twin, layout });
     assertCells(snapshot(memory, 0), {}, 'slots past MAX and an object never placed: nothing drawn');
@@ -377,15 +377,15 @@ function broken(from, to) {
 
 const MUTATIONS = [
   ['color() stores the color unmasked', 'ink[slot] = c & 0x07;', 'ink[slot] = c;', 'color'],
-  ['blanking leaves the color RAM alone', '                    memory.write(Video.COLOR + cell, INK); // not left in the ink it was drawn in\n', '', 'color'],
-  ['blanking leaves the color RAM alone (hide)', '                    memory.write(Video.COLOR + cell, INK); // not left in the ink it was drawn in\n', '', 'hide'],
-  ['the pool takes one byte too many', 'if (end > POOL) {', 'if (end > POOL + 1) {', 'pool'],
-  ['the pool is one byte short', 'if (end > POOL) {', 'if (end >= POOL) {', 'pool'],
-  ['clipping is gone', 'if (c < Video.COLUMNS && r < Video.ROWS) {', 'if (true) {', 'clip'],
+  ['blanking leaves the color RAM alone', '                    memory::write(Video::COLOR + cell, INK); // not left in the ink it was drawn in\n', '', 'color'],
+  ['blanking leaves the color RAM alone (hide)', '                    memory::write(Video::COLOR + cell, INK); // not left in the ink it was drawn in\n', '', 'hide'],
+  ['the pool takes one byte too many', 'if end > POOL {', 'if end > POOL + 1 {', 'pool'],
+  ['the pool is one byte short', 'if end > POOL {', 'if end >= POOL {', 'pool'],
+  ['clipping is gone', 'if c < Video::COLUMNS && r < Video::ROWS {', 'if true {', 'clip'],
   ['setFrame does not clamp', '            n = frames[slot] - 1;', '            n = n;', 'frames'],
-  ['animate(false) does not pause', '    function animate(slot: utinyint, on: bool): void {\n        if (slot >= SLOTS) {\n            return;\n        }\n        paused[slot] = 1;', '    function animate(slot: utinyint, on: bool): void {\n        if (slot >= SLOTS) {\n            return;\n        }\n        paused[slot] = 0;', 'frames'],
+  ['animate(false) does not pause', '    fn animate(slot: utinyint, on: bool) {\n        if slot >= SLOTS {\n            return;\n        }\n        paused[slot] = 1;', '    fn animate(slot: utinyint, on: bool) {\n        if slot >= SLOTS {\n            return;\n        }\n        paused[slot] = 0;', 'frames'],
   ['hide forgets to blank', '        seen[slot] = 0;\n        moved[slot] = 1;', '        seen[slot] = 0;', 'hide'],
-  ['slots past MAX are not refused', '    function place(slot: utinyint, x: usmallint, y: usmallint): void {\n        if (slot >= SLOTS) {\n            return;\n        }', '    function place(slot: utinyint, x: usmallint, y: usmallint): void {', 'bounds'],
+  ['slots past MAX are not refused', '    fn place(slot: utinyint, x: usmallint, y: usmallint) {\n        if slot >= SLOTS {\n            return;\n        }', '    fn place(slot: utinyint, x: usmallint, y: usmallint) {', 'bounds'],
 ];
 
 for (const [what, from, to, name] of MUTATIONS) {
@@ -412,21 +412,21 @@ for (const layout of Object.keys(LAYOUTS)) {
     const log = console.log;
     try {
       const entry = join(dir, 'main.8bs');
-      await writeFile(entry, `import { graphics } from "@8bitscript/graphics";
-export function main(): void {
-    graphics.bind(0, 0, 108);
-    graphics.bind(0, 1, 123);
-    graphics.bind(0, 2, 98);
-    graphics.bind(0, 3, 124);
-    graphics.meta(0, 1, 4, 4, 16, 16);
-    graphics.place(0, 8, 8);
-    graphics.setFrame(0, 1);
-    graphics.animate(0, false);
-    graphics.color(0, 2);
-    graphics.hide(0);
-    while (true) {
+      await writeFile(entry, `use @8bitscript::graphics::graphics;
+pub fn main() {
+    graphics::bind(0, 0, 108);
+    graphics::bind(0, 1, 123);
+    graphics::bind(0, 2, 98);
+    graphics::bind(0, 3, 124);
+    graphics::meta(0, 1, 4, 4, 16, 16);
+    graphics::place(0, 8, 8);
+    graphics::setFrame(0, 1);
+    graphics::animate(0, false);
+    graphics::color(0, 2);
+    graphics::hide(0);
+    loop {
         waitFrame();
-        graphics.update();
+        graphics::update();
     }
 }
 `);

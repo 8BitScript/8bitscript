@@ -29,12 +29,12 @@ machine answers it, and a written degradation for machines that cannot.
   `setValue(entry, value)`, `enable()`. Real on the C64 (an IRQ-driven
   write list in `native/6502/raster.s`; `Slot.CHARSET` too, `$D018`
   between the two ROM sets), the web, and the VIC-20 (border,
-  background and character set, `raster.FINE_SCROLL` false: `waitFrame()`'s frame
+  background and character set, `raster::FINE_SCROLL` false: `waitFrame()`'s frame
   hook busy-waits down the frame and writes `$900F` and `$9005` at each line —
   `packages/vic20/AGENTS.md`, "Raster splits"); an honest zero-cost stub
   on the other six behind `#fact(video.raster)`. `examples/fancy` is the
   pattern: build once, rewrite values per frame, fold away elsewhere.
-- **`raster.frame()` / `raster.FRAME_COUNTER`** — a count of *video frames*
+- **`raster::frame()` / `raster::FRAME_COUNTER`** — a count of *video frames*
   since `enable()`, wrapping at 256, so an effect steps once per frame
   however long the game loop takes (a loop that runs an effect once per
   pass stalls, then jumps, whenever a pass is not exactly one frame — the
@@ -46,8 +46,8 @@ machine answers it, and a written degradation for machines that cannot.
   of `waitFrame()` returns would miss every frame a slow loop skips), and the
   web's host runs one logical frame per `waitFrame()` and catches up when a
   loop falls behind, so a loop pass is already a frame. A program branches
-  on the const — `if (raster.FRAME_COUNTER) { step = raster.frame(); } else
-  { step = own; own++ }` — and the stub costs it nothing. The counter adds
+  on the const — `if raster::FRAME_COUNTER { step = raster::frame(); } else
+  { step = own; own += 1; }` — and the stub costs it nothing. The counter adds
   6 bytes to the C64 handler and 8 to the X16's (measured on
   `examples/fancy`, 2026-10-04); a machine without it is byte-identical.
 - **The C64 list's mechanics** (`packages/c64/AGENTS.md`, "Three things
@@ -81,7 +81,7 @@ machine answers it, and a written degradation for machines that cannot.
   still in git): `@8bitscript/sprites` — "a moving object is a concept on
   the PET even though a sprite is not, so `sprites` exists there, drawn by
   rewriting cells, and the number that comes with it says how many can
-  share a row before the machine cannot keep up" — with `sprites.COUNT`,
+  share a row before the machine cannot keep up" — with `sprites::COUNT`,
   `PER_ROW`, `WIDTH`, `HEIGHT`, `COLORS`. This document takes that up.
 
 ## The one idea: a frame is a plan
@@ -129,7 +129,7 @@ Three rules follow, all of which the existing raster list already obeys:
 
 Each is a portable package resolving per machine (`"8bitscript".entry`
 map), with a machine-only layer underneath that stays importable, and
-its limits as namespace consts a program folds on. Names describe the
+its limits as `mod` consts a program folds on. Names describe the
 picture, not the trick. Every table below marks what **ships** against
 what is only **designed**; the repo's bar is that nothing is described
 as working until a test says so.
@@ -169,24 +169,24 @@ coordinate space every C64 programmer already knows (`ORIGIN_X` 24,
 `ORIGIN_Y` 50, `y` fits a byte, `x` has its ninth bit); on a cell machine
 the stage is the playfield (`ORIGIN_X` = `ORIGIN_Y` = 0) and a pixel
 position is the cell at `x >> 3, y >> 3`. A program that means "the
-playfield's top-left" writes `sprites.ORIGIN_X + x` and the constant
+playfield's top-left" writes `sprites::ORIGIN_X + x` and the constant
 folds. This is what keeps every position unsigned: `smallint` positions
 would put a signed compare in the multiplexer's sort and emit loops for
 nothing. Without `extend`, a sprite placed outside the playfield is
 simply hidden by the border — the same as the C64 sprite layer today.
 
-**Two ways to own the frame's list, never both.** `sprites.update()` is
-self-contained: it opens the raster list (`raster.clear()`), plans
+**Two ways to own the frame's list, never both.** `sprites::update()` is
+self-contained: it opens the raster list (`raster::clear()`), plans
 (objects, and the border entries when `extend` is on), and commits. A
 program that also wants entries of its own — a colour band, a split —
-opens and commits the list itself and calls `sprites.plan()` inside the
+opens and commits the list itself and calls `sprites::plan()` inside the
 bracket. The C64 package hit this "two owners" problem once
 (`multiplex` vs. direct `$D000` writes) and answered it with the frame
 table; the portable surface answers it once, here, in prose the twins
 follow. On a cell machine `plan()` is the redraw and `update()` is the
 same call; there is no list to bracket.
 
-**Consts, not facts.** `sprites.MAX >= 20` on a namespace `const` folds
+**Consts, not facts.** `sprites::MAX >= 20` on a `mod` `const` folds
 away completely — measured 2026-09-19: a program with a guarded 278-byte
 branch builds to the same 411 bytes as one without it. `video.sprites`
 already says pixel-vs-cell, `video.spritesPerLine` the per-line limit
@@ -200,7 +200,7 @@ rest. Per machine:
 | PET | **quadrant objects**: a 4×4 pseudo-pixel shape as 2×2–3×3 of the sixteen block codes, at 4-px steps, restoring what it covered from `$8000` — the twin `index.pet.8bs`; ~2,600 cycles a sprite redrawn, five moving a 60 Hz frame | 8 / columns | 4 px | **shipped** |
 | VIC-20, web | **cells**: a glyph redrawn at a cell over `@8bitscript/text`, portable, in the package itself | 16 / columns | cell | **shipped** |
 | C128, MEGA65, Atari 8-bit, X16 | cells, until each machine's own layer exists (below) | 16 / columns | cell | **shipped as cells** |
-| NES | cells — through the 48-byte vblank queue `text.putChar` uses (~12 cells a frame): sixteen movers tear there | 16 / columns | cell | **shipped as cells, over budget** |
+| NES | cells — through the 48-byte vblank queue `text::putChar` uses (~12 cells a frame): sixteen movers tear there | 16 / columns | cell | **shipped as cells, over budget** |
 | C128, MEGA65 | a layer of their own on the C64's model (`video.raster` is false on both today; MEGA65 sprites are 24 px, or 64 px mono, or 16 px in 16 colours, one shared height) | 24 / 8 | pixel | designed |
 | Atari 8-bit | players re-targeted per band from DLIs (HPOSPx/COLPMx/SIZEPx are live); X in colour clocks, Y a strip index | 4 per band / 4 (+1 missiles) | 2 px | designed |
 | NES | OAM built per frame, order rotated by a `const` permutation when a line is oversubscribed (flicker) | 64 entries: 16 of 16×16 / 8 | pixel | designed |
@@ -216,14 +216,14 @@ written once, portably: it is not a stub. Its rules, stated because no
 portable screen read exists so a cell sprite cannot restore what it
 covered: a sprite is one cell (`WIDTH` = `HEIGHT` = `STEP_X` = `STEP_Y` = 8, `RESTORES` false);
 `update()` erases each moved sprite's last cell with the background glyph
-(`sprites.setBackground(code)`, space by default) and redraws every
+(`sprites::setBackground(code)`, space by default) and redraws every
 sprite, so text under a sprite is lost and a program keeps its text off
-the sprite rows or redraws it; colour goes through `text.putColor` where
+the sprite rows or redraws it; colour goes through `text::putColor` where
 `#fact(video.colorPerCell)` says it exists and is dropped where it does
 not; `extend()` is a no-op, `EXTENDS` false, `top()`/`bottom()` the
-playfield's. (Extents are functions, not consts: a namespace const
+playfield's. (Extents are functions, not consts: a `mod` const
 cannot hold an expression, and on the C64 they follow `extend()`.) A
-program that reads `sprites.STEP_X` can move by the step that shows where it must, and one that reads `sprites.RESTORES` knows whether text survives under a sprite.
+program that reads `sprites::STEP_X` can move by the step that shows where it must, and one that reads `sprites::RESTORES` knows whether text survives under a sprite.
 
 ### `@8bitscript/timeline` — keyframes *(new, all machines, pure)*
 
@@ -245,7 +245,7 @@ timeline.every(n)                   // true once every n frames
 ```
 
 Pure code, identical on nine machines. In `.8bx` the cue *is* the
-conditional the language already has — `{timeline.at(120) && <Logo />}`
+conditional the language already has — `{timeline::at(120) && <Logo />}`
 — not a wrapper component: a slotted component runs its children
 unconditionally between its two halves, so `<At frame={120}>…</At>`
 could not gate anything and is not offered. This is the thing that
@@ -443,10 +443,10 @@ every twin agrees:
 
 | Intent | Full | Then | Then | Floor |
 | --- | --- | --- | --- | --- |
-| Objects | sprites, reused down the frame (C64, MEGA65, C128, Atari) | sprites per frame, order rotated (NES, X16) | cells over `text` (VIC-20, PET, web) | `sprites.MAX` = 0 never happens: cells run anywhere text does |
+| Objects | sprites, reused down the frame (C64, MEGA65, C128, Atari) | sprites per frame, order rotated (NES, X16) | cells over `text` (VIC-20, PET, web) | `sprites::MAX` = 0 never happens: cells run anywhere text does |
 | Split / status bar | a list entry at the line | a display list row / a line IRQ | a mapper IRQ or sprite-0 | text rows the program does not scroll |
 | Colour per line | a list entry | palette per frame | emphasis bits per band | one colour |
-| Extents | border opened / window enlarged | display list overscan | — | sprites clip at the window; `sprites.extend()` is a no-op and `sprites.EXTENDS` false |
+| Extents | border opened / window enlarged | display list overscan | — | sprites clip at the window; `sprites::extend()` is a no-op and `sprites::EXTENDS` false |
 | Horizontal shift | per line | per band | per frame | none; the program shifts cells |
 | Timeline | pure code | | | pure code |
 
@@ -456,7 +456,7 @@ every twin agrees:
   crunch, mid-line colour changes on any chip. A machine package may
   document them (the C64's does); the portable surface does not name
   them.
-- **Identical numbers.** `sprites.MAX` is 24 on the C64 and 16 in cells;
+- **Identical numbers.** `sprites::MAX` is 24 on the C64 and 16 in cells;
   a program that needs 20 tests the const and the branch folds.
 - **Sub-line timing.** An entry at line L shows from L+1 on the C64,
   from line L itself on the X16 (armed two scanlines early), on line L's hblank on the Atari; the
@@ -487,8 +487,8 @@ Two tiers join the verdict key for these machines:
   in the straight-line code for that scanline between `STA WSYNC`s,
   values that change per frame are RAM bytes the kernel loads, and a
   line whose mandatory stores plus list stores exceed 76 cycles is a
-  compile-time diagnostic — the analogue of `raster.at` returning
-  false. `raster.commit()` is meaningless there; the plan is fixed at
+  compile-time diagnostic — the analogue of `raster::at` returning
+  false. `raster::commit()` is meaningless there; the plan is fixed at
   build time and only its *values* change.
 - **F** — *free*: the intent needs no timing at all because the chip
   carries it in data (Atari's display list, the Oric's per-line paper
@@ -516,7 +516,7 @@ degradation.
   II, Plus/4, BBC, Oric, Supervision, Spectrum/CPC): the cell layer is
   their whole answer, and it is written once. The Lynx inverts the
   problem — no per-line limit, a per-frame *pixel* budget — so
-  `sprites.MAX` is large and `PER_LINE` is not the constraint; the
+  `sprites::MAX` is large and `PER_LINE` is not the constraint; the
   consts say so and a program folds on them. The 2600's five objects
   reused per line are a kernel matter and arrive with that package.
 - **`raster` holds, with two amendments.** On the PC Engine, the Game
@@ -527,14 +527,14 @@ degradation.
   next line" rule already stated. On the 2600 the list becomes a
   compiler input; `commit()` is a no-op and `at()` past the cycle
   budget fails at build time.
-- **`sprites.extend()` stays a flag.** Nothing among the eleven opens a
+- **`sprites::extend()` stays a flag.** Nothing among the eleven opens a
   border the way the VIC-II does; the closest are overscan modes that
   cost RAM (BBC, CPC) and a wider fetch (5200). `EXTENDS` is false on
   all eleven until a package proves otherwise.
 - **`timeline` is untouched** — it is a counter — but three machines
   make "a frame" a decision, not a fact: the Lynx sets its own rate,
   the Supervision's NMI is unrelated to its LCD, the Oric cannot see
-  vsync at all. `timeline.frame()` counts calls to `waitFrame()`,
+  vsync at all. `timeline::frame()` counts calls to `waitFrame()`,
   whatever that machine's `FRAME_SYNC` decided a frame is.
 
 ### Three corrections the sources forced
@@ -584,12 +584,12 @@ under VICE on the C64, the PET and the VIC-20:
    the next frame's X), and a border left closed must keep its `$D011`
    restore entry.
 
-**The budget finding.** `multiplex.update()` costs ~16,000 cycles a
+**The budget finding.** `multiplex::update()` costs ~16,000 cycles a
 frame for sixteen sprites under the compiler's generic 6502 code —
 ~1,300 a reused sprite for forty-odd statements — against an NTSC
 frame's 17,095, so the C64 runs the swarm at two hardware frames an
 iteration. The handler is cheap; the plan-building is not. This is the
-same class of finding as `text.print` (~4,000 cycles for nine
+same class of finding as `text::print` (~4,000 cycles for nine
 characters) and it decided the next step: the multiplexer's update in
 native assembly with its tables at fixed addresses — rule 1 above,
 taken to its conclusion — done the same day (`native/6502/multiplex.s`,
@@ -606,7 +606,7 @@ scratch in a module variable for it), and the assembler's branch-range
 refusal is handled by relaxation as designed. One hazard that is not a
 bug but bit three probes in a day: a product of two literals, `22 * 40`,
 folds at eight bits like any other binop at its operands' width, so
-`text.print(22 * 40, ...)` prints at cell 112 — nothing in the language
+`text::print(22 * 40, ...)` prints at cell 112 — nothing in the language
 docs warns that a literal product wraps; write the cell number.
 
 ## What was planned to ship first, and how it shows

@@ -328,7 +328,7 @@ the CLI checks. A machine whose controller shape matches nothing
 
 ### Peripherals: required, or found
 
-`memory.banked`, `memory.bankedKib`, `input.mouse` and `input.paddles`
+`memory::banked`, `memory::bankedKib`, `input.mouse` and `input.paddles`
 are `when: 'run'` facts: a build may use them, and the capability finds
 out. `requires` refuses them by design — whether a REU is plugged in is
 not a build fact. But a program that *cannot work without* 512K of
@@ -355,7 +355,7 @@ value that satisfies it and fits it for the build:
 - no value with a `detect` satisfies it: a **build per value**, as any
   `affectsBuild` option is today;
 - no value satisfies it: the machine is **refused**, with the sheet's
-  number — `memory.bankedKib 320 of 512` — the way an unmet floor is
+  number — `memory::bankedKib 320 of 512` — the way an unmet floor is
   refused now.
 
 "Uses when found" needs nothing new: it is the per-target `hardware:` a
@@ -554,7 +554,7 @@ Twelve combinations, **six binaries**:
   threshold, not because the machine forced it.
 - **Model collapses to three.** 3032 and 4032 are byte-identical. The
   2001 differs by two facts the *package* folds on and the program never
-  tests — `memory.chrget` ($C2 on BASIC 1) and
+  tests — `memory::chrget` ($C2 on BASIC 1) and
   `video.characterSetSwapped` — so a 2001 binary prints the wrong case
   on a 3032 and a 3032 binary clobbers the 2001's CHRGET. The 8032
   differs by `video.columns`. One binary for every PET would need the
@@ -631,7 +631,7 @@ item in [`distribution.md`](distribution.md).
 ## The user's cases, answered on this sheet
 
 - **"A program that needs 512K banking — the NES the way the C64 or the
-  X16?"** `requires: { 'memory.bankedKib': 512 }`, read against the
+  X16?"** `requires: { 'memory::bankedKib': 512 }`, read against the
   sheets `8bs targets --json` prints today: a C64 program (an option,
   `ram=reu512`, one artifact because the REU has a `detect`), an X16
   program (stock: its default `ram=512`), a C128 program (an option,
@@ -662,7 +662,7 @@ item in [`distribution.md`](distribution.md).
   vocabulary already says why: a build is *short of* the baseline by a
   list of facts, and reach says how many people are on the far side of
   each fact. A 2600 build of 2048 would be short of `video.columns`,
-  `input.keyboard`, `memory.ram` (128 bytes) and `storage.save` — that is
+  `input.keyboard`, `memory::ram` (128 bytes) and `storage.save` — that is
   a different program, and the sheet lets a project say "we stop at
   machines short of the baseline by at most N facts" as a filter rather
   than a feeling.

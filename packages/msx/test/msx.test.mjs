@@ -31,14 +31,13 @@ test('msx builds a probe program', async () => {
   try {
     const entry = join(scratch, 'main.8bs');
     await writeFile(entry, [
-      'let sum: utinyint = 0;',
-      'export function main(): void {',
-      '    for (let i: utinyint = 0; i < 10; i++) {',
+      'let mut sum: utinyint = 0;',
+      'pub fn main() {',
+      '    for i: utinyint in 0..10 {',
       '        sum = sum + i;',
       '    }',
-      '    memory.write(0x80, sum);',
+      '    memory::write(0x80, sum);',
       '}',
-      '',
     ].join('\n'));
     const { code, stderr } = await runCli(['build', '--target', 'msx', entry], scratch);
     assert.equal(code, 0, stderr);
@@ -56,7 +55,7 @@ test('msx screenshot skips when openmsx is missing', async (t) => {
   const scratch = await mkdtemp(join(tmpdir(), '8bs-msx-shot-'));
   try {
     const entry = join(scratch, 'main.8bs');
-    await writeFile(entry, 'export function main(): void {}\n');
+    await writeFile(entry, 'pub fn main() {}\n');
     const shot = join(scratch, 'out.png');
     const { code } = await runCli(['run', 'msx', entry, '--screenshot', shot, '--frames', '1'], scratch);
     if (code !== 0) {

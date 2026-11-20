@@ -11,7 +11,7 @@ import { build as buildMos } from '../src/mos/index.ts';
 import { build as buildWasm } from '../src/wasm/index.ts';
 
 test('parses a ternary expression', () => {
-  const src = 'let x: u8 = true ? 1 : 2;\n';
+  const src = 'let x: u8 = if true { 1 } else { 2 };\n';
   const { tokens } = tokenize(src, 't.8bs');
   const { ast, diagnostics } = parse(tokens, src, 't.8bs');
   assert.deepEqual(diagnostics, []);
@@ -19,12 +19,12 @@ test('parses a ternary expression', () => {
   assert.equal(decl.initializer?.type, NodeType.ConditionalExpression);
 });
 
-const PROGRAM = `let mode: utinyint = 0;
-let out: utinyint = 0;
-export function main(): void {
+const PROGRAM = `let mut mode: utinyint = 0;
+let mut out: utinyint = 0;
+pub fn main() {
     mode = mode + 1;
-    out = mode == 1 ? 7 : 9;
-    memory.write(0x8000, out);
+    out = if mode == 1 { 7 } else { 9 };
+    memory::write(0x8000, out);
 }
 `;
 
@@ -51,10 +51,10 @@ test('a ?: with a run-time test lowers on both backends (spec §99: neither back
 });
 
 test('a ?: whose test is known at compile time is the taken arm, and the other is gone (§49)', () => {
-  const src = `let out: utinyint = 0;
-export function main(): void {
-    out = 1 == 1 ? 7 : 9;
-    memory.write(0x8000, out);
+  const src = `let mut out: utinyint = 0;
+pub fn main() {
+    out = if 1 == 1 { 7 } else { 9 };
+    memory::write(0x8000, out);
 }
 `;
   const { ir, diagnostics } = linkFiles({ 'main.8bs': src }, 'main.8bs', { machine: 'pet' });

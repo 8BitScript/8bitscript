@@ -21,7 +21,7 @@ const codes = (diagnostics) => diagnostics.map((d) => d.code);
 const mainOf = (ir) => ir.functions.find((f) => f.name === 'main');
 
 test('lowering: a namespace const from a const it cannot see yet is recorded pending, with its type', () => {
-  const { ir, diagnostics } = lowered('namespace Video {\n    const COLUMNS: utinyint = Geometry.COLUMNS;\n    const ROWS: utinyint = ROW_COUNT;\n}\n');
+  const { ir, diagnostics } = lowered('mod Video {\n    const COLUMNS: utinyint = Geometry::COLUMNS;\n    const ROWS: utinyint = ROW_COUNT;\n}\n');
   assert.deepEqual(diagnostics, []);
   const consts = ir.namespaces[0].consts;
   assert.equal(consts.get('COLUMNS').pending.kind, 'namespaceConst');
@@ -30,10 +30,10 @@ test('lowering: a namespace const from a const it cannot see yet is recorded pen
 });
 
 test('lowering: a namespace const from a name this module declares as storage, or from an expression, is refused', () => {
-  const storage = lowered('let width: utinyint = 40;\nnamespace Video {\n    const COLUMNS: utinyint = width;\n}\n');
+  const storage = lowered('let width: utinyint = 40;\nmod Video {\n    const COLUMNS: utinyint = width;\n}\n');
   assert.deepEqual(codes(storage.diagnostics), ['8BS3001']);
   assert.match(storage.diagnostics[0].message, /'width' is not a const/);
-  const expression = lowered('namespace Video {\n    const COLUMNS: utinyint = 20 + 20;\n}\n');
+  const expression = lowered('mod Video {\n    const COLUMNS: utinyint = 20 + 20;\n}\n');
   assert.deepEqual(codes(expression.diagnostics), ['8BS3001']);
   assert.match(expression.diagnostics[0].message, /a literal or a const/);
 });
@@ -41,9 +41,18 @@ test('lowering: a namespace const from a name this module declares as storage, o
 test('linker: a namespace const from an own const, and from another namespace\'s member, inlines as the value', () => {
   const src = [
     'const WIDTH: utinyint = 40;',
-    'namespace Video { const COLUMNS: utinyint = WIDTH; const ROWS: utinyint = 25; }',
-    'namespace text { const COLUMNS: utinyint = Video.COLUMNS; const LAST_ROW: utinyint = Video.ROWS; }',
-    'export function main(): void { memory.write(0x8000, text.COLUMNS); memory.write(0x8001, text.LAST_ROW); }',
+    'mod Video {',
+    'const COLUMNS: utinyint = WIDTH;',
+    'const ROWS: utinyint = 25;',
+    '}',
+    'mod text {',
+    '    const COLUMNS: utinyint = Video::COLUMNS;',
+    '    const LAST_ROW: utinyint = Video::ROWS;',
+    '}',
+    'pub fn main() {',
+    '    memory::write(0x8000, text::COLUMNS);',
+    '    memory::write(0x8001, text::LAST_ROW);',
+    '}',
   ].join('\n');
   const { ir, diagnostics } = link(src, 't.8bs');
   assert.deepEqual(diagnostics, []);
@@ -54,18 +63,20 @@ test('linker: a namespace const from an own const, and from another namespace\'s
 test('linker: a chain of pending namespace consts across modules resolves, and a cycle is reported once per member, not looped on', async () => {
   const dir = await mkdtemp(join(tmpdir(), '8bs-ns-consts-'));
   try {
-    await writeFile(join(dir, 'geometry.8bs'), 'export namespace Video {\n    const COLUMNS: utinyint = 80;\n    const CELL_COUNT: usmallint = 2000;\n}\n');
+    await writeFile(join(dir, 'geometry.8bs'), 'pub mod Video {\n    const COLUMNS: utinyint = 80;\n    const CELL_COUNT: usmallint = 2000;\n}\n');
     await writeFile(join(dir, 'lib.8bs'), [
-      'import { Video } from "./geometry.8bs";',
-      'export namespace text {',
-      '    const COLUMNS: utinyint = Video.COLUMNS;',
-      '    const CELL_COUNT: usmallint = Video.CELL_COUNT;',
-      '    function fill(): void {',
-      '        for (let cell: usmallint = 0; cell < text.CELL_COUNT; cell++) { memory.write(0x8000 + cell, 32); }',
+      'use self::geometry::Video;',
+      'pub mod text {',
+      '    const COLUMNS: utinyint = Video::COLUMNS;',
+      '    const CELL_COUNT: usmallint = Video::CELL_COUNT;',
+      '    fn fill() {',
+      '        for cell: usmallint in 0..text::CELL_COUNT {',
+      '            memory::write(0x8000 + cell, 32);',
+      '        }',
       '    }',
       '}',
     ].join('\n'));
-    const main = 'import { text } from "./lib.8bs";\nexport function main(): void { text.fill(); memory.write(0x8000 + text.COLUMNS, text.COLUMNS); }\n';
+    const main = 'use self::lib::text;\npub fn main() {\n    text::fill();\n    memory::write(0x8000 + text::COLUMNS, text::COLUMNS);\n}\n';
     await writeFile(join(dir, 'main.8bs'), main);
     const { ir, diagnostics } = link(main, join(dir, 'main.8bs'));
     assert.deepEqual(diagnostics, []);
@@ -75,9 +86,9 @@ test('linker: a chain of pending namespace consts across modules resolves, and a
     assert.deepEqual(write.address, { kind: 'binop', operator: '+', left: { kind: 'const', value: 32768, type: 'usmallint' }, right: { kind: 'const', type: 'utinyint', value: 80 }, type: 'usmallint' });
     assert.deepEqual(write.value, { kind: 'const', type: 'utinyint', value: 80 });
 
-    await writeFile(join(dir, 'a.8bs'), 'import { B } from "./b.8bs";\nexport namespace A { const X: utinyint = B.Y; }\n');
-    await writeFile(join(dir, 'b.8bs'), 'import { A } from "./a.8bs";\nexport namespace B { const Y: utinyint = A.X; }\n');
-    const cyclic = 'import { A } from "./a.8bs";\nexport function main(): void { memory.write(0x8000, A.X); }\n';
+    await writeFile(join(dir, 'a.8bs'), 'use self::b::B;\npub mod A {\n    const X: utinyint = B::Y;\n}\n');
+    await writeFile(join(dir, 'b.8bs'), 'use self::a::A;\npub mod B {\n    const Y: utinyint = A::X;\n}\n');
+    const cyclic = 'use self::a::A;\npub fn main() {\n    memory::write(0x8000, A::X);\n}\n';
     await writeFile(join(dir, 'cycle.8bs'), cyclic);
     const cycle = link(cyclic, join(dir, 'cycle.8bs'));
     assert.deepEqual(codes(cycle.diagnostics), ['8BS3001', '8BS3001']);
@@ -89,9 +100,15 @@ test('linker: a chain of pending namespace consts across modules resolves, and a
 
 test('linker: a namespace const gets the range check of its own type, not of the const it copies', () => {
   const src = [
-    'namespace Wide { const COUNT: usmallint = 2000; }',
-    'namespace Narrow { const COUNT: utinyint = Wide.COUNT; }',
-    'export function main(): void { memory.write(0x8000, Narrow.COUNT); }',
+    'mod Wide {',
+    'const COUNT: usmallint = 2000;',
+    '}',
+    'mod Narrow {',
+    '    const COUNT: utinyint = Wide::COUNT;',
+    '}',
+    'pub fn main() {',
+    '    memory::write(0x8000, Narrow::COUNT);',
+    '}',
   ].join('\n');
   const { diagnostics } = link(src, 't.8bs');
   assert.deepEqual(codes(diagnostics), ['8BS1021']);

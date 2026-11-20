@@ -7,7 +7,7 @@ nav_order: 5
 
 ## §4.1 Write a project config
 
-An 8BitScript project is a directory with an `8bitscript.config.8bs` (the older `8bs.config.ts` still works). `defineConfig` just returns what it's given — it exists so an editor can type the object.
+An 8BitScript project is a directory with an `8bitscript.config.ts` (the older `8bs.config.ts` still works). `defineConfig` just returns what it's given — it exists so an editor can type the object.
 
 ```ts
 import { defineConfig } from '@8bitscript/cli';
@@ -35,8 +35,8 @@ export default defineConfig({
 | `frameRate` | Logical frames per second for `waitFrame()` / `#frames(...)`. Default 60. |
 | `targets` | Machines this project builds for — a name array, or an object with per-machine `hardware`, `profiles`, `release`. |
 | `systems` | Advertised named machines, `{ target, profile?, hardware?, region? }`. [§4.4](#44-name-a-system-for-a-teammate). |
-| `requires` | Fact floors (`memory.ram`, `storage.save`, …) — a system or build that can't meet them is refused, and told by how much. |
-| `imports` | Maps `@prefix` specifiers to directories under the project — `{ '@lib': 'src/lib', '@ui': 'src/ui' }` lets `import { score } from '@lib/game/rules.8bs'` replace `../../lib/…` paths. Keys are one `@` segment; values are relative directory paths. Machine and locale twins beside the target file apply the same way as for a relative import. |
+| `requires` | Fact floors (`memory::ram`, `storage.save`, …) — a system or build that can't meet them is refused, and told by how much. |
+| `imports` | Maps `@prefix` specifiers to directories under the project — `{ '@lib': 'src/lib', '@ui': 'src/ui' }` lets `use @lib::game::rules::score;` replace `../../lib/…` paths. Keys are one `@` segment; values are relative directory paths. Machine and locale twins beside the target file apply the same way as for a relative import. |
 
 ## §4.2 Build several programs in one project
 
@@ -108,7 +108,7 @@ A system is `{ target, profile?, hardware?, region? }`, reached everywhere by `-
 | `8bs doctor` | Checks Node, pnpm, git, and the emulators are in place. A FAIL on pnpm, or a missing packaged emulator doctor can install, offers `[i]` / `[s]` / `[a]` / `[q]` to install it (`npx get-pnpm`, brew/apt/pacman, or `8bs setup <target>`). `--install` runs the offers without a prompt. `--want vice,atari800` narrows the offer; the report still lists every machine. A GUI-launched editor does not read `.zshrc`; doctor still finds pnpm in the installer's real location (`~/Library/pnpm` on macOS). |
 | `8bs setup <mega65\|cx16>` | Builds that machine's emulator and installs a ROM. |
 | `8bs controller` | Finds the pad plugged into this machine and writes down what its buttons are called. |
-| `8bs migrate [--check]` | Converts old-syntax `.8bs`/`.8bx` files to the new syntax in place, each proved against the new front end before it is written; `--check` writes nothing and exits 1 on any difference. `--embedded` and `--fences` also convert programs inside JS sources (tests, generators, scripts) and Markdown fences. One-time tool, removed once the syntax change lands. |
+| `8bs migrate [--check]` | Converts old-syntax `.8bs`/`.8bx` files to the new syntax in place, each proved against the new front end before it is written; `--check` writes nothing and exits 1 on any difference. `--embedded` and `--fences` also convert programs inside JS sources (tests, generators, scripts) and Markdown fences. One-time tool, removed one release after the syntax change; see [Migrating from the old syntax](migrating.md). |
 | `8bs lsp` | The language server, on stdio. |
 
 ## §4.6 Point a project at a local checkout

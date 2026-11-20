@@ -43,6 +43,7 @@ export const nav = [
       { title: 'Standard packages', url: '/language/packages' },
       { title: 'Worked examples', url: '/language/examples' },
       { title: 'Not yet available', url: '/language/not-yet' },
+      { title: 'Migrating from the old syntax', url: '/language/migrating' },
     ],
   },
   {

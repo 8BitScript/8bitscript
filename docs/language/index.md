@@ -19,10 +19,11 @@ Look a task up, not a chapter: every entry is one thing you can do. Each carries
 - [Standard packages](packages.md)
 - [Worked examples](examples.md)
 - [Not yet available](not-yet.md)
+- [Migrating from the old syntax](migrating.md)
 
 ## §0.1 What 8bs and 8bx are
 
-`.8bs` is 8BitScript's core language: a statically compiled, TypeScript-flavored language for the 6502 family and the web, with no garbage collector, no boxing, and no hidden allocation. Range-checked fixed-width integers, arrays and strings laid out at compile time, and `asm6502` as a first-class construct rather than an escape hatch.
+`.8bs` is 8BitScript's core language: a statically compiled, Rust-flavored language for the 6502 family and the web, with no garbage collector, no boxing, and no hidden allocation. Range-checked fixed-width integers, arrays and strings laid out at compile time, and `asm6502` as a first-class construct rather than an escape hatch.
 
 `.8bx` is a second source kind that shares the exact same pipeline (lexer → parser → fold → binder → checker → linker → backend) but additionally understands element syntax and `component` declarations — composition, not a UI framework. A component is a function; an element is a call to it. There is no virtual DOM, no retained tree, no runtime object graph: everything a `.8bx` file describes is elaborated away before any backend sees it, so a declarative `<Board />` costs exactly what calling `board()` by hand would.
 
@@ -40,13 +41,13 @@ Without composition, a program is one `.8bs` file:
 *src/hello-world.8bs*
 
 ```8bs
-import { screen } from "@8bitscript/screen";
-import { text } from "@8bitscript/text";
+use @8bitscript::screen::screen;
+use @8bitscript::text::text;
 
-export function main(): void {
-    screen.blank();
-    text.print(0, "Hello World!");
-    text.releaseCursor();
+pub fn main() {
+    screen::blank();
+    text::print(0, "Hello World!");
+    text::releaseCursor();
 }
 ```
 
@@ -55,24 +56,24 @@ With composition, the greeting becomes a component in its own `.8bx` file, and t
 *src/Hello.8bx*
 
 ```8bx
-import { text } from "@8bitscript/text";
+use @8bitscript::text::text;
 
-export component Hello() {
-    text.print(0, "Hello World!");
+pub component Hello() {
+    text::print(0, "Hello World!");
 }
 ```
 
 *src/hbx.8bs — the program*
 
 ```8bs
-import { screen } from "@8bitscript/screen";
-import { Hello } from "./Hello.8bx";
-import { text } from "@8bitscript/text";
+use @8bitscript::screen::screen;
+use self::Hello::Hello;
+use @8bitscript::text::text;
 
-export function main(): void {
-    screen.blank();
+pub fn main() {
+    screen::blank();
     Hello();
-    text.releaseCursor();
+    text::releaseCursor();
 }
 ```
 

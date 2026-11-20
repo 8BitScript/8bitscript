@@ -1,4 +1,4 @@
-export namespace Video {
+pub mod Video {
     const COLUMNS: utinyint = 32;
     const ROWS: utinyint = 16;
     const CELL_COUNT: usmallint = 512;

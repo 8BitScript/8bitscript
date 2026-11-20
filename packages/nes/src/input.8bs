@@ -4,7 +4,7 @@
 // and by "8bitscript".entry.nes in @8bitscript/input's, so a portable
 // program writes
 //
-//     import { input } from "@8bitscript/input";
+//     use @8bitscript::input::input;
 //
 // and gets this file on an NES. The pad itself is ./pad.8bs, which stays
 // available to a program that wants both controllers or the buttons this
@@ -38,12 +38,12 @@
 // begins, false while it is held. Holding right does not race the highlight
 // across the bar. `poll()` must be called exactly once a frame, right after
 // waitFrame() — twice a frame and every press is seen once and swallowed.
-import { pad, Pad } from "./pad.8bs";
+use self::pad::{pad, Pad};
 
 // One bit per thing a program can ask about, so a frame's input is one
 // byte and an edge is one AND. The same seven bits as every other
 // machine's input layer; this one never sets BUTTON.
-namespace Edge {
+mod Edge {
     const LEFT: utinyint = 1;
     const RIGHT: utinyint = 2;
     const UP: utinyint = 4;
@@ -52,16 +52,15 @@ namespace Edge {
     const CANCEL: utinyint = 32;
 }
 
-let held: utinyint = 0;
-let before: utinyint = 0;
-let began: utinyint = 0;
+let mut held: utinyint = 0;
+let mut before: utinyint = 0;
+let mut began: utinyint = 0;
 
-export namespace input {
-
+pub mod input {
     // Nothing to set up on this machine: the pad needs no configuration
     // and there is no pointer to give a ceiling to. Here so that a program
     // written for nine machines calls the same thing on all of them.
-    function begin(): void {
+    fn begin() {
         // One poll before the program's first, so the edge detector starts
         // from what is actually held rather than from nothing. `before` is
         // zero until something fills it, and an edge is "held now, not held
@@ -69,13 +68,13 @@ export namespace input {
         // starts reads as a fresh press on frame one. Measured on the
         // MEGA65, whose RETURN key is down at start-up: the joystick example
         // counted a confirm() nobody pressed until begin() primed this.
-        input.poll();
+        input::poll();
     }
 
     // Strobe the pad and work out what began this frame. Once a frame,
     // right after waitFrame().
-    function poll(): void {
-        pad.scan();
+    fn poll() {
+        pad::scan();
 
         before = held;
         held = 0;
@@ -84,73 +83,73 @@ export namespace input {
         // this is a translation rather than a mask — and it is four
         // compares rather than a table because a table would cost a byte
         // of RAM per entry to save nothing.
-        let buttons: utinyint = pad.bits(Pad.PORT_1);
-        if ((buttons & Pad.LEFT) != 0) {
-            held = held | Edge.LEFT;
+        let buttons: utinyint = pad::bits(Pad::PORT_1);
+        if (buttons & Pad::LEFT) != 0 {
+            held = held | Edge::LEFT;
         }
-        if ((buttons & Pad.RIGHT) != 0) {
-            held = held | Edge.RIGHT;
+        if (buttons & Pad::RIGHT) != 0 {
+            held = held | Edge::RIGHT;
         }
-        if ((buttons & Pad.UP) != 0) {
-            held = held | Edge.UP;
+        if (buttons & Pad::UP) != 0 {
+            held = held | Edge::UP;
         }
-        if ((buttons & Pad.DOWN) != 0) {
-            held = held | Edge.DOWN;
+        if (buttons & Pad::DOWN) != 0 {
+            held = held | Edge::DOWN;
         }
-        if ((buttons & Pad.A) != 0 || (buttons & Pad.START) != 0) {
-            held = held | Edge.CONFIRM;
+        if (buttons & Pad::A) != 0 || (buttons & Pad::START) != 0 {
+            held = held | Edge::CONFIRM;
         }
-        if ((buttons & Pad.B) != 0) {
-            held = held | Edge.CANCEL;
+        if (buttons & Pad::B) != 0 {
+            held = held | Edge::CANCEL;
         }
 
         began = held & (before ^ 0xFF);
     }
 
-    function left(): bool {
-        return (began & Edge.LEFT) != 0;
+    fn left() -> bool {
+        return (began & Edge::LEFT) != 0;
     }
 
-    function right(): bool {
-        return (began & Edge.RIGHT) != 0;
+    fn right() -> bool {
+        return (began & Edge::RIGHT) != 0;
     }
 
-    function up(): bool {
-        return (began & Edge.UP) != 0;
+    fn up() -> bool {
+        return (began & Edge::UP) != 0;
     }
 
-    function down(): bool {
-        return (began & Edge.DOWN) != 0;
+    fn down() -> bool {
+        return (began & Edge::DOWN) != 0;
     }
 
-    function confirm(): bool {
-        return (began & Edge.CONFIRM) != 0;
+    fn confirm() -> bool {
+        return (began & Edge::CONFIRM) != 0;
     }
 
-    function cancel(): bool {
-        return (began & Edge.CANCEL) != 0;
+    fn cancel() -> bool {
+        return (began & Edge::CANCEL) != 0;
     }
 
     // There is no pointer on an NES, and this is a constant — so a
     // component's `if (input.pointer())` costs this machine nothing at
     // all, which is the point of answering the question rather than
     // leaving the call out.
-    function pointer(): bool {
+    fn pointer() -> bool {
         return false;
     }
 
-    function pointerCell(): usmallint {
+    fn pointerCell() -> usmallint {
         return 0;
     }
 
-    function pointerButton(): bool {
+    fn pointerButton() -> bool {
         return false;
     }
 }
 
 // Compile-time names for the confirm control, interpolated into catalogs
 // as {control} / {other}. OR / ODER lives in the catalog, not here.
-export namespace Input {
+pub mod Input {
     const CONFIRM_LABEL: string = "START";
     const ALT_CONFIRM_LABEL: string = "START";
     const CONFIRM_LABELS: string = "START";

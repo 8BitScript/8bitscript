@@ -18,7 +18,7 @@ import { scanModule } from '../src/intellisense/index.mjs';
 
 const SRC = join(resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', 'c64'), 'src');
 
-/** Every top-level `export` of a module: name to its declaration up to the body or the end of the statement. */
+/** Every top-level `pub` item of a module: name to its declaration up to the body or the end of the statement. */
 function exportsOf(text) {
   const { tokens } = tokenize(text);
   const out = new Map();
@@ -27,12 +27,14 @@ function exportsOf(text) {
     const token = tokens[i];
     if (token.text === '{') depth += 1;
     else if (token.text === '}') depth -= 1;
-    if (depth !== 0 || token.kind !== TokenKind.Keyword || token.text !== 'export') continue;
+    if (depth !== 0 || token.kind !== TokenKind.Keyword || token.text !== 'pub') continue;
     const kind = tokens[i + 1];
-    if (!['let', 'const', 'function', 'namespace'].includes(kind.text)) continue;
-    const name = tokens[i + 2].text;
-    const parts = [kind.text];
-    let j = i + 2;
+    if (!['let', 'const', 'fn', 'mod'].includes(kind.text)) continue;
+    const mutable = kind.text === 'let' && tokens[i + 2].text === 'mut';
+    const nameAt = mutable ? i + 3 : i + 2;
+    const name = tokens[nameAt].text;
+    const parts = mutable ? [kind.text, 'mut'] : [kind.text];
+    let j = nameAt;
     // A function's signature ends at its body's brace, a let/const at its ';' or its initializer.
     while (j < tokens.length && tokens[j].text !== '{' && tokens[j].text !== ';' && tokens[j].text !== '=') {
       parts.push(tokens[j].text);
@@ -67,7 +69,7 @@ for (const [native, twin] of PAIRS) {
     }
     // Every member of every namespace (text.print, Video.CHARSET, ...): the same names and shapes.
     // Only the exported ones: a namespace a file keeps to itself (input's `Edge` bits) is its own business.
-    const exported = (all, exports) => new Map([...all].filter(([name]) => exports.get(name)?.startsWith('namespace')));
+    const exported = (all, exports) => new Map([...all].filter(([name]) => exports.get(name)?.startsWith('mod')));
     const nativeSpaces = exported(scanModule(a), nativeExports);
     const twinSpaces = exported(scanModule(b), twinExports);
     assert.deepEqual([...twinSpaces.keys()].sort(), [...nativeSpaces.keys()].sort(), 'the same exported namespaces');

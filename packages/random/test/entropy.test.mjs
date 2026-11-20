@@ -100,8 +100,8 @@ test('the software entropy forwards range() and bits() to the default generator 
   // bytes of program on the PET with the loop written out and with this
   // forward); before the compiler folded those it cost 8 bytes a target.
   const source = readFileSync(join(SRC, 'entropy.8bs'), 'utf8');
-  assert.match(source.split('function range')[1], /return random\.range\(bound\);/);
-  assert.match(source.split('function bits')[1], /return random\.bits\(count\);/);
+  assert.match(source.split('fn range')[1], /return random::range\(bound\);/);
+  assert.match(source.split('fn bits')[1], /return random::bits\(count\);/);
 });
 
 test('the two hardware twins carry their own rejection loop over the register, not the modulo bias', () => {
@@ -110,13 +110,13 @@ test('the two hardware twins carry their own rejection loop over the register, n
   // range — the first `256 % bound` outcomes would be favoured.
   for (const file of ['entropy.c64.8bs', 'entropy.atari8.8bs']) {
     const source = readFileSync(join(SRC, file), 'utf8');
-    const body = source.split('function range')[1].split('function bits')[0];
+    const body = source.split('fn range')[1].split('fn bits')[0];
     assert.match(body, /let limit: utinyint = 0 - bound;/, `${file}: the block limit`);
-    assert.match(body, /while \(value - rest > limit\)/, `${file}: rejects the incomplete last block`);
-    assert.equal((body.match(/random\.byte\(\)/g) ?? []).length, 2, `${file}: reads the register for the first draw and each redraw`);
-    const bitsBody = source.split('function bits')[1];
-    assert.match(bitsBody, /let value: utinyint = random\.byte\(\);/, `${file}: bits() reads one byte`);
-    assert.match(bitsBody, /for \(let i: utinyint = count; i < 8; i\+\+\)/, `${file}: bits() shifts it down to the top bits, a bit at a time`);
+    assert.match(body, /while value - rest > limit \{/, `${file}: rejects the incomplete last block`);
+    assert.equal((body.match(/random::byte\(\)/g) ?? []).length, 2, `${file}: reads the register for the first draw and each redraw`);
+    const bitsBody = source.split('fn bits')[1];
+    assert.match(bitsBody, /let mut value: utinyint = random::byte\(\);/, `${file}: bits() reads one byte`);
+    assert.match(bitsBody, /for i: utinyint in count\.\.8 \{/, `${file}: bits() shifts it down to the top bits, a bit at a time`);
     assert.doesNotMatch(bitsBody, />> \(/, `${file}: no run-time shift amount (the 6502 backend refuses one)`);
   }
 });
