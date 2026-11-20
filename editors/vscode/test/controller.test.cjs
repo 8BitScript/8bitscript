@@ -205,7 +205,7 @@ test('the preview asks the toolchain what each machine has', () => {
 test('the toolchain reads the file itself, so nothing is offered to paste', () => {
   // packages/cli/src/controllers.mjs's `controllerPlayers` takes the very
   // object controllerStore.cjs writes. An earlier version of this panel
-  // emitted a `controllers.players` block for 8bitscript.config.8bs,
+  // emitted a `controllers.players` block for 8bitscript.config.ts,
   // because that is where the CLI first read a profile from; offering
   // somebody a snippet to paste into a config nothing consults would now
   // be its own quiet trap.

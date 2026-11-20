@@ -22,9 +22,9 @@ function tmpDir() {
 
 function writeConfig(dir, entry = 'src/main.8bs', targets = ['c64']) {
   fs.mkdirSync(path.join(dir, 'src'), { recursive: true });
-  fs.writeFileSync(path.join(dir, entry), 'export function main(): void {}\n');
+  fs.writeFileSync(path.join(dir, entry), 'pub fn main() {}\n');
   fs.writeFileSync(
-    path.join(dir, '8bitscript.config.8bs'),
+    path.join(dir, '8bitscript.config.ts'),
     `export default { entry: '${entry}', targets: ${JSON.stringify(targets)} };\n`,
   );
 }
@@ -49,7 +49,7 @@ function fakeProject(dir, overrides = {}) {
     kind: 'project',
     name: 'my-game',
     dir,
-    configPath: path.join(dir, '8bitscript.config.8bs'),
+    configPath: path.join(dir, '8bitscript.config.ts'),
     entry: path.join(dir, 'src', 'main.8bs'),
     targets: ['c64'],
     toolchain: null,
@@ -268,7 +268,7 @@ test('Projects.refresh: finds workspace projects and fires onDidChange', async (
   try {
     writeConfig(dir);
     vscode.__mock.reset();
-    vscode.workspace.findFiles = () => Promise.resolve([{ fsPath: path.join(dir, '8bitscript.config.8bs') }]);
+    vscode.workspace.findFiles = () => Promise.resolve([{ fsPath: path.join(dir, '8bitscript.config.ts') }]);
     const output = { lines: [], appendLine(line) { this.lines.push(line); } };
     const projects = new Projects(output);
     let changed = false;
@@ -325,7 +325,7 @@ test('registerRunner: run resolves a named system through settings and executes 
     vscode.__mock.reset();
     vscode.__mock.configStore.set('namedSystem', 'Named C64');
     vscode.__mock.configStore.set('project', dir);
-    vscode.workspace.findFiles = () => Promise.resolve([{ fsPath: path.join(dir, '8bitscript.config.8bs') }]);
+    vscode.workspace.findFiles = () => Promise.resolve([{ fsPath: path.join(dir, '8bitscript.config.ts') }]);
     await withRunner(path.join(dir, '.storage'), { appendLine() {} }, async (projects) => {
       // The project the scan found has no toolchain (fake CLI isn't wired
       // through node_modules resolution) — point it at the fake CLI so
@@ -494,7 +494,7 @@ test('registerRunner: run executes a plain machine target end to end', async () 
     writeConfig(dir);
     const cli = writeFakeCli(dir);
     vscode.__mock.reset();
-    vscode.workspace.findFiles = () => Promise.resolve([{ fsPath: path.join(dir, '8bitscript.config.8bs') }]);
+    vscode.workspace.findFiles = () => Promise.resolve([{ fsPath: path.join(dir, '8bitscript.config.ts') }]);
     await withRunner(path.join(dir, '.storage'), { appendLine() {} }, async (projects) => {
       projects.projects[0].toolchain = cli;
       projects.projects[0].installed = true;
@@ -520,7 +520,7 @@ test('registerRunner: run on the PET defaults to its own --web build in the Prev
     // On by default (WEB_PREVIEW_READY has 'pet', preferWebPreview defaults true).
     vscode.__mock.reset();
     vscode.commands.registerCommand('8bitscript.previewTab.show', (run) => shown.push(run));
-    vscode.workspace.findFiles = () => Promise.resolve([{ fsPath: path.join(dir, '8bitscript.config.8bs') }]);
+    vscode.workspace.findFiles = () => Promise.resolve([{ fsPath: path.join(dir, '8bitscript.config.ts') }]);
     await withRunner(path.join(dir, '.storage'), { appendLine() {} }, async (projects) => {
       projects.projects[0].toolchain = cli;
       projects.projects[0].installed = true;
@@ -569,7 +569,7 @@ test('registerRunner: run offers to install first when the project is not instal
   try {
     writeConfig(dir);
     vscode.__mock.reset();
-    vscode.workspace.findFiles = () => Promise.resolve([{ fsPath: path.join(dir, '8bitscript.config.8bs') }]);
+    vscode.workspace.findFiles = () => Promise.resolve([{ fsPath: path.join(dir, '8bitscript.config.ts') }]);
     await withRunner(path.join(dir, '.storage'), { appendLine() {} }, async (projects) => {
       projects.projects[0].toolchain = path.join(dir, 'fake.mjs');
       fs.writeFileSync(projects.projects[0].toolchain, '');
@@ -606,7 +606,7 @@ test('registerRunner: doctor runs against the project with a toolchain', async (
     writeConfig(dir);
     const cli = writeFakeCli(dir);
     vscode.__mock.reset();
-    vscode.workspace.findFiles = () => Promise.resolve([{ fsPath: path.join(dir, '8bitscript.config.8bs') }]);
+    vscode.workspace.findFiles = () => Promise.resolve([{ fsPath: path.join(dir, '8bitscript.config.ts') }]);
     await withRunner(path.join(dir, '.storage'), { appendLine() {} }, async (projects) => {
       projects.projects[0].toolchain = cli;
       await vscode.__mock.trigger('8bitscript.doctor');
@@ -628,7 +628,7 @@ test('registerRunner: chooseSystem writes the picked named system and machine', 
     writeConfig(dir);
     const cli = writeFakeCli(dir);
     vscode.__mock.reset();
-    vscode.workspace.findFiles = () => Promise.resolve([{ fsPath: path.join(dir, '8bitscript.config.8bs') }]);
+    vscode.workspace.findFiles = () => Promise.resolve([{ fsPath: path.join(dir, '8bitscript.config.ts') }]);
     await withRunner(path.join(dir, '.storage'), { appendLine() {} }, async (projects) => {
       projects.projects[0].toolchain = cli;
       vscode.__mock.queues.showQuickPick.push({ named: 'Named C64', target: 'c64' });
@@ -648,7 +648,7 @@ test('registerRunner: chooseSystem does nothing when the separator itself is pic
     writeConfig(dir);
     const cli = writeFakeCli(dir);
     vscode.__mock.reset();
-    vscode.workspace.findFiles = () => Promise.resolve([{ fsPath: path.join(dir, '8bitscript.config.8bs') }]);
+    vscode.workspace.findFiles = () => Promise.resolve([{ fsPath: path.join(dir, '8bitscript.config.ts') }]);
     await withRunner(path.join(dir, '.storage'), { appendLine() {} }, async (projects) => {
       projects.projects[0].toolchain = cli;
       vscode.__mock.queues.showQuickPick.push({ label: 'Named systems', kind: vscode.QuickPickItemKind.Separator });
@@ -1006,7 +1006,7 @@ test('registerRunner: saveSystem refuses a target the project does not build for
     vscode.__mock.reset();
     vscode.__mock.configStore.set('project', dir);
     vscode.__mock.configStore.set('system', 'nes');
-    vscode.workspace.findFiles = () => Promise.resolve([{ fsPath: path.join(dir, '8bitscript.config.8bs') }]);
+    vscode.workspace.findFiles = () => Promise.resolve([{ fsPath: path.join(dir, '8bitscript.config.ts') }]);
     await withRunner(path.join(dir, '.storage'), { appendLine() {} }, async () => {
       await vscode.__mock.trigger('8bitscript.saveSystem');
       await tick();
@@ -1025,7 +1025,7 @@ test('registerRunner: saveSystem writes a system into a plain config', async () 
     vscode.__mock.reset();
     vscode.__mock.configStore.set('project', dir);
     vscode.__mock.configStore.set('system', 'c64');
-    vscode.workspace.findFiles = () => Promise.resolve([{ fsPath: path.join(dir, '8bitscript.config.8bs') }]);
+    vscode.workspace.findFiles = () => Promise.resolve([{ fsPath: path.join(dir, '8bitscript.config.ts') }]);
     vscode.window.showInputBox = () => Promise.resolve('My C64');
     vscode.workspace.openTextDocument = (uri) => Promise.resolve({
       uri,
@@ -1053,7 +1053,7 @@ test('registerRunner: useLocal accepts a real checkout and wires the project to 
     fs.writeFileSync(path.join(checkoutDir, 'pnpm-workspace.yaml'), 'packages:\n  - packages/*\n');
     fs.writeFileSync(path.join(checkoutDir, 'packages', 'cli', 'bin', '8bs.mjs'), '');
     vscode.__mock.reset();
-    vscode.workspace.findFiles = () => Promise.resolve([{ fsPath: path.join(dir, '8bitscript.config.8bs') }]);
+    vscode.workspace.findFiles = () => Promise.resolve([{ fsPath: path.join(dir, '8bitscript.config.ts') }]);
     vscode.window.showOpenDialog = () => Promise.resolve([{ fsPath: checkoutDir }]);
     await withRunner(path.join(dir, '.storage'), { appendLine() {} }, async () => {
       await vscode.__mock.trigger('8bitscript.useLocal');
@@ -1075,7 +1075,7 @@ test('registerRunner: viewGeneratedAssembly shows an info message with no active
     writeConfig(dir);
     vscode.__mock.reset();
     vscode.window.activeTextEditor = undefined;
-    vscode.workspace.findFiles = () => Promise.resolve([{ fsPath: path.join(dir, '8bitscript.config.8bs') }]);
+    vscode.workspace.findFiles = () => Promise.resolve([{ fsPath: path.join(dir, '8bitscript.config.ts') }]);
     await withRunner(path.join(dir, '.storage'), { appendLine() {} }, async () => {
       await vscode.__mock.trigger('8bitscript.viewGeneratedAssembly');
       await tick();
@@ -1093,7 +1093,7 @@ test('registerRunner: viewGeneratedAssembly runs 8bs build --debug, opens the fi
   try {
     writeConfig(dir);
     const sourcePath = path.join(dir, 'src', 'main.8bs');
-    const sourceText = 'export function main(): void {\n    let score: utinyint = 0;\n    score += 1;\n}\n';
+    const sourceText = 'pub fn main() {\n    let mut score: utinyint = 0;\n    score += 1;\n}\n';
     fs.writeFileSync(sourcePath, sourceText);
 
     // A fake CLI that behaves like `8bs build --debug`: writes a real
@@ -1120,7 +1120,7 @@ test('registerRunner: viewGeneratedAssembly runs 8bs build --debug, opens the fi
     ].join('\n'));
 
     vscode.__mock.reset();
-    vscode.workspace.findFiles = () => Promise.resolve([{ fsPath: path.join(dir, '8bitscript.config.8bs') }]);
+    vscode.workspace.findFiles = () => Promise.resolve([{ fsPath: path.join(dir, '8bitscript.config.ts') }]);
 
     // A minimal fake TextDocument for the source file — real offsetAt/
     // positionAt over the real text, since this is what samePath()/the
@@ -1205,7 +1205,7 @@ test('registerRunner: viewGeneratedAssemblyFor opens the machine the reader pick
     ].join('\n'));
 
     vscode.__mock.reset();
-    vscode.workspace.findFiles = () => Promise.resolve([{ fsPath: path.join(dir, '8bitscript.config.8bs') }]);
+    vscode.workspace.findFiles = () => Promise.resolve([{ fsPath: path.join(dir, '8bitscript.config.ts') }]);
     const document = {
       uri: { fsPath: sourcePath, scheme: 'file' },
       fileName: sourcePath,

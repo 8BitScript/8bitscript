@@ -44,7 +44,7 @@ test('the probe links clean for the PET, and every answer is a real function in 
 });
 
 test('poll() edge-detects the physical keys BEFORE it ever reads SHIFT — the shape that makes a shift release unable to mint a phantom direction edge', () => {
-  const body = SOURCE.slice(SOURCE.indexOf('function poll'), SOURCE.indexOf('function left'));
+  const body = SOURCE.slice(SOURCE.indexOf('fn poll'), SOURCE.indexOf('fn left'));
   const newKeysAt = body.indexOf('newKeys');
   const shiftAt = body.indexOf('SHIFT_LEFT');
   assert.ok(newKeysAt !== -1, 'poll() computes newKeys, the fresh physical-key edges');

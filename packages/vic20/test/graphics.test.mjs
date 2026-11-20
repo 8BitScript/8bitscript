@@ -66,27 +66,27 @@ sprite spin {
 const OTHER = `sprite other { source "./big.png" size 16x16 transparent auto }
 `;
 
-const IMPORTS = `import { screen } from "@8bitscript/screen";
-import { text } from "@8bitscript/text";
-import { graphics } from "@8bitscript/graphics";
-import { big, small, faint, spin } from "./g.8bg";
-import { other } from "./h.8bg";
+const IMPORTS = `use @8bitscript::screen::screen;
+use @8bitscript::text::text;
+use @8bitscript::graphics::graphics;
+use self::g::{big, small, faint, spin};
+use self::h::other;
 `;
 
 const FILL = 'XXXXXXXXXXXXXXXXXXXXXX';
 
 const STATIC = `${IMPORTS}
-export function main(): void {
-    screen.blank();
-    text.print(66, "${FILL}");
-    text.print(88, "${FILL}");
-    graphics.place(small, 40, 24);
-    graphics.place(faint, 96, 24);
-    graphics.place(big, 80, 64);
-    graphics.place(other, 8, 112);
-    while (true) {
+pub fn main() {
+    screen::blank();
+    text::print(66, "${FILL}");
+    text::print(88, "${FILL}");
+    graphics::place(small, 40, 24);
+    graphics::place(faint, 96, 24);
+    graphics::place(big, 80, 64);
+    graphics::place(other, 8, 112);
+    loop {
         waitFrame();
-        graphics.update();
+        graphics::update();
     }
 }
 `;
@@ -96,45 +96,45 @@ export function main(): void {
 // printed after the corner placement: on 8K the cell after the screen's
 // last is where the program begins.
 const MOVE = `${IMPORTS}
-export function main(): void {
-    let n: utinyint = 0;
-    screen.blank();
-    graphics.place(big, 0, 0);
-    while (n < 20) {
+pub fn main() {
+    let mut n: utinyint = 0;
+    screen::blank();
+    graphics::place(big, 0, 0);
+    while n < 20 {
         waitFrame();
-        graphics.update();
+        graphics::update();
         n = n + 1;
     }
-    graphics.place(big, 168, 176);
-    text.print(0, "OK");
+    graphics::place(big, 168, 176);
+    text::print(0, "OK");
     n = 0;
-    while (n < 20) {
+    while n < 20 {
         waitFrame();
-        graphics.update();
+        graphics::update();
         n = n + 1;
     }
-    graphics.place(big, 168, 40);
+    graphics::place(big, 168, 40);
     n = 0;
-    while (n < 20) {
+    while n < 20 {
         waitFrame();
-        graphics.update();
+        graphics::update();
         n = n + 1;
     }
-    graphics.place(big, 80, 80);
-    while (true) {
+    graphics::place(big, 80, 80);
+    loop {
         waitFrame();
-        graphics.update();
+        graphics::update();
     }
 }
 `;
 
 const ANIMATE = `${IMPORTS}
-export function main(): void {
-    screen.blank();
-    graphics.place(spin, 80, 40);
-    while (true) {
+pub fn main() {
+    screen::blank();
+    graphics::place(spin, 80, 40);
+    loop {
         waitFrame();
-        graphics.update();
+        graphics::update();
     }
 }
 `;

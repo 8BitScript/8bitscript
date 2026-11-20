@@ -10,10 +10,10 @@ const SRC = join(HERE, '..', 'src');
 test('every twin exports audio.bind, meta, play, music, and update', () => {
   for (const name of ['index.8bs', 'index.c64.8bs', 'index.nes.8bs', 'index.pet.8bs', 'index.atari8.8bs']) {
     const src = readFileSync(join(SRC, name), 'utf8');
-    assert.match(src, /function bind\(/, name);
-    assert.match(src, /function meta\(/, name);
-    assert.match(src, /function play\(/, name);
-    assert.match(src, /function music\(/, name);
-    assert.match(src, /function update\(/, name);
+    assert.match(src, /fn bind\(/, name);
+    assert.match(src, /fn meta\(/, name);
+    assert.match(src, /fn play\(/, name);
+    assert.match(src, /fn music\(/, name);
+    assert.match(src, /fn update\(/, name);
   }
 });

@@ -76,7 +76,7 @@ test('render(): builds, renders, and opens the stable per-machine document, keye
   await withController(async ({ dir, controller }) => {
     vscode.__mock.reset();
     const sourcePath = path.join(dir, 'main.8bs');
-    fs.writeFileSync(sourcePath, 'export function main(): void {}\n');
+    fs.writeFileSync(sourcePath, 'pub fn main() {}\n');
     const debugMapPath = path.join(dir, 'out.8bs.debug.json');
     writeControl(dir, { target: 'c64', address: 0xc142, sourcePath, debugMapPath });
     const project = { dir, targets: ['c64', 'vic20'] };
@@ -101,7 +101,7 @@ test('render(): builds, renders, and opens the stable per-machine document, keye
 test('showForCursor(): renders every instruction attributed to the file, not just the cursor\'s own function — the cursor only marks a starting point', async () => {
   await withController(async ({ dir, controller }) => {
     vscode.__mock.reset();
-    const sourceText = 'export function first(): void {}\nexport function second(): void {}\n';
+    const sourceText = 'pub fn first() {}\npub fn second() {}\n';
     const sourcePath = path.join(dir, 'main.8bs');
     fs.writeFileSync(sourcePath, sourceText);
     const debugMapPath = path.join(dir, 'out.8bs.debug.json');
@@ -144,7 +144,7 @@ test('render(): reveals an already-open tab where it already is, instead of open
   await withController(async ({ dir, controller }) => {
     vscode.__mock.reset();
     const sourcePath = path.join(dir, 'main.8bs');
-    fs.writeFileSync(sourcePath, 'export function main(): void {}\n');
+    fs.writeFileSync(sourcePath, 'pub fn main() {}\n');
     const debugMapPath = path.join(dir, 'out.8bs.debug.json');
     writeControl(dir, { target: 'c64', address: 0xc142, sourcePath, debugMapPath });
     const project = { dir, targets: ['c64'] };
@@ -168,7 +168,7 @@ test('onSourceSaved(): rebuilds every open tab whose project contains the saved 
   await withController(async ({ dir, controller }) => {
     vscode.__mock.reset();
     const sourcePath = path.join(dir, 'main.8bs');
-    fs.writeFileSync(sourcePath, 'export function main(): void {}\n');
+    fs.writeFileSync(sourcePath, 'pub fn main() {}\n');
     const debugMapPath = path.join(dir, 'out.8bs.debug.json');
     writeControl(dir, { target: 'c64', address: 0xc142, sourcePath, debugMapPath });
     const project = { dir, targets: ['c64'] };
@@ -208,7 +208,7 @@ test('onSourceSaved(): a file outside the tab\'s project does not trigger a rebu
   await withController(async ({ dir, controller, output }) => {
     vscode.__mock.reset();
     const sourcePath = path.join(dir, 'main.8bs');
-    fs.writeFileSync(sourcePath, 'export function main(): void {}\n');
+    fs.writeFileSync(sourcePath, 'pub fn main() {}\n');
     const debugMapPath = path.join(dir, 'out.8bs.debug.json');
     writeControl(dir, { target: 'c64', address: 0xc142, sourcePath, debugMapPath });
     await controller.render({ dir, targets: ['c64'] }, 'c64', sourcePath);
@@ -223,7 +223,7 @@ test('onSourceSaved(): a failed rebuild (a mid-edit syntax error) leaves the tab
   await withController(async ({ dir, controller, output }) => {
     vscode.__mock.reset();
     const sourcePath = path.join(dir, 'main.8bs');
-    fs.writeFileSync(sourcePath, 'export function main(): void {}\n');
+    fs.writeFileSync(sourcePath, 'pub fn main() {}\n');
     const debugMapPath = path.join(dir, 'out.8bs.debug.json');
     writeControl(dir, { target: 'c64', address: 0xc142, sourcePath, debugMapPath });
     const project = { dir, targets: ['c64'] };
@@ -246,7 +246,7 @@ test('rerenderAll(): flipping 8bitscript.assemblyView.explain re-renders every o
   await withController(async ({ dir, controller, output }) => {
     vscode.__mock.reset();
     const sourcePath = path.join(dir, 'main.8bs');
-    fs.writeFileSync(sourcePath, 'export function main(): void {}\n');
+    fs.writeFileSync(sourcePath, 'pub fn main() {}\n');
     const debugMapPath = path.join(dir, 'out.8bs.debug.json');
     writeControl(dir, { target: 'c64', address: 0xc142, sourcePath, debugMapPath });
     const project = { dir, targets: ['c64'] };

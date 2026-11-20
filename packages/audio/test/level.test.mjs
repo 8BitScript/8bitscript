@@ -22,30 +22,30 @@ const CHECKOUT = join(HERE, '..', '..', '..');
 const CLI = join(CHECKOUT, 'packages', 'cli', 'bin', '8bs.mjs');
 const darwin = process.platform === 'darwin';
 
-const PROGRAM = `import { audio } from "@8bitscript/audio";
-import { screen } from "@8bitscript/screen";
+const PROGRAM = `use @8bitscript::audio::audio;
+use @8bitscript::screen::screen;
 
-export function main(): void {
-    screen.blank();
-    audio.setLevel(6);
-    let n: usmallint = 0;
-    while (true) {
+pub fn main() {
+    screen::blank();
+    audio::setLevel(6);
+    let mut n: usmallint = 0;
+    loop {
         waitFrame();
-        audio.update();
+        audio::update();
         n = n + 1;
-        if (n == 30) {
-            audio.blip(57, 6);
+        if n == 30 {
+            audio::blip(57, 6);
         }
-        if (n == 70) {
-            audio.blip(69, 3);
+        if n == 70 {
+            audio::blip(69, 3);
         }
-        if (n == 110) {
-            audio.setLevel(15);
-            audio.tone(57, 10);
+        if n == 110 {
+            audio::setLevel(15);
+            audio::tone(57, 10);
         }
-        if (n == 170) {
-            audio.setLevel(0);
-            audio.tone(57, 10);
+        if n == 170 {
+            audio::setLevel(0);
+            audio::tone(57, 10);
         }
     }
 }

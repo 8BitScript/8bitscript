@@ -25,19 +25,19 @@ const CHECKOUT = join(HERE, '..', '..', '..');
 const CLI = join(CHECKOUT, 'packages', 'cli', 'bin', '8bs.mjs');
 const darwin = process.platform === 'darwin';
 
-const PROGRAM = `import { audio } from "@8bitscript/audio";
-import { screen } from "@8bitscript/screen";
+const PROGRAM = `use @8bitscript::audio::audio;
+use @8bitscript::screen::screen;
 
-export function main(): void {
-    screen.blank();
-    audio.tone(57, 30);
-    let n: utinyint = 0;
-    while (true) {
+pub fn main() {
+    screen::blank();
+    audio::tone(57, 30);
+    let mut n: utinyint = 0;
+    loop {
         waitFrame();
-        audio.update();
+        audio::update();
         n = n + 1;
-        if (n == 90) {
-            audio.tone(69, 20);
+        if n == 90 {
+            audio::tone(69, 20);
         }
     }
 }

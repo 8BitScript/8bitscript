@@ -178,15 +178,15 @@ function expectedAt(list, line) {
   return value;
 }
 
-const referenceProgram = (pointer) => `import { Video } from "@8bitscript/vic20/geometry";
-export function main(): void {
-    memory.write(0x900F, 0x08);
-    for (let cell: usmallint = 0; cell < 506; cell++) {
-        memory.write(Video.SCREEN + cell, 66);
-        memory.write(Video.COLOR + cell, 1);
+const referenceProgram = (pointer) => `use @8bitscript::vic20::geometry::Video;
+pub fn main() {
+    memory::write(0x900F, 0x08);
+    for cell: usmallint in 0..506 {
+        memory::write(Video::SCREEN + cell, 66);
+        memory::write(Video::COLOR + cell, 1);
     }
-    memory.write(0x9005, Video.${pointer});
-    while (true) {
+    memory::write(0x9005, Video::${pointer});
+    loop {
         waitFrame();
     }
 }

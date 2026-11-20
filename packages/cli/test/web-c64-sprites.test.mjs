@@ -76,32 +76,32 @@ const spriteX = (x) => BORDER_PX + x - 24;
 const spriteY = (y) => BORDER_PX + y - 50;
 
 const HARDWARE = `
-import { screen, BorderColor, BackgroundColor } from "@8bitscript/screen";
-import { sprites } from "@8bitscript/c64/sprites";
-import { spriteShapes } from "@8bitscript/c64/video";
+use @8bitscript::screen::{screen, BorderColor, BackgroundColor};
+use @8bitscript::c64::sprites::sprites;
+use @8bitscript::c64::video::spriteShapes;
 
-export function main(): void {
-    screen.blank(BorderColor.BLACK, BackgroundColor.BLUE);
-    for (let i: u8 = 0; i < 63; i++) {
-        spriteShapes[sprites.blockOffset(sprites.FIRST_BLOCK) + i] = 0xFF;
-        spriteShapes[sprites.blockOffset(sprites.FIRST_BLOCK + 1) + i] = 0b01101100;
+pub fn main() {
+    screen::blank(BorderColor::BLACK, BackgroundColor::BLUE);
+    for i: u8 in 0..63 {
+        spriteShapes[sprites::blockOffset(sprites::FIRST_BLOCK) + i] = 0xFF;
+        spriteShapes[sprites::blockOffset(sprites::FIRST_BLOCK + 1) + i] = 0b01101100;
     }
-    sprites.setShape(0, sprites.FIRST_BLOCK);
-    sprites.setColor(0, 1);
-    sprites.place(0, 100, 100);
-    sprites.show(0);
-    sprites.setShape(1, sprites.FIRST_BLOCK);
-    sprites.setColor(1, 7);
-    sprites.place(1, 270, 120);
-    sprites.expand(1, true, true);
-    sprites.show(1);
-    sprites.setShape(2, sprites.FIRST_BLOCK + 1);
-    sprites.setColor(2, 2);
-    sprites.setSharedColors(5, 13);
-    sprites.setMulticolor(2, true);
-    sprites.place(2, 60, 180);
-    sprites.show(2);
-    while (true) {
+    sprites::setShape(0, sprites::FIRST_BLOCK);
+    sprites::setColor(0, 1);
+    sprites::place(0, 100, 100);
+    sprites::show(0);
+    sprites::setShape(1, sprites::FIRST_BLOCK);
+    sprites::setColor(1, 7);
+    sprites::place(1, 270, 120);
+    sprites::expand(1, true, true);
+    sprites::show(1);
+    sprites::setShape(2, sprites::FIRST_BLOCK + 1);
+    sprites::setColor(2, 2);
+    sprites::setSharedColors(5, 13);
+    sprites::setMulticolor(2, true);
+    sprites::place(2, 60, 180);
+    sprites::show(2);
+    loop {
         waitFrame();
     }
 }
