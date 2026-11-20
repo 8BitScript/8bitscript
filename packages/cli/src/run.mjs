@@ -723,7 +723,7 @@ export async function run(args) {
     // page a different CLI version left behind — block-glyph codes 128-143
     // then fill as solid reverse-video cells and the digits vanish.
     const { runInBrowser } = await import('./web-runtime.mjs');
-    const { layoutFromHardware, layoutForRealMachine, spriteRegionProblem } = await import('./web-layout.mjs');
+    const { layoutFromHardware, layoutForRealMachine } = await import('./web-layout.mjs');
     const bytes = await readFile(outFile);
     // layoutFromHardware() computes charBase/colorBase from grid size,
     // right only for the synthetic web target's own .8bs source, which
@@ -732,11 +732,6 @@ export async function run(args) {
     // layoutForRealMachine's header comment for the blank-screen bug this
     // replaced.
     const layout = target === 'web' ? layoutFromHardware(hardware) : layoutForRealMachine(target, hardware);
-    const spriteProblem = spriteRegionProblem(layout);
-    if (spriteProblem) {
-      process.stderr.write(`8bs run: ${spriteProblem}\n`);
-      return 1;
-    }
     return runInBrowser(bytes, {
       open, frameRate, lastRunTarget: target, layout, lan,
       port: listenPort.port,
