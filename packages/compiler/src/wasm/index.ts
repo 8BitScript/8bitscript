@@ -173,15 +173,11 @@ export type BuildResult =
   | { ok: true; bytes: Uint8Array<ArrayBuffer>; sizeReport?: SizeReportEntry[] }
   | { ok: false; error: string };
 
-// One page (64 KiB) of linear memory, minimum — @8bitscript/web's own
-// WebRegisters layout (packages/web/src/index.8bs) uses under 2.5 KiB of
-// it today. Milestone 5 places string/const-array data starting at
-// dataBaseFor() below and grows the memory section's own declared minimum
-// past one page only when a program's own data genuinely needs it
-// (buildDataLayout, in build()) — most programs still get exactly one
-// page, unchanged from milestone 1.
+// Exactly one page (64 KiB) of linear memory: the web page is one wasm page
+// and its memory.read/write are 16-bit, so build() refuses data that would
+// run past it rather than growing the memory section. Milestone 5 places
+// string/const-array data starting at dataBaseFor() below.
 const MEMORY_PAGES = 1;
-const PAGE_BYTES = 64 * 1024;
 
 // Where this backend's own data section starts, at the lowest. The low
 // end of linear memory belongs to the target's own register agreement —
@@ -377,6 +373,9 @@ async function buildModule(ir: IrProgram, options: BuildOptions): Promise<BuildR
   // placed may sit under it — two things that would otherwise alias without
   // a word (a string literal read back as a screen cell).
   const dataStart = dataBaseFor(options.reserved);
+  if (cursor > 0x10000) {
+    return { ok: false, error: `the program's own data (${dataStart}..${cursor}) runs past 64 KiB; the page keeps 0..${options.reserved ?? 0} for itself` };
+  }
   let pinnedEnd = 0;
   for (const p of pinnedArrays) {
     const end = p.address + p.length * p.elementWidth;
@@ -399,11 +398,9 @@ async function buildModule(ir: IrProgram, options: BuildOptions): Promise<BuildR
       return { ok: false, error: `the program's own data (${dataStart}..${cursor}) would reach into ${r.label} (${r.start}..${r.end}) — more data than this machine's free memory below it holds` };
     }
   }
-  // MEMORY_PAGES stays the floor; a program whose own data outgrows one
-  // page gets exactly as many more as its own layout needs, rounded up —
-  // most programs' data is nowhere close, and still get one page, same as
-  // every earlier milestone.
-  const memoryPages = Math.max(MEMORY_PAGES, Math.ceil(Math.max(cursor, pinnedEnd) / PAGE_BYTES));
+  // Data and pinned arrays are both refused past 64 KiB above, so one page
+  // always holds them.
+  const memoryPages = MEMORY_PAGES;
 
   // Whether the module needs the `env.waitFrame` import at all — decided
   // once, up front, from the whole program, the same two-pass shape as

@@ -68,7 +68,11 @@ the emulators from [docs/setup](docs/setup/index.md) installed
 locally. `@8bitscript/cli`'s own emulator tests (`screenshot.test.mjs`,
 `emulator-smoke.test.mjs`) already skip rather than fail when a
 target's emulator is missing, which is why `cli` stays in `test:ci`
-while the six machine packages above do not.
+while the six machine packages above do not. The release-target
+screenshot tests in `screenshot.test.mjs` also skip unless
+`EIGHTBS_EMULATOR_TESTS=1` is set, so a plain `pnpm test` does not pop
+up emulator windows; set it (under `xvfb-run -a` on a headless box)
+to run them.
 
 **Before merging a PR meant to ship soon, run the full suite locally:**
 

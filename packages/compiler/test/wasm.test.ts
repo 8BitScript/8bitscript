@@ -1076,11 +1076,11 @@ test('a 2-byte-element const array reads both bytes at once — index doubled, i
   }
 });
 
-test('milestone 5: data past one page of memory grows the declared minimum, not just fits by luck', async () => {
-  // A single const array bigger than one page minus DATA_BASE leaves — a
-  // sprite/tile table is the realistic case this guards, not a string
-  // (the checker's own STRING_TOO_LONG already caps a literal at 255
-  // bytes, so a giant string can't happen in a real program).
+test('milestone 5: data that would need a second page of memory is refused, since the web page is one 64 KB page', async () => {
+  // A single const array bigger than one page minus DATA_BASE leaves. Before
+  // the 64 KiB check this grew the declared minimum to two pages; the web page
+  // is exactly one 64 KB wasm page and memory.read/write are 16-bit, so a
+  // second page is not part of the host contract.
   const bigArray: IrGlobal = { name: 'BIG', type: 'utinyint', address: null, array: 60000, constant: true, init: new Array(60000).fill(7) };
   const main: IrFunction = {
     name: 'main',
@@ -1092,13 +1092,8 @@ test('milestone 5: data past one page of memory grows the declared minimum, not 
     const outFile = join(scratch, 'out.wasm');
     const ir: IrProgram = { entry: 'main', functions: [main], globals: [bigArray] };
     const result = await build(ir, { outFile, frameRate: 60 });
-    assert.equal(result.ok, true, result.ok ? '' : result.error);
-    if (!result.ok) return;
-    const module = await WebAssembly.compile(result.bytes);
-    const instance = await WebAssembly.instantiate(module, {});
-    const memory = instance.exports.memory as WebAssembly.Memory;
-    assert.equal(memory.buffer.byteLength, 128 * 1024); // 2 pages, not 1
-    assert.equal((instance.exports.main as () => number)(), 7);
+    assert.equal(result.ok, false);
+    assert.match(result.ok ? '' : result.error, /own data \(8192\.\.68192\) runs past 64 KiB/);
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }
@@ -1494,6 +1489,47 @@ test('a string literal is laid out past `reserved`, and a register write at the 
     after.memory[8199] = 64;
     after.memory.fill(0xee, 8200, 8392);
     assert.deepEqual([...after.memory.slice(8448, 8448 + 7)], [6, 118, 48, 46, 50, 46, 48]);
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+test('a program whose own data runs past 64 KiB is refused; one that fits builds', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-web-native-'));
+  try {
+    const outFile = join(scratch, 'out.wasm');
+    const body = [{ kind: 'return', value: { kind: 'index', array: { kind: 'ref', name: 'DATA' }, index: num(0, 'usmallint'), elementType: 'utinyint', type: 'utinyint' } }];
+    const program = (n: number): IrProgram => ({
+      entry: 'main',
+      functions: [{ name: 'main', returnType: 'utinyint', body }],
+      globals: [{ name: 'DATA', type: 'utinyint', address: null, array: n, constant: true, init: new Array(n).fill(1) }],
+    });
+    const over = await build(program(6000), { outFile, frameRate: 60, reserved: 60000 });
+    assert.equal(over.ok, false);
+    assert.match(over.ok ? '' : over.error, /own data .* runs past 64 KiB; the page keeps 0\.\.60000 for itself/);
+    const fits = await build(program(16), { outFile, frameRate: 60, reserved: 9042 });
+    assert.equal(fits.ok, true, fits.ok ? '' : fits.error);
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+test('program data ending exactly at 65536 builds; one byte more is refused', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-web-native-'));
+  try {
+    const outFile = join(scratch, 'out.wasm');
+    const body = [{ kind: 'return', value: { kind: 'index', array: { kind: 'ref', name: 'DATA' }, index: num(0, 'usmallint'), elementType: 'utinyint', type: 'utinyint' } }];
+    const program = (n: number): IrProgram => ({
+      entry: 'main',
+      functions: [{ name: 'main', returnType: 'utinyint', body }],
+      globals: [{ name: 'DATA', type: 'utinyint', address: null, array: n, constant: true, init: new Array(n).fill(1) }],
+    });
+    const start = dataBaseFor(0);
+    const exact = await build(program(0x10000 - start), { outFile, frameRate: 60 });
+    assert.equal(exact.ok, true, exact.ok ? '' : exact.error);
+    const over = await build(program(0x10000 - start + 1), { outFile, frameRate: 60 });
+    assert.equal(over.ok, false);
+    assert.match(over.ok ? '' : over.error, /runs past 64 KiB/);
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }
