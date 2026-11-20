@@ -230,8 +230,8 @@ export function misplacedTemplate(template, file, namespace = null) {
   return diagnostic(
     Codes.MISPLACED_TEMPLATE,
     namespace
-      ? `a template string is only valid as the second argument of ${namespace}.print(cell, ...)`
-      : "a template string is only valid as the second argument of a namespace's print(cell, ...)",
+      ? `a template string is only valid as the second argument of ${namespace}::print(cell, ...)`
+      : "a template string is only valid as the second argument of a mod's print(cell, ...)",
     file, template.start, template.length,
   );
 }

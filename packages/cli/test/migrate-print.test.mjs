@@ -6,7 +6,8 @@ import assert from 'node:assert/strict';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parse, tokenize } from '@8bitscript/compiler';
+import { parse } from '../src/migrate/legacy/parser.mjs';
+import { tokenize } from '../src/migrate/legacy/lexer.mjs';
 import {
   OldSyntaxError, UnsupportedError, analyzeMutability, convertSource, printProgram, spellName, usePathOf,
 } from '../src/migrate/print.mjs';

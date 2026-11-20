@@ -88,7 +88,7 @@ test('release config matches shared-release-targets and names the X16 baseline',
 // the way a pack would and load the configs from there: Studio's must be in
 // the tarball, and its targets and every example's must still resolve.
 test('Studio and the examples load their configs from an installed copy', async () => {
-  assert.ok(pkg.files.includes('8bitscript.config.8bs'), 'Studio ships its config');
+  assert.ok(pkg.files.includes('8bitscript.config.ts'), 'Studio ships its config');
   const root = mkdtempSync(join(tmpdir(), '8bs-installed-'));
   try {
     const scope = join(root, 'node_modules', '@8bitscript');

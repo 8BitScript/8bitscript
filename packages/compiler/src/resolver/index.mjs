@@ -18,7 +18,7 @@ import { existsSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, resolve as resolvePath } from 'node:path';
 
 import { Codes, diagnostic } from '../diagnostics/index.mjs';
-import { TokenKind } from '../lexer/index.mjs';
+import { TokenKind } from '../front/index.mjs';
 import { resolveCatalogSpecifier } from '../i18n/index.mjs';
 import { aliasedSubpath, isPathForm, longestAliasPrefix, resolveImportAliases } from './import-aliases.mjs';
 import {
@@ -682,7 +682,7 @@ function resolveConditionalEntry(specifier, packageDir, entry, options, seen, na
  * @param {{ machine?: string, tags?: string[], profile?: string, locale?: string, importAliases?: Record<string, string> }} [options]
  *   The machine being built for (one of MACHINES), if one is known;
  *   `importAliases` maps `@prefix` strings to absolute directories from
- *   the project's `imports` in 8bitscript.config.8bs.
+ *   the project's `imports` in 8bitscript.config.ts.
  *   conditional package entries resolve to that machine's branch, and a
  *   `.8bs` file with a `.<machine>.8bs` twin resolves to the twin. With
  *   the build's hardware tags as well (`tags`; the older `profile` is one

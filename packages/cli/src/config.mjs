@@ -1,4 +1,4 @@
-// Shared 8bitscript.config.8bs loading, used by both `8bs build` and `8bs
+// Shared 8bitscript.config.ts loading, used by both `8bs build` and `8bs
 // check` (and, through them, anything else that needs a project's config
 // without duplicating the loader).
 import { existsSync, readdirSync } from 'node:fs';
@@ -13,13 +13,30 @@ import { LOCALE_NAME, MACHINES, isLocaleName } from '@8bitscript/compiler';
 /** Default directory of `<locale>.8bs` message catalogs. */
 export const DEFAULT_CATALOG_DIR = 'src/i18n';
 
-// 8bitscript.config.8bs is the current name. 8bitscript.config.ts (0.4.0
-// through 0.22.x) and 8bs.config.ts (every project through 0.3.0) still
-// load for a few more releases so existing projects don't break on
-// upgrade. Checked in this order — a project with more than one gets the
-// newest name silently, not a conflict, since there's nothing to
-// reconcile: whichever loads first wins.
-const CONFIG_FILENAMES = ['8bitscript.config.8bs', '8bitscript.config.ts', '8bs.config.ts'];
+// 8bitscript.config.ts is the current name; 8bs.config.ts (every project
+// through 0.3.0) still loads for a few more releases. A `.8bs` config name is
+// gone with the syntax flip. Checked in this order: a project with more than
+// one gets the newest name silently, since there is nothing to reconcile.
+export const CONFIG_FILENAMES = ['8bitscript.config.ts', '8bs.config.ts'];
+
+/** The config name of 0.23 through 0.26; it is no longer read. */
+export const STALE_CONFIG = '8bitscript.config.8bs';
+
+/**
+ * The error for a directory whose only config is the old `.8bs` one, or null.
+ * Silently building without it would drop the project's targets, frameRate
+ * and i18n.
+ *
+ * @param {string} dir
+ * @param {string} label
+ * @returns {Error|null}
+ */
+export function staleConfigError(dir, label = '8bs') {
+  if (!existsSync(join(dir, STALE_CONFIG)) || configPathOf(dir) !== null) return null;
+  const error = new Error(`${label}: ${join(dir, STALE_CONFIG)} is no longer read; rename it to 8bitscript.config.ts (or run '8bs migrate')`);
+  error.name = 'StaleConfigError';
+  return error;
+}
 
 /**
  * The path of the config file `loadConfig` would load from `dir`, or null
@@ -38,31 +55,23 @@ export function configPathOf(dir) {
 }
 
 /**
- * The project's 8bitscript.config.8bs (or an older .ts name), if present.
- * The content is plain type-stripped JS/TS either way — `.8bs` names the
- * config, it does not make it 8BitScript-the-language, which has no
- * data-only mode and always targets a machine.
- *
- * A `.ts` config imports straight through: Node 26 imports TypeScript with
- * type stripping, so it is an ordinary module, not a parsed format. Node's
- * loader only does that for `.ts`/`.mts`/`.cts` though, and refuses an
- * unrecognized extension outright (ERR_UNKNOWN_FILE_EXTENSION) — so a
- * `.8bs` config is stripped by hand with the same type-stripping Node uses
- * internally, written to a throwaway `.mjs` beside it (same directory, so
- * `import { defineConfig } from '@8bitscript/cli'` still resolves through
- * the project's own node_modules) and imported from there, then deleted.
+ * The project's 8bitscript.config.ts (or the older 8bs.config.ts), if present.
+ * A `.ts` config has its types stripped in-process and is imported from a
+ * temp .mjs beside it: Node refuses to strip types under node_modules (an
+ * installed Studio or example), so it cannot import the `.ts` itself. An old
+ * `8bitscript.config.8bs` alone in the directory is an error, not a skip.
  *
  * @param {string} dir
  * @param {string} [label] Prefixes a load error, e.g. "8bs build".
  */
 export async function loadConfig(dir, label = '8bs') {
+  const stale = staleConfigError(dir, label);
+  if (stale) throw stale;
   for (const filename of CONFIG_FILENAMES) {
     const path = join(dir, filename);
     if (!existsSync(path)) continue;
     try {
-      const module = filename.endsWith('.8bs')
-        ? await importStripped(path, dir)
-        : await import(pathToFileURL(path).href);
+      const module = await importStripped(path, dir);
       return module.default ?? null;
     } catch (error) {
       process.stderr.write(`${label}: cannot load ${filename}: ${error.message}\n`);
@@ -72,24 +81,7 @@ export async function loadConfig(dir, label = '8bs') {
   return null;
 }
 
-/**
- * `stripTypeScriptTypes` is still experimental, and Node's default
- * warning printer isn't gated on whether a caller already handles the
- * 'warning' event — it fires regardless, which would print a scary-looking
- * ExperimentalWarning on every `8bs build`/`run`/`check` of a project that
- * has done nothing more unusual than name its config `.8bs`. There's no
- * public way to opt just this call out, so the process's warning listeners
- * are removed for the call and put back immediately after, rather than
- * silencing warnings for the rest of the process's run.
- *
- * `emitWarning` schedules the actual `'warning'` emission on the next
- * tick, so restoring the listeners synchronously (in a plain `finally`)
- * puts them back before that emission fires and they print anyway. The
- * restore is scheduled with its own `process.nextTick` instead, which —
- * queued after the pending emission in the same synchronous turn — runs
- * strictly after it: the emission fires into a still-empty listener list
- * (a no-op), then the listeners come back for anything warned later.
- */
+/** Strip types without Node's ExperimentalWarning reaching the user. */
 function stripTypesQuietly(source) {
   const listeners = process.listeners('warning');
   process.removeAllListeners('warning');
@@ -102,14 +94,7 @@ function stripTypesQuietly(source) {
   }
 }
 
-/**
- * Strip a `.8bs` config's types by hand and import the result from a
- * throwaway `.mjs` written into `dir` — see loadConfig's doc comment for
- * why this exists instead of a plain `import()`. The temp file's random
- * name avoids colliding with a concurrent load of the same project (the
- * language server and a `8bs build` running at once, say); it's removed
- * before this returns either way.
- */
+/** Import a `.ts` config as plain JS: stripped into a temp .mjs in `dir`, imported, removed. */
 async function importStripped(path, dir) {
   const source = await readFile(path, 'utf8');
   const stripped = stripTypesQuietly(source);
@@ -123,7 +108,7 @@ async function importStripped(path, dir) {
 }
 
 /**
- * Options a project may still carry in its 8bitscript.config.8bs that no
+ * Options a project may still carry in its 8bitscript.config.ts that no
  * longer do anything. A build names them rather than ignoring them: a knob
  * that silently stopped working is worse than one that says so, and the
  * project can delete the line knowing what it bought.
@@ -152,7 +137,7 @@ export function retiredOptionWarnings(config) {
   if (!config || typeof config !== 'object') return [];
   return [...RETIRED_OPTIONS]
     .filter(([name]) => name in config)
-    .map(([name, why]) => `8bitscript.config.8bs's ${name} no longer does anything: ${why}`);
+    .map(([name, why]) => `8bitscript.config.ts's ${name} no longer does anything: ${why}`);
 }
 
 /**
@@ -170,7 +155,7 @@ export function resolveFrameRate(config) {
   if (!Number.isInteger(frameRate) || frameRate <= 0) {
     return {
       ok: false,
-      error: `8bitscript.config.8bs's frameRate must be a positive integer, got ${JSON.stringify(config?.frameRate)}`,
+      error: `8bitscript.config.ts's frameRate must be a positive integer, got ${JSON.stringify(config?.frameRate)}`,
     };
   }
   return { ok: true, frameRate };
@@ -260,7 +245,7 @@ export function resolveI18n(config, { projectDir = process.cwd(), tags = [] } = 
   const block = config?.i18n;
   const catalogRel = block?.catalog ?? DEFAULT_CATALOG_DIR;
   if (block?.catalog !== undefined && typeof block.catalog !== 'string') {
-    return { ok: false, error: `8bitscript.config.8bs's i18n.catalog must be a path in quotes, got ${JSON.stringify(block.catalog)}` };
+    return { ok: false, error: `8bitscript.config.ts's i18n.catalog must be a path in quotes, got ${JSON.stringify(block.catalog)}` };
   }
   const catalogDir = join(projectDir, catalogRel);
   const discovered = discoverCatalogLocales(catalogDir);
@@ -268,7 +253,7 @@ export function resolveI18n(config, { projectDir = process.cwd(), tags = [] } = 
 
   const charset = block?.charset ?? 'transliterate';
   if (charset !== 'transliterate' && charset !== 'strict') {
-    return { ok: false, error: `8bitscript.config.8bs's i18n.charset must be 'transliterate' or 'strict', got ${JSON.stringify(block.charset)}` };
+    return { ok: false, error: `8bitscript.config.ts's i18n.charset must be 'transliterate' or 'strict', got ${JSON.stringify(block.charset)}` };
   }
 
   const checkName = (where, value) => {
@@ -277,28 +262,28 @@ export function resolveI18n(config, { projectDir = process.cwd(), tags = [] } = 
   };
 
   if (block?.defaultLocale !== undefined) {
-    const problem = checkName("8bitscript.config.8bs's i18n.defaultLocale", block.defaultLocale);
+    const problem = checkName("8bitscript.config.ts's i18n.defaultLocale", block.defaultLocale);
     if (problem) return { ok: false, error: problem };
   }
   if (block?.fallbackLocale !== undefined) {
-    const problem = checkName("8bitscript.config.8bs's i18n.fallbackLocale", block.fallbackLocale);
+    const problem = checkName("8bitscript.config.ts's i18n.fallbackLocale", block.fallbackLocale);
     if (problem) return { ok: false, error: problem };
   }
 
   let locales;
   if (block?.locales !== undefined) {
     if (!Array.isArray(block.locales) || block.locales.some((name) => typeof name !== 'string')) {
-      return { ok: false, error: "8bitscript.config.8bs's i18n.locales must be an array of locale names" };
+      return { ok: false, error: "8bitscript.config.ts's i18n.locales must be an array of locale names" };
     }
     for (const name of block.locales) {
-      const problem = checkName("8bitscript.config.8bs's i18n.locales", name);
+      const problem = checkName("8bitscript.config.ts's i18n.locales", name);
       if (problem) return { ok: false, error: problem };
     }
     const listed = [...block.locales];
     const missing = listed.filter((name) => !discovered.includes(name));
     const extra = discovered.filter((name) => !listed.includes(name));
     if (missing.length > 0) {
-      return { ok: false, error: `8bitscript.config.8bs's i18n.locales names '${missing.join("', '")}', but ${catalogRel}/${missing[0]}.8bs is missing` };
+      return { ok: false, error: `8bitscript.config.ts's i18n.locales names '${missing.join("', '")}', but ${catalogRel}/${missing[0]}.8bs is missing` };
     }
     if (extra.length > 0) {
       return { ok: false, error: `${catalogRel}/${extra[0]}.8bs is a catalog file that i18n.locales does not list` };
@@ -311,10 +296,10 @@ export function resolveI18n(config, { projectDir = process.cwd(), tags = [] } = 
   const defaultLocale = block?.defaultLocale ?? 'en';
   const fallbackLocale = block?.fallbackLocale ?? defaultLocale;
   if (locales.length > 0 && !locales.includes(defaultLocale)) {
-    return { ok: false, error: `8bitscript.config.8bs's i18n.defaultLocale '${defaultLocale}' has no ${catalogRel}/${defaultLocale}.8bs` };
+    return { ok: false, error: `8bitscript.config.ts's i18n.defaultLocale '${defaultLocale}' has no ${catalogRel}/${defaultLocale}.8bs` };
   }
   if (locales.length > 0 && !locales.includes(fallbackLocale)) {
-    return { ok: false, error: `8bitscript.config.8bs's i18n.fallbackLocale '${fallbackLocale}' has no ${catalogRel}/${fallbackLocale}.8bs` };
+    return { ok: false, error: `8bitscript.config.ts's i18n.fallbackLocale '${fallbackLocale}' has no ${catalogRel}/${fallbackLocale}.8bs` };
   }
 
   return {
@@ -346,9 +331,9 @@ export function resolveLocale(config, { target, override, tags = [], projectDir 
   const targetLocale = (target && config?.targets && !Array.isArray(config.targets)) ? config.targets[target]?.locale : undefined;
   const candidates = [
     ['--locale', override],
-    [`8bitscript.config.8bs's targets.${target}.locale`, targetLocale],
-    ["8bitscript.config.8bs's locale", config?.locale],
-    ["8bitscript.config.8bs's i18n.defaultLocale", config?.i18n?.defaultLocale],
+    [`8bitscript.config.ts's targets.${target}.locale`, targetLocale],
+    ["8bitscript.config.ts's locale", config?.locale],
+    ["8bitscript.config.ts's i18n.defaultLocale", config?.i18n?.defaultLocale],
   ];
   for (const [where, value] of candidates) {
     if (value === undefined) continue;
