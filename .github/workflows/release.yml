@@ -64,6 +64,14 @@ jobs:
   extension:
     needs: npm
     runs-on: ubuntu-latest
+    # The `marketplace` environment holds AZURE_CLIENT_ID / AZURE_TENANT_ID
+    # and is the subject the Entra federated credential trusts
+    # (repo:8BitScript/8bitscript:environment:marketplace). This job only
+    # reads the repo; id-token lets azure/login exchange the OIDC token.
+    environment: marketplace
+    permissions:
+      contents: read
+      id-token: write
     env:
       VSCE_PAT: ${{ secrets.VSCE_PAT }}
       OVSX_PAT: ${{ secrets.OVSX_PAT }}
@@ -84,6 +92,20 @@ jobs:
       - name: Package VSIX
         working-directory: editors/vscode
         run: pnpm exec vsce package --out /tmp/8bitscript.vsix
+      # Preferred sign-in: Microsoft Entra through GitHub OIDC and a
+      # user-assigned managed identity. Skipped until the owner sets the
+      # AZURE_CLIENT_ID variable on the `marketplace` environment. It must
+      # not stop the other stores: if it fails, the publish below falls back
+      # to VSCE_PAT when that is set, and Open VSX is unaffected.
+      - name: Sign in to Azure
+        id: azlogin
+        if: ${{ vars.AZURE_CLIENT_ID != '' }}
+        continue-on-error: true
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          allow-no-subscriptions: true
       # v0.8.0: three attempts 30s apart (~2 minutes of retrying) still lost
       # to a live Azure DevOps Services outage on the gallery backend
       # (`/_apis/gallery` returning 503 "Sorry! Our services aren't
@@ -91,17 +113,18 @@ jobs:
       # gives ~5 minutes of retrying, which comfortably outlasts the
       # multi-minute outages this endpoint is known for — see the WAIT_MS
       # comment in publish-marketplace.mjs.
+      # The retry loop is scripts/marketplace-publish-loop.sh (tested by
+      # marketplace-publish-loop.test.mjs). 499b84ac-1321-427f-aa17-267ca6975798
+      # is the Azure DevOps resource it asks Entra for a token for.
       - name: Publish to Visual Studio Marketplace
         id: vsce
-        if: ${{ env.VSCE_PAT != '' }}
+        if: ${{ env.VSCE_PAT != '' || steps.azlogin.outcome == 'success' }}
         continue-on-error: true
-        run: |
-          for attempt in 1 2 3 4 5 6; do
-            node scripts/publish-marketplace.mjs /tmp/8bitscript.vsix && exit 0
-            [ "$attempt" = 6 ] && exit 1
-            echo "Marketplace publish failed (attempt $attempt/6), retrying in 60s..."
-            sleep 60
-          done
+        env:
+          AZURE_LOGIN_OUTCOME: ${{ steps.azlogin.outcome }}
+          AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+        run: bash scripts/marketplace-publish-loop.sh /tmp/8bitscript.vsix
       - name: Publish to Open VSX
         id: ovsx
         if: ${{ env.OVSX_PAT != '' }}
@@ -118,10 +141,11 @@ jobs:
         if: always()
         env:
           VSCE_OUTCOME: ${{ steps.vsce.outcome }}
+          AZURE_CONFIGURED: ${{ vars.AZURE_CLIENT_ID != '' }}
           OVSX_OUTCOME: ${{ steps.ovsx.outcome }}
         run: |
           failed=0
-          if [ -n "$VSCE_PAT" ] && [ "$VSCE_OUTCOME" != "success" ]; then
+          if { [ "$AZURE_CONFIGURED" = true ] || [ -n "$VSCE_PAT" ]; } && [ "$VSCE_OUTCOME" != "success" ]; then
             echo "Visual Studio Marketplace publish did not succeed ($VSCE_OUTCOME)"
             failed=1
           fi
