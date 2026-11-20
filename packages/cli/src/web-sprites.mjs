@@ -1,4 +1,4 @@
-// The sprite layer of the synthetic web hosts: eight pixel sprites, read from
+// The sprite layer of the synthetic web hosts: pixel sprites, spriteCount of them, read from
 // a region of the program's own memory (web-layout.mjs, agreementFor
 // `sprites`) and composited over the whole inner picture.
 //
@@ -9,6 +9,8 @@
 //
 // The rules (the X16's own numbers, so one program lands on the same pixels on
 // every machine):
+//   - a two-colour palette (a pet-style skin: every entry is its first or second) draws every opaque pixel in ink 1,
+//     since its own colours cannot be shown;
 //   - slot 0 is in front of slot 1, and so on; every sprite is in front of
 //     the cells and the background, and none is moved by the horizontal scroll
 //     or the raster list;
@@ -18,10 +20,10 @@
 //     8, 16, 32 or 64, or its frame does not lie inside the pool.
 
 /**
- * Composite the eight sprites of `mem` into `out.rgb`.
+ * Composite the `layout.spriteCount` sprites of `mem` into `out.rgb`.
  *
  * @param {Uint8Array} mem the program's memory
- * @param {{ spriteTable: number, spritePalettes: number, spritePool: number, spritePoolBytes: number }} layout
+ * @param {{ spriteCount: number, spriteTable: number, spritePalettes: number, spritePool: number, spritePoolBytes: number }} layout
  *   the region's addresses (a negative `spriteTable` is a host with none)
  * @param {number} innerW the inner picture's width in pixels
  * @param {number} innerH the inner picture's height in pixels
@@ -31,10 +33,19 @@
  */
 export function webSprites(mem, layout, innerW, innerH, palette, out) {
   var table = layout.spriteTable;
-  if (table === undefined || table < 0) return false;
+  var count = layout.spriteCount ?? 0;
+  if (table === undefined || table < 0 || !(count > 0)) return false;
   var drew = false;
-  for (var slot = 0; slot < 8; slot += 1) {
-    var entry = table + slot * 10;
+  // A two-colour host (the PET's black and green): every entry is palette[0] or palette[1].
+  var mono = palette.length >= 2;
+  for (var m = 2; m < palette.length; m += 1) {
+    var entryInk = palette[m];
+    var matches0 = entryInk[0] === palette[0][0] && entryInk[1] === palette[0][1] && entryInk[2] === palette[0][2];
+    var matches1 = entryInk[0] === palette[1][0] && entryInk[1] === palette[1][1] && entryInk[2] === palette[1][2];
+    if (!matches0 && !matches1) { mono = false; break; }
+  }
+  for (var slot = 0; slot < count; slot += 1) {
+    var entry = table + slot * 10; // SPRITE_ENTRY_BYTES
     if ((mem[entry] & 1) === 0) continue;
     var w = mem[entry + 5];
     var h = mem[entry + 6];
@@ -50,8 +61,11 @@ export function webSprites(mem, layout, innerW, innerH, palette, out) {
     if (tint < 16) {
       tintInk = palette[tint];
       if (!tintInk) continue;
+    } else if (mono) {
+      tintInk = palette[1];
+      if (!tintInk) continue;
     }
-    var colors = layout.spritePalettes + slot * 32;
+    var colors = layout.spritePalettes + slot * 32; // SPRITE_PALETTE_SLOT_BYTES
     var pool = layout.spritePool + frame;
     for (var row = 0; row < h; row += 1) {
       var y = y0 + row;

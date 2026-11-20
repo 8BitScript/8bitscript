@@ -170,7 +170,7 @@ export function renderFrame(mem, layout, palette) {
   const spritesDrawn = spriteLayer ? vicSprites(mem, vic, vicWrites, innerW, innerH, spriteLayer) : false;
   // The synthetic hosts' pixel sprites (web-sprites.mjs): over the whole inner
   // picture, scroll and raster list not applied. Off (no region), nothing here runs.
-  const pixelSprites = !vic && layout.spriteTable >= 0
+  const pixelSprites = !vic && layout.spriteTable >= 0 && layout.spriteCount > 0
     ? { rgb: new Int32Array(innerW * innerH).fill(-1) }
     : null;
   const pixelSpritesDrawn = pixelSprites ? webSprites(mem, layout, innerW, innerH, palette, pixelSprites) : false;

@@ -172,26 +172,39 @@ export const AudioRegister = { GATE: 0, NOTE: 1, WAVE: 2, VOLUME: 3 };
 
 // ---- the sprites ----------------------------------------------------------
 //
-// With `sprites: true` the agreement ends with the sprite region, after the
-// pointer block (or after the frame counter), so every offset in front of it
-// stays put:
+// With `sprites: { count, poolBytes }` the agreement ends with the sprite
+// region, after the pointer block (or after the frame counter), so every
+// offset in front of it stays put. Its sizes come from the build (its
+// `video.sprites` fact and its sprite memory), not from constants here:
 //
-//   spriteTable     8 slots x SPRITE_ENTRY_BYTES: FLAGS (bit 0 shown), X lo/hi,
-//                   Y lo/hi, WIDTH, HEIGHT, FRAME lo/hi (the pool offset of the
-//                   frame on show), TINT (255: the sprite's own colours)
-//   spritePalettes  8 x 32 bytes: 16 entries a slot, two bytes each in VERA
-//                   order (GGGGBBBB, then 0000RRRR); entry 0 is unused
-//   spritePool      SPRITE_POOL_BYTES of linear 4bpp frames, every sprite's
-//                   back to back, the left pixel in the high nibble
+//   spriteTable     `count` slots x SPRITE_ENTRY_BYTES: FLAGS (bit 0 shown),
+//                   X lo/hi, Y lo/hi, WIDTH, HEIGHT, FRAME lo/hi (the pool
+//                   offset of the frame on show), TINT (255: own colours)
+//   spritePalettes  `count` x SPRITE_PALETTE_SLOT_BYTES: 16 entries a slot,
+//                   two bytes each in VERA order (GGGGBBBB, then 0000RRRR);
+//                   entry 0 is unused
+//   spritePool      `poolBytes` of linear 4bpp frames, every sprite's back to
+//                   back, the left pixel in the high nibble
 //
-// web-sprites.mjs reads it; the library twins write it. The pool size is this
-// one constant.
-export const SPRITE_SLOTS = 8;
+// web-sprites.mjs reads it; the library twins write it.
 export const SPRITE_ENTRY_BYTES = 10;
-export const SPRITE_TABLE_BYTES = SPRITE_SLOTS * SPRITE_ENTRY_BYTES;
-export const SPRITE_PALETTE_BYTES = SPRITE_SLOTS * 32;
-export const SPRITE_POOL_BYTES = 16384;
+export const SPRITE_PALETTE_SLOT_BYTES = 32;
+// The largest count any build may ask for (the twins' state arrays have this length).
+export const SPRITE_SLOT_CEILING = 128;
 export const SpriteField = { FLAGS: 0, X: 1, Y: 3, WIDTH: 5, HEIGHT: 6, FRAME: 7, TINT: 9 };
+
+/**
+ * The sprite region a build's facts ask for: `video.sprites` slots and
+ * `video.spriteKib` KiB of pool, or null when it has no sprites.
+ *
+ * @param {Record<string, unknown>} facts
+ * @returns {{ count: number, poolBytes: number } | null}
+ */
+export function spriteRegion(facts) {
+  const count = facts?.['video.sprites'] ?? 0;
+  if (!(count > 0)) return null;
+  return { count, poolBytes: (facts['video.spriteKib'] ?? 0) * 1024 };
+}
 
 // ---- the pointer ----------------------------------------------------------
 //
@@ -330,8 +343,8 @@ export function agreementFor({
   frameCounter = false,
   // The pointer block (POINTER_BYTES) after everything else, for a machine with a mouse.
   pointer = false,
-  // The sprite region (SPRITE_POOL_BYTES etc.) at the very end, the synthetic hosts'.
-  sprites = false,
+  // The sprite region at the very end: `{ count, poolBytes }`, or null for none.
+  sprites = null,
 } = {}) {
   const cells = cols * rows;
   const charBase = resizable ? RESIZABLE_CHAR_BASE : CHAR_BASE;
@@ -355,10 +368,22 @@ export function agreementFor({
   const afterFrame = frameCounter ? beforeFrame + 1 : beforeFrame;
   const pointerOffset = pointer ? afterFrame : -1;
   const beforeSprites = pointer ? afterFrame + POINTER_BYTES : afterFrame;
-  const spriteTable = sprites ? beforeSprites : -1;
-  const spritePalettes = sprites ? spriteTable + SPRITE_TABLE_BYTES : -1;
-  const spritePool = sprites ? spritePalettes + SPRITE_PALETTE_BYTES : -1;
-  const reservedEnd = sprites ? spritePool + SPRITE_POOL_BYTES : beforeSprites;
+  const spriteOn = sprites?.count > 0;
+  if (spriteOn) {
+    if (!Number.isInteger(sprites.count) || sprites.count > SPRITE_SLOT_CEILING) {
+      throw new RangeError(`sprite count must be an integer from 1 to ${SPRITE_SLOT_CEILING}, got ${sprites.count}`);
+    }
+    if (!Number.isInteger(sprites.poolBytes) || sprites.poolBytes < 0 || sprites.poolBytes > 65535) {
+      throw new RangeError(`sprite pool must be an integer from 0 to 65535 bytes, got ${sprites.poolBytes}`);
+    }
+  } else if (sprites && sprites.count !== 0 && sprites.count !== undefined) {
+    throw new RangeError(`sprite count must be an integer from 1 to ${SPRITE_SLOT_CEILING}, got ${sprites.count}`);
+  }
+  const spriteCount = spriteOn ? sprites.count : 0;
+  const spriteTable = spriteOn ? beforeSprites : -1;
+  const spritePalettes = spriteOn ? spriteTable + spriteCount * SPRITE_ENTRY_BYTES : -1;
+  const spritePool = spriteOn ? spritePalettes + spriteCount * SPRITE_PALETTE_SLOT_BYTES : -1;
+  const reservedEnd = spriteOn ? spritePool + sprites.poolBytes : beforeSprites;
   return {
     cols,
     rows,
@@ -384,7 +409,8 @@ export function agreementFor({
     spriteTable,
     spritePalettes,
     spritePool,
-    spritePoolBytes: sprites ? SPRITE_POOL_BYTES : 0,
+    spriteCount,
+    spritePoolBytes: spriteOn ? sprites.poolBytes : 0,
     reservedEnd,
     rasterMaxEntries: RASTER_MAX_ENTRIES,
     columnsOffset: COLUMNS_OFFSET,
@@ -462,6 +488,7 @@ export function layoutFromHardware(hardwareOrFacts = {}) {
     userGlyphs: true,
     audio: true,
     pointer: host.pointer === true,
+    sprites: spriteRegion(facts),
   });
 }
 
@@ -704,7 +731,7 @@ export function layoutForRealMachine(target, hardware = {}) {
     resizable: false,
     pixelAspect,
     userGlyphs: real?.userGlyphs === true,
-    sprites: real?.sprites === true,
+    sprites: real?.sprites === true ? spriteRegion(facts) : null,
     frameCounter: real?.frameCounter === true,
     // The build's own mouse fact: the X16's by default, the C64's with a 1351.
     pointer: facts['input.mouse'] === true,
@@ -749,6 +776,7 @@ export function sidecarJson(layout = DEFAULT_LAYOUT) {
     rasterCountOffset: layout.rasterCountOffset,
     rasterBase: layout.rasterBase,
     glyphBase: layout.glyphBase,
+    spriteCount: layout.spriteCount ?? 0,
     spriteTable: layout.spriteTable ?? -1,
     spritePalettes: layout.spritePalettes ?? -1,
     spritePool: layout.spritePool ?? -1,

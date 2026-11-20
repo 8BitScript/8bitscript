@@ -867,7 +867,7 @@ test("the loader paints the C64's sprites and the list's writes to them, identic
 // paint the same pixels, and with the region on but no sprite shown, the same as
 // a host with no region at all.
 test("the loader paints the pixel sprites identically to renderFrame, and a region with nothing shown changes nothing", () => {
-  const layout = agreementFor({ userGlyphs: true, audio: true, sprites: true });
+  const layout = agreementFor({ userGlyphs: true, audio: true, sprites: { count: 8, poolBytes: 16384 } });
   const mem = new Uint8Array(65536);
   mem[0] = 2;
   mem[1] = 3;
@@ -1030,4 +1030,12 @@ test('a host with no glyph table draws none in the loader either, whatever bytes
 test('the fluid host fits the canvas at a whole number of device pixels; the rule is in the loader', () => {
   const source = renderLoader({ frameRate: 60 });
   assert.match(source, /if \(RESIZABLE && PIXEL_ASPECT === 1\) \{[^}]*Math\.floor\(scale \* dpr\)[^}]*scale = whole \/ dpr/s);
+});
+
+test('the loader takes a sprite count from the layout and from applyLayout', () => {
+  const layout = agreementFor({ sprites: { count: 3, poolBytes: 1024 } });
+  const source = renderLoader({ frameRate: 60, layout });
+  assert.match(source, /var SPRITE_COUNT = 3;/);
+  assert.match(source, /if \(next\.spriteCount != null\) SPRITE_COUNT = next\.spriteCount;/);
+  assert.match(renderLoader({ frameRate: 60 }), /var SPRITE_COUNT = 0;/);
 });

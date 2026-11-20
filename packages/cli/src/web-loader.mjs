@@ -299,6 +299,7 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
   // GLYPH_BASE is negative on a host with none (a real machine's own build).
   var GLYPH_BASE = ${layout.glyphBase ?? -1};
   // The pixel-sprite region (web-layout.mjs): negative on a host with none.
+  var SPRITE_COUNT = ${layout.spriteCount ?? 0};
   var SPRITE_TABLE = ${layout.spriteTable ?? -1};
   var SPRITE_PALETTES = ${layout.spritePalettes ?? -1};
   var SPRITE_POOL = ${layout.spritePool ?? -1};
@@ -667,13 +668,13 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
       spritesDrawn = vicSprites(mem, VIC, vicWrites, INNER_W, INNER_H, spriteLayer);
     }
     var pixelSpritesDrawn = false;
-    if (!VIC && SPRITE_TABLE >= 0) {
+    if (!VIC && SPRITE_TABLE >= 0 && SPRITE_COUNT > 0) {
       if (!pixelSprites || pixelSprites.rgb.length !== INNER_W * INNER_H) {
         pixelSprites = { rgb: new Int32Array(INNER_W * INNER_H) };
       }
       pixelSprites.rgb.fill(-1);
       pixelSpritesDrawn = webSprites(mem, {
-        spriteTable: SPRITE_TABLE, spritePalettes: SPRITE_PALETTES, spritePool: SPRITE_POOL, spritePoolBytes: SPRITE_POOL_BYTES,
+        spriteCount: SPRITE_COUNT, spriteTable: SPRITE_TABLE, spritePalettes: SPRITE_PALETTES, spritePool: SPRITE_POOL, spritePoolBytes: SPRITE_POOL_BYTES,
       }, INNER_W, INNER_H, palette, pixelSprites);
     }
     // A sprite pixel over the picture's own: the front-most sprite wins, and
@@ -827,6 +828,7 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
     if (next.rasterCountOffset != null) RASTER_COUNT_OFFSET = next.rasterCountOffset;
     if (next.rasterBase != null) RASTER_BASE = next.rasterBase;
     if (next.glyphBase != null) GLYPH_BASE = next.glyphBase;
+    if (next.spriteCount != null) SPRITE_COUNT = next.spriteCount;
     if (next.spriteTable != null) SPRITE_TABLE = next.spriteTable;
     if (next.spritePalettes != null) SPRITE_PALETTES = next.spritePalettes;
     if (next.spritePool != null) SPRITE_POOL = next.spritePool;
