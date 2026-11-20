@@ -51,6 +51,7 @@ fn screen_text(n: &Node) -> Option<(&str, bool)> {
         NodeKind::StringLiteral {
             value,
             unterminated,
+            ..
         } => Some((value, *unterminated == Some(true))),
         NodeKind::TemplateText { value } => Some((value, false)),
         _ => None,
