@@ -1185,7 +1185,7 @@ mod tests {
     fn reference(name: &str, ty: &str) -> Expr {
         Expr::Ref(Ref {
             name: name.into(),
-            ty: Some(ty.into()),
+            ty: jsnum::Nullable::Value(ty.into()),
             start: None,
             length: None,
         })
@@ -1196,7 +1196,7 @@ mod tests {
             operator: op.into(),
             left: Box::new(left),
             right: Box::new(right),
-            ty: ty.into(),
+            ty: Some(ty.into()),
         })
     }
 
@@ -1204,7 +1204,7 @@ mod tests {
         Expr::Unop(Unop {
             operator: "!".into(),
             argument: Box::new(arg),
-            ty: "bool".into(),
+            ty: Some("bool".into()),
         })
     }
 
@@ -1560,7 +1560,7 @@ mod tests {
             Expr::Unop(Unop {
                 operator: op.into(),
                 argument: Box::new(u8ref("g")),
-                ty: "utinyint".into(),
+                ty: Some("utinyint".into()),
             })
         };
         let (_, p) = run(&mut o, |l| l.unop(&un("~")));

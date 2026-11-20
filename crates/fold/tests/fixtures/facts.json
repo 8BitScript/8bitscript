@@ -184,6 +184,15 @@
         }
       ],
       [
+        "video.spriteKib",
+        {
+          "type": "count",
+          "when": "build",
+          "program": true,
+          "doc": "KiB of the shared pool every sprite picture of the build is drawn from; 0 where the build models no such pool. KiB for the same reason as memory.bankedKib."
+        }
+      ],
+      [
         "video.frameRate",
         {
           "type": "count",
@@ -565,6 +574,7 @@
       "video.spriteWidth",
       "video.spriteHeight",
       "video.spriteColors",
+      "video.spriteKib",
       "audio.voices",
       "audio.noise",
       "audio.envelope",
@@ -921,6 +931,23 @@
     "fn": "factPlaceholder",
     "args": [
       "video.spriteColors"
+    ],
+    "result": 0
+  },
+  {
+    "fn": "factConstName",
+    "args": [
+      "video.spriteKib"
+    ],
+    "result": {
+      "namespace": "Video",
+      "name": "SPRITE_KIB"
+    }
+  },
+  {
+    "fn": "factPlaceholder",
+    "args": [
+      "video.spriteKib"
     ],
     "result": 0
   },
@@ -1701,7 +1728,7 @@
       }
     ],
     "result": [
-      "'nope' is not a fact — the keys are video.columns, video.rows, video.cellWidth, video.cellHeight, video.palette, video.cellColors, video.colorPerCell, video.glyphs, video.blockWidth, video.blockHeight, video.bitmap, video.layers, video.scroll, video.raster, video.colorBlend, video.sprites, video.spritesPerLine, video.spriteWidth, video.spriteHeight, video.spriteColors, audio.voices, audio.noise, audio.envelope, audio.filter, audio.pcm, audio.volume, audio.entropy, input.keyboard, input.joysticks, input.pads, input.mouse, input.paddles, storage.save, storage.kib, memory.ram, memory.banked, memory.bankedKib"
+      "'nope' is not a fact — the keys are video.columns, video.rows, video.cellWidth, video.cellHeight, video.palette, video.cellColors, video.colorPerCell, video.glyphs, video.blockWidth, video.blockHeight, video.bitmap, video.layers, video.scroll, video.raster, video.colorBlend, video.sprites, video.spritesPerLine, video.spriteWidth, video.spriteHeight, video.spriteColors, video.spriteKib, audio.voices, audio.noise, audio.envelope, audio.filter, audio.pcm, audio.volume, audio.entropy, input.keyboard, input.joysticks, input.pads, input.mouse, input.paddles, storage.save, storage.kib, memory.ram, memory.banked, memory.bankedKib"
     ]
   },
   {
@@ -1955,8 +1982,8 @@
       }
     ],
     "result": [
-      "'3' is not a fact — the keys are video.columns, video.rows, video.cellWidth, video.cellHeight, video.palette, video.cellColors, video.colorPerCell, video.glyphs, video.blockWidth, video.blockHeight, video.bitmap, video.layers, video.scroll, video.raster, video.colorBlend, video.sprites, video.spritesPerLine, video.spriteWidth, video.spriteHeight, video.spriteColors, audio.voices, audio.noise, audio.envelope, audio.filter, audio.pcm, audio.volume, audio.entropy, input.keyboard, input.joysticks, input.pads, input.mouse, input.paddles, storage.save, storage.kib, memory.ram, memory.banked, memory.bankedKib",
-      "'7' is not a fact — the keys are video.columns, video.rows, video.cellWidth, video.cellHeight, video.palette, video.cellColors, video.colorPerCell, video.glyphs, video.blockWidth, video.blockHeight, video.bitmap, video.layers, video.scroll, video.raster, video.colorBlend, video.sprites, video.spritesPerLine, video.spriteWidth, video.spriteHeight, video.spriteColors, audio.voices, audio.noise, audio.envelope, audio.filter, audio.pcm, audio.volume, audio.entropy, input.keyboard, input.joysticks, input.pads, input.mouse, input.paddles, storage.save, storage.kib, memory.ram, memory.banked, memory.bankedKib",
+      "'3' is not a fact — the keys are video.columns, video.rows, video.cellWidth, video.cellHeight, video.palette, video.cellColors, video.colorPerCell, video.glyphs, video.blockWidth, video.blockHeight, video.bitmap, video.layers, video.scroll, video.raster, video.colorBlend, video.sprites, video.spritesPerLine, video.spriteWidth, video.spriteHeight, video.spriteColors, video.spriteKib, audio.voices, audio.noise, audio.envelope, audio.filter, audio.pcm, audio.volume, audio.entropy, input.keyboard, input.joysticks, input.pads, input.mouse, input.paddles, storage.save, storage.kib, memory.ram, memory.banked, memory.bankedKib",
+      "'7' is not a fact — the keys are video.columns, video.rows, video.cellWidth, video.cellHeight, video.palette, video.cellColors, video.colorPerCell, video.glyphs, video.blockWidth, video.blockHeight, video.bitmap, video.layers, video.scroll, video.raster, video.colorBlend, video.sprites, video.spritesPerLine, video.spriteWidth, video.spriteHeight, video.spriteColors, video.spriteKib, audio.voices, audio.noise, audio.envelope, audio.filter, audio.pcm, audio.volume, audio.entropy, input.keyboard, input.joysticks, input.pads, input.mouse, input.paddles, storage.save, storage.kib, memory.ram, memory.banked, memory.bankedKib",
       "'audio.voices' is a count: require a whole number above zero, not 0"
     ]
   },
@@ -1973,7 +2000,7 @@
     ],
     "result": [
       "'audio.pcm' is a flag: require it with true, or leave it out — not false",
-      "'nope.too' is not a fact — the keys are video.columns, video.rows, video.cellWidth, video.cellHeight, video.palette, video.cellColors, video.colorPerCell, video.glyphs, video.blockWidth, video.blockHeight, video.bitmap, video.layers, video.scroll, video.raster, video.colorBlend, video.sprites, video.spritesPerLine, video.spriteWidth, video.spriteHeight, video.spriteColors, audio.voices, audio.noise, audio.envelope, audio.filter, audio.pcm, audio.volume, audio.entropy, input.keyboard, input.joysticks, input.pads, input.mouse, input.paddles, storage.save, storage.kib, memory.ram, memory.banked, memory.bankedKib"
+      "'nope.too' is not a fact — the keys are video.columns, video.rows, video.cellWidth, video.cellHeight, video.palette, video.cellColors, video.colorPerCell, video.glyphs, video.blockWidth, video.blockHeight, video.bitmap, video.layers, video.scroll, video.raster, video.colorBlend, video.sprites, video.spritesPerLine, video.spriteWidth, video.spriteHeight, video.spriteColors, video.spriteKib, audio.voices, audio.noise, audio.envelope, audio.filter, audio.pcm, audio.volume, audio.entropy, input.keyboard, input.joysticks, input.pads, input.mouse, input.paddles, storage.save, storage.kib, memory.ram, memory.banked, memory.bankedKib"
     ]
   },
   {
@@ -63290,7 +63317,7 @@
       }
     ],
     "result": [
-      "'nope' is not a fact — the keys are video.columns, video.rows, video.cellWidth, video.cellHeight, video.palette, video.cellColors, video.colorPerCell, video.glyphs, video.blockWidth, video.blockHeight, video.bitmap, video.layers, video.scroll, video.raster, video.colorBlend, video.sprites, video.spritesPerLine, video.spriteWidth, video.spriteHeight, video.spriteColors, video.frameRate, video.characterSetSwapped, video.bootsInTextMode, memory.chrget, audio.voices, audio.noise, audio.envelope, audio.filter, audio.pcm, audio.volume, audio.entropy, input.keyboard, input.joysticks, input.pads, input.controls, input.mouse, input.paddles, storage.save, storage.kib, memory.ram, memory.banked, memory.bankedKib"
+      "'nope' is not a fact — the keys are video.columns, video.rows, video.cellWidth, video.cellHeight, video.palette, video.cellColors, video.colorPerCell, video.glyphs, video.blockWidth, video.blockHeight, video.bitmap, video.layers, video.scroll, video.raster, video.colorBlend, video.sprites, video.spritesPerLine, video.spriteWidth, video.spriteHeight, video.spriteColors, video.spriteKib, video.frameRate, video.characterSetSwapped, video.bootsInTextMode, memory.chrget, audio.voices, audio.noise, audio.envelope, audio.filter, audio.pcm, audio.volume, audio.entropy, input.keyboard, input.joysticks, input.pads, input.controls, input.mouse, input.paddles, storage.save, storage.kib, memory.ram, memory.banked, memory.bankedKib"
     ]
   },
   {
@@ -63457,8 +63484,8 @@
       }
     ],
     "result": [
-      "'2' is not a fact — the keys are video.columns, video.rows, video.cellWidth, video.cellHeight, video.palette, video.cellColors, video.colorPerCell, video.glyphs, video.blockWidth, video.blockHeight, video.bitmap, video.layers, video.scroll, video.raster, video.colorBlend, video.sprites, video.spritesPerLine, video.spriteWidth, video.spriteHeight, video.spriteColors, video.frameRate, video.characterSetSwapped, video.bootsInTextMode, memory.chrget, audio.voices, audio.noise, audio.envelope, audio.filter, audio.pcm, audio.volume, audio.entropy, input.keyboard, input.joysticks, input.pads, input.controls, input.mouse, input.paddles, storage.save, storage.kib, memory.ram, memory.banked, memory.bankedKib",
-      "'12' is not a fact — the keys are video.columns, video.rows, video.cellWidth, video.cellHeight, video.palette, video.cellColors, video.colorPerCell, video.glyphs, video.blockWidth, video.blockHeight, video.bitmap, video.layers, video.scroll, video.raster, video.colorBlend, video.sprites, video.spritesPerLine, video.spriteWidth, video.spriteHeight, video.spriteColors, video.frameRate, video.characterSetSwapped, video.bootsInTextMode, memory.chrget, audio.voices, audio.noise, audio.envelope, audio.filter, audio.pcm, audio.volume, audio.entropy, input.keyboard, input.joysticks, input.pads, input.controls, input.mouse, input.paddles, storage.save, storage.kib, memory.ram, memory.banked, memory.bankedKib",
+      "'2' is not a fact — the keys are video.columns, video.rows, video.cellWidth, video.cellHeight, video.palette, video.cellColors, video.colorPerCell, video.glyphs, video.blockWidth, video.blockHeight, video.bitmap, video.layers, video.scroll, video.raster, video.colorBlend, video.sprites, video.spritesPerLine, video.spriteWidth, video.spriteHeight, video.spriteColors, video.spriteKib, video.frameRate, video.characterSetSwapped, video.bootsInTextMode, memory.chrget, audio.voices, audio.noise, audio.envelope, audio.filter, audio.pcm, audio.volume, audio.entropy, input.keyboard, input.joysticks, input.pads, input.controls, input.mouse, input.paddles, storage.save, storage.kib, memory.ram, memory.banked, memory.bankedKib",
+      "'12' is not a fact — the keys are video.columns, video.rows, video.cellWidth, video.cellHeight, video.palette, video.cellColors, video.colorPerCell, video.glyphs, video.blockWidth, video.blockHeight, video.bitmap, video.layers, video.scroll, video.raster, video.colorBlend, video.sprites, video.spritesPerLine, video.spriteWidth, video.spriteHeight, video.spriteColors, video.spriteKib, video.frameRate, video.characterSetSwapped, video.bootsInTextMode, memory.chrget, audio.voices, audio.noise, audio.envelope, audio.filter, audio.pcm, audio.volume, audio.entropy, input.keyboard, input.joysticks, input.pads, input.controls, input.mouse, input.paddles, storage.save, storage.kib, memory.ram, memory.banked, memory.bankedKib",
       "'video.rows' is a count: a whole number, not 1.25"
     ]
   },
@@ -63499,6 +63526,7 @@
         "video.spriteWidth": 1,
         "video.spriteHeight": 1,
         "video.spriteColors": 1,
+        "video.spriteKib": 1,
         "video.frameRate": 1,
         "video.characterSetSwapped": 1,
         "video.bootsInTextMode": 1,
@@ -63569,6 +63597,7 @@
         "video.spriteWidth": true,
         "video.spriteHeight": true,
         "video.spriteColors": true,
+        "video.spriteKib": true,
         "video.frameRate": true,
         "video.characterSetSwapped": true,
         "video.bootsInTextMode": true,
@@ -63609,6 +63638,7 @@
       "'video.spriteWidth' is a count: a whole number, not true",
       "'video.spriteHeight' is a count: a whole number, not true",
       "'video.spriteColors' is a count: a whole number, not true",
+      "'video.spriteKib' is a count: a whole number, not true",
       "'video.frameRate' is a count: a whole number, not true",
       "'memory.chrget' is a count: a whole number, not true",
       "'audio.voices' is a count: a whole number, not true",

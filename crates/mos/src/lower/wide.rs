@@ -81,7 +81,9 @@ impl Lowerer<'_> {
                 Ok(address)
             }
             Expr::Ref(r) => {
-                if r.ty.as_deref() == Some("string") && self.arrays.contains_key(&r.name) {
+                if r.ty.as_option().map(String::as_str) == Some("string")
+                    && self.arrays.contains_key(&r.name)
+                {
                     let address = self.locals.alloc16(&format!("'{}'s own address", r.name))?;
                     let target = array_label(&r.name);
                     self.emit([
@@ -200,7 +202,9 @@ impl Lowerer<'_> {
             return Ok(());
         }
         if let Expr::Ref(r) = node {
-            if r.ty.as_deref() == Some("string") && self.arrays.contains_key(&r.name) {
+            if r.ty.as_option().map(String::as_str) == Some("string")
+                && self.arrays.contains_key(&r.name)
+            {
                 let target = array_label(&r.name);
                 self.emit([
                     lda_imm_lo(&target),
@@ -891,7 +895,7 @@ mod tests {
     fn var(name: &str, ty: &str) -> Expr {
         Expr::Ref(Ref {
             name: name.to_string(),
-            ty: Some(ty.to_string()),
+            ty: jsnum::Nullable::Value(ty.to_string()),
             start: None,
             length: None,
         })
@@ -902,7 +906,7 @@ mod tests {
             operator: op.to_string(),
             left: Box::new(left),
             right: Box::new(right),
-            ty: ty.to_string(),
+            ty: Some(ty.to_string()),
         })
     }
 
@@ -910,8 +914,8 @@ mod tests {
         Expr::Index(Index {
             array: Box::new(var(array, "array")),
             index: Box::new(index),
-            element_type: ty.to_string(),
-            ty: ty.to_string(),
+            element_type: Some(ty.to_string()),
+            ty: Some(ty.to_string()),
         })
     }
 
@@ -1053,7 +1057,7 @@ mod tests {
         let unop = Expr::Unop(mos_ir::Unop {
             operator: "-".into(),
             argument: Box::new(konst(1, "usmallint")),
-            ty: "usmallint".into(),
+            ty: Some("usmallint".into()),
         });
         let (r, _, _) = run(|l| l.expr16(&unop));
         assert_eq!(
@@ -1130,7 +1134,7 @@ mod tests {
         assert!(r.unwrap_err().contains("sign-extension isn't lowered"));
         let untyped = Expr::Ref(Ref {
             name: "a".into(),
-            ty: None,
+            ty: jsnum::Nullable::Absent,
             start: None,
             length: None,
         });
@@ -1717,7 +1721,7 @@ mod tests {
         assert_eq!(p, [lda_addr(0x14)]);
         let untyped = Expr::Ref(Ref {
             name: "n".into(),
-            ty: None,
+            ty: jsnum::Nullable::Absent,
             start: None,
             length: None,
         });
