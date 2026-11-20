@@ -39,6 +39,7 @@ fn decorators_come_last_and_none_children_are_skipped() {
         NodeKind::CallExpression {
             callee: Box::new(ident("f", 0)),
             args: vec![ident("a", 2)],
+            instance: None,
         },
     );
     let mut stmt = Node::new(
