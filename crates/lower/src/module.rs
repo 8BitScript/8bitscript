@@ -445,7 +445,7 @@ impl Lowering {
     /// `text.print(cell, \`TICK ${ticks % 10:1}\`)`: a template laid out at compile time into
     /// the calls a person would have written by hand.
     pub fn template_call(&mut self, node: &Node) -> Option<Stmt> {
-        let NodeKind::CallExpression { callee, args } = &node.kind else {
+        let NodeKind::CallExpression { callee, args, .. } = &node.kind else {
             return None;
         };
         let template = args.last()?;
