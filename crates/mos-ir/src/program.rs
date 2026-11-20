@@ -133,12 +133,24 @@ pub struct Param {
     pub length: Option<i64>,
 }
 
-/// A global's initial value: a scalar, or a const array's elements.
+/// A global's initial value: a scalar, or a const array's elements. Module lowering also
+/// leaves a pending expression (`ref`, `namespaceConst`) for the linker to resolve, as the
+/// whole initializer or as some array elements.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum GlobalInit {
     Scalar(i64),
     Array(Vec<i64>),
+    Pending(Box<Expr>),
+    Elements(Vec<ArrayElement>),
+}
+
+/// One element of a module-level array initializer: a value, or a pending expression.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ArrayElement {
+    Value(i64),
+    Pending(Expr),
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

@@ -30,8 +30,9 @@ pub struct Binop {
     pub operator: String,
     pub left: Box<Expr>,
     pub right: Box<Expr>,
-    #[serde(rename = "type")]
-    pub ty: String,
+    /// `null` when lowering cannot tell (an operand typed by an import): R3.3.
+    #[serde(rename = "type", default)]
+    pub ty: Option<String>,
 }
 
 /// A call, as an expression or (the same node) as a statement.
@@ -64,9 +65,11 @@ pub struct Const {
 pub struct Index {
     pub array: Box<Expr>,
     pub index: Box<Expr>,
-    pub element_type: String,
-    #[serde(rename = "type")]
-    pub ty: String,
+    /// `null` on an imported array, until the linker fills it in: R3.3.
+    #[serde(default)]
+    pub element_type: Option<String>,
+    #[serde(rename = "type", default)]
+    pub ty: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -83,8 +86,8 @@ pub struct MemoryRead {
 #[serde(deny_unknown_fields)]
 pub struct Ref {
     pub name: String,
-    #[serde(rename = "type", default, skip_serializing_if = "Option::is_none")]
-    pub ty: Option<String>,
+    #[serde(rename = "type", default, skip_serializing_if = "Nullable::is_absent")]
+    pub ty: Nullable<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub start: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -132,8 +135,9 @@ pub struct StringLength {
 pub struct Unop {
     pub operator: String,
     pub argument: Box<Expr>,
-    #[serde(rename = "type")]
-    pub ty: String,
+    /// `null` when the operand's type is not known yet: R3.3.
+    #[serde(rename = "type", default)]
+    pub ty: Option<String>,
 }
 
 /// `test ? consequent : alternate` (`ir/index.mjs` ConditionalExpression).
