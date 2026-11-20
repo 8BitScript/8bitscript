@@ -271,6 +271,11 @@ let h: u8 = BIG;
 let a: [u8; 1] = [99999999999999999999];
 let b: [u8; 1] = [-BIG];
 `,
+  // A call in one initializer must not drop the globals after it.
+  'call then global': `let a: u8 = f();
+let b: u8 = [1];
+let c: u8 = 2;
+`,
   // Negating a saturated const must not overflow.
   'negated huge const': `const X: i32 = -99999999999999999999;
 let g: i16 = -X;

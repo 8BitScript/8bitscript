@@ -827,10 +827,14 @@ impl Lowering {
 
         let mut init: Option<Expr> = None;
         if let Some(initializer) = initializer.as_deref() {
+            // Only this initializer's own call counts: the flag stays set for the module.
+            let reached_before = std::mem::take(&mut self.unported_call);
             init = self.expression(Some(initializer));
+            let reached_call = self.unported_call;
+            self.unported_call |= reached_before;
             // A call is not lowered yet (P3-15). JS lowers it to a call node and refuses it just
             // below, so this global is never declared; stop here the same way.
-            if init.is_none() && self.unported_call {
+            if init.is_none() && reached_call {
                 return;
             }
             // A bare name that is not an own const is either an imported const, left for the

@@ -135,3 +135,11 @@ fn negating_a_saturated_const_does_not_overflow() {
         Some(GlobalInit::Scalar(i64::MAX))
     );
 }
+
+#[test]
+fn a_call_in_one_initializer_does_not_drop_the_globals_after_it() {
+    let row = row("call then global");
+    let lowered = lowered(&row);
+    let names: Vec<&str> = lowered.ir.globals.iter().map(|g| g.name.as_str()).collect();
+    assert_eq!(names, ["b", "c"]);
+}
