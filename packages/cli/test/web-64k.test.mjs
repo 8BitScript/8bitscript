@@ -23,6 +23,6 @@ test('a sprite region ending at 65537 is refused with its size', () => {
   assert.equal(layout.reservedEnd, 0x10001);
   assert.equal(
     spriteRegionProblem(layout),
-    `the sprite region needs ${0x10001 - layout.spriteTable} bytes (128 sprites, ${poolBytes} bytes pool) and runs to 65537, past 64 KiB; this build asks for more sprites or sprite memory than fit beside the page`,
+    `the sprite region needs ${0x10001 - layout.spriteTable} bytes (128 sprites, ${poolBytes} bytes pool) and runs to 65537, past 64 KiB; ask for fewer with --hardware sprites=N or spriteMemory=N`,
   );
 });

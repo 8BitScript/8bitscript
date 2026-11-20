@@ -433,7 +433,7 @@ export function agreementFor({
 export function spriteRegionProblem(layout) {
   if (!(layout.spriteCount > 0) || layout.reservedEnd <= 0x10000) return null;
   const poolText = layout.spritePoolBytes % 1024 === 0 ? `${layout.spritePoolBytes / 1024} KiB` : `${layout.spritePoolBytes} bytes`;
-  return `the sprite region needs ${layout.reservedEnd - layout.spriteTable} bytes (${layout.spriteCount} sprites, ${poolText} pool) and runs to ${layout.reservedEnd}, past 64 KiB; this build asks for more sprites or sprite memory than fit beside the page`;
+  return `the sprite region needs ${layout.reservedEnd - layout.spriteTable} bytes (${layout.spriteCount} sprites, ${poolText} pool) and runs to ${layout.reservedEnd}, past 64 KiB; ask for fewer with --hardware sprites=N or spriteMemory=N`;
 }
 
 export const DEFAULT_LAYOUT = agreementFor({ userGlyphs: true, audio: true });

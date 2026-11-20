@@ -13,7 +13,7 @@ import { captureScreenshot } from '../src/screenshot.mjs';
 import { encodePNG, pixelAt } from '../src/png.mjs';
 import { instantiateProgram } from '../src/wasm-host.mjs';
 import { loadCatalog, resolveHardware } from '../src/hardware.mjs';
-import { BORDER_PX, layoutFromHardware, layoutForRealMachine } from '../src/web-layout.mjs';
+import { BORDER_PX, layoutFromHardware, layoutForRealMachine, spriteRegionProblem } from '../src/web-layout.mjs';
 
 const REPO = resolve(import.meta.dirname, '..', '..', '..');
 const WEB_SRC = join(REPO, 'packages', 'web', 'src');
@@ -192,6 +192,35 @@ test('the c64 web skin with default sprites puts the program\'s data at or after
     assert.ok(at >= layout.reservedEnd, `the string starts at ${at}, the agreement ends at ${layout.reservedEnd}`);
   } finally {
     process.chdir(prev);
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('hifi-hires with sprites=128,spriteMemory=32 does not fit 64 KiB and the build says so', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'wps-hires-'));
+  const cwd = process.cwd();
+  const stderr = process.stderr.write.bind(process.stderr);
+  const stdout = process.stdout.write.bind(process.stdout);
+  let text = '';
+  try {
+    await writeFile(join(dir, 'bar.png'), image(16, 16, (x, y) => x < 8 || y < 4));
+    await writeFile(join(dir, 'dot.png'), image(8, 8, (x, y) => x + y < 8));
+    await writeFile(join(dir, 'art.8bg'), ART);
+    await writeFile(join(dir, 'main.8bs'), PROGRAM);
+    process.chdir(dir);
+    process.stderr.write = (chunk) => { text += chunk; return true; };
+    process.stdout.write = () => true;
+    const hardware = { machine: 'hifi-hires', sprites: '128', spriteMemory: '32' };
+    const result = await compile('web', join(dir, 'main.8bs'), { checkout: REPO, hardware });
+    assert.equal(result.ok, false);
+    const expected = spriteRegionProblem(layoutFromHardware(hardwareFor('hifi-hires', { sprites: '128', spriteMemory: '32' })));
+    assert.ok(expected, 'the layout does not fit');
+    assert.match(expected, /ask for fewer with --hardware sprites=N or spriteMemory=N/);
+    assert.ok(text.includes(`8bs build: ${expected}`), text);
+  } finally {
+    process.stderr.write = stderr;
+    process.stdout.write = stdout;
+    process.chdir(cwd);
     await rm(dir, { recursive: true, force: true });
   }
 });
