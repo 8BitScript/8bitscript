@@ -29,6 +29,7 @@ const {
   STALE_CONFIG,
   staleConfigMessage,
   staleConfigsOnly,
+  forgetFixedStale,
   CONFIG_FILENAMES,
   MACHINE_TARGETS,
   cliCommand,
@@ -74,9 +75,6 @@ const TASK_TYPE = '8bs';
 // packages, git internals, and the per-session worktrees the agent tooling
 // keeps under .claude/worktrees, each a whole second checkout of the repo.
 const SEARCH_EXCLUDE = '{**/node_modules/**,**/.git/**,**/.claude/worktrees/**}';
-
-// Old-name configs already reported, so a refresh does not pop the error again.
-const reportedStale = new Set();
 
 /** The workspace folder a directory belongs to, for scoping tasks. */
 function folderOf(dir) {
@@ -302,6 +300,10 @@ function makeTask(project, action, target, region, hardware = settings.getHardwa
   };
   return task;
 }
+
+// Old-name configs already reported, so a refresh does not pop the error
+// again; dropped once the file is renamed, so a regression is reported anew.
+const reportedStale = new Set();
 
 /**
  * Everything the launcher is a view of: the projects in the workspace, the
@@ -600,7 +602,9 @@ class Projects {
     const found = await vscode.workspace.findFiles(`**/{${CONFIG_FILENAMES.join(',')}}`, SEARCH_EXCLUDE);
     const checkout = this.checkoutFlag();
     const stale = await vscode.workspace.findFiles(`**/${STALE_CONFIG}`, SEARCH_EXCLUDE);
-    for (const old of staleConfigsOnly(found.map((uri) => uri.fsPath), stale.map((uri) => uri.fsPath))) {
+    const staleOnly = staleConfigsOnly(found.map((uri) => uri.fsPath), stale.map((uri) => uri.fsPath));
+    forgetFixedStale(reportedStale, staleOnly);
+    for (const old of staleOnly) {
       if (reportedStale.has(old)) continue;
       reportedStale.add(old);
       this.output.appendLine(staleConfigMessage(old));

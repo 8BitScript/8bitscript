@@ -94,12 +94,26 @@ function stripTypesQuietly(source) {
   }
 }
 
-/** Import a `.ts` config as plain JS: stripped into a temp .mjs in `dir`, imported, removed. */
+/**
+ * Import a `.ts` config as plain JS: stripped into a temp .mjs in `dir`,
+ * imported, removed. When `dir` cannot be written (a read-only install), fall
+ * back to importing the `.ts` itself, which works wherever Node may strip
+ * types, i.e. outside node_modules.
+ */
 async function importStripped(path, dir) {
   const source = await readFile(path, 'utf8');
   const stripped = stripTypesQuietly(source);
   const tmpPath = join(dir, `.${randomBytes(8).toString('hex')}.8bitscript-config.mjs`);
-  await writeFile(tmpPath, stripped);
+  try {
+    await writeFile(tmpPath, stripped);
+  } catch (writeError) {
+    if (writeError.code !== 'EACCES' && writeError.code !== 'EROFS') throw writeError;
+    try {
+      return await import(pathToFileURL(path).href);
+    } catch (importError) {
+      throw new Error(`${importError.message} (could not write a temporary copy in ${dir} either: ${writeError.code})`);
+    }
+  }
   try {
     return await import(pathToFileURL(tmpPath).href);
   } finally {
