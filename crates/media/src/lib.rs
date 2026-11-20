@@ -7,6 +7,7 @@ pub mod cursor;
 pub mod graphics;
 pub mod kinds;
 pub mod lexer;
+pub mod tap;
 
 use audio::{Air, Unported};
 use diagnostics::Diagnostic;

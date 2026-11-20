@@ -8,9 +8,6 @@ use mos::build::Counters;
 use mos::tap::Replay;
 use serde_json::Value;
 
-/// The reason printed when a media function is tapped but cannot be replayed yet.
-pub const MEDIA_SKIP: &str = "media crate not on trunk";
-
 fn convert(outcome: Front) -> Replay {
     match outcome {
         Front::Match => Replay::Match,
@@ -37,10 +34,8 @@ pub fn replay(name: &str, record: &Value, _counters: &mut Counters) -> Option<Re
         "pathFormSpecifiers" => resolver::tap::path_form_specifiers::replay(record),
         "resolveSpecifier" => resolver::tap::resolve_specifier::replay(record),
         "nativeSourcesBeside" => resolver::tap::native_sources_beside::replay(record),
-        "parseMediaModule" | "elaborateMedia" => {
-            eprintln!("skip {name}: {MEDIA_SKIP}");
-            Front::Skip
-        }
+        "parseMediaModule" => media::tap::parse_media_module::replay(record),
+        "elaborateMedia" => media::tap::elaborate_media::replay(record),
         _ => return None,
     };
     Some(convert(outcome))

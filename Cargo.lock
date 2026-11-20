@@ -172,6 +172,7 @@ name = "media"
 version = "0.0.0"
 dependencies = [
  "diagnostics",
+ "front-replay",
  "indexmap",
  "jsnum",
  "serde",
@@ -441,6 +442,7 @@ dependencies = [
  "front-replay",
  "i18n",
  "lower",
+ "media",
  "mos",
  "mos-ir",
  "oracle",

@@ -8,7 +8,8 @@ publish.workspace = true
 
 [dependencies]
 diagnostics = { path = "../diagnostics" }
-indexmap = { version = "2", features = ["serde"] }
+front-replay = { path = "../front-replay" }
+indexmap ={ version = "2", features = ["serde"] }
 jsnum = { path = "../jsnum" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
