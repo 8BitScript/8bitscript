@@ -6,6 +6,7 @@
 pub mod bind;
 pub mod bind_imported_components;
 pub mod check;
+pub mod decode;
 pub mod graph;
 pub mod layout_template;
 pub mod scan_declared_types;
