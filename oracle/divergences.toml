@@ -22,8 +22,8 @@
 # fold: R7.8: replace_with_fact (a #fact value from the hardware sheet that is neither a bool nor a number: a string, null, an array or an object): JS folds the #fact call to a literal that holds that value as it is; Rust folds it to an IntegerLiteral 0 with raw #fact(key), because the Rust literal holds an f64. Unreachable from a program or config: facts come only from the in-repo machine catalogs through resolveHardware, whose sheets hold numbers and flags, and the linker passes them through (linker/index.mjs); only a third-party link() or foldCompileTime caller with a wrongly typed sheet sees it.
 # i18n: R7.10: fs (readFileSync of a catalog file, thrown out of prepare_catalog): a file that cannot be read gives Node's text for ENOENT, EACCES and EISDIR; other errno values get approximate text.
 # i18n: R7.2: string arguments (tap replay): a lone surrogate escape ("\ud800") becomes U+FFFD, not a lone code unit. Files read from disk cannot carry one (invalid UTF-8 becomes U+FFFD in Node too).
-```toml
 # lower: R7.8: Lowering::namespace_declaration: a namespace member VariableDeclaration whose name is null is reported by JS (let, or a type that is not compilable) or throws at member.name.name (a compilable const); Rust skips it with no diagnostic. Unreachable: the parser builds a namespace member's VariableDeclaration only with a name (parse_variable_named returns None without one).
+# lower: R2.1: module::int: a JS number becomes an IR integer with a saturating as i64 (NaN to 0); JS keeps the f64, so a value that is not whole or is outside the i64 range is written differently. Reachable with an out-of-range literal: the IR value saturates, and the VALUE_OUT_OF_RANGE message prints the JS number, so it matches the JS.
 # media-tools (P3-21) has no corpus stage, so it has no [[divergence]] table
 # (an entry that matches nothing is STALE). Its accepted differences are
 # listed in the crate docs, `crates/media-tools/src/lib.rs`:
