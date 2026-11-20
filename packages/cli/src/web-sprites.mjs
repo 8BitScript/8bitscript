@@ -10,7 +10,7 @@
 // The rules (the X16's own numbers, so one program lands on the same pixels on
 // every machine):
 //   - a two-colour palette (a pet-style skin: every entry is its first or second) draws every opaque pixel in ink 1,
-//     since its own colours cannot be shown;
+//     whatever the tint, since neither own colours nor a tint can be shown;
 //   - slot 0 is in front of slot 1, and so on; every sprite is in front of
 //     the cells and the background, and none is moved by the horizontal scroll
 //     or the raster list;
@@ -34,7 +34,7 @@
 export function webSprites(mem, layout, innerW, innerH, palette, out) {
   var table = layout.spriteTable;
   var count = layout.spriteCount ?? 0;
-  if (table === undefined || table < 0 || !(count > 0)) return false;
+  if (!(table >= 0) || !(count > 0)) return false;
   var drew = false;
   // A two-colour host (the PET's black and green): every entry is palette[0] or palette[1].
   var mono = palette.length >= 2;
@@ -58,13 +58,11 @@ export function webSprites(mem, layout, innerW, innerH, palette, out) {
     var y0 = ((mem[entry + 3] | (mem[entry + 4] << 8)) << 16) >> 16;
     var tint = mem[entry + 9];
     var tintInk = null;
-    if (tint < 16) {
-      tintInk = palette[tint];
-      if (!tintInk) continue;
-    } else if (mono) {
-      tintInk = palette[1];
-      if (!tintInk) continue;
-    }
+    // A two-colour host shows ink only, whatever the tint; otherwise a tint
+    // below 16 is a host palette entry and 16 and up the picture's own colours.
+    if (mono) tintInk = palette[1];
+    else if (tint < 16) tintInk = palette[tint];
+    if ((mono || tint < 16) && !tintInk) continue;
     var colors = layout.spritePalettes + slot * 32; // SPRITE_PALETTE_SLOT_BYTES
     var pool = layout.spritePool + frame;
     for (var row = 0; row < h; row += 1) {

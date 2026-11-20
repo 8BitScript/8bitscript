@@ -1039,3 +1039,17 @@ test('the loader takes a sprite count from the layout and from applyLayout', () 
   assert.match(source, /if \(next\.spriteCount != null\) SPRITE_COUNT = next\.spriteCount;/);
   assert.match(renderLoader({ frameRate: 60 }), /var SPRITE_COUNT = 0;/);
 });
+
+test('the loader paints pixel sprites in ink only on a two-colour skin, identically to renderFrame', () => {
+  const layout = agreementFor({
+    cols: 40, rows: 25, palette: PET_PALETTE, aspect: '4/3', colorPerCell: false, font: 'pet',
+    sprites: { count: 2, poolBytes: 1024 },
+  });
+  const mem = new Uint8Array(65536);
+  mem.fill(0x11, layout.spritePool, layout.spritePool + 64);
+  mem.set([1, 10, 0, 10, 0, 8, 8, 0, 0, 0], layout.spriteTable); // tint 0 would be black on a palette skin
+  mem.set([1, 14, 0, 12, 0, 8, 8, 32, 0, 255], layout.spriteTable + 10);
+  const frame = assertPaintParity(layout, mem);
+  const rgb = rgbPalette(layout.palette);
+  assert.deepEqual(framePixel(frame, BORDER_PX + 11, BORDER_PX + 11), rgb[1], 'ink, not the tint');
+});

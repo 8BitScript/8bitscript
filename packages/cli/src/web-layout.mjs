@@ -179,7 +179,8 @@ export const AudioRegister = { GATE: 0, NOTE: 1, WAVE: 2, VOLUME: 3 };
 //
 //   spriteTable     `count` slots x SPRITE_ENTRY_BYTES: FLAGS (bit 0 shown),
 //                   X lo/hi, Y lo/hi, WIDTH, HEIGHT, FRAME lo/hi (the pool
-//                   offset of the frame on show), TINT (255: own colours)
+//                   offset of the frame on show), TINT (below 16: a host palette
+//                   entry; 16 and up, 255 at start: the sprite's own colours)
 //   spritePalettes  `count` x SPRITE_PALETTE_SLOT_BYTES: 16 entries a slot,
 //                   two bytes each in VERA order (GGGGBBBB, then 0000RRRR);
 //                   entry 0 is unused

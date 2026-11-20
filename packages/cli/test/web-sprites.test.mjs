@@ -160,7 +160,7 @@ test('a FRAME past the pool is skipped for each pool size', () => {
   }
 });
 
-test('on a two-colour palette every opaque pixel is drawn in ink 1, whatever the tint above 15', () => {
+test('on a two-colour palette every opaque pixel is drawn in ink 1, whatever the tint', () => {
   const m = machine();
   color(m.mem, 0, 1, 15, 0, 0);
   solid(m.mem, 0, 8, 8, 1);
@@ -168,6 +168,13 @@ test('on a two-colour palette every opaque pixel is drawn in ink 1, whatever the
   const mono = rgbPalette(PET_PALETTE);
   assert.equal(webSprites(m.mem, layout, W, H, mono, m.out), true);
   assert.equal(px(m.out, 2, 2), pack(...mono[1]));
+  for (const tint of [0, 1, 5, 15, 16, 200, 255]) {
+    const t = machine();
+    solid(t.mem, 0, 8, 8, 1);
+    slot(t.mem, 0, { x: 0, y: 0, tint });
+    webSprites(t.mem, layout, W, H, mono, t.out);
+    assert.equal(px(t.out, 2, 2), pack(...mono[1]), `tint ${tint}: ink only`);
+  }
   const keeps = machine();
   color(keeps.mem, 0, 1, 15, 0, 0);
   solid(keeps.mem, 0, 8, 8, 1);
