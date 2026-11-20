@@ -10,3 +10,12 @@
 
 # media: R7.5: audio/parse parseOrder: JS never advances past a token that is not a name or ',' (`order { 5 }`) and loops forever (the diagnostic list grows without bound); Rust stops reading the order at the first such token and goes on to the closing brace.
 # media: R7.6: media/machine (structural note): the JS `diagnostic` callback and `helpers` object passed to lowerGraphics/lowerAudio become direct Diagnostic construction and an `encode_song` function argument; Frame and Pcm are placeholders until the decoders are ported.
+# media-tools (P3-21) has no corpus stage, so it has no [[divergence]] table
+# (an entry that matches nothing is STALE). Its accepted differences are
+# listed in the crate docs, `crates/media-tools/src/lib.rs`:
+#   - miniz_oxide gives approximate zlib error text for deflate data errors;
+#     header, checksum and truncation messages are exact.
+#   - decode_flac returns an error struct { message, code } so that the
+#     FLAC_NEEDS_FFMPEG code survives.
+#   - a WAV with zero channels is an error, and slice_frames with a frame
+#     size of 0 returns no frames; accepted: JS does not terminate.
