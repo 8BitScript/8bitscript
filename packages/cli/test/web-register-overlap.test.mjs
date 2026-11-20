@@ -53,13 +53,13 @@ const PROGRAM = [
   '}',
 ].join('\n');
 
-async function buildFor(machine) {
+async function buildFor(machine, extra = {}) {
   const dir = await mkdtemp(join(tmpdir(), '8bs-web-overlap-'));
   const prev = process.cwd();
   try {
     await writeFile(join(dir, 'main.8bs'), PROGRAM);
     process.chdir(dir);
-    const hardware = machine ? { machine } : {};
+    const hardware = { ...(machine ? { machine } : {}), ...extra };
     const result = await silently(() => compile('web', join(dir, 'main.8bs'), { checkout: REPO, hardware }));
     assert.equal(result.ok, true, `builds for ${machine ?? 'the Modern host'}`);
     return { bytes: await readFile(result.outFile), layout: layoutFromHardware(result.hardware) };
@@ -106,8 +106,8 @@ test('on the Modern host, a program\'s first string literal sits past the regist
   assert.equal(findString(memory, layout.reservedEnd), at, 'the literal did not move and was not overwritten');
 });
 
-test('a fixed web skin keeps its data where it always was', async () => {
-  const { bytes, layout } = await buildFor('c64');
+test('a fixed web skin without a sprite region keeps its data where it always was', async () => {
+  const { bytes, layout } = await buildFor('c64', { sprites: '0' });
   assert.equal(layout.resizable, false);
   const { memory: wasmMemory } = await instantiateProgram(bytes, { waitFrame: () => {} });
   const memory = new Uint8Array(wasmMemory.buffer);
