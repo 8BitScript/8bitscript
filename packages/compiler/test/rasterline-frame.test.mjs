@@ -26,11 +26,11 @@ const COUNTS = new Set(['c64', 'cx16']);
 
 test('raster.FRAME_COUNTER folds to a literal on every target, true only where the handler counts', () => {
   for (const target of TARGETS) {
-    const program = `import { raster } from "@8bitscript/raster";
-export function main(): void {
-    let seen: utinyint = 0;
-    if (raster.FRAME_COUNTER) {
-        seen = raster.frame();
+    const program = `use @8bitscript::raster::raster;
+pub fn main() {
+    let mut seen: utinyint = 0;
+    if raster::FRAME_COUNTER {
+        seen = raster::frame();
     }
     return;
 }
@@ -47,9 +47,9 @@ export function main(): void {
 
 test('raster.frame() links on every target, and answers a utinyint a stub folds to 0', () => {
   for (const target of TARGETS) {
-    const program = `import { raster } from "@8bitscript/raster";
-export function main(): void {
-    let now: utinyint = raster.frame();
+    const program = `use @8bitscript::raster::raster;
+pub fn main() {
+    let mut now: utinyint = raster::frame();
     now = now + 1;
     return;
 }
@@ -70,6 +70,6 @@ test('the two real counters are wired where the handler runs, and nowhere else i
   const cx16 = readFileSync(join(CHECKOUT, 'packages/cx16/src/rasterline.8bs'), 'utf8');
   assert.match(cx16, /inc \$0408\n\s+ldx #0/, 'the X16 handler adds one when a pass ends');
   assert.match(cx16, /lda #0\n\s+sta \$0408\n\s+sei/, 'the X16 enable() zeroes the counter');
-  assert.match(cx16, /memory\.read\(0x0408\)/, 'the X16 frame() reads the counter byte');
-  assert.match(readFileSync(join(CHECKOUT, 'packages/c64/src/raster.8bs'), 'utf8'), /@address\(0x06C3\)\nlet frameCounter: volatile<u8>/, 'the C64 counter is the byte the handler increments');
+  assert.match(cx16, /memory::read\(0x0408\)/, 'the X16 frame() reads the counter byte');
+  assert.match(readFileSync(join(CHECKOUT, 'packages/c64/src/raster.8bs'), 'utf8'), /#\[address\(0x06C3\)\] let frameCounter: volatile<u8>/, 'the C64 counter is the byte the handler increments');
 });

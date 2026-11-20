@@ -29,21 +29,35 @@ const lowered = (src) => {
 // program that uses it — self-contained, so nothing here depends on a
 // machine package.
 const TEXT = `
-let printIndex: utinyint = 0;
-export namespace text {
-    function putChar(cell: usmallint, code: utinyint): void { memory.write(1024 + cell, code); }
-    function print(cell: usmallint, s: string): void {
-        printIndex = 0;
-        while (printIndex < s.length) { text.putChar(cell + printIndex, s[printIndex]); printIndex = printIndex + 1; }
+let mut printIndex: utinyint = 0;
+pub mod text {
+    fn putChar(cell: usmallint, code: utinyint) {
+        memory::write(1024 + cell, code);
     }
-    function printNumber(cell: usmallint, value: usmallint, width: utinyint): void {
+    fn print(cell: usmallint, s: string) {
+        printIndex = 0;
+        while printIndex < s.length {
+            text::putChar(cell + printIndex, s[printIndex]);
+            printIndex = printIndex + 1;
+        }
+    }
+    fn printNumber(cell: usmallint, value: usmallint, width: utinyint) {
         printIndex = width;
-        while (printIndex > 0) { printIndex = printIndex - 1; text.putChar(cell + printIndex, 48 + value % 10); value = value / 10; }
+        while printIndex > 0 {
+            printIndex = printIndex - 1;
+            text::putChar(cell + printIndex, 48 + value % 10);
+            value = value / 10;
+        }
     }
 }
 `;
-const program = (body, globals = 'let ticks: utinyint = 0;\nlet option: utinyint = 0;\nlet score: usmallint = 0;') =>
-  `import { text } from "./text.8bs";\n${globals}\nexport function main(): void {\n${body}\n}\n`;
+const program = (body, globals = 'let mut ticks: utinyint = 0;\nlet mut option: utinyint = 0;\nlet mut score: usmallint = 0;') =>
+  `use self::text::text;
+${globals};
+pub fn main() {
+    ${body};
+}
+`;
 
 // link() reads imports from disk: a scratch project with text.8bs beside main.
 async function linked(body, globals) {
@@ -141,28 +155,36 @@ test('parser: a field expression is reachable by walk() — #frames(...) inside 
 // ---- checker: the portable character set ----------------------------------
 
 test('checker: a string literal or template text outside the portable set is a diagnostic; lower case is in it; import paths are not checked at all', () => {
-  clean('let x: utinyint = 1; function f(s: string): void { } export function main(): void { f("TICK 0-9 !,-.:?"); }');
+  clean('let x: utinyint = 1;\nfn f(s: string) {\n}\npub fn main() {\n    f("TICK 0-9 !,-.:?");\n}');
   // Lower case is portable — the Commodore text character set holds both
   // cases at once (packages/pet/src/text.8bs); only a target with no
   // lower-case glyphs at all (the NES's font today) would ever lose this,
   // and the checker runs target-blind, so it no longer refuses it anywhere.
-  clean('function f(s: string): void { } export function main(): void { f("tick"); }');
-  const lower = analyze('function f(s: string): void { } export function main(): void { f("t~ck"); }', 't.8bs');
+  clean('fn f(s: string) {\n}\npub fn main() {\n    f("tick");\n}');
+  const lower = analyze('fn f(s: string) {\n}\npub fn main() {\n    f("t~ck");\n}', 't.8bs');
   assert.equal(lower[0].code, '8BS1026');
   assert.match(lower[0].message, /'~' is not in the portable character set/);
-  assert.deepEqual(codes('export function main(): void { text.print(0, `héllo`); }'), ['8BS1026']);
-  clean('import { text } from "./lower-case/path_with_underscores.8bs";\nexport function main(): void { }');
+  assert.deepEqual(codes('pub fn main() {\n    text::print(0, `héllo`);\n}'), ['8BS1026']);
+  clean('use "./lower-case/path_with_underscores.8bs"::text;\npub fn main() {\n}');
 });
 
 test('checker: a string longer than 255 characters is a diagnostic', () => {
-  assert.deepEqual(codes(`function f(s: string): void { } export function main(): void { f("${'A'.repeat(256)}"); }`), ['8BS1027']);
-  clean(`function f(s: string): void { } export function main(): void { f("${'A'.repeat(255)}"); }`);
+  assert.deepEqual(codes(`fn f(s: string) {
+}
+pub fn main() {
+    f("${'A'.repeat(256)}");
+}`), ['8BS1027']);
+  clean(`fn f(s: string) {
+}
+pub fn main() {
+    f("${'A'.repeat(255)}");
+}`);
 });
 
 // ---- lowering: strings ------------------------------------------------------
 
 test('lowering: a string literal becomes a slot in the module string table, deduplicated', () => {
-  const { ir, diagnostics } = lowered('function f(s: string): void { }\nexport function main(): void { f("TICK"); f("TICK"); f("OPTION"); }');
+  const { ir, diagnostics } = lowered('fn f(s: string) {\n}\npub fn main() {\n    f("TICK");\n    f("TICK");\n    f("OPTION");\n}');
   assert.deepEqual(diagnostics, []);
   assert.deepEqual(ir.strings.map((s) => s.text), ['TICK', 'OPTION']);
   assert.deepEqual(ir.strings[0].bytes, [84, 73, 67, 75]);
@@ -170,21 +192,21 @@ test('lowering: a string literal becomes a slot in the module string table, dedu
 });
 
 test('lowering: a string parameter has .length and s[i]; nothing else does', () => {
-  const { ir, diagnostics } = lowered('let n: utinyint = 0;\nfunction f(s: string): void { n = s.length; n = s[n]; }\nexport function main(): void { }');
+  const { ir, diagnostics } = lowered('let mut n: utinyint = 0;\nfn f(s: string) {\n    n = s.length;\n    n = s[n];\n}\npub fn main() {\n}');
   assert.deepEqual(diagnostics, []);
   const [len, byte] = ir.functions[0].body.map((s) => s.value);
   assert.equal(len.kind, 'stringLength');
   assert.equal(byte.kind, 'stringByte');
   assert.equal(byte.index.name, 'n');
 
-  const bad = lowered('let n: utinyint = 0;\nfunction f(s: string): void { n = s.size; }\nexport function main(): void { n = n[0]; }');
+  const bad = lowered('let mut n: utinyint = 0;\nfn f(s: string) {\n    n = s.size;\n}\npub fn main() {\n    n = n[0];\n}');
   assert.deepEqual(bad.diagnostics.map((d) => d.code), ['8BS3001', '8BS3001']);
   assert.match(bad.diagnostics[0].message, /a string has no 'size'; it has .length and s\[i\]/);
   assert.match(bad.diagnostics[1].message, /'n' is not an array: indexing needs an array<T, N>/);
 });
 
 test('lowering: a string global without a capacity is refused with an honest message', () => {
-  const { diagnostics } = lowered('let label: string = "TICK";\nexport function main(): void { }');
+  const { diagnostics } = lowered('let label: string = "TICK";\npub fn main() {\n}');
   assert.deepEqual(diagnostics.map((d) => d.code), ['8BS3001']);
   assert.match(diagnostics[0].message, /a string variable needs a capacity: let name: string<N>/);
 });
@@ -259,7 +281,7 @@ test('template: the field expression itself is lowered — a #frames(...) field 
 // ---- hover / completion -----------------------------------------------------
 
 test('hover explains the string type', () => {
-  const text = 'function f(s: string): void { }';
+  const text = 'fn f(s: string) {\n}';
   const info = getHoverInfo(text, text.indexOf('string') + 1);
   assert.ok(info);
   assert.match(info.markdown, /\*\*string\*\*/);
@@ -275,14 +297,14 @@ test('completion offers string in a type position', () => {
 
 test('checker: template shape and field-width problems reach analyze() (so the editor), once each through link()', async () => {
   // analyze() never lowers, so these must come from the checker.
-  assert.deepEqual(codes('export function main(): void { text.putChar(0, `A`); }'), ['8BS1028']);
-  assert.deepEqual(codes('let x: utinyint = 0;\nexport function main(): void { x = `A`; }'), ['8BS1028']);
-  assert.deepEqual(codes('let t: utinyint = `A`;\nexport function main(): void { }'), ['8BS1028']);
-  assert.deepEqual(codes('export function main(): void { text.print(0, `${text.width()}`); }'), ['8BS1029']);
-  assert.deepEqual(codes('let d: tinyint = 0;\nexport function main(): void { text.print(0, `${d}`); }'), ['8BS1029']);
-  assert.deepEqual(codes('function f(v: usmallint): void { text.print(0, `${v}`); }\nexport function main(): void { }'), []);
+  assert.deepEqual(codes('pub fn main() {\n    text::putChar(0, `A`);\n}'), ['8BS1028']);
+  assert.deepEqual(codes('let mut x: utinyint = 0;\npub fn main() {\n    x = `A`;\n}'), ['8BS1028']);
+  assert.deepEqual(codes('let t: utinyint = `A`;\npub fn main() {\n}'), ['8BS1028']);
+  assert.deepEqual(codes('pub fn main() {\n    text::print(0, `${text::width()}`);\n}'), ['8BS1029']);
+  assert.deepEqual(codes('let d: tinyint = 0;\npub fn main() {\n    text::print(0, `${d}`);\n}'), ['8BS1029']);
+  assert.deepEqual(codes('fn f(v: usmallint) {\n    text::print(0, `${v}`);\n}\npub fn main() {\n}'), []);
   // A namespace member function is checked in its own parameter scope too.
-  assert.deepEqual(codes('namespace hud { function show(v: tinyint): void { text.print(0, `${v}`); } }\nexport function main(): void { }'), ['8BS1029']);
+  assert.deepEqual(codes('mod hud {\n    fn show(v: tinyint) {\n        text::print(0, `${v}`);\n    }\n}\npub fn main() {\n}'), ['8BS1029']);
   // And link() reports one problem once, not once from check() and once from lower().
   const { diagnostics } = await linked('text.print(0, `${text.width()}`);');
   assert.deepEqual(diagnostics.map((d) => d.code), ['8BS1029']);

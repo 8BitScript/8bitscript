@@ -22,12 +22,12 @@ const lowered = (src) => {
 
 test('a namespace of functions and consts parses', () => {
   const src = `
-export namespace screen {
-    function setBorderColor(color: utinyint): void {
-        memory.write(0x900F, color);
+pub mod screen {
+    fn setBorderColor(color: utinyint) {
+        memory::write(0x900F, color);
     }
 }
-export namespace BorderColor {
+pub mod BorderColor {
     const BLUE: utinyint = 6;
 }
 `;
@@ -43,7 +43,7 @@ export namespace BorderColor {
 
 test('a namespace function lowers to a mangled top-level function', () => {
   const { ir, diagnostics } = lowered(
-    'export namespace screen {\n    function setBorderColor(color: utinyint): void { memory.write(0x900F, color); }\n}\n',
+    'pub mod screen {\n    fn setBorderColor(color: utinyint) {\n        memory::write(0x900F, color);\n    }\n}\n',
   );
   assert.equal(diagnostics.length, 0);
   assert.equal(ir.functions[0].name, 'screen_setBorderColor');
@@ -54,12 +54,12 @@ test('a namespace function lowers to a mangled top-level function', () => {
     functions: new Map([['setBorderColor', 'screen_setBorderColor']]),
     consts: new Map(),
     constTypes: new Map(), // each numeric const's declared type, for the linker's inlining
-    start: 17, length: 6, // the name's span, for the linker's entry-export rule
+    start: 8, length: 6, // the name's span, for the linker's entry-export rule
   });
 });
 
 test('a namespace const is recorded as a value, never emitted as a global', () => {
-  const { ir, diagnostics } = lowered('export namespace BorderColor {\n    const BLUE: utinyint = 6;\n}\n');
+  const { ir, diagnostics } = lowered('pub mod BorderColor {\n    const BLUE: utinyint = 6;\n}\n');
   assert.equal(diagnostics.length, 0);
   assert.equal(ir.globals.length, 0);
   assert.equal(ir.functions.length, 0);
@@ -67,21 +67,25 @@ test('a namespace const is recorded as a value, never emitted as a global', () =
 });
 
 test('a namespace member must be const, not let', () => {
-  const { diagnostics } = lowered('namespace X {\n    let y: utinyint = 1;\n}\n');
+  const { diagnostics } = lowered('mod X {\n    let y: utinyint = 1;\n}\n');
   assert.deepEqual(diagnostics.map((d) => d.code), ['8BS3001']);
 });
 
 test('a namespace const needs a literal initializer', () => {
-  const { diagnostics } = lowered('namespace X {\n    const y: utinyint = 1 + 1;\n}\n');
+  const { diagnostics } = lowered('mod X {\n    const y: utinyint = 1 + 1;\n}\n');
   assert.deepEqual(diagnostics.map((d) => d.code), ['8BS3001']);
 });
 
 test('a call inside the same module resolves against its own namespace', () => {
   const src = [
-    'namespace screen {',
-    '    function setBorderColor(color: utinyint): void { memory.write(0x900F, color); }',
+    'mod screen {',
+    '    fn setBorderColor(color: utinyint) {',
+    '        memory::write(0x900F, color);',
+    '    }',
     '}',
-    'export function main(): void { screen.setBorderColor(6); }',
+    'pub fn main() {',
+    '    screen::setBorderColor(6);',
+    '}',
   ].join('\n');
   const { ir, diagnostics } = link(src, 't.8bs');
   assert.deepEqual(diagnostics, []);
@@ -92,10 +96,12 @@ test('a call inside the same module resolves against its own namespace', () => {
 
 test('a namespace const inlines to its literal value wherever it is used', () => {
   const src = [
-    'namespace BorderColor {',
-    '    const BLUE: utinyint = 6;',
+    'mod BorderColor {',
+    'const BLUE: utinyint = 6;',
     '}',
-    'export function main(): void { memory.write(0x900F, BorderColor.BLUE); }',
+    'pub fn main() {',
+    '    memory::write(0x900F, BorderColor::BLUE);',
+    '}',
   ].join('\n');
   const { ir, diagnostics } = link(src, 't.8bs');
   assert.deepEqual(diagnostics, []);
@@ -106,17 +112,21 @@ test('a namespace const inlines to its literal value wherever it is used', () =>
 // ---- linking: unresolved namespaces and members are honest errors --------
 
 test('calling a namespace that does not exist is an unresolved name', () => {
-  const { ir, diagnostics } = link('export function main(): void { nope.go(); }', 't.8bs');
+  const { ir, diagnostics } = link('pub fn main() {\n    nope::go();\n}', 't.8bs');
   assert.equal(ir, null);
   assert.deepEqual(diagnostics.map((d) => d.code), ['8BS2007']);
 });
 
 test('calling a member a namespace does not have is 8BS2005-shaped', () => {
   const src = [
-    'namespace screen {',
-    '    function setBorderColor(color: utinyint): void { memory.write(0x900F, color); }',
+    'mod screen {',
+    '    fn setBorderColor(color: utinyint) {',
+    '        memory::write(0x900F, color);',
+    '    }',
     '}',
-    'export function main(): void { screen.setBackgroundColor(1); }',
+    'pub fn main() {',
+    '    screen::setBackgroundColor(1);',
+    '}',
   ].join('\n');
   const { ir, diagnostics } = link(src, 't.8bs');
   assert.equal(ir, null);
@@ -127,8 +137,8 @@ test('a namespace that exists but was not exported cannot be imported', () => {
   const dir = mkdtempSync(join(tmpdir(), '8bs-ns-test-'));
   try {
     // No `export` on the namespace: it exists in lib.8bs but is private to it.
-    writeFileSync(join(dir, 'lib.8bs'), 'namespace screen {\n    function f(): void { return; }\n}\n');
-    const entry = 'import { screen } from "./lib.8bs";\nexport function main(): void { screen.f(); }\n';
+    writeFileSync(join(dir, 'lib.8bs'), 'mod screen {\n    fn f() {\n        return;\n    }\n}\n');
+    const entry = 'use self::lib::screen;\npub fn main() {\n    screen::f();\n}\n';
     const { ir, diagnostics } = link(entry, join(dir, 'main.8bs'));
     assert.equal(ir, null);
     assert.deepEqual(diagnostics.map((d) => d.code), ['8BS2005']);
@@ -143,19 +153,19 @@ test('an exported namespace works when imported from another module', () => {
   const dir = mkdtempSync(join(tmpdir(), '8bs-ns-test-'));
   try {
     const lib = [
-      'export namespace screen {',
-      '    function setBorderColor(color: utinyint): void {',
-      '        memory.write(0x900F, (memory.read(0x900F) & 0xF8) | (color & 0x07));',
+      'pub mod screen {',
+      '    fn setBorderColor(color: utinyint) {',
+      '        memory::write(0x900F, memory::read(0x900F) & 0xF8 | color & 0x07);',
       '    }',
       '}',
-      'export namespace BorderColor {',
+      'pub mod BorderColor {',
       '    const BLUE: utinyint = 6;',
       '}',
     ].join('\n');
     const main = [
-      'import { screen, BorderColor } from "./lib.8bs";',
-      'export function main(): void {',
-      '    screen.setBorderColor(BorderColor.BLUE);',
+      'use self::lib::{screen, BorderColor};',
+      'pub fn main() {',
+      '    screen::setBorderColor(BorderColor::BLUE);',
       '}',
     ].join('\n');
     writeFileSync(join(dir, 'lib.8bs'), lib);

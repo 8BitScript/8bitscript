@@ -14,9 +14,12 @@ import { link } from '../index.mjs';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const VIC20_SRC = join(HERE, '..', '..', 'vic20', 'src');
 const CONSUMER = [
-  'import { screen } from "@8bitscript/screen";',
-  'import { text } from "@8bitscript/text";',
-  'export function main(): void { screen.blank(); text.putColor(0, 1); }',
+  'use @8bitscript::screen::screen;',
+  'use @8bitscript::text::text;',
+  'pub fn main() {',
+  '    screen::blank();',
+  '    text::putColor(0, 1);',
+  '}',
 ].join('\n');
 const ENTRY = join(HERE, '..', '..', 'studio', 'src', 'main.8bs');
 
@@ -89,7 +92,7 @@ test('the 8k, 16k and 24k values share one `expanded` tag, and the one expanded 
 
   const namespaceOf = (file) => {
     const text = readFileSync(join(VIC20_SRC, file), 'utf8');
-    const start = text.indexOf('export namespace Video');
+    const start = text.indexOf('pub mod Video');
     assert.ok(start >= 0, `${file}: has a Video namespace`);
     return text.slice(start).replace(/\/\/[^\n]*/g, '').replace(/\s+/g, ' ').trim();
   };

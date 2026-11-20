@@ -13,7 +13,9 @@ import {
 
 const codes = (src, options) => analyze(src, 't.8bs', options).map((d) => d.code);
 const clean = (src, options) => assert.deepEqual(codes(src, options), []);
-const program = (call) => `let x: utinyint = ${call};\nexport function main(): void {}`;
+const program = (call) => `let x: utinyint = ${call};
+pub fn main() {
+}`;
 
 // ---- lexer: decimal literals -----------------------------------------------
 
@@ -36,7 +38,7 @@ test('lexer: a trailing dot with no digit after it is not a decimal literal', ()
   assert.equal(tokens[0].kind, 'number');
   assert.equal(tokens[0].isDecimal, undefined);
   assert.equal(tokens[0].value, 1);
-  assert.equal(tokens[1].kind, 'operator');
+  assert.equal(tokens[1].kind, 'punctuation');
   assert.equal(tokens[1].text, '.');
 });
 
@@ -87,7 +89,7 @@ test('fold: #frames(0.5, seconds) is exact at the default frameRate (60) and at 
 });
 
 test('fold: #frames(1, seconds) is exact at any integer frameRate', () => {
-  const at7 = link('let x: uint = #frames(1, seconds);\nexport function main(): void {}', 't', { frameRate: 7 });
+  const at7 = link('let x: uint = #frames(1, seconds);\npub fn main() {\n}', 't', { frameRate: 7 });
   assert.deepEqual(at7.diagnostics, []);
   assert.equal(at7.ir.globals[0].init, 7);
 });
@@ -198,9 +200,9 @@ test('hover explains seconds only in the unit slot of #frames(...)', () => {
 
 test('#frames is its own token, so a program may declare its own frames', () => {
   clean('let frames: u8 = 60;');
-  clean('function frames(n: uint): uint { return n; }');
-  clean('import { frames } from "./x.8bs";');
-  clean('function f(frames: u8): void { }');
+  clean('fn frames(n: uint) -> uint {\n    return n;\n}');
+  clean('use self::x::frames;');
+  clean('fn f(frames: u8) {\n}');
   // Both in one program: the declared name and the compile-time function.
   clean('let frames: utinyint = 1;\nlet x: utinyint = #frames(0.5, seconds);');
 });
@@ -223,15 +225,15 @@ test('a plain frames(...) is a runtime call like any other — the decimal liter
   // place a call is legal. The only complaint is the decimal literal, which
   // has nowhere to live outside a compile-time duration.
   assert.deepEqual(
-    codes('let x: utinyint = 0;\nexport function main(): void { x = frames(0.5, seconds); }'),
+    codes('let mut x: utinyint = 0;\npub fn main() {\n    x = frames(0.5, seconds);\n}'),
     ['8BS1009'],
   );
 });
 
 test('not reserved: the unit word "seconds" is an ordinary name everywhere but the unit slot', () => {
   clean('let seconds: u8 = 1;');
-  clean('function seconds(n: uint): uint { return n; }');
-  clean('function f(seconds: u8): void { }');
+  clean('fn seconds(n: uint) -> uint {\n    return n;\n}');
+  clean('fn f(seconds: u8) {\n}');
   // Declaring it and using the unit in the same program are independent.
   clean('let seconds: u8 = 3;\nlet x: utinyint = #frames(0.5, seconds);');
 });

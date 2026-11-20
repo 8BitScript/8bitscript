@@ -20,16 +20,16 @@ function callsIn(node, out = []) {
   return out;
 }
 
-const AB = `component A() { memory.write(0x8000, 1); }
-component B() { memory.write(0x8000, 2); }
+const AB = `component A() { memory::write(0x8000, 1); }
+component B() { memory::write(0x8000, 2); }
 component Box() { <slot />; }
 `;
 
 test('{cond ? <A /> : <B />} is an if with an arm each; {cond && <A />} an if with one (§50)', () => {
-  const main = `${AB}let paused: bool = false;
-export function main(): void {
+  const main = `${AB}let mut paused: bool = false;
+pub fn main() {
     paused = true;
-    <Box>{paused ? <A /> : <B />}{paused && <A />}</Box>;
+    <Box>{if paused { <A /> } else { <B /> }}{paused && <A />}</Box>;
 }
 `;
   const { ir, diagnostics } = linkFiles({ 'main.8bx': main }, 'main.8bx');
@@ -46,8 +46,8 @@ export function main(): void {
 
 test('a compile-time test keeps one arm and the other component is gone from the program (§49)', () => {
   const main = `${AB}const SPRITES: utinyint = 0;
-export function main(): void {
-    <>{SPRITES > 0 ? <A /> : <B />}</>;
+pub fn main() {
+    <>{if SPRITES > 0 { <A /> } else { <B /> }}</>;
 }
 `;
   const { ir, diagnostics } = linkFiles({ 'main.8bx': main }, 'main.8bx');
@@ -61,10 +61,10 @@ export function main(): void {
 });
 
 test('arms nest, and may be fragments', () => {
-  const main = `${AB}let mode: utinyint = 0;
-export function main(): void {
+  const main = `${AB}let mut mode: utinyint = 0;
+pub fn main() {
     mode = mode + 1;
-    <>{mode == 0 ? <A /> : mode == 1 ? <><A /><B /></> : <B />}</>;
+    <>{if mode == 0 { <A /> } else if mode == 1 { <><A /> <B /></> } else { <B /> }}</>;
 }
 `;
   const { ir, diagnostics } = linkFiles({ 'main.8bx': main }, 'main.8bx');
@@ -79,9 +79,11 @@ export function main(): void {
 
 test('return (<…/>) in a component composes where it stands (§23, §96)', () => {
   const main = `${AB}component Screen(on: bool) {
-    return (<>{on ? <A /> : <B />}</>);
+    return (<>{if on { <A /> } else { <B /> }}</>);
 }
-export function main(): void { <Screen on={true} />; }
+pub fn main() {
+    <Screen on={true} />;
+}
 `;
   const { ir, diagnostics } = linkFiles({ 'main.8bx': main }, 'main.8bx');
   assert.deepEqual(diagnostics, []);
@@ -92,12 +94,12 @@ export function main(): void { <Screen on={true} />; }
 
 test('a composition is not a value (§94), and a bare value between tags is not a child yet (§20)', () => {
   const codes = (src) => analyze(`${AB}${src}`, 't.8bx', { sourceKind: '.8bx' }).filter((d) => d.code === Codes.BX_NOT_A_VALUE || d.code === Codes.BX_EXPRESSION_CHILD).map((d) => `${d.code}:${d.message.split(':')[0].slice(0, 20)}`);
-  assert.deepEqual(codes('export function main(): void { let x: utinyint = <A />; }\n'), ['8BS2024:a composition is not']);
-  assert.deepEqual(codes('function f(v: utinyint): void { }\nexport function main(): void { f(<A />); }\n'), ['8BS2024:a composition is not']);
-  assert.deepEqual(codes('export function main(): void { <Box>{1 + 1}</Box>; }\n'), ['8BS2023:an expression betwee']);
-  assert.deepEqual(codes('let s: utinyint = 0;\nexport function main(): void { <Box>{s}</Box>; }\n'), ['8BS2023:an expression betwee']);
+  assert.deepEqual(codes('pub fn main() {\n    let x: utinyint = <A />;\n}\n'), ['8BS2024:a composition is not']);
+  assert.deepEqual(codes('fn f(v: utinyint) {\n}\npub fn main() {\n    f(<A />);\n}\n'), ['8BS2024:a composition is not']);
+  assert.deepEqual(codes('pub fn main() {\n    <Box>\n        {1 + 1}\n    </Box>;\n}\n'), ['8BS2023:an expression betwee']);
+  assert.deepEqual(codes('let s: utinyint = 0;\npub fn main() {\n    <Box>\n        {s}\n    </Box>;\n}\n'), ['8BS2023:an expression betwee']);
   // A composition-shaped expression outside a composing place is a value too.
-  assert.deepEqual(codes('let c: bool = true;\nexport function main(): void { let x: utinyint = c ? <A /> : <B />; }\n'), ['8BS2024:a composition is not', '8BS2024:a composition is not']);
+  assert.deepEqual(codes('let c: bool = true;\npub fn main() {\n    let x: utinyint = if c { <A /> } else { <B /> };\n}\n'), ['8BS2024:a composition is not', '8BS2024:a composition is not']);
   // And these are fine: statement, child, arms, &&, return.
-  assert.deepEqual(codes('let c: bool = true;\nexport function main(): void { <A />; if (c) <B />; <Box>{c ? <A /> : <B />}{c && <A />}</Box>; }\n'), []);
+  assert.deepEqual(codes('let c: bool = true;\npub fn main() {\n    <A />;\n    if c {\n        <B />;\n    }\n    <Box>\n        {if c { <A /> } else { <B /> }}\n        {c && <A />}\n    </Box>;\n}\n'), []);
 });
