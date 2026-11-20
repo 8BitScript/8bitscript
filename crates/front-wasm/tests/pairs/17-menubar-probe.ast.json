@@ -1,0 +1,136 @@
+{
+  "body": [
+    {
+      "length": 46,
+      "source": {
+        "length": 20,
+        "start": 305,
+        "type": "StringLiteral",
+        "value": "../src/menubar.8bx"
+      },
+      "specifiers": [
+        {
+          "length": 7,
+          "name": "MenuBar",
+          "start": 328,
+          "type": "Identifier"
+        },
+        {
+          "length": 8,
+          "name": "MenuItem",
+          "start": 337,
+          "type": "Identifier"
+        }
+      ],
+      "start": 301,
+      "type": "ImportDeclaration"
+    },
+    {
+      "body": {
+        "body": [
+          {
+            "attributes": [
+              {
+                "length": 7,
+                "name": "row",
+                "start": 378,
+                "type": "BxAttribute",
+                "value": {
+                  "length": 1,
+                  "radix": 10,
+                  "raw": "0",
+                  "start": 383,
+                  "type": "IntegerLiteral",
+                  "value": 0
+                }
+              },
+              {
+                "length": 10,
+                "name": "width",
+                "start": 386,
+                "type": "BxAttribute",
+                "value": {
+                  "length": 2,
+                  "radix": 10,
+                  "raw": "40",
+                  "start": 393,
+                  "type": "IntegerLiteral",
+                  "value": 40
+                }
+              }
+            ],
+            "children": [
+              {
+                "attributes": [
+                  {
+                    "length": 12,
+                    "name": "label",
+                    "start": 416,
+                    "type": "BxAttribute",
+                    "value": {
+                      "length": 6,
+                      "start": 422,
+                      "type": "StringLiteral",
+                      "value": "FILE"
+                    }
+                  }
+                ],
+                "children": [],
+                "length": 25,
+                "name": "MenuItem",
+                "selfClosing": true,
+                "start": 406,
+                "type": "BxElement"
+              },
+              {
+                "attributes": [
+                  {
+                    "length": 12,
+                    "name": "label",
+                    "start": 450,
+                    "type": "BxAttribute",
+                    "value": {
+                      "length": 6,
+                      "start": 456,
+                      "type": "StringLiteral",
+                      "value": "EDIT"
+                    }
+                  }
+                ],
+                "children": [],
+                "length": 25,
+                "name": "MenuItem",
+                "selfClosing": true,
+                "start": 440,
+                "type": "BxElement"
+              }
+            ],
+            "length": 111,
+            "name": "MenuBar",
+            "selfClosing": false,
+            "start": 369,
+            "type": "BxElement"
+          }
+        ],
+        "length": 120,
+        "start": 363,
+        "type": "BlockStatement"
+      },
+      "exported": true,
+      "length": 134,
+      "name": {
+        "length": 4,
+        "name": "main",
+        "start": 356,
+        "type": "Identifier"
+      },
+      "params": [],
+      "returnType": null,
+      "start": 349,
+      "type": "FunctionDeclaration"
+    }
+  ],
+  "length": 484,
+  "start": 0,
+  "type": "Program"
+}

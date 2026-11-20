@@ -1,0 +1,64 @@
+{
+  "diagnostics": [
+    {
+      "code": "8BS1007",
+      "file": "t",
+      "length": 35,
+      "message": "unterminated asm6502 block",
+      "severity": "error",
+      "start": 24
+    },
+    {
+      "code": "8BS1005",
+      "file": "t",
+      "length": 1,
+      "message": "unclosed '{'",
+      "severity": "error",
+      "start": 10
+    }
+  ],
+  "tokens": [
+    {
+      "kind": "keyword",
+      "length": 2,
+      "start": 0,
+      "text": "fn"
+    },
+    {
+      "kind": "identifier",
+      "length": 4,
+      "start": 3,
+      "text": "main"
+    },
+    {
+      "kind": "punctuation",
+      "length": 1,
+      "start": 7,
+      "text": "("
+    },
+    {
+      "kind": "punctuation",
+      "length": 1,
+      "start": 8,
+      "text": ")"
+    },
+    {
+      "kind": "punctuation",
+      "length": 1,
+      "start": 10,
+      "text": "{"
+    },
+    {
+      "kind": "keyword",
+      "length": 7,
+      "start": 16,
+      "text": "asm6502"
+    },
+    {
+      "kind": "asm",
+      "length": 35,
+      "start": 24,
+      "text": "{\n        lda #1\n        sta $D020\n"
+    }
+  ]
+}

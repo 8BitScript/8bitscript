@@ -305,18 +305,18 @@ class Lowering {
       }
       if (member.type === NodeType.VariableDeclaration) {
         if (member.kind !== 'const') {
-          this.fail(member, 'a namespace member value must be declared with const, not let');
+          this.fail(member, 'a mod member value must be declared with const, not let mut');
           continue;
         }
         const typeName = member.typeAnnotation?.name;
         const resolved = typeName && resolveScalarType(typeName, { allowString: true });
         if (!resolved || resolved === 'void') {
-          this.fail(member, `a namespace const of type ${typeName ?? '(none)'} is not compilable yet`);
+          this.fail(member, `a mod const of type ${typeName ?? '(none)'} is not compilable yet`);
           continue;
         }
         if (resolved === 'string') {
           if (member.initializer?.type !== NodeType.StringLiteral) {
-            this.fail(member.initializer ?? member, 'a namespace string const needs a string literal: const NAME: string = "..."');
+            this.fail(member.initializer ?? member, 'a mod string const needs a string literal: const NAME: string = "..."');
             continue;
           }
           const slot = this.stringConstant(member.initializer, member.initializer.value);
@@ -335,7 +335,7 @@ class Lowering {
           continue;
         }
         if (init?.kind === 'ref' && this.declares(init.name)) {
-          this.fail(member.initializer, `'${init.name}' is not a const, so it cannot initialize a namespace const: an initializer is a literal or a const`);
+          this.fail(member.initializer, `'${init.name}' is not a const, so it cannot initialize a mod const: an initializer is a literal or a const`);
           continue;
         }
         if (init?.kind === 'ref' || init?.kind === 'namespaceConst') {
@@ -343,10 +343,10 @@ class Lowering {
           constTypes.set(member.name.name, resolved);
           continue;
         }
-        this.fail(member, 'a namespace const is initialized by a literal or a const');
+        this.fail(member, 'a mod const is initialized by a literal or a const');
         continue;
       }
-      this.fail(member, `a ${member.type} is not compilable inside a namespace yet`);
+      this.fail(member, `a ${member.type} is not compilable inside a mod yet`);
     }
 
     this.namespaces.push({
@@ -373,6 +373,7 @@ class Lowering {
         start: spec.start,
         length: spec.length,
       })),
+      ...(node.usePath === true ? { pathForm: true } : {}),
       start: node.start,
       length: node.length,
     });
@@ -950,7 +951,7 @@ class Lowering {
   local(node) {
     if (!node.name) return null; // the parser reported the missing name
     if (node.kind === 'const') {
-      return this.fail(node, 'a const is a compile-time value declared at the top level of a module, not inside a function');
+      return this.fail(node, 'a const is a compile-time value declared at the top level of a module, not inside a fn');
     }
     const annotation = node.typeAnnotation;
     if (!annotation) return this.fail(node, 'a local needs an explicit type to be compilable');
@@ -1083,13 +1084,13 @@ class Lowering {
       case NodeType.ReturnStatement: {
         if (node.argument) {
           if (this.currentReturnType === 'void') {
-            return this.fail(node, 'a function declared to return void cannot return a value');
+            return this.fail(node, 'a fn declared to return void cannot return a value');
           }
           const value = this.expression(node.argument);
           return value ? { kind: 'return', value, start: node.start, length: node.length } : null;
         }
         if (this.currentReturnType && this.currentReturnType !== 'void') {
-          return this.fail(node, `this function must return a value of type ${this.currentReturnType}`);
+          return this.fail(node, `this fn must return a value of type ${this.currentReturnType}`);
         }
         return { kind: 'return', value: null, start: node.start, length: node.length };
       }

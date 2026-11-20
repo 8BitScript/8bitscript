@@ -18,7 +18,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { tokenize, TokenKind } from '../src/lexer/index.mjs';
+import { tokenize, TokenKind } from '../src/front/index.mjs';
 import { scanModule } from '../src/intellisense/index.mjs';
 
 const SRC = join(resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', 'cx16'), 'src');

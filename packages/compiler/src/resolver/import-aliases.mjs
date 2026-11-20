@@ -1,5 +1,5 @@
 // Project import aliases — `@lib/game/rules.8bs` → a directory named in
-// 8bitscript.config.8bs's `imports` block, resolved from the config file's
+// 8bitscript.config.ts's `imports` block, resolved from the config file's
 // directory rather than from the importing file.
 import { resolve as resolvePath } from 'node:path';
 
@@ -12,7 +12,7 @@ const ALIAS_PREFIX = /^@[^/\s]+$/;
  * Turn a config `imports` object into absolute directory paths.
  *
  * @param {unknown} imports
- * @param {string} projectDir  Directory containing 8bitscript.config.8bs.
+ * @param {string} projectDir  Directory containing 8bitscript.config.ts.
  * @returns {{ ok: true, importAliases: Readonly<Record<string, string>> } | { ok: false, error: string }}
  */
 export function resolveImportAliases(imports, projectDir) {
@@ -20,25 +20,34 @@ export function resolveImportAliases(imports, projectDir) {
     return { ok: true, importAliases: Object.freeze({}) };
   }
   if (typeof imports !== 'object' || Array.isArray(imports)) {
-    return { ok: false, error: "8bitscript.config.8bs's imports must be an object of @prefix → directory path" };
+    return { ok: false, error: "8bitscript.config.ts's imports must be an object of @prefix → directory path" };
   }
   const importAliases = {};
   for (const [prefix, rel] of Object.entries(imports)) {
     if (!ALIAS_PREFIX.test(prefix)) {
       return {
         ok: false,
-        error: `8bitscript.config.8bs's imports key ${JSON.stringify(prefix)} must be a single @-prefix with no / (e.g. '@lib')`,
+        error: `8bitscript.config.ts's imports key ${JSON.stringify(prefix)} must be a single @-prefix with no / (e.g. '@lib')`,
       };
     }
     if (typeof rel !== 'string' || rel.length === 0 || rel.startsWith('/') || rel.includes('..')) {
       return {
         ok: false,
-        error: `8bitscript.config.8bs's imports.${prefix} must be a relative directory path without ..`,
+        error: `8bitscript.config.ts's imports.${prefix} must be a relative directory path without ..`,
       };
     }
     importAliases[prefix] = resolvePath(projectDir, rel);
   }
   return { ok: true, importAliases: Object.freeze(importAliases) };
+}
+
+/**
+ * A path-form `use` names a module without its extension (`./geo`,
+ * `@lib/util/math`): the last segment is an identifier, so a specifier that
+ * names some other file (`./data.json`) is not one.
+ */
+export function isPathForm(specifier) {
+  return /^[A-Za-z_][A-Za-z0-9_]*$/.test(specifier.slice(specifier.lastIndexOf('/') + 1));
 }
 
 /**
@@ -61,13 +70,14 @@ export function longestAliasPrefix(specifier, importAliases) {
 }
 
 /**
- * The relative `.8bs`/`.8bx` path after an alias prefix, or null when the
- * specifier does not name a source file.
+ * The relative path after an alias prefix, or null when the specifier names
+ * neither a source file (string form) nor a module (path form).
  *
  * @param {string} specifier
  * @param {string} prefix
+ * @param {boolean} [pathForm]  The import is a path-form `use`: a module name, no extension.
  */
-export function aliasedSubpath(specifier, prefix) {
+export function aliasedSubpath(specifier, prefix, pathForm = false) {
   const rest = specifier.slice(prefix.length + 1);
-  return isSourceFile(rest) ? rest : null;
+  return isSourceFile(rest) || (pathForm && isPathForm(rest)) ? rest : null;
 }

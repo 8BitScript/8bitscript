@@ -19,31 +19,31 @@
 // $D018 byte (a raw 1 would point the VIC's screen at $C000 and its set at
 // $C000 in the bank, nothing like an "a"). A red border from line 0 is a
 // BORDER entry in the same list, the slots coexisting.
-import { raster, Slot } from "@8bitscript/raster";
-import { screen, BorderColor, BackgroundColor } from "../src/screen.8bs";
-import { screenRam, colorRam } from "../src/geometry.8bs";
+use @8bitscript::raster::{raster, Slot};
+use super::src::screen::{screen, BorderColor, BackgroundColor};
+use super::src::geometry::{screenRam, colorRam};
 
-export function main(): void {
-    screen.blank(BorderColor.BLACK, BackgroundColor.BLACK);
-    for (let cell: usmallint = 0; cell < 1000; cell++) {
+pub fn main() {
+    screen::blank(BorderColor::BLACK, BackgroundColor::BLACK);
+    for cell: usmallint in 0..1000 {
         screenRam[cell] = 1;
         colorRam[cell] = 1;
     }
-    raster.clear();
+    raster::clear();
     // The frame's top: nothing resets $D018 at the wrap but this entry, and
     // it goes FIRST on line 0 — a second entry on a line lands 25 cycles
     // later and line 51 is a bad line (./raster.8bs), which measured put a
     // CHARSET entry behind the BORDER one a line and a half late, into
     // row 0's second scanline.
-    raster.at(0, Slot.CHARSET, 0);
-    raster.at(0, Slot.BORDER, 2);
-    raster.at(40, Slot.CHARSET, 1);
-    raster.at(80, Slot.CHARSET, 0);
-    raster.at(120, Slot.CHARSET, 1);
-    raster.at(160, Slot.CHARSET, 0);
-    raster.setValue((raster.count() - 1) * raster.STRIDE, 1);
-    raster.enable();
-    while (true) {
+    raster::at(0, Slot::CHARSET, 0);
+    raster::at(0, Slot::BORDER, 2);
+    raster::at(40, Slot::CHARSET, 1);
+    raster::at(80, Slot::CHARSET, 0);
+    raster::at(120, Slot::CHARSET, 1);
+    raster::at(160, Slot::CHARSET, 0);
+    raster::setValue((raster::count() - 1) * raster::STRIDE, 1);
+    raster::enable();
+    loop {
         waitFrame();
     }
 }

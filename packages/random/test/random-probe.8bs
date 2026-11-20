@@ -2,18 +2,18 @@
 // every call @8bitscript/random offers, so linking it for each target
 // proves the whole surface compiles there. The import is relative because a
 // package does not resolve its own name; a consumer writes
-// `import { random } from "@8bitscript/random"`.
+// `use @8bitscript::random::random;`.
 //
 // See random-values.8bs for the file that also exposes what the generator
 // actually produced — the entry module (this one) may export only its own
 // `main`, so that check needs a second, non-entry module.
-import { random } from "../src/index.8bs";
+use super::src::index::random;
 
-let picked: utinyint = 0;
+let mut picked: utinyint = 0;
 
-export function main(): void {
-    random.seed(1);
-    picked = random.next();
-    picked = random.range(6);
-    picked = random.bits(3);
+pub fn main() {
+    random::seed(1);
+    picked = random::next();
+    picked = random::range(6);
+    picked = random::bits(3);
 }

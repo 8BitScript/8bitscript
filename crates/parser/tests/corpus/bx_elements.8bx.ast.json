@@ -1,0 +1,397 @@
+{
+  "ast": {
+    "body": [
+      {
+        "attributes": [
+          {
+            "length": 11,
+            "name": "label",
+            "start": 6,
+            "type": "BxAttribute",
+            "value": {
+              "length": 5,
+              "start": 12,
+              "type": "StringLiteral",
+              "value": "one"
+            }
+          },
+          {
+            "length": 5,
+            "name": "n",
+            "start": 18,
+            "type": "BxAttribute",
+            "value": {
+              "length": 1,
+              "radix": 10,
+              "raw": "1",
+              "start": 21,
+              "type": "IntegerLiteral",
+              "value": 1
+            }
+          },
+          {
+            "length": 4,
+            "name": "flag",
+            "start": 24,
+            "type": "BxAttribute",
+            "value": {
+              "length": 4,
+              "start": 24,
+              "type": "BooleanLiteral",
+              "value": true
+            }
+          }
+        ],
+        "children": [],
+        "length": 31,
+        "name": "Item",
+        "selfClosing": true,
+        "start": 0,
+        "type": "BxElement"
+      },
+      {
+        "attributes": [
+          {
+            "length": 14,
+            "name": "title",
+            "start": 42,
+            "type": "BxAttribute",
+            "value": {
+              "length": 8,
+              "start": 48,
+              "type": "StringLiteral",
+              "value": "single"
+            }
+          },
+          {
+            "length": 2,
+            "name": "on",
+            "start": 57,
+            "type": "BxAttribute",
+            "value": {
+              "length": 2,
+              "start": 57,
+              "type": "BooleanLiteral",
+              "value": true
+            }
+          },
+          {
+            "length": 18,
+            "name": "press",
+            "start": 60,
+            "type": "BxAttribute",
+            "value": {
+              "args": [
+                {
+                  "length": 1,
+                  "radix": 10,
+                  "raw": "1",
+                  "start": 75,
+                  "type": "IntegerLiteral",
+                  "value": 1
+                }
+              ],
+              "callee": {
+                "length": 7,
+                "name": "handler",
+                "start": 67,
+                "type": "Identifier"
+              },
+              "length": 10,
+              "start": 67,
+              "type": "CallExpression"
+            }
+          },
+          {
+            "expression": {
+              "length": 4,
+              "name": "rest",
+              "start": 80,
+              "type": "Identifier"
+            },
+            "length": 6,
+            "start": 79,
+            "type": "BxSpreadAttribute"
+          }
+        ],
+        "children": [
+          {
+            "length": 52,
+            "raw": "\n    some raw text, don't lex // this or \"that\"\n    ",
+            "start": 86,
+            "type": "BxText",
+            "value": "some raw text, don't lex // this or \"that\""
+          },
+          {
+            "expression": {
+              "length": 5,
+              "name": "title",
+              "start": 139,
+              "type": "Identifier"
+            },
+            "length": 7,
+            "start": 138,
+            "type": "BxExpressionChild"
+          },
+          {
+            "attributes": [
+              {
+                "length": 9,
+                "name": "label",
+                "start": 156,
+                "type": "BxAttribute",
+                "value": {
+                  "length": 3,
+                  "start": 162,
+                  "type": "StringLiteral",
+                  "value": "a"
+                }
+              }
+            ],
+            "children": [
+              {
+                "length": 7,
+                "raw": "nested ",
+                "start": 166,
+                "type": "BxText",
+                "value": "nested"
+              },
+              {
+                "expression": {
+                  "left": {
+                    "length": 5,
+                    "name": "count",
+                    "start": 174,
+                    "type": "Identifier"
+                  },
+                  "length": 9,
+                  "operator": "+",
+                  "right": {
+                    "length": 1,
+                    "radix": 10,
+                    "raw": "1",
+                    "start": 182,
+                    "type": "IntegerLiteral",
+                    "value": 1
+                  },
+                  "start": 174,
+                  "type": "BinaryExpression"
+                },
+                "length": 11,
+                "start": 173,
+                "type": "BxExpressionChild"
+              },
+              {
+                "length": 5,
+                "raw": " text",
+                "start": 184,
+                "type": "BxText",
+                "value": "text"
+              }
+            ],
+            "length": 46,
+            "name": "Item",
+            "selfClosing": false,
+            "start": 150,
+            "type": "BxElement"
+          },
+          {
+            "length": 24,
+            "raw": "\n    < Spaced\n    a > b\n",
+            "start": 196,
+            "type": "BxText",
+            "value": "< Spaced a > b"
+          }
+        ],
+        "length": 197,
+        "name": "MenuBar",
+        "selfClosing": false,
+        "start": 33,
+        "type": "BxElement"
+      },
+      {
+        "children": [
+          {
+            "length": 9,
+            "raw": "fragment ",
+            "start": 234,
+            "type": "BxText",
+            "value": "fragment"
+          },
+          {
+            "attributes": [],
+            "children": [
+              {
+                "length": 1,
+                "raw": "x",
+                "start": 246,
+                "type": "BxText",
+                "value": "x"
+              }
+            ],
+            "length": 8,
+            "name": "b",
+            "selfClosing": false,
+            "start": 243,
+            "type": "BxElement"
+          },
+          {
+            "expression": null,
+            "length": 12,
+            "start": 254,
+            "type": "BxExpressionChild"
+          },
+          {
+            "expression": null,
+            "length": 2,
+            "start": 267,
+            "type": "BxExpressionChild"
+          }
+        ],
+        "length": 40,
+        "start": 232,
+        "type": "BxFragment"
+      },
+      {
+        "attributes": [
+          {
+            "length": 5,
+            "name": "a",
+            "start": 284,
+            "type": "BxAttribute",
+            "value": {
+              "length": 1,
+              "radix": 10,
+              "raw": "1",
+              "start": 287,
+              "type": "IntegerLiteral",
+              "value": 1
+            }
+          }
+        ],
+        "children": [],
+        "length": 27,
+        "name": "Ui.Panel",
+        "selfClosing": false,
+        "start": 274,
+        "type": "BxElement"
+      },
+      {
+        "body": [
+          {
+            "attributes": [],
+            "children": [],
+            "length": 8,
+            "name": "Item",
+            "selfClosing": true,
+            "start": 308,
+            "type": "BxElement"
+          },
+          {
+            "exported": false,
+            "immutable": true,
+            "initializer": {
+              "alternate": {
+                "attributes": [],
+                "children": [],
+                "length": 5,
+                "name": "B",
+                "selfClosing": true,
+                "start": 342,
+                "type": "BxElement"
+              },
+              "consequent": {
+                "attributes": [],
+                "children": [],
+                "length": 5,
+                "name": "A",
+                "selfClosing": true,
+                "start": 334,
+                "type": "BxElement"
+              },
+              "length": 17,
+              "start": 330,
+              "test": {
+                "length": 1,
+                "name": "c",
+                "start": 330,
+                "type": "Identifier"
+              },
+              "type": "ConditionalExpression"
+            },
+            "kind": "let",
+            "length": 26,
+            "name": {
+              "length": 1,
+              "name": "y",
+              "start": 326,
+              "type": "Identifier"
+            },
+            "start": 322,
+            "type": "VariableDeclaration",
+            "typeAnnotation": null
+          },
+          {
+            "exported": false,
+            "immutable": true,
+            "initializer": {
+              "attributes": [],
+              "children": [
+                {
+                  "length": 2,
+                  "raw": "é ",
+                  "start": 364,
+                  "type": "BxText",
+                  "value": "é"
+                },
+                {
+                  "expression": {
+                    "length": 1,
+                    "name": "n",
+                    "start": 367,
+                    "type": "Identifier"
+                  },
+                  "length": 3,
+                  "start": 366,
+                  "type": "BxExpressionChild"
+                }
+              ],
+              "length": 12,
+              "name": "A",
+              "selfClosing": false,
+              "start": 361,
+              "type": "BxElement"
+            },
+            "kind": "let",
+            "length": 21,
+            "name": {
+              "length": 1,
+              "name": "z",
+              "start": 357,
+              "type": "Identifier"
+            },
+            "start": 353,
+            "type": "VariableDeclaration",
+            "typeAnnotation": null
+          }
+        ],
+        "length": 74,
+        "start": 302,
+        "type": "BlockStatement"
+      }
+    ],
+    "length": 377,
+    "start": 0,
+    "type": "Program"
+  },
+  "diagnostics": [
+    {
+      "code": "8BS1039",
+      "file": "t",
+      "length": 1,
+      "message": "unexpected '.' in <MenuBar>",
+      "severity": "error",
+      "start": 59
+    }
+  ]
+}

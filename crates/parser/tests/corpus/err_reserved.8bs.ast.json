@@ -1,0 +1,148 @@
+{
+  "ast": {
+    "body": [
+      {
+        "exported": false,
+        "immutable": true,
+        "initializer": null,
+        "kind": "let",
+        "length": 15,
+        "name": {
+          "length": 1,
+          "name": "v",
+          "start": 111,
+          "type": "Identifier"
+        },
+        "start": 107,
+        "type": "VariableDeclaration",
+        "typeAnnotation": null
+      },
+      {
+        "exported": false,
+        "length": 38,
+        "members": [
+          {
+            "body": {
+              "body": [],
+              "length": 2,
+              "start": 157,
+              "type": "BlockStatement"
+            },
+            "exported": false,
+            "length": 10,
+            "name": {
+              "length": 2,
+              "name": "ok",
+              "start": 152,
+              "type": "Identifier"
+            },
+            "params": [],
+            "returnType": null,
+            "start": 149,
+            "type": "FunctionDeclaration"
+          }
+        ],
+        "name": {
+          "length": 1,
+          "name": "m",
+          "start": 127,
+          "type": "Identifier"
+        },
+        "start": 123,
+        "type": "NamespaceDeclaration"
+      },
+      {
+        "exported": false,
+        "immutable": true,
+        "initializer": {
+          "length": 1,
+          "radix": 10,
+          "raw": "1",
+          "start": 174,
+          "type": "IntegerLiteral",
+          "value": 1
+        },
+        "kind": "let",
+        "length": 14,
+        "name": {
+          "length": 5,
+          "name": "after",
+          "start": 166,
+          "type": "Identifier"
+        },
+        "start": 162,
+        "type": "VariableDeclaration",
+        "typeAnnotation": null
+      }
+    ],
+    "length": 177,
+    "start": 0,
+    "type": "Program"
+  },
+  "diagnostics": [
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 6,
+      "message": "'struct' is not part of 8BitScript; group consts in a 'mod'",
+      "severity": "error",
+      "start": 0
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 4,
+      "message": "'enum' is not part of 8BitScript; group consts in a 'mod'",
+      "severity": "error",
+      "start": 19
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 4,
+      "message": "'impl' is not part of 8BitScript; methods are functions in a 'mod'",
+      "severity": "error",
+      "start": 45
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 5,
+      "message": "'trait' is not part of 8BitScript; methods are functions in a 'mod'",
+      "severity": "error",
+      "start": 67
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 6,
+      "message": "'static' is not part of 8BitScript; a global is 'let mut' at the top level",
+      "severity": "error",
+      "start": 76
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 4,
+      "message": "8BitScript has no type aliases",
+      "severity": "error",
+      "start": 94
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 6,
+      "message": "'struct' is not part of 8BitScript; group consts in a 'mod'",
+      "severity": "error",
+      "start": 115
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 6,
+      "message": "'struct' is not part of 8BitScript; group consts in a 'mod'",
+      "severity": "error",
+      "start": 135
+    }
+  ]
+}

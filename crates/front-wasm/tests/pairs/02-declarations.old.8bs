@@ -1,0 +1,24 @@
+// rows: export, function, void function, entry point, mutable and immutable variable, global, const, namespace
+export function main(): void {
+  let x: u8 = 0;
+}
+function add(a: u8, b: u8 = 3): u8 {
+  return a + b;
+}
+function nothing(): void {}
+function immutable(): void {
+  let y: u8 = 0;
+}
+export const LIMIT: u8 = 9;
+export let score: u16 = 0;
+let hits: u16 = 0;
+const MAX: u8 = 9;
+let label: string<16>;
+namespace Color {
+  const RED: u8 = 2;
+  function shade(c: u8): u8 { return c; }
+  let level: u8 = 1;
+}
+export namespace Sound {
+  const A: u8 = 1;
+}

@@ -3,20 +3,20 @@
 // sprite is hidden anyway; with sprites.extend(true) the top border is open
 // and a wrapped sprite would show there. graphics.place hides it instead.
 // The marker, at y = 100, shows the open-border build draws sprites at all.
-import { screen } from "@8bitscript/screen";
-import { graphics } from "@8bitscript/graphics";
-import { sprites } from "@8bitscript/sprites";
-import { marker, huge } from "./graphics-wrap-probe.8bg";
+use @8bitscript::screen::screen;
+use @8bitscript::graphics::graphics;
+use @8bitscript::sprites::sprites;
+use "./graphics-wrap-probe.8bg"::{marker, huge};
 
-export function main(): void {
-    screen.blank();
-    sprites.extend(true);
-    graphics.place(marker, 100, 100);
+pub fn main() {
+    screen::blank();
+    sprites::extend(true);
+    graphics::place(marker, 100, 100);
     // 65500 + 50 is 14 in 16 bits: chip y 14, lines 15-35 — inside the open
     // top border from line 30.
-    graphics.place(huge, 100, 65500);
-    while (true) {
+    graphics::place(huge, 100, 65500);
+    loop {
         waitFrame();
-        graphics.update();
+        graphics::update();
     }
 }

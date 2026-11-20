@@ -1,0 +1,1238 @@
+{
+ "codes": [
+  [
+   "UNTERMINATED_STRING",
+   "8BS1002"
+  ],
+  [
+   "UNEXPECTED_CHARACTER",
+   "8BS1003"
+  ],
+  [
+   "UNMATCHED_BRACKET",
+   "8BS1004"
+  ],
+  [
+   "UNCLOSED_BRACKET",
+   "8BS1005"
+  ],
+  [
+   "UNTERMINATED_BLOCK_COMMENT",
+   "8BS1006"
+  ],
+  [
+   "UNTERMINATED_ASM_BLOCK",
+   "8BS1007"
+  ],
+  [
+   "INVALID_NUMBER",
+   "8BS1008"
+  ],
+  [
+   "MISPLACED_DECIMAL_LITERAL",
+   "8BS1009"
+  ],
+  [
+   "SYNTAX_ERROR",
+   "8BS1101"
+  ],
+  [
+   "VALUE_OUT_OF_RANGE",
+   "8BS1021"
+  ],
+  [
+   "INVALID_DURATION_ARGUMENT",
+   "8BS1022"
+  ],
+  [
+   "ZERO_DURATION",
+   "8BS1023"
+  ],
+  [
+   "INEXACT_DURATION",
+   "8BS1024"
+  ],
+  [
+   "UNKNOWN_DURATION_UNIT",
+   "8BS1025"
+  ],
+  [
+   "UNPORTABLE_CHARACTER",
+   "8BS1026"
+  ],
+  [
+   "STRING_TOO_LONG",
+   "8BS1027"
+  ],
+  [
+   "MISPLACED_TEMPLATE",
+   "8BS1028"
+  ],
+  [
+   "UNPRINTABLE_FIELD",
+   "8BS1029"
+  ],
+  [
+   "UNKNOWN_COMPILE_TIME_FUNCTION",
+   "8BS1030"
+  ],
+  [
+   "ASSIGN_TO_CONST",
+   "8BS1031"
+  ],
+  [
+   "INDEX_OUT_OF_RANGE",
+   "8BS1032"
+  ],
+  [
+   "ARRAY_SIZE_MISMATCH",
+   "8BS1033"
+  ],
+  [
+   "NAME_CASE",
+   "8BS1034"
+  ],
+  [
+   "WRONG_ARGUMENT_COUNT",
+   "8BS1035"
+  ],
+  [
+   "SYSTEM_TAKES_NO_ARGUMENTS",
+   "8BS1036"
+  ],
+  [
+   "UNKNOWN_FACT",
+   "8BS1037"
+  ],
+  [
+   "NO_HARDWARE_FACTS",
+   "8BS1038"
+  ],
+  [
+   "BX_SYNTAX",
+   "8BS1039"
+  ],
+  [
+   "INVALID_LOCALE",
+   "8BS1040"
+  ],
+  [
+   "INVALID_PACKAGE_FIELD",
+   "8BS1041"
+  ],
+  [
+   "PACKAGE_NOT_FOUND",
+   "8BS1042"
+  ],
+  [
+   "CATALOG",
+   "8BS1043"
+  ],
+  [
+   "CATALOG_SCHEMA",
+   "8BS1044"
+  ],
+  [
+   "CATALOG_PLACEHOLDER",
+   "8BS1045"
+  ],
+  [
+   "I18N_FORMAT",
+   "8BS1046"
+  ],
+  [
+   "INVALID_DEFINE",
+   "8BS1047"
+  ],
+  [
+   "DEFINE_TYPE_MISMATCH",
+   "8BS1048"
+  ],
+  [
+   "DEFINE_CONFLICT",
+   "8BS1049"
+  ],
+  [
+   "UNRESOLVED_PACKAGE",
+   "8BS2001"
+  ],
+  [
+   "NOT_AN_8BS_PACKAGE",
+   "8BS2002"
+  ],
+  [
+   "MISSING_PACKAGE_ENTRY",
+   "8BS2003"
+  ],
+  [
+   "UNRESOLVED_RELATIVE_IMPORT",
+   "8BS2004"
+  ],
+  [
+   "NO_SUCH_EXPORT",
+   "8BS2005"
+  ],
+  [
+   "DUPLICATE_BINDING",
+   "8BS2006"
+  ],
+  [
+   "UNRESOLVED_NAME",
+   "8BS2007"
+  ],
+  [
+   "MISSING_NATIVE_SOURCE",
+   "8BS2008"
+  ],
+  [
+   "RESERVED_BUILTIN_NAME",
+   "8BS2009"
+  ],
+  [
+   "ENTRY_EXPORTS",
+   "8BS2010"
+  ],
+  [
+   "NO_SUCH_SUBPATH",
+   "8BS2011"
+  ],
+  [
+   "BX_UNKNOWN_COMPONENT",
+   "8BS2012"
+  ],
+  [
+   "BX_UNKNOWN_PROP",
+   "8BS2013"
+  ],
+  [
+   "BX_DUPLICATE_PROP",
+   "8BS2014"
+  ],
+  [
+   "BX_MISSING_PROP",
+   "8BS2015"
+  ],
+  [
+   "BX_PROP_TYPE",
+   "8BS2016"
+  ],
+  [
+   "BX_CHILDREN_REJECTED",
+   "8BS2017"
+  ],
+  [
+   "BX_COMPONENT_RECURSION",
+   "8BS2018"
+  ],
+  [
+   "BX_INVALID_SLOT",
+   "8BS2019"
+  ],
+  [
+   "BX_ASM_IN_BX",
+   "8BS2020"
+  ],
+  [
+   "BX_ORDINARY_CODE",
+   "8BS2021"
+  ],
+  [
+   "BX_INVALID_STATE",
+   "8BS2022"
+  ],
+  [
+   "BX_EXPRESSION_CHILD",
+   "8BS2023"
+  ],
+  [
+   "BX_NOT_A_VALUE",
+   "8BS2024"
+  ],
+  [
+   "BX_INVALID_METHOD",
+   "8BS2025"
+  ],
+  [
+   "GFX_SYNTAX",
+   "8BS2101"
+  ],
+  [
+   "GFX_UNEXPECTED_CHARACTER",
+   "8BS2102"
+  ],
+  [
+   "GFX_UNTERMINATED_STRING",
+   "8BS2103"
+  ],
+  [
+   "GFX_MISSING_SOURCE",
+   "8BS2104"
+  ],
+  [
+   "GFX_SOURCE_TOO_SMALL",
+   "8BS2105"
+  ],
+  [
+   "GFX_UNKNOWN_FIELD",
+   "8BS2106"
+  ],
+  [
+   "GFX_DUPLICATE_NAME",
+   "8BS2107"
+  ],
+  [
+   "GFX_MISSING_FIELD",
+   "8BS2108"
+  ],
+  [
+   "GFX_INVALID_SIZE",
+   "8BS2109"
+  ],
+  [
+   "GFX_COLORS_QUANTIZED",
+   "8BS2110"
+  ],
+  [
+   "GFX_ADAPTED",
+   "8BS2111"
+  ],
+  [
+   "AUD_SYNTAX",
+   "8BS2201"
+  ],
+  [
+   "AUD_UNEXPECTED_CHARACTER",
+   "8BS2202"
+  ],
+  [
+   "AUD_UNTERMINATED_STRING",
+   "8BS2203"
+  ],
+  [
+   "AUD_MISSING_SOURCE",
+   "8BS2204"
+  ],
+  [
+   "AUD_MISSING_FALLBACK",
+   "8BS2205"
+  ],
+  [
+   "AUD_UNKNOWN_WAVEFORM",
+   "8BS2206"
+  ],
+  [
+   "AUD_DUPLICATE_NAME",
+   "8BS2207"
+  ],
+  [
+   "AUD_UNKNOWN_FIELD",
+   "8BS2208"
+  ],
+  [
+   "AUD_UNKNOWN_NOTE",
+   "8BS2209"
+  ],
+  [
+   "AUD_PCM_FALLBACK",
+   "8BS2210"
+  ],
+  [
+   "AUD_NO_DRIVER",
+   "8BS2211"
+  ],
+  [
+   "AUD_WAVEFORM_UNROUTABLE",
+   "8BS2212"
+  ],
+  [
+   "AUD_FLAC_NEEDS_FFMPEG",
+   "8BS2213"
+  ],
+  [
+   "AUD_MISSING_FIELD",
+   "8BS2214"
+  ],
+  [
+   "AUD_UNKNOWN_INSTRUMENT",
+   "8BS2215"
+  ],
+  [
+   "AUD_BANK_FULL",
+   "8BS2216"
+  ],
+  [
+   "AMBIGUOUS_IMPORT",
+   "8BS2217"
+  ],
+  [
+   "NOT_COMPILABLE",
+   "8BS3001"
+  ],
+  [
+   "NOT_ON_THIS_TARGET",
+   "8BS3002"
+  ],
+  [
+   "AMBIGUOUS_VARIANT",
+   "8BS3004"
+  ],
+  [
+   "LOCALE_FALLBACK",
+   "8BS3005"
+  ],
+  [
+   "HARDWARE_HAZARD",
+   "8BS3003"
+  ],
+  [
+   "UNROLL_INVALID",
+   "8BS3006"
+  ],
+  [
+   "LOOP_UNROLLED",
+   "8BS9001"
+  ]
+ ],
+ "diagnostics": [
+  {
+   "code": "8BS1002",
+   "message": "unterminated string literal",
+   "file": "a.8bs",
+   "start": 4,
+   "length": 9,
+   "severity": "error"
+  },
+  {
+   "code": "8BS1101",
+   "message": "expected ';', found end of file",
+   "file": "dir/b.8bx",
+   "start": 0,
+   "length": 0,
+   "severity": "error"
+  },
+  {
+   "code": "8BS3005",
+   "message": "no `de` twin — using plain file",
+   "file": "c.8bs",
+   "start": 12,
+   "length": 3,
+   "severity": "warning"
+  },
+  {
+   "code": "8BS9001",
+   "message": "unrolled 8 iterations",
+   "file": "d.8bs",
+   "start": 1,
+   "length": 40,
+   "severity": "remark"
+  }
+ ],
+ "positions": [
+  {
+   "text": "",
+   "offset": 0,
+   "line": 1,
+   "column": 1
+  },
+  {
+   "text": "",
+   "offset": 1,
+   "line": 1,
+   "column": 2
+  },
+  {
+   "text": "",
+   "offset": 2,
+   "line": 1,
+   "column": 3
+  },
+  {
+   "text": "a",
+   "offset": 0,
+   "line": 1,
+   "column": 1
+  },
+  {
+   "text": "a",
+   "offset": 1,
+   "line": 1,
+   "column": 2
+  },
+  {
+   "text": "a",
+   "offset": 2,
+   "line": 1,
+   "column": 3
+  },
+  {
+   "text": "a",
+   "offset": 3,
+   "line": 1,
+   "column": 4
+  },
+  {
+   "text": "a\nb",
+   "offset": 0,
+   "line": 1,
+   "column": 1
+  },
+  {
+   "text": "a\nb",
+   "offset": 1,
+   "line": 1,
+   "column": 2
+  },
+  {
+   "text": "a\nb",
+   "offset": 2,
+   "line": 2,
+   "column": 1
+  },
+  {
+   "text": "a\nb",
+   "offset": 3,
+   "line": 2,
+   "column": 2
+  },
+  {
+   "text": "a\nb",
+   "offset": 4,
+   "line": 2,
+   "column": 3
+  },
+  {
+   "text": "a\nb",
+   "offset": 5,
+   "line": 2,
+   "column": 4
+  },
+  {
+   "text": "one\ntwo\nthree",
+   "offset": 0,
+   "line": 1,
+   "column": 1
+  },
+  {
+   "text": "one\ntwo\nthree",
+   "offset": 1,
+   "line": 1,
+   "column": 2
+  },
+  {
+   "text": "one\ntwo\nthree",
+   "offset": 2,
+   "line": 1,
+   "column": 3
+  },
+  {
+   "text": "one\ntwo\nthree",
+   "offset": 3,
+   "line": 1,
+   "column": 4
+  },
+  {
+   "text": "one\ntwo\nthree",
+   "offset": 4,
+   "line": 2,
+   "column": 1
+  },
+  {
+   "text": "one\ntwo\nthree",
+   "offset": 5,
+   "line": 2,
+   "column": 2
+  },
+  {
+   "text": "one\ntwo\nthree",
+   "offset": 6,
+   "line": 2,
+   "column": 3
+  },
+  {
+   "text": "one\ntwo\nthree",
+   "offset": 7,
+   "line": 2,
+   "column": 4
+  },
+  {
+   "text": "one\ntwo\nthree",
+   "offset": 8,
+   "line": 3,
+   "column": 1
+  },
+  {
+   "text": "one\ntwo\nthree",
+   "offset": 9,
+   "line": 3,
+   "column": 2
+  },
+  {
+   "text": "one\ntwo\nthree",
+   "offset": 10,
+   "line": 3,
+   "column": 3
+  },
+  {
+   "text": "one\ntwo\nthree",
+   "offset": 11,
+   "line": 3,
+   "column": 4
+  },
+  {
+   "text": "one\ntwo\nthree",
+   "offset": 12,
+   "line": 3,
+   "column": 5
+  },
+  {
+   "text": "one\ntwo\nthree",
+   "offset": 13,
+   "line": 3,
+   "column": 6
+  },
+  {
+   "text": "one\ntwo\nthree",
+   "offset": 14,
+   "line": 3,
+   "column": 7
+  },
+  {
+   "text": "one\ntwo\nthree",
+   "offset": 15,
+   "line": 3,
+   "column": 8
+  },
+  {
+   "text": "\n\n",
+   "offset": 0,
+   "line": 1,
+   "column": 1
+  },
+  {
+   "text": "\n\n",
+   "offset": 1,
+   "line": 2,
+   "column": 1
+  },
+  {
+   "text": "\n\n",
+   "offset": 2,
+   "line": 3,
+   "column": 1
+  },
+  {
+   "text": "\n\n",
+   "offset": 3,
+   "line": 3,
+   "column": 2
+  },
+  {
+   "text": "\n\n",
+   "offset": 4,
+   "line": 3,
+   "column": 3
+  },
+  {
+   "text": "😀\nx",
+   "offset": 0,
+   "line": 1,
+   "column": 1
+  },
+  {
+   "text": "😀\nx",
+   "offset": 1,
+   "line": 1,
+   "column": 2
+  },
+  {
+   "text": "😀\nx",
+   "offset": 2,
+   "line": 1,
+   "column": 3
+  },
+  {
+   "text": "😀\nx",
+   "offset": 3,
+   "line": 2,
+   "column": 1
+  },
+  {
+   "text": "😀\nx",
+   "offset": 4,
+   "line": 2,
+   "column": 2
+  },
+  {
+   "text": "😀\nx",
+   "offset": 5,
+   "line": 2,
+   "column": 3
+  },
+  {
+   "text": "😀\nx",
+   "offset": 6,
+   "line": 2,
+   "column": 4
+  },
+  {
+   "text": "café\r\nx\n",
+   "offset": 0,
+   "line": 1,
+   "column": 1
+  },
+  {
+   "text": "café\r\nx\n",
+   "offset": 1,
+   "line": 1,
+   "column": 2
+  },
+  {
+   "text": "café\r\nx\n",
+   "offset": 2,
+   "line": 1,
+   "column": 3
+  },
+  {
+   "text": "café\r\nx\n",
+   "offset": 3,
+   "line": 1,
+   "column": 4
+  },
+  {
+   "text": "café\r\nx\n",
+   "offset": 4,
+   "line": 1,
+   "column": 5
+  },
+  {
+   "text": "café\r\nx\n",
+   "offset": 5,
+   "line": 1,
+   "column": 6
+  },
+  {
+   "text": "café\r\nx\n",
+   "offset": 6,
+   "line": 2,
+   "column": 1
+  },
+  {
+   "text": "café\r\nx\n",
+   "offset": 7,
+   "line": 2,
+   "column": 2
+  },
+  {
+   "text": "café\r\nx\n",
+   "offset": 8,
+   "line": 3,
+   "column": 1
+  },
+  {
+   "text": "café\r\nx\n",
+   "offset": 9,
+   "line": 3,
+   "column": 2
+  },
+  {
+   "text": "café\r\nx\n",
+   "offset": 10,
+   "line": 3,
+   "column": 3
+  }
+ ],
+ "sourceExtensions": [
+  ".8bs",
+  ".8bx",
+  ".8bg",
+  ".8ba"
+ ],
+ "sourceKinds": [
+  {
+   "path": "a.8bs",
+   "kind": ".8bs",
+   "isSource": true,
+   "stripped": "a"
+  },
+  {
+   "path": "dir/b.8bx",
+   "kind": ".8bx",
+   "isSource": true,
+   "stripped": "dir/b"
+  },
+  {
+   "path": "c.8bg",
+   "kind": ".8bg",
+   "isSource": true,
+   "stripped": "c"
+  },
+  {
+   "path": "d.8ba",
+   "kind": ".8ba",
+   "isSource": true,
+   "stripped": "d"
+  },
+  {
+   "path": "main.c64.8bs",
+   "kind": ".8bs",
+   "isSource": true,
+   "stripped": "main.c64"
+  },
+  {
+   "path": "x.8bs.bak",
+   "kind": null,
+   "isSource": false,
+   "stripped": "x.8bs.bak"
+  },
+  {
+   "path": "8bs",
+   "kind": null,
+   "isSource": false,
+   "stripped": "8bs"
+  },
+  {
+   "path": ".8bs",
+   "kind": ".8bs",
+   "isSource": true,
+   "stripped": ""
+  },
+  {
+   "path": "a.8bsx",
+   "kind": null,
+   "isSource": false,
+   "stripped": "a.8bsx"
+  },
+  {
+   "path": "noext",
+   "kind": null,
+   "isSource": false,
+   "stripped": "noext"
+  },
+  {
+   "path": "",
+   "kind": null,
+   "isSource": false,
+   "stripped": ""
+  },
+  {
+   "path": "dots.in.name.8bx",
+   "kind": ".8bx",
+   "isSource": true,
+   "stripped": "dots.in.name"
+  },
+  {
+   "path": "café.8bs",
+   "kind": ".8bs",
+   "isSource": true,
+   "stripped": "café"
+  },
+  {
+   "path": ".8bg.8ba",
+   "kind": ".8ba",
+   "isSource": true,
+   "stripped": ".8bg"
+  },
+  {
+   "path": "a.8BS",
+   "kind": null,
+   "isSource": false,
+   "stripped": "a.8BS"
+  }
+ ],
+ "machines": [
+  "vic20",
+  "c64",
+  "pet",
+  "c128",
+  "atari8",
+  "nes",
+  "cx16",
+  "mega65",
+  "web",
+  "plus4",
+  "oric",
+  "apple2",
+  "bbc",
+  "atari5200",
+  "lynx",
+  "pce",
+  "supervision",
+  "atari2600",
+  "atari7800",
+  "gb",
+  "gbc",
+  "sms",
+  "gamegear",
+  "sg1000",
+  "msx",
+  "coleco",
+  "spectrum",
+  "cpc",
+  "coco",
+  "vectrex",
+  "odyssey2",
+  "channelf"
+ ],
+ "cpuFamily": [
+  [
+   "vic20",
+   "mos"
+  ],
+  [
+   "c64",
+   "mos"
+  ],
+  [
+   "pet",
+   "mos"
+  ],
+  [
+   "c128",
+   "mos"
+  ],
+  [
+   "atari8",
+   "mos"
+  ],
+  [
+   "nes",
+   "mos"
+  ],
+  [
+   "cx16",
+   "mos"
+  ],
+  [
+   "mega65",
+   "mos"
+  ],
+  [
+   "web",
+   "wasm"
+  ],
+  [
+   "plus4",
+   "mos"
+  ],
+  [
+   "oric",
+   "mos"
+  ],
+  [
+   "apple2",
+   "mos"
+  ],
+  [
+   "bbc",
+   "mos"
+  ],
+  [
+   "atari5200",
+   "mos"
+  ],
+  [
+   "lynx",
+   "mos"
+  ],
+  [
+   "pce",
+   "mos"
+  ],
+  [
+   "supervision",
+   "mos"
+  ],
+  [
+   "atari2600",
+   "mos"
+  ],
+  [
+   "atari7800",
+   "mos"
+  ],
+  [
+   "gb",
+   "sm83"
+  ],
+  [
+   "gbc",
+   "sm83"
+  ],
+  [
+   "sms",
+   "z80"
+  ],
+  [
+   "gamegear",
+   "z80"
+  ],
+  [
+   "sg1000",
+   "z80"
+  ],
+  [
+   "msx",
+   "z80"
+  ],
+  [
+   "coleco",
+   "z80"
+  ],
+  [
+   "spectrum",
+   "z80"
+  ],
+  [
+   "cpc",
+   "z80"
+  ],
+  [
+   "coco",
+   "m6809"
+  ],
+  [
+   "vectrex",
+   "m6809"
+  ],
+  [
+   "odyssey2",
+   "i8048"
+  ],
+  [
+   "channelf",
+   "f8"
+  ]
+ ],
+ "cpuFamilyLookups": [
+  [
+   "vic20",
+   "mos"
+  ],
+  [
+   "c64",
+   "mos"
+  ],
+  [
+   "pet",
+   "mos"
+  ],
+  [
+   "c128",
+   "mos"
+  ],
+  [
+   "atari8",
+   "mos"
+  ],
+  [
+   "nes",
+   "mos"
+  ],
+  [
+   "cx16",
+   "mos"
+  ],
+  [
+   "mega65",
+   "mos"
+  ],
+  [
+   "web",
+   "wasm"
+  ],
+  [
+   "plus4",
+   "mos"
+  ],
+  [
+   "oric",
+   "mos"
+  ],
+  [
+   "apple2",
+   "mos"
+  ],
+  [
+   "bbc",
+   "mos"
+  ],
+  [
+   "atari5200",
+   "mos"
+  ],
+  [
+   "lynx",
+   "mos"
+  ],
+  [
+   "pce",
+   "mos"
+  ],
+  [
+   "supervision",
+   "mos"
+  ],
+  [
+   "atari2600",
+   "mos"
+  ],
+  [
+   "atari7800",
+   "mos"
+  ],
+  [
+   "gb",
+   "sm83"
+  ],
+  [
+   "gbc",
+   "sm83"
+  ],
+  [
+   "sms",
+   "z80"
+  ],
+  [
+   "gamegear",
+   "z80"
+  ],
+  [
+   "sg1000",
+   "z80"
+  ],
+  [
+   "msx",
+   "z80"
+  ],
+  [
+   "coleco",
+   "z80"
+  ],
+  [
+   "spectrum",
+   "z80"
+  ],
+  [
+   "cpc",
+   "z80"
+  ],
+  [
+   "coco",
+   "m6809"
+  ],
+  [
+   "vectrex",
+   "m6809"
+  ],
+  [
+   "odyssey2",
+   "i8048"
+  ],
+  [
+   "channelf",
+   "f8"
+  ],
+  [
+   "unknown",
+   "mos"
+  ],
+  [
+   "",
+   "mos"
+  ]
+ ],
+ "localeNames": [
+  {
+   "name": "de",
+   "isLocale": true
+  },
+  {
+   "name": "en",
+   "isLocale": true
+  },
+  {
+   "name": "pt-br",
+   "isLocale": true
+  },
+  {
+   "name": "zh-hans",
+   "isLocale": true
+  },
+  {
+   "name": "nl",
+   "isLocale": true
+  },
+  {
+   "name": "c64",
+   "isLocale": false
+  },
+  {
+   "name": "pet",
+   "isLocale": false
+  },
+  {
+   "name": "web",
+   "isLocale": false
+  },
+  {
+   "name": "a",
+   "isLocale": false
+  },
+  {
+   "name": "abcdefghi",
+   "isLocale": false
+  },
+  {
+   "name": "DE",
+   "isLocale": false
+  },
+  {
+   "name": "de-",
+   "isLocale": false
+  },
+  {
+   "name": "-de",
+   "isLocale": false
+  },
+  {
+   "name": "de-x",
+   "isLocale": false
+  },
+  {
+   "name": "de-abcdefghi",
+   "isLocale": false
+  },
+  {
+   "name": "de-ab-cd",
+   "isLocale": false
+  },
+  {
+   "name": "de-1a",
+   "isLocale": true
+  },
+  {
+   "name": "en-us1",
+   "isLocale": true
+  },
+  {
+   "name": "vic20",
+   "isLocale": false
+  },
+  {
+   "name": "de\n",
+   "isLocale": false
+  },
+  {
+   "name": "gb",
+   "isLocale": false
+  },
+  {
+   "name": "msx",
+   "isLocale": false
+  },
+  {
+   "name": "sms",
+   "isLocale": false
+  }
+ ]
+}

@@ -1,7 +1,7 @@
 // @8bitscript/audio — play a sample or song compiled from a .8ba file.
 //
-//     import { blip, theme } from "./theme.8ba";
-//     import { audio } from "@8bitscript/audio";
+//     use self::theme::{blip, theme};
+//     use @8bitscript::audio::audio;
 //     audio.play(blip);
 //     audio.music(theme);
 //     audio.update();
@@ -9,10 +9,10 @@
 // This file is the no-driver path: bind/meta keep the handles valid, play
 // and music do nothing. A machine with a chip replaces this file.
 const MAX: utinyint = 4;
-let sfxLen: array<u8, 4>;
-let songLen: array<u8, 4>;
+let mut sfxLen: [u8; 4];
+let mut songLen: [u8; 4];
 
-export namespace audio {
+pub mod audio {
     // The playable notes (the .8ba index, C0 = 0, A4 = 57): none here, so a
     // program can fold its sounds away on `audio.NOTE_HIGH == 0`.
     const NOTE_LOW: utinyint = 0;
@@ -20,14 +20,14 @@ export namespace audio {
 
     // A single tone for `frames` calls of update() and its silence: both do
     // nothing on a machine with no driver.
-    function tone(note: utinyint, frames: utinyint): void {
+    fn tone(note: utinyint, frames: utinyint) {
     }
 
-    function silence(): void {
+    fn silence() {
     }
 
     // True while something is sounding: nothing ever is here.
-    function busy(): bool {
+    fn busy() -> bool {
         return false;
     }
 
@@ -36,31 +36,31 @@ export namespace audio {
     // nothing, so a portable program folds its volume handling away.
     const LEVEL_MAX: utinyint = 0;
 
-    function setLevel(level: utinyint): void {
+    fn setLevel(level: utinyint) {
     }
 
     // A plucked tone: it starts at the level and dies away within `frames`.
-    function blip(note: utinyint, frames: utinyint): void {
+    fn blip(note: utinyint, frames: utinyint) {
     }
 
-    function bind(kind: utinyint, slot: utinyint, index: utinyint, value: utinyint): void {
+    fn bind(kind: utinyint, slot: utinyint, index: utinyint, value: utinyint) {
     }
 
-    function meta(kind: utinyint, slot: utinyint, length: utinyint, a: utinyint, b: utinyint, c: utinyint): void {
-        if (kind == 0 && slot < MAX) {
+    fn meta(kind: utinyint, slot: utinyint, length: utinyint, a: utinyint, b: utinyint, c: utinyint) {
+        if kind == 0 && slot < MAX {
             sfxLen[slot] = length;
         }
-        if (kind == 1 && slot < MAX) {
+        if kind == 1 && slot < MAX {
             songLen[slot] = length;
         }
     }
 
-    function play(slot: utinyint): void {
+    fn play(slot: utinyint) {
     }
 
-    function music(slot: utinyint): void {
+    fn music(slot: utinyint) {
     }
 
-    function update(): void {
+    fn update() {
     }
 }

@@ -9,12 +9,11 @@
 // implementation.
 import { readFileSync } from 'node:fs';
 
-import { tokenize } from './src/lexer/index.mjs';
-import { parse } from './src/parser/index.mjs';
+import { parse, tokenize } from './src/front/index.mjs';
 import { check } from './src/checker/index.mjs';
 import { foldCompileTime } from './src/fold/index.mjs';
 import { lower } from './src/ir/index.mjs';
-import { resolveImports, resolveSpecifier } from './src/resolver/index.mjs';
+import { pathFormSpecifiers, resolveImports, resolveSpecifier, withPathForm } from './src/resolver/index.mjs';
 import { sourceKindOf } from './src/source/index.mjs';
 import { applyCatalogCharset, isCatalogFile } from './src/i18n/index.mjs';
 import { bind, bindImportedComponents } from './src/binder/index.mjs';
@@ -22,8 +21,7 @@ import { checkBx } from './src/bx/check.mjs';
 import { elaborateBx } from './src/bx/elaborate.mjs';
 import { analyzeMedia, isMediaKind } from './src/media/index.mjs';
 
-export { tokenize, TokenKind, KEYWORDS, TYPE_NAMES } from './src/lexer/index.mjs';
-export { parse, normalizeBxText } from './src/parser/index.mjs';
+export { tokenize, parse, TokenKind, KEYWORDS, TYPE_NAMES, normalizeBxText } from './src/front/index.mjs';
 export { NodeType, walk } from './src/ast/index.mjs';
 export { check } from './src/checker/index.mjs';
 export { bind, bindImports, bindImportedComponents, componentOf, SymbolKind, resolveSymbol } from './src/binder/index.mjs';
@@ -36,7 +34,7 @@ export {
 export { lower, entryOf } from './src/ir/index.mjs';
 export { link, memoryOf } from './src/linker/index.mjs';
 export {
-  MACHINES, RELEASE_MACHINES, isReleaseMachine, findImports, isVariantPath, machineOfVariant, resolveImports, resolveImportAliases, resolveSpecifier, variantOf, tagsOf,
+  MACHINES, RELEASE_MACHINES, isReleaseMachine, findImports, isVariantPath, machineOfVariant, resolveImports, resolveImportAliases, resolveSpecifier, variantOf, variantsPresent, tagsOf,
 } from './src/resolver/index.mjs';
 export {
   CATALOG_SPECIFIER, CATALOG_CHARACTERS, PORTABLE_CHARACTERS, TRANSLITERATIONS, applyCatalogCharset, discoverCatalogLocales,
@@ -83,7 +81,7 @@ export { tokenizeMedia, analyzeMedia, isMediaKind } from './src/media/index.mjs'
  *   `#fact(...)` fold to placeholders and are valid-but-target-dependent,
  *   as a `.<machine>.8bs` import is. `facts` is the machine's hardware
  *   fact sheet, wanted whenever `machine` is given and a fact is read. `frameRate` (default 60) is the project's logical frame rate — see
- *   8bitscript.config.8bs — that every `#frames(...)` call folds against, mirroring
+ *   8bitscript.config.ts — that every `#frames(...)` call folds against, mirroring
  *   link()'s option of the same name so `8bs check`/the editor and a real
  *   build agree on what a duration means. `defines` (name → number |
  *   boolean | string) is what `#define("NAME", default)` takes over its
@@ -107,8 +105,9 @@ export function analyze(text, file = '<unknown>', options = {}) {
   // checked against `component MenuBar`. With it off, an imported name
   // used as an element is valid but unknown, and nothing is said.
   if (options.resolveImports) {
+    const pathForms = pathFormSpecifiers(tokens);
     bindImportedComponents(bound, (specifier) => {
-      const resolved = resolveSpecifier(specifier, file, options);
+      const resolved = resolveSpecifier(specifier, file, withPathForm(options, pathForms.has(specifier)));
       if (!resolved || resolved.code || resolved.path === null) return null;
       let other;
       try {

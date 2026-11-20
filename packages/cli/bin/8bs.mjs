@@ -7,6 +7,14 @@
 // under the cursor.
 const [, , command, ...rest] = process.argv;
 
+// A project whose only config is the old `.8bs` one stops the command with
+// one clear line, not a stack trace (config.mjs's staleConfigError).
+process.on('uncaughtException', (error) => {
+  if (error?.name !== 'StaleConfigError') throw error;
+  process.stderr.write(`${error.message}\n`);
+  process.exit(1);
+});
+
 /**
  * Exit with `code`, but not before what has been printed has left this
  * process.
@@ -28,7 +36,7 @@ async function finish(code) {
   process.exit(code);
 }
 
-const IMPLEMENTED = new Set(['check', 'lsp', 'doctor', 'build', 'run', 'boot', 'setup', 'targets', 'project', 'conform', 'controller']);
+const IMPLEMENTED = new Set(['check', 'lsp', 'doctor', 'build', 'run', 'boot', 'setup', 'targets', 'project', 'conform', 'controller', 'migrate']);
 const PLANNED = ['dev'];
 
 const usage = () => `Usage: 8bs <command> [options]
@@ -43,7 +51,7 @@ Implemented:
                                no region: its model is hardware. --profile
                                names the hardware fitted — a preset from
                                the machine's catalog (8032) or a profile the
-                               project composes in 8bitscript.config.8bs —
+                               project composes in 8bitscript.config.ts —
                                and --hardware sets single options on top
                                (model=4032). --system names a saved
                                arrangement (config, .8bitscript/systems.json,
@@ -58,7 +66,7 @@ Implemented:
                                lists every option, value and preset, and
                                which machines this release builds for.
                                --program names one of the project's
-                               programs (8bitscript.config.8bs's programs
+                               programs (8bitscript.config.ts's programs
                                block); without it, main, or the only one.
                                --define NAME=VALUE (repeatable) hands the
                                program a value that its #define("NAME", …)
@@ -184,6 +192,20 @@ Implemented:
                                /opt/commander-x16 (--repair fixes a broken
                                launcher, --update rebuilds the pair —
                                docs/setup/cx16.md)
+  migrate [paths] [--check] [--embedded] [--fences] [--all] [--alias @lib]
+                               One-time converter to the new syntax:
+                               rewrites .8bs/.8bx files in place, each
+                               proved equal to the old tree by the new
+                               front end before it is written. --embedded
+                               takes the programs inside JS/TS sources (tests,
+                               generators, scripts)
+                               (a template literal or a ['...'].join('\\n')
+                               array; \${expr} is kept), --fences the
+                               \`\`\`8bs and \`\`\`8bx fences in Markdown, --all all three.
+                               --check writes nothing and exits 1 on any
+                               difference or failure. A literal it cannot
+                               convert is listed and left alone. This
+                               command is removed after the switch.
   lsp [--stdio]                Start the language server on stdio
 
 Planned, not implemented:
@@ -268,6 +290,11 @@ if (command === 'conform') {
 if (command === 'controller') {
   const { controller } = await import('../src/controller.mjs');
   await finish(await controller(rest));
+}
+
+if (command === 'migrate') {
+  const { migrate } = await import('../src/migrate/index.mjs');
+  await finish(await migrate(rest));
 }
 
 if (command === 'targets') {

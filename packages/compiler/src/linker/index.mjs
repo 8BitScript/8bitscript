@@ -34,8 +34,7 @@
 //     assembly should prefer names unlikely to collide.
 import { readFileSync, realpathSync } from 'node:fs';
 
-import { tokenize } from '../lexer/index.mjs';
-import { parse } from '../parser/index.mjs';
+import { parse, tokenize } from '../front/index.mjs';
 import { check } from '../checker/index.mjs';
 import { foldCompileTime } from '../fold/index.mjs';
 import { FACTS, factConstName } from '../fold/facts.mjs';
@@ -47,7 +46,7 @@ import { sourceKindOf } from '../source/index.mjs';
 import { parseMediaModule, elaborateMedia, isMediaKind } from '../media/index.mjs';
 import { applyCatalogCharset, isCatalogFile } from '../i18n/index.mjs';
 import { lower } from '../ir/index.mjs';
-import { findImports, resolveSpecifier, nativeSourcesBeside } from '../resolver/index.mjs';
+import { findImports, pathFormSpecifiers, resolveSpecifier, nativeSourcesBeside, withPathForm } from '../resolver/index.mjs';
 import { Codes, diagnostic } from '../diagnostics/index.mjs';
 import { formatMessage, isI18nPackageFile } from '../i18n/index.mjs';
 import { storageBytes, resolveIntegerType } from '../types/index.mjs';
@@ -70,11 +69,14 @@ function canonical(path) {
  * imported name means, so every module in the graph can be read to this
  * point before any of them is finished (see loadGraph).
  */
-function parseModule(file, text, diagnostics) {
+function parseModule(file, text, diagnostics, dump) {
   const sourceKind = sourceKindOf(file) ?? '.8bs';
   if (isMediaKind(sourceKind)) return parseMediaModule(file, text, diagnostics, sourceKind);
   const { tokens, diagnostics: lexical } = tokenize(text, file, { sourceKind });
+  if (dump) dump('tokens', tokens, canonical(file));
   const { ast, diagnostics: syntax } = parse(tokens, text, file, { sourceKind });
+  // Before bind: bind, fold and the linker mutate nodes in place.
+  if (dump) dump('ast', ast, canonical(file));
   diagnostics.push(...lexical, ...syntax);
   const bound = bind(ast, file);
   diagnostics.push(...bound.diagnostics);
@@ -86,7 +88,7 @@ function parseModule(file, text, diagnostics) {
  * are known: element checks, 8BX elaboration, folding, checking, and
  * lowering to this module's IR.
  */
-function finishModule(module, diagnostics, { frameRate, machine, tags, facts, bx, locale, i18n, checkout, mediaSlots, defines, defineSites }) {
+function finishModule(module, diagnostics, { frameRate, machine, tags, facts, bx, locale, i18n, checkout, mediaSlots, defines, defineSites, dump }) {
   if (module.media) {
     elaborateMedia(module, diagnostics, { machine, tags, facts, checkout, mediaSlots });
     return module;
@@ -111,6 +113,7 @@ function finishModule(module, diagnostics, { frameRate, machine, tags, facts, bx
   const seen = new Set(diagnostics.map((d) => `${d.code}@${d.start}+${d.length}`));
   diagnostics.push(...lowering.filter((d) => !seen.has(`${d.code}@${d.start}+${d.length}`)));
   module.ir = ir;
+  if (dump) dump('module-ir', ir, canonical(file));
   return module;
 }
 
@@ -137,7 +140,7 @@ function loadGraph(entryText, entryFile, diagnostics, sources, options) {
   // once each however many modules import the package — keyed by canonical
   // path for the same pnpm-symlink reason `byPath` is.
   const nativeSources = new Map();
-  const finishOptions = { frameRate: options.frameRate, machine: options.machine, tags: options.tags, facts: options.facts, bx: options.bx, locale: options.locale, i18n: options.i18n, checkout: options.checkout, mediaSlots: { graphics: 0, audio: 0, audioBytes: 0 }, defines: options.defines, defineSites: options.defineSites };
+  const finishOptions = { frameRate: options.frameRate, machine: options.machine, tags: options.tags, facts: options.facts, bx: options.bx, locale: options.locale, i18n: options.i18n, checkout: options.checkout, mediaSlots: { graphics: 0, audio: 0, audioBytes: 0 }, defines: options.defines, defineSites: options.defineSites, dump: options.dump };
 
   // Whether a module is the program's own: the entry, and whatever it
   // reaches by a relative path or a project alias — never through a bare
@@ -147,7 +150,7 @@ function loadGraph(entryText, entryFile, diagnostics, sources, options) {
   const ownRoute = (specifier) => specifier.startsWith('.') || specifier.startsWith('/')
     || aliases.some((prefix) => specifier === prefix || specifier.startsWith(`${prefix}/`));
   const enqueue = (file, text, own) => {
-    const module = parseModule(file, text, diagnostics);
+    const module = parseModule(file, text, diagnostics, options.dump);
     module.own = own;
     modules.push(module);
     byPath.set(canonical(file), module);
@@ -166,8 +169,8 @@ function loadGraph(entryText, entryFile, diagnostics, sources, options) {
   // pass two to report, once, against the IR's import record.
   for (let i = 0; i < modules.length; i += 1) {
     const module = modules[i];
-    for (const { specifier } of findImports(module.tokens)) {
-      const resolved = resolveSpecifier(specifier, module.file, options);
+    for (const { specifier, pathForm } of findImports(module.tokens)) {
+      const resolved = resolveSpecifier(specifier, module.file, withPathForm(options, pathForm));
       if (resolved?.diagnostics) diagnostics.push(...resolved.diagnostics.filter((d) => !diagnostics.includes(d)));
       if (!resolved || resolved.code || resolved.path === null) continue;
       const key = canonical(resolved.path);
@@ -183,8 +186,9 @@ function loadGraph(entryText, entryFile, diagnostics, sources, options) {
   }
   // Every import that names an exported component now points at it.
   for (const module of modules) {
+    const pathForms = pathFormSpecifiers(module.tokens);
     bindImportedComponents(module.bound, (specifier) => {
-      const resolved = resolveSpecifier(specifier, module.file, options);
+      const resolved = resolveSpecifier(specifier, module.file, withPathForm(options, pathForms.has(specifier)));
       if (!resolved || resolved.code || resolved.path === null) return null;
       return byPath.get(canonical(resolved.path))?.bound ?? null;
     });
@@ -195,11 +199,11 @@ function loadGraph(entryText, entryFile, diagnostics, sources, options) {
   for (let i = 0; i < modules.length; i += 1) {
     const module = modules[i];
     for (const imp of module.ir.imports) {
-      const resolved = resolveSpecifier(imp.source, module.file, options);
+      const resolved = resolveSpecifier(imp.source, module.file, withPathForm(options, imp.pathForm));
       if (!resolved) {
         diagnostics.push(diagnostic(
           Codes.NOT_COMPILABLE,
-          `import specifier '${imp.source}' is not linkable yet: only './file.8bs', './file.8bx', './file.8bg' or './file.8ba' paths, project import aliases ('@lib/…' from 8bitscript.config.8bs), bare package names, and package subpaths ('@scope/name/thing') are specified`,
+          `import specifier '${imp.source}' is not linkable yet: only './file.8bs', './file.8bx', './file.8bg' or './file.8ba' paths, project import aliases ('@lib/…' from 8bitscript.config.ts), bare package names, and package subpaths ('@scope/name/thing') are specified`,
           module.file, imp.start, imp.length,
         ));
         continue;
@@ -622,7 +626,7 @@ function bindImports(modules, diagnostics) {
         if (imp.module.decls.get(spec.imported) !== true) {
           diagnostics.push(diagnostic(
             Codes.NO_SUCH_EXPORT,
-            `'${spec.imported}' is not exported by '${imp.source}'`,
+            `'${spec.imported}' is not pub in '${imp.source}'`,
             module.file, spec.start, spec.length,
           ));
           continue;
@@ -862,20 +866,20 @@ function rewriteExpression(expr, scope, module, diagnostics) {
       if (!result.namespaceFound) {
         diagnostics.push(diagnostic(
           Codes.UNRESOLVED_NAME,
-          `cannot find namespace '${expr.namespace}'`,
+          `cannot find mod '${expr.namespace}'`,
           module.file, expr.start ?? 0, expr.length ?? 0,
         ));
       } else if (!result.memberFound) {
         diagnostics.push(diagnostic(
           Codes.NO_SUCH_EXPORT,
-          `'${expr.member}' is not a function in namespace '${expr.namespace}'`,
+          `'${expr.member}' is not a fn in mod '${expr.namespace}'`,
           module.file, expr.start ?? 0, expr.length ?? 0,
         ));
       } else {
         // Once resolved, a namespace call IS a plain call — same shape the
         // rest of the pipeline (and both backends) already understand.
         expr.kind = 'call';
-        expr.original = `${expr.namespace}.${expr.member}`;
+        expr.original = `${expr.namespace}::${expr.member}`;
         expr.name = result.targetModule.rename.get(result.value);
         delete expr.namespace;
         delete expr.member;
@@ -926,7 +930,7 @@ function rewriteExpression(expr, scope, module, diagnostics) {
       if (!result.namespaceFound) {
         diagnostics.push(diagnostic(
           Codes.UNRESOLVED_NAME,
-          `cannot find namespace '${expr.namespace}'`,
+          `cannot find mod '${expr.namespace}'`,
           module.file, expr.start ?? 0, expr.length ?? 0,
         ));
       } else if (!result.memberFound) {
@@ -1176,22 +1180,22 @@ function checkEntryExports(module) {
   const namespaces = (module.ir.namespaces ?? []).filter((ns) => ns.exported);
 
   for (const g of globals) {
-    at(g, `the entry module may export only its entry function; '${g.name}' is a global`);
+    at(g, `the entry module may pub only its entry fn; '${g.name}' is a global`);
   }
   for (const ns of namespaces) {
-    at(ns, `the entry module may export only its entry function; '${ns.name}' is a namespace`);
+    at(ns, `the entry module may pub only its entry fn; '${ns.name}' is a mod`);
   }
   if (functions.length === 0) {
     if (globals.length === 0 && namespaces.length === 0) {
-      at({}, 'the entry module exports nothing; export exactly one function to be the program');
+      at({}, 'the entry module has nothing pub; make exactly one fn pub to be the program');
     } else {
-      at({}, 'the entry module exports no function; export exactly one to be the program');
+      at({}, 'the entry module has no pub fn; make exactly one pub to be the program');
     }
     return { name: null, diagnostics };
   }
   if (functions.length > 1) {
     for (const fn of functions) {
-      at(fn, `the entry module must export exactly one function, its entry point; '${fn.name}' is one of ${functions.length}`);
+      at(fn, `the entry module must have exactly one pub fn, its entry point; '${fn.name}' is one of ${functions.length}`);
     }
     return { name: null, diagnostics };
   }
@@ -1215,7 +1219,7 @@ function checkEntryExports(module) {
  *
  * @param {string} entryText  The entry module's source.
  * @param {string} entryFile  Its absolute path, the root imports resolve from.
- * @param {{ machine?: string, tags?: string[], profile?: string, frameRate?: number, facts?: object, locale?: string, defines?: Record<string, number|boolean|string>, defineSites?: object[] }} [options]
+ * @param {{ machine?: string, tags?: string[], profile?: string, frameRate?: number, facts?: object, locale?: string, defines?: Record<string, number|boolean|string>, defineSites?: object[], dump?: (stage: string, value: unknown, key?: string) => void }} [options]
  *   `machine` is the target being built for; packages with target-
  *   conditional entries resolve to that machine's implementation, and any
  *   `.8bs` file with a `.<machine>.8bs` twin beside it resolves to the
@@ -1223,7 +1227,7 @@ function checkEntryExports(module) {
  *   expanded VIC-20): a `.<machine>.<tag>.8bs` twin is taken before the
  *   machine's own, and two tags each with a twin is `8BS3004`. The older
  *   `profile` is accepted as one tag. `frameRate` (default 60) is the
- *   project's logical frame rate — see 8bitscript.config.8bs — that every
+ *   project's logical frame rate — see 8bitscript.config.ts — that every
  *   `#frames(...)` call in the graph folds against; `machine` is also what
  *   every `#system()` call folds to. `facts` is the build's hardware fact
  *   sheet (the merged `facts` of packages/cli/src/hardware.mjs's
@@ -1240,6 +1244,16 @@ function checkEntryExports(module) {
  *   source default.
  */
 export function link(entryText, entryFile, options = {}) {
+  const result = linkProgram(entryText, entryFile, options);
+  const { dump } = options;
+  if (dump) {
+    dump('diagnostics', result.diagnostics);
+    if (result.ir) dump('linked-ir', result.ir);
+  }
+  return result;
+}
+
+function linkProgram(entryText, entryFile, options) {
   const diagnostics = [];
   const sources = new Map();
 

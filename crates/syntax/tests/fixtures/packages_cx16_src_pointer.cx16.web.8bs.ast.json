@@ -1,0 +1,171 @@
+{
+  "body": [
+    {
+      "exported": true,
+      "length": 222,
+      "members": [
+        {
+          "exported": false,
+          "initializer": {
+            "length": 5,
+            "start": 677,
+            "type": "BooleanLiteral",
+            "value": false
+          },
+          "kind": "const",
+          "length": 26,
+          "name": {
+            "length": 5,
+            "name": "DRAWS",
+            "start": 663,
+            "type": "Identifier"
+          },
+          "start": 657,
+          "type": "VariableDeclaration",
+          "typeAnnotation": {
+            "length": 4,
+            "name": "bool",
+            "start": 670,
+            "type": "TypeReference",
+            "typeArguments": []
+          }
+        },
+        {
+          "body": {
+            "body": [],
+            "length": 7,
+            "start": 712,
+            "type": "BlockStatement"
+          },
+          "exported": false,
+          "length": 30,
+          "name": {
+            "length": 5,
+            "name": "begin",
+            "start": 698,
+            "type": "Identifier"
+          },
+          "params": [],
+          "returnType": {
+            "length": 4,
+            "name": "void",
+            "start": 707,
+            "type": "TypeReference",
+            "typeArguments": []
+          },
+          "start": 689,
+          "type": "FunctionDeclaration"
+        },
+        {
+          "body": {
+            "body": [],
+            "length": 7,
+            "start": 766,
+            "type": "BlockStatement"
+          },
+          "exported": false,
+          "length": 48,
+          "name": {
+            "length": 8,
+            "name": "setColor",
+            "start": 734,
+            "type": "Identifier"
+          },
+          "params": [
+            {
+              "defaultValue": null,
+              "length": 15,
+              "name": {
+                "length": 5,
+                "name": "color",
+                "start": 743,
+                "type": "Identifier"
+              },
+              "start": 743,
+              "type": "Parameter",
+              "typeAnnotation": {
+                "length": 8,
+                "name": "utinyint",
+                "start": 750,
+                "type": "TypeReference",
+                "typeArguments": []
+              }
+            }
+          ],
+          "returnType": {
+            "length": 4,
+            "name": "void",
+            "start": 761,
+            "type": "TypeReference",
+            "typeArguments": []
+          },
+          "start": 725,
+          "type": "FunctionDeclaration"
+        },
+        {
+          "body": {
+            "body": [],
+            "length": 7,
+            "start": 803,
+            "type": "BlockStatement"
+          },
+          "exported": false,
+          "length": 31,
+          "name": {
+            "length": 6,
+            "name": "update",
+            "start": 788,
+            "type": "Identifier"
+          },
+          "params": [],
+          "returnType": {
+            "length": 4,
+            "name": "void",
+            "start": 798,
+            "type": "TypeReference",
+            "typeArguments": []
+          },
+          "start": 779,
+          "type": "FunctionDeclaration"
+        },
+        {
+          "body": {
+            "body": [],
+            "length": 7,
+            "start": 838,
+            "type": "BlockStatement"
+          },
+          "exported": false,
+          "length": 29,
+          "name": {
+            "length": 4,
+            "name": "hide",
+            "start": 825,
+            "type": "Identifier"
+          },
+          "params": [],
+          "returnType": {
+            "length": 4,
+            "name": "void",
+            "start": 833,
+            "type": "TypeReference",
+            "typeArguments": []
+          },
+          "start": 816,
+          "type": "FunctionDeclaration"
+        }
+      ],
+      "name": {
+        "length": 7,
+        "name": "pointer",
+        "start": 642,
+        "type": "Identifier"
+      },
+      "start": 625,
+      "type": "NamespaceDeclaration"
+    }
+  ],
+  "length": 848,
+  "start": 0,
+  "type": "Program"
+}

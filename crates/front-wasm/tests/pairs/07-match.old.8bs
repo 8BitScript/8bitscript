@@ -1,0 +1,9 @@
+// rows: match
+function m(n: u8): void {
+  if (n == 0) { a(); }
+  else if (n == 1 || n == 2) { b(); }
+  else if (n >= 3 && n <= 5) { c(); }
+  else if (n == K) { d(); }
+  else { e(); }
+  if (cfg.mode == true) { f(); }
+}

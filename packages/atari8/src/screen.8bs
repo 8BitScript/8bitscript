@@ -4,7 +4,7 @@
 // Named by "8bitscript".exports["./screen"] in this package's package.json,
 // and what
 //
-//     import { screen, BorderColor, BackgroundColor } from "@8bitscript/screen";
+//     use @8bitscript::screen::{screen, BorderColor, BackgroundColor};
 //
 // resolves to when the build is for the Atari: @8bitscript/screen's entry is
 // keyed by machine and delegates here. Built on the registers
@@ -12,10 +12,7 @@
 // for which GTIA register is which, and why the OS shadows matter. Every
 // machine's screen.8bs exports this same surface, which is what lets a
 // program import it from @8bitscript/screen and never name the hardware.
-import {
-    borderColor, borderColorShadow, backgroundColor, backgroundColorShadow,
-    textColor, textColorShadow, cursorInhibit,
-} from "./index.8bs";
+use self::index::{borderColor, borderColorShadow, backgroundColor, backgroundColorShadow, textColor, textColorShadow, cursorInhibit};
 
 // ---- the screen: border and background --------------------------------------
 //
@@ -34,8 +31,8 @@ import {
 // Atari equivalent of the Commodore packages drawing digits in white.
 // CRSINH hides the OS cursor so it cannot invert a cell of whatever the
 // caller writes.
-export namespace screen {
-    function setColors(border: u8, background: u8): void {
+pub mod screen {
+    fn setColors(border: u8, background: u8) {
         borderColorShadow = border;
         borderColor = border;
         backgroundColorShadow = background;
@@ -50,23 +47,23 @@ export namespace screen {
     // to leave one as it is. `setBorder` and `setBackground` are one
     // color each, `setColors` the pair; `text.setColor` owns what the
     // next print looks like.
-    function blank(border: utinyint = BorderColor.BLACK, background: utinyint = BackgroundColor.BLACK): void {
-        if (border != BorderColor.KEEP) {
-            screen.setBorder(border);
+    fn blank(border: utinyint = BorderColor::BLACK, background: utinyint = BackgroundColor::BLACK) {
+        if border != BorderColor::KEEP {
+            screen::setBorder(border);
         }
-        if (background != BackgroundColor.KEEP) {
-            screen.setBackground(background);
+        if background != BackgroundColor::KEEP {
+            screen::setBackground(background);
         }
         cursorInhibit = 1;
         // Screen memory is wherever the OS put it (SAVMSC, $58/$59); 0 is
         // the blank internal code, what putChar turns a space into.
-        let base: usmallint = memory.read(0x58) + memory.read(0x59) * 256;
-        for (let cell: usmallint = 0; cell < 960; cell++) {
-            memory.write(base + cell, 0);
+        let base: usmallint = memory::read(0x58) + memory::read(0x59) * 256;
+        for cell: usmallint in 0..960 {
+            memory::write(base + cell, 0);
         }
     }
 
-    function setBackground(background: u8): void {
+    fn setBackground(background: u8) {
         backgroundColorShadow = background;
         backgroundColor = background;
         textColorShadow = 0x0E;
@@ -74,7 +71,7 @@ export namespace screen {
         cursorInhibit = 1;
     }
 
-    function setBorder(border: u8): void {
+    fn setBorder(border: u8) {
         borderColorShadow = border;
         borderColor = border;
         textColorShadow = 0x0E;
@@ -90,7 +87,7 @@ export namespace screen {
     // disappears with them.
     const RESIZABLE: bool = false;
 
-    function resized(): bool {
+    fn resized() -> bool {
         return false;
     }
 }
@@ -110,7 +107,7 @@ export namespace screen {
 // setColors() directly. Not visually verified under atari800 by this
 // project; the hue table is the manual's, the luminances a judgement.
 
-export namespace BorderColor {
+pub mod BorderColor {
     const BLACK: utinyint = 0x00;
     const WHITE: utinyint = 0x0E;
     const RED: utinyint = 0x34;
@@ -125,7 +122,7 @@ export namespace BorderColor {
     const KEEP: utinyint = 255;
 }
 
-export namespace BackgroundColor {
+pub mod BackgroundColor {
     const BLACK: utinyint = 0x00;
     const WHITE: utinyint = 0x0E;
     const RED: utinyint = 0x34;

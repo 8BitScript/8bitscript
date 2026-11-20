@@ -6,19 +6,18 @@
 // folds away. The native file would call the KERNAL's mouse from asm6502, which the wasm backend cannot lower.
 // Keep the export list identical to pointer.8bs —
 // packages/compiler/test/cx16-web-twin.test.mjs holds the two to the same names.
-export namespace pointer {
-
+pub mod pointer {
     const DRAWS: bool = false;
 
-    function begin(): void {
+    fn begin() {
     }
 
-    function setColor(color: utinyint): void {
+    fn setColor(color: utinyint) {
     }
 
-    function update(): void {
+    fn update() {
     }
 
-    function hide(): void {
+    fn hide() {
     }
 }

@@ -9,7 +9,7 @@
 //     8bs build --target pet --profile 8032     [entry.8bs]   80 columns, 32K
 //     8bs build --target c64 --program format   One of several programs — see
 //                                                programs.mjs and buildRelease.
-//     8bs build --release                       Every artifact 8bitscript.config.8bs
+//     8bs build --release                       Every artifact 8bitscript.config.ts
 //                                                declares for a release — see
 //                                                buildRelease below.
 //
@@ -22,14 +22,14 @@
 // (see REGION_TARGETS below); it's silently ignored everywhere else, the
 // same as it already was for web. "NTSC (60Hz)" above is the emulator's real
 // hardware region, not the language's logical frame rate — that's a
-// separate, project-level setting (`frameRate` in 8bitscript.config.8bs, default 60,
+// separate, project-level setting (`frameRate` in 8bitscript.config.ts, default 60,
 // see packages/compiler/src/mos FRAME_SYNC),
 // unaffected by --pal.
 //
 // --profile names the hardware the build is for: a preset from the
 // machine package's catalog (`8032`, `130xe`, `reu512` — the community's
 // names for whole configurations) or a profile the project composes in
-// its 8bitscript.config.8bs (`targets: { c64: { profiles: { loaded: { ram:
+// its 8bitscript.config.ts (`targets: { c64: { profiles: { loaded: { ram:
 // 'reu512', port1: 'mouse1351' } } } }`). --hardware option=value,...
 // sets single options on top of either. What each option changes — a
 // link symbol, a driver, an emulator flag, a fact a program can read — is
@@ -37,7 +37,7 @@
 // docs/systems.md. `8bs targets` lists every option and preset.
 //
 // The entry defaults to src/main.8bs, or to the `entry` in
-// 8bitscript.config.8bs when the project has one, or to the program
+// 8bitscript.config.ts when the project has one, or to the program
 // `--program` names out of its `programs` (programs.mjs) — and whichever
 // file that names, a `.<target>.8bs`
 // twin beside it (main.nes.8bs next to main.8bs) is what a build for that
@@ -49,15 +49,17 @@
 // Only hardware that changes the *build* is in the name (a PET's model, a
 // VIC-20's RAM): a mouse or a REU makes the same program, so it is not.
 import { readFile } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
-import { basename, join, resolve } from 'node:path';
+import { existsSync, realpathSync } from 'node:fs';
+import { basename, dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import {
   MACHINES, RELEASE_MACHINES, isVariantPath, link, positionAt, resolveImportAliases, sourceKindOf, variantOf,
   shortOfBaseline, unmetRequirements, cpuFamily,
 } from '@8bitscript/compiler';
 
-import { applyCheckoutFromArgs, setActiveCheckout } from './checkout.mjs';
+import { applyCheckoutFromArgs, getActiveCheckout, setActiveCheckout } from './checkout.mjs';
+import { ENV_NAME, dumpStagesArg, openDump } from './stage-dump.mjs';
 
 import { loadConfig, localeArg, resolveFrameRate, resolveI18n, resolveLocale, retiredOptionWarnings } from './config.mjs';
 import { checkDefines, defineArgs, effectiveDefines } from './defines.mjs';
@@ -105,7 +107,7 @@ function printDiagnostics(diagnostics, sources) {
 // rather than failing with a bare "unknown target".
 const RETIRED_TARGET = /^(vic20|c64)-(ntsc|pal)$/;
 
-// `entry` in 8bitscript.config.8bs is one path, shared by every target, and the
+// `entry` in 8bitscript.config.ts is one path, shared by every target, and the
 // filename rule does the rest: a project whose entry point genuinely has to
 // differ on one machine — its execution model, its screen codes, its grid
 // — puts that machine's version beside the shared file as
@@ -169,7 +171,7 @@ export function checkEntryKind(entry) {
  * @param {{ pal?: boolean, profile?: string, hardware?: object, report?: boolean, debug?: boolean, checkout?: string|null, program?: string, locale?: string }} [options] `pal` selects the
  *   real hardware/emulator region (NTSC unless true; ignored outside
  *   REGION_TARGETS) — it does not affect the logical frame rate, which is
- *   read from 8bitscript.config.8bs's `frameRate` instead (default 60). `profile`
+ *   read from 8bitscript.config.ts's `frameRate` instead (default 60). `profile`
  *   names a project profile or a catalog preset, `hardware` is option
  *   values set on top (`--hardware`); see hardware.mjs. `report` is
  *   `--size`: print the per-function breakdown and include it in the
@@ -190,7 +192,31 @@ export function checkEntryKind(entry) {
  *   whoever runs it next. `memory` / `sizeReport` are what the last-run
  *   file and `--size` print; they are absent when the compile failed.
  */
-export async function compile(target, entryArg, { pal = false, profile, hardware: overrides = {}, report = false, debug = false, remarks = false, checkout = undefined, program: programName, locale: localeArgument, web = false, defines: handed = {} } = {}) {
+export async function compile(target, entryArg, options = {}) {
+  const spec = options.dumpStages ?? (process.env[ENV_NAME] || undefined);
+  if (!spec) return compileProgram(target, entryArg, options);
+  const session = openDump(spec, dumpRoots(options.checkout));
+  let result;
+  try {
+    result = await compileProgram(target, entryArg, { ...options, dumpSession: session });
+  } catch (err) {
+    // The build's own error is the one to report; a failed dump write must not replace it.
+    try { session.finish(target); } catch { /* keep err */ }
+    throw err;
+  }
+  session.finish(target);
+  return result;
+}
+
+/** The two roots a stage dump replaces with tokens: this toolchain and the project being built. */
+function dumpRoots(checkout) {
+  const own = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
+  const real = (path) => { try { return realpathSync(path); } catch { return path; } };
+  const toolchain = [getActiveCheckout() ?? checkout, own].filter(Boolean).flatMap((p) => [p, real(p)]);
+  return { toolchain, project: [process.cwd(), real(process.cwd())] };
+}
+
+async function compileProgram(target, entryArg, { pal = false, profile, hardware: overrides = {}, report = false, debug = false, remarks = false, checkout = undefined, program: programName, locale: localeArgument, web = false, defines: handed = {}, dumpSession = undefined } = {}) {
   if (checkout !== undefined) setActiveCheckout(checkout);
   const config = await loadConfig(process.cwd(), '8bs build');
 
@@ -274,7 +300,7 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
   const listed = listedTargets(config);
   if (listed && !listed.includes(target)) {
     process.stderr.write(
-      `8bs build: this project's 8bitscript.config.8bs does not list '${target}' ` +
+      `8bs build: this project's 8bitscript.config.ts does not list '${target}' ` +
       `(targets: ${listed.join(', ')})\n`,
     );
     return { ok: false };
@@ -349,7 +375,7 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
         profile, overrides, profiles: projectProfiles(config, target), defaults: projectHardware(config, target),
       });
       process.stderr.write(fits.length > 0
-        ? `    fit one of: ${fits.join(', ')}  (--hardware, or a system in 8bitscript.config.8bs)\n`
+        ? `    fit one of: ${fits.join(', ')}  (--hardware, or a system in 8bitscript.config.ts)\n`
         : `    no ${target} can be fitted with that; this program is not for this machine\n`);
     }
     return { ok: false };
@@ -397,8 +423,9 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
   const defines = effectiveDefines(program, handed);
   const { ir, diagnostics, sources, factsTested, defineSites } = link(text, entry, {
     machine: target, tags: [...hardware.tags, ...webTag], facts: hardware.facts, frameRate, checkout, bx: config?.bx, locale, i18n, importAliases,
-    defines,
+    defines, dump: dumpSession?.dump,
   });
+  dumpSession?.note({ program: program.name, locale });
   // A warning is printed and the build goes on; an error stops it.
   if (diagnostics.length > 0) printDiagnostics(diagnostics, sources);
   // A name handed to a program that never reads it is a typo until proven
@@ -466,7 +493,8 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
     // linear memory (see the wasm backend's own note on this). The
     // synthetic web/hifi target owns no hardware to map one to, so it
     // keeps refusing them, exactly as before this option existed.
-    const result = await build(ir, { outFile, frameRate, report, reserved: layout.reservedEnd, allowPinnedScalars: target !== 'web', reservedRanges: layout.reservedRanges });
+    dumpSession?.note({ output: outFile });
+    const result = await build(ir, { outFile, frameRate, report, reserved: layout.reservedEnd, allowPinnedScalars: target !== 'web', reservedRanges: layout.reservedRanges, dump: dumpSession?.dump });
     if (!result.ok) {
       process.stderr.write(`8bs build: ${result.error}\n`);
       return { ok: false };
@@ -519,7 +547,8 @@ export async function compile(target, entryArg, { pal = false, profile, hardware
   const nameOk = checkArtifactName(artifactStem, target);
   if (!nameOk.ok) process.stderr.write(`8bs build: note: ${nameOk.error}\n`);
   const outFile = resolve('dist', `${artifactStem}.${ext}`);
-  const result = await build(ir, { machine: target, hardware, outFile, frameRate, report, debug, remarks, sources });
+  dumpSession?.note({ output: outFile });
+  const result = await build(ir, { machine: target, hardware, outFile, frameRate, report, debug, remarks, sources, dump: dumpSession?.dump });
   if (!result.ok) {
     process.stderr.write(`8bs build: ${result.error}\n`);
     return { ok: false };
@@ -629,7 +658,7 @@ function againstBaseline(baseline, target, facts, factsTested) {
  * `8bs build --release` — every artifact this project's config declares for
  * a release, in one command, instead of one CI step per artifact.
  *
- * The targets built are whatever `targets` in 8bitscript.config.8bs lists
+ * The targets built are whatever `targets` in 8bitscript.config.ts lists
  * (or, with no `targets` block, every RELEASE_MACHINES target — pet and
  * web today), filtered to the ones this release actually builds for; a
  * parked machine listed there is silently skipped rather than failing the
@@ -662,7 +691,7 @@ function againstBaseline(baseline, target, facts, factsTested) {
  * @param {{ report?: boolean, checkout?: string }} [options]
  * @returns {Promise<number>} exit code
  */
-async function buildRelease({ report = false, checkout = undefined } = {}) {
+async function buildRelease({ report = false, checkout = undefined, dumpDir = undefined } = {}) {
   const config = await loadConfig(process.cwd(), '8bs build');
   const declared = resolvePrograms(config);
   if (!declared.ok) {
@@ -678,7 +707,7 @@ async function buildRelease({ report = false, checkout = undefined } = {}) {
   const machines = (listed ?? RELEASE_MACHINES).filter((m) => RELEASE_MACHINES.includes(m));
   if (machines.length === 0) {
     process.stderr.write(
-      "8bs build --release: this project's 8bitscript.config.8bs lists no target this release "
+      "8bs build --release: this project's 8bitscript.config.ts lists no target this release "
       + `builds for (${RELEASE_MACHINES.join(', ')})\n`,
     );
     return 1;
@@ -707,7 +736,10 @@ async function buildRelease({ report = false, checkout = undefined } = {}) {
         const profile = typeof variant === 'string' ? variant : variant?.profile;
         const hardware = (variant && typeof variant === 'object') ? (variant.hardware ?? {}) : {};
         const locale = (variant && typeof variant === 'object') ? variant.locale : undefined;
-        const result = await compile(target, undefined, { profile, hardware, report, program: program.name, locale, checkout });
+        const result = await compile(target, undefined, {
+          profile, hardware, report, program: program.name, locale, checkout,
+          dumpStages: dumpDir ? { dir: dumpDir, perOutput: true } : undefined,
+        });
         if (!result.ok) {
           ok = false;
           continue;
@@ -737,7 +769,14 @@ export async function build(args) {
   // `--checkout` reaches a release too: until it did, `--release
   // --checkout ../8bitscript` built every artifact from node_modules and
   // said nothing, which is the one thing a checkout flag must not do.
-  if (args.includes('--release')) return buildRelease({ report: args.includes('--size'), checkout: checkout.checkout });
+  const dumpOpt = dumpStagesArg(args);
+  if (!dumpOpt.ok) {
+    process.stderr.write(`8bs build: ${dumpOpt.error}\n`);
+    return 2;
+  }
+  if (args.includes('--release')) {
+    return buildRelease({ report: args.includes('--size'), checkout: checkout.checkout, dumpDir: dumpOpt.dir });
+  }
   const report = args.includes('--size');
   const debug = args.includes('--debug');
   const remarks = args.includes('--remarks');
@@ -768,7 +807,7 @@ export async function build(args) {
     process.stderr.write(`8bs build: ${launch.error}\n`);
     return 2;
   }
-  const consumed = new Set([...hw.consumed, ...checkout.consumed, ...programOpt.consumed, ...localeOpt.consumed, ...defineOpt.consumed]);
+  const consumed = new Set([...hw.consumed, ...checkout.consumed, ...programOpt.consumed, ...localeOpt.consumed, ...defineOpt.consumed, ...dumpOpt.consumed]);
   const positionals = args.filter((a, i) => {
     if (targetIndex >= 0 && (i === targetIndex || i === targetIndex + 1)) return false;
     if (consumed.has(i)) return false;
@@ -802,8 +841,9 @@ export async function build(args) {
     process.stderr.write(
       `Usage: 8bs build --target <${releaseTargetPipe()}>\n`
       + releaseUsageNote()
-      + '                  no --target builds the `baseline` 8bitscript.config.8bs names, when it names one)\n'
+      + '                  no --target builds the `baseline` 8bitscript.config.ts names, when it names one)\n'
       + '                 [--pal] [--size] [--debug] [--remarks] [--program <name>] [--locale <name>]\n'
+      + '                 [--dump-stages <dir>]  write every compile stage under <dir> (or set EIGHTBS_DUMP_STAGES)\n'
       + '                 [--define NAME=VALUE]...  hand the program a value its #define("NAME", …) reads\n'
       + HARDWARE_USAGE
       + '                 [--web]  pet/vic20/c64/cx16: that machine\'s own package, through the\n'
@@ -816,6 +856,7 @@ export async function build(args) {
   const { ok } = await compile(target, entry, {
     pal, profile: launch.profile, hardware: launch.overrides, report, debug, remarks, checkout: checkout.checkout,
     program: programOpt.program, locale: localeOpt.locale, web, defines: defineOpt.defines,
+    dumpStages: dumpOpt.dir,
   });
   return ok ? 0 : 1;
 }

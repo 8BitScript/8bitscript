@@ -1,0 +1,9 @@
+// title — 😀 comment
+let s = "café 😀";
+let t = `😀 ${x} é`;
+let n = $FF; /* 😀
+ */ let m = 2;
+asm6502 { lda #1 ; 😀 
+ }
+let bad = 😀;
+let é = 1;

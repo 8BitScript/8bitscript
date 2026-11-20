@@ -25,19 +25,18 @@
 // It costs the target nothing today: `DRAWS` is a const and every function
 // is empty, so a program's `if (pointer.DRAWS)` folds away and the backend
 // drops the calls.
-export namespace pointer {
-
+pub mod pointer {
     const DRAWS: bool = false;
 
-    function begin(): void {
+    fn begin() {
     }
 
-    function setColor(color: utinyint): void {
+    fn setColor(color: utinyint) {
     }
 
-    function update(): void {
+    fn update() {
     }
 
-    function hide(): void {
+    fn hide() {
     }
 }

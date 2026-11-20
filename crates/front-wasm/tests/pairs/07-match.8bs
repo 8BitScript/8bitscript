@@ -1,0 +1,13 @@
+// rows: match
+fn m(n: u8) {
+    match n {
+        0 => { a(); }
+        1 | 2 => b(),
+        3..=5 => { c(); }
+        K => d(),
+        _ => { e(); }
+    }
+    match cfg::mode {
+        true => { f(); }
+    }
+}

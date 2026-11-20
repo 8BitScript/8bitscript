@@ -1,0 +1,8 @@
+[
+  "Program@0+1661<",
+  "FunctionDeclaration@1539+121<Program",
+  "Identifier@1555+13<FunctionDeclaration",
+  "TypeReference@1572+4<FunctionDeclaration",
+  "BlockStatement@1577+83<FunctionDeclaration",
+  "AsmBlock@1583+75<BlockStatement"
+]

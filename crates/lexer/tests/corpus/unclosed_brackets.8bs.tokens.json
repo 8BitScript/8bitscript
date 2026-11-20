@@ -1,0 +1,166 @@
+{
+  "diagnostics": [
+    {
+      "code": "8BS1005",
+      "file": "t",
+      "length": 1,
+      "message": "unclosed '('",
+      "severity": "error",
+      "start": 8
+    },
+    {
+      "code": "8BS1005",
+      "file": "t",
+      "length": 1,
+      "message": "unclosed '['",
+      "severity": "error",
+      "start": 20
+    },
+    {
+      "code": "8BS1005",
+      "file": "t",
+      "length": 1,
+      "message": "unclosed '{'",
+      "severity": "error",
+      "start": 24
+    },
+    {
+      "code": "8BS1005",
+      "file": "t",
+      "length": 1,
+      "message": "unclosed '('",
+      "severity": "error",
+      "start": 32
+    },
+    {
+      "code": "8BS1005",
+      "file": "t",
+      "length": 1,
+      "message": "unclosed '{'",
+      "severity": "error",
+      "start": 34
+    }
+  ],
+  "tokens": [
+    {
+      "kind": "keyword",
+      "length": 3,
+      "start": 0,
+      "text": "let"
+    },
+    {
+      "kind": "identifier",
+      "length": 1,
+      "start": 4,
+      "text": "a"
+    },
+    {
+      "kind": "operator",
+      "length": 1,
+      "start": 6,
+      "text": "="
+    },
+    {
+      "kind": "punctuation",
+      "length": 1,
+      "start": 8,
+      "text": "("
+    },
+    {
+      "kind": "number",
+      "length": 1,
+      "radix": 10,
+      "start": 9,
+      "text": "1",
+      "value": 1
+    },
+    {
+      "kind": "punctuation",
+      "length": 1,
+      "start": 10,
+      "text": ";"
+    },
+    {
+      "kind": "keyword",
+      "length": 3,
+      "start": 12,
+      "text": "let"
+    },
+    {
+      "kind": "identifier",
+      "length": 1,
+      "start": 16,
+      "text": "b"
+    },
+    {
+      "kind": "operator",
+      "length": 1,
+      "start": 18,
+      "text": "="
+    },
+    {
+      "kind": "punctuation",
+      "length": 1,
+      "start": 20,
+      "text": "["
+    },
+    {
+      "kind": "number",
+      "length": 1,
+      "radix": 10,
+      "start": 21,
+      "text": "2",
+      "value": 2
+    },
+    {
+      "kind": "punctuation",
+      "length": 1,
+      "start": 22,
+      "text": ","
+    },
+    {
+      "kind": "punctuation",
+      "length": 1,
+      "start": 24,
+      "text": "{"
+    },
+    {
+      "kind": "number",
+      "length": 1,
+      "radix": 10,
+      "start": 25,
+      "text": "3",
+      "value": 3
+    },
+    {
+      "kind": "punctuation",
+      "length": 1,
+      "start": 26,
+      "text": ";"
+    },
+    {
+      "kind": "keyword",
+      "length": 2,
+      "start": 28,
+      "text": "fn"
+    },
+    {
+      "kind": "identifier",
+      "length": 1,
+      "start": 31,
+      "text": "f"
+    },
+    {
+      "kind": "punctuation",
+      "length": 1,
+      "start": 32,
+      "text": "("
+    },
+    {
+      "kind": "punctuation",
+      "length": 1,
+      "start": 34,
+      "text": "{"
+    }
+  ]
+}

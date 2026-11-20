@@ -15,6 +15,8 @@
   "main": "./index.mjs",
   "exports": {
     ".": "./index.mjs",
+    "./front": "./src/front/index.mjs",
+    "./scopes": "./src/checker/scopes.mjs",
     "./mos": "./src/mos/index.ts",
     "./wasm": "./src/wasm/index.ts",
     "./sm83": "./src/sm83/index.ts",
@@ -26,7 +28,8 @@
   },
   "files": [
     "index.mjs",
-    "src"
+    "src",
+    "wasm"
   ],
   "scripts": {
     "prepack": "tsc -p tsconfig.publish.json",
@@ -47,6 +50,8 @@
     "access": "public",
     "exports": {
       ".": "./index.mjs",
+      "./front": "./src/front/index.mjs",
+      "./scopes": "./src/checker/scopes.mjs",
       "./mos": "./src/mos/index.js",
       "./wasm": "./src/wasm/index.js",
       "./sm83": "./src/sm83/index.js",

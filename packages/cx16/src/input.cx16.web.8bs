@@ -51,11 +51,11 @@
 // the export list identical to input.8bs —
 // packages/compiler/test/cx16-web-twin.test.mjs holds the two to the same
 // names.
-import { text } from "./text.8bs";
+use self::text::text;
 
 // One bit per thing a program can ask about, so a frame's input is one
 // byte and an edge is one AND. The page's side is web-layout.mjs's InputEdge.
-namespace Edge {
+mod Edge {
     const LEFT: utinyint = 1;
     const RIGHT: utinyint = 2;
     const UP: utinyint = 4;
@@ -66,103 +66,102 @@ namespace Edge {
 
 // What is held now, what was held at the last poll, and what began this
 // frame — `now & ~last`, written with the XOR the language has.
-let held: utinyint = 0;
-let before: utinyint = 0;
-let began: utinyint = 0;
+let mut held: utinyint = 0;
+let mut before: utinyint = 0;
+let mut began: utinyint = 0;
 
 // Whether this build has a mouse at all — the build's fact, folded. When it
 // is false the page writes no block and none of the pointer code is reached.
-const HAS_MOUSE: bool = #fact(input.mouse);
+const HAS_MOUSE: bool = #fact(input::mouse);
 
 // The pointer, read in poll() and kept: one answer for the whole frame.
-let pointerHere: bool = false;
-let pointerX: usmallint = 0;
-let pointerY: usmallint = 0;
-let buttonHeld: bool = false;
-let buttonBefore: bool = false;
+let mut pointerHere: bool = false;
+let mut pointerX: usmallint = 0;
+let mut pointerY: usmallint = 0;
+let mut buttonHeld: bool = false;
+let mut buttonBefore: bool = false;
 
-export namespace input {
-
+pub mod input {
     // Once, at start-up, before the first poll(). One poll before the
     // program's first, so the edge detector starts from what is actually held
     // rather than from nothing: without it, a key already down when the
     // program starts reads as a fresh press on frame one.
-    function begin(): void {
-        input.poll();
+    fn begin() {
+        input::poll();
     }
 
     // Read the page's snapshot and work out what began this frame. Once a
     // frame, right after waitFrame().
-    function poll(): void {
+    fn poll() {
         before = held;
         // agreementFor(76 x 56).inputOffset. Not a const of its own: a const
         // initializer must be a literal or another const (8BS3001), so the
         // arithmetic is written here, where the fold pass turns it into the
         // one literal this grid needs.
-        held = memory.read(text.CELL_COUNT * 2 + 2);
+        held = memory::read(text::CELL_COUNT * 2 + 2);
         began = held & (before ^ 0xFF);
-        if (HAS_MOUSE) {
+        if HAS_MOUSE {
             // The block: agreementFor(76 x 56, glyph table, frame counter).pointerOffset
             // = the input byte + 4 (host, raster control, count) + 192 (the
             // raster list) + 640 (the glyph table) + 1 (the frame counter).
-            pointerHere = memory.read(text.CELL_COUNT * 2 + 839) != 0;
+            pointerHere = memory::read(text::CELL_COUNT * 2 + 839) != 0;
             buttonBefore = buttonHeld;
-            buttonHeld = (memory.read(text.CELL_COUNT * 2 + 840) & 1) != 0;
-            pointerX = memory.read(text.CELL_COUNT * 2 + 842);
-            pointerX = (pointerX << 8) | memory.read(text.CELL_COUNT * 2 + 841);
-            pointerY = memory.read(text.CELL_COUNT * 2 + 844);
-            pointerY = (pointerY << 8) | memory.read(text.CELL_COUNT * 2 + 843);
+            buttonHeld = (memory::read(text::CELL_COUNT * 2 + 840) & 1) != 0;
+            pointerX = memory::read(text::CELL_COUNT * 2 + 842);
+            pointerX = pointerX << 8 | memory::read(text::CELL_COUNT * 2 + 841);
+            pointerY = memory::read(text::CELL_COUNT * 2 + 844);
+            pointerY = pointerY << 8 | memory::read(text::CELL_COUNT * 2 + 843);
         }
     }
 
     // The four directions, each true only on the frame its press began.
-    function left(): bool {
-        return (began & Edge.LEFT) != 0;
+    fn left() -> bool {
+        return (began & Edge::LEFT) != 0;
     }
 
-    function right(): bool {
-        return (began & Edge.RIGHT) != 0;
+    fn right() -> bool {
+        return (began & Edge::RIGHT) != 0;
     }
 
-    function up(): bool {
-        return (began & Edge.UP) != 0;
+    fn up() -> bool {
+        return (began & Edge::UP) != 0;
     }
 
-    function down(): bool {
-        return (began & Edge.DOWN) != 0;
+    fn down() -> bool {
+        return (began & Edge::DOWN) != 0;
     }
 
     // Enter, or a pad's A or START.
-    function confirm(): bool {
-        return (began & Edge.CONFIRM) != 0;
+    fn confirm() -> bool {
+        return (began & Edge::CONFIRM) != 0;
     }
 
     // Escape, or a pad's B or SELECT.
-    function cancel(): bool {
-        return (began & Edge.CANCEL) != 0;
+    fn cancel() -> bool {
+        return (began & Edge::CANCEL) != 0;
     }
 
     // The browser's own cursor over the picture, or the last touch: true
     // once the page has written a position. A browser always has a pointer,
     // so this is the fact, not a probe.
-    function pointer(): bool {
-        if (HAS_MOUSE) {
+    fn pointer() -> bool {
+        if HAS_MOUSE {
             return pointerHere;
         }
         return false;
     }
 
     // Where it is, as a flat cell index — the unit text.print() takes.
-    function pointerCell(): usmallint {
-        if (HAS_MOUSE) {
-            return (pointerY >> 3) * text.COLUMNS + (pointerX >> 3);
+    fn pointerCell() -> usmallint {
+        if HAS_MOUSE {
+            return (pointerY >> 3) * text::COLUMNS + (pointerX >> 3);
         }
         return 0;
     }
 
     // The left button (or a tap), on the frame its press began.
-    function pointerButton(): bool {
-        if (HAS_MOUSE) {
+    fn pointerButton() -> bool {
+        if HAS_MOUSE {
             return buttonHeld && !buttonBefore;
         }
         return false;
@@ -173,7 +172,7 @@ export namespace input {
 // as {control} / {other}. OR / ODER lives in the catalog, not here. The same
 // words as the native file: a keyboard's RETURN, and a pad's START, which the
 // page reads from a browser gamepad.
-export namespace Input {
+pub mod Input {
     const CONFIRM_LABEL: string = "RETURN";
     const ALT_CONFIRM_LABEL: string = "START";
     const CONFIRM_LABELS: string = "RETURN OR START";

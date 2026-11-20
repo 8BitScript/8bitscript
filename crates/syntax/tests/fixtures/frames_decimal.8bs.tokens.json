@@ -1,0 +1,221 @@
+[
+  {
+    "kind": "keyword",
+    "length": 6,
+    "start": 0,
+    "text": "export"
+  },
+  {
+    "kind": "keyword",
+    "length": 8,
+    "start": 7,
+    "text": "function"
+  },
+  {
+    "kind": "identifier",
+    "length": 4,
+    "start": 16,
+    "text": "main"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 20,
+    "text": "("
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 21,
+    "text": ")"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 22,
+    "text": ":"
+  },
+  {
+    "kind": "type",
+    "length": 4,
+    "start": 24,
+    "text": "void"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 29,
+    "text": "{"
+  },
+  {
+    "kind": "keyword",
+    "length": 3,
+    "start": 33,
+    "text": "let"
+  },
+  {
+    "kind": "identifier",
+    "length": 1,
+    "start": 37,
+    "text": "t"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 38,
+    "text": ":"
+  },
+  {
+    "kind": "type",
+    "length": 8,
+    "start": 40,
+    "text": "utinyint"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 49,
+    "text": "="
+  },
+  {
+    "kind": "compileTime",
+    "length": 7,
+    "start": 51,
+    "text": "#frames"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 58,
+    "text": "("
+  },
+  {
+    "denominator": 10,
+    "isDecimal": true,
+    "kind": "number",
+    "length": 3,
+    "numerator": 5,
+    "radix": 10,
+    "start": 59,
+    "text": "0.5",
+    "value": 0.5
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 62,
+    "text": ","
+  },
+  {
+    "kind": "identifier",
+    "length": 7,
+    "start": 64,
+    "text": "seconds"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 71,
+    "text": ")"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 72,
+    "text": ";"
+  },
+  {
+    "kind": "keyword",
+    "length": 3,
+    "start": 76,
+    "text": "let"
+  },
+  {
+    "kind": "identifier",
+    "length": 3,
+    "start": 80,
+    "text": "big"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 83,
+    "text": ":"
+  },
+  {
+    "kind": "type",
+    "length": 8,
+    "start": 85,
+    "text": "smallint"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 94,
+    "text": "="
+  },
+  {
+    "kind": "number",
+    "length": 10,
+    "radix": 16,
+    "start": 96,
+    "text": "0xFFFFFFFF",
+    "value": 4294967295
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 106,
+    "text": ";"
+  },
+  {
+    "kind": "keyword",
+    "length": 3,
+    "start": 110,
+    "text": "let"
+  },
+  {
+    "kind": "identifier",
+    "length": 1,
+    "start": 114,
+    "text": "b"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 115,
+    "text": ":"
+  },
+  {
+    "kind": "type",
+    "length": 8,
+    "start": 117,
+    "text": "utinyint"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 126,
+    "text": "="
+  },
+  {
+    "kind": "number",
+    "length": 10,
+    "radix": 2,
+    "start": 128,
+    "text": "%1010_1010",
+    "value": 170
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 138,
+    "text": ";"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 140,
+    "text": "}"
+  }
+]

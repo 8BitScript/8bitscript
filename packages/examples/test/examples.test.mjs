@@ -25,7 +25,7 @@ const examples = pkg['8bitscript'].examples;
 // 8bs.config.ts are older ones still loaded for a few more releases — the
 // same precedence the CLI's own loader uses (packages/cli/src/config.mjs)
 // — an example may be written any of the three ways.
-const CONFIG_FILENAMES = ['8bitscript.config.8bs', '8bitscript.config.ts', '8bs.config.ts'];
+const CONFIG_FILENAMES = ['8bitscript.config.ts', '8bs.config.ts'];
 const configPathOf = (dir) => {
   const found = CONFIG_FILENAMES.map((name) => join(dir, name)).find((path) => existsSync(path));
   assert.ok(found, `${dir}: no ${CONFIG_FILENAMES.join(' or ')}`);

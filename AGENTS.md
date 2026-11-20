@@ -237,7 +237,7 @@ eight of the nine draw nothing today for four quite different reasons.
 [`packages/compiler/AGENTS.md`](packages/compiler/AGENTS.md) is the
 compiler's: the pipeline, and where each layer's rules live. The lexer's
 own file is
-[`packages/compiler/src/lexer/AGENTS.md`](packages/compiler/src/lexer/AGENTS.md)
+[`packages/cli/src/migrate/legacy/AGENTS.md`](packages/cli/src/migrate/legacy/AGENTS.md)
 — a hand-written scanner that never throws, with the token-level rules
 next to the scanner.
 [`editors/vscode/AGENTS.md`](editors/vscode/AGENTS.md) is the one outside
@@ -282,7 +282,7 @@ fell six codes behind the compiler before anyone noticed.
 
 The lexer's own rules —
 never throw, maximal munch, `%` vs binary, opaque `asm6502` bodies — live
-in [`packages/compiler/src/lexer/AGENTS.md`](packages/compiler/src/lexer/AGENTS.md),
+in [`packages/cli/src/migrate/legacy/AGENTS.md`](packages/cli/src/migrate/legacy/AGENTS.md),
 not here. [`packages/compiler/AGENTS.md`](packages/compiler/AGENTS.md)
 is the rest of the front end in brief.
 
@@ -323,7 +323,7 @@ the change everywhere it is described, in the same commit:
 - **Per-package `AGENTS.md` files** (`packages/<target>/AGENTS.md`) if the
   change alters what a target package is allowed or expected to do.
   A lexer change also updates
-  [`packages/compiler/src/lexer/AGENTS.md`](packages/compiler/src/lexer/AGENTS.md);
+  [`packages/cli/src/migrate/legacy/AGENTS.md`](packages/cli/src/migrate/legacy/AGENTS.md);
   a compiler-wide one updates
   [`packages/compiler/AGENTS.md`](packages/compiler/AGENTS.md).
 

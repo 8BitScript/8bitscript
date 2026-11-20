@@ -1,49 +1,49 @@
-export namespace input {
-    function begin(): void {
-        input.poll();
+pub mod input {
+    fn begin() {
+        input::poll();
     }
 
-    function poll(): void {
+    fn poll() {
     }
 
-    function left(): bool {
+    fn left() -> bool {
         return false;
     }
 
-    function right(): bool {
+    fn right() -> bool {
         return false;
     }
 
-    function up(): bool {
+    fn up() -> bool {
         return false;
     }
 
-    function down(): bool {
+    fn down() -> bool {
         return false;
     }
 
-    function confirm(): bool {
+    fn confirm() -> bool {
         return false;
     }
 
-    function cancel(): bool {
+    fn cancel() -> bool {
         return false;
     }
 
-    function pointer(): bool {
+    fn pointer() -> bool {
         return false;
     }
 
-    function pointerCell(): usmallint {
+    fn pointerCell() -> usmallint {
         return 0;
     }
 
-    function pointerButton(): bool {
+    fn pointerButton() -> bool {
         return false;
     }
 }
 
-export namespace Input {
+pub mod Input {
     const CONFIRM_LABEL: string = "FIRE";
     const ALT_CONFIRM_LABEL: string = "FIRE";
     const CONFIRM_LABELS: string = "FIRE";
