@@ -64,6 +64,14 @@ jobs:
   extension:
     needs: npm
     runs-on: ubuntu-latest
+    # The `marketplace` environment holds AZURE_CLIENT_ID / AZURE_TENANT_ID
+    # and is the subject the Entra federated credential trusts
+    # (repo:8BitScript/8bitscript:environment:marketplace). This job only
+    # reads the repo; id-token lets azure/login exchange the OIDC token.
+    environment: marketplace
+    permissions:
+      contents: read
+      id-token: write
     env:
       VSCE_PAT: ${{ secrets.VSCE_PAT }}
       OVSX_PAT: ${{ secrets.OVSX_PAT }}
@@ -91,9 +99,31 @@ jobs:
       # gives ~5 minutes of retrying, which comfortably outlasts the
       # multi-minute outages this endpoint is known for — see the WAIT_MS
       # comment in publish-marketplace.mjs.
+      # Preferred sign-in: Microsoft Entra through GitHub OIDC and a
+      # user-assigned managed identity. Skipped until the owner sets the
+      # AZURE_CLIENT_ID variable on the `marketplace` environment; the PAT
+      # path below keeps working meanwhile.
+      - name: Sign in to Azure
+        if: ${{ vars.AZURE_CLIENT_ID != '' }}
+        uses: azure/login@053f7285eb20bf5469ef084617b0b24d3cec53fc # v3.1.0
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          allow-no-subscriptions: true
+      # 499b84ac-1321-427f-aa17-267ca6975798 is the Azure DevOps resource.
+      # The token lives about an hour and the retry loop below spans about
+      # five minutes, so one token covers every attempt.
+      - name: Get Marketplace token
+        id: aad
+        if: ${{ vars.AZURE_CLIENT_ID != '' }}
+        run: |
+          token=$(az account get-access-token --resource 499b84ac-1321-427f-aa17-267ca6975798 --query accessToken -o tsv)
+          [ -n "$token" ] || { echo "No Entra token returned"; exit 1; }
+          echo "::add-mask::$token"
+          echo "VSCE_AAD_TOKEN=$token" >> "$GITHUB_ENV"
       - name: Publish to Visual Studio Marketplace
         id: vsce
-        if: ${{ env.VSCE_PAT != '' }}
+        if: ${{ env.VSCE_AAD_TOKEN != '' || env.VSCE_PAT != '' }}
         continue-on-error: true
         run: |
           for attempt in 1 2 3 4 5 6; do
@@ -121,7 +151,7 @@ jobs:
           OVSX_OUTCOME: ${{ steps.ovsx.outcome }}
         run: |
           failed=0
-          if [ -n "$VSCE_PAT" ] && [ "$VSCE_OUTCOME" != "success" ]; then
+          if { [ -n "$VSCE_AAD_TOKEN" ] || [ -n "$VSCE_PAT" ]; } && [ "$VSCE_OUTCOME" != "success" ]; then
             echo "Visual Studio Marketplace publish did not succeed ($VSCE_OUTCOME)"
             failed=1
           fi

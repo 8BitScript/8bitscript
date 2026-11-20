@@ -1,0 +1,55 @@
+name: Marketplace identity
+
+# Manual check of the Microsoft Entra sign-in the release uses for the
+# Visual Studio Marketplace. Publishes nothing.
+on:
+  workflow_dispatch:
+    inputs:
+      verify:
+        description: Also check the identity can act for publisher 8bitscript
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  identity:
+    runs-on: ubuntu-latest
+    environment: marketplace
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: azure/login@053f7285eb20bf5469ef084617b0b24d3cec53fc # v3.1.0
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          allow-no-subscriptions: true
+      # 499b84ac-1321-427f-aa17-267ca6975798 is the Azure DevOps resource.
+      - name: Show the Marketplace member id
+        run: |
+          id=$(az rest -u https://app.vssps.visualstudio.com/_apis/profile/profiles/me --resource 499b84ac-1321-427f-aa17-267ca6975798 --query id -o tsv)
+          echo "Marketplace member id: $id"
+      # verify-pat --azure-credential reads the role assignments on the
+      # publisher (a read-only call); it 403s unless the identity has a
+      # role there. vsce reads AZURE_CLIENT_ID / AZURE_TENANT_ID, and its
+      # chained credential finds the az login above.
+      - if: ${{ inputs.verify }}
+        uses: actions/checkout@v5
+      - if: ${{ inputs.verify }}
+        uses: pnpm/action-setup@v4
+      - if: ${{ inputs.verify }}
+        uses: actions/setup-node@v5
+        with:
+          node-version: 26
+          cache: pnpm
+      - if: ${{ inputs.verify }}
+        run: pnpm install --frozen-lockfile
+      - name: Verify publisher access
+        if: ${{ inputs.verify }}
+        working-directory: editors/vscode
+        env:
+          AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+        run: pnpm exec vsce verify-pat 8bitscript --azure-credential

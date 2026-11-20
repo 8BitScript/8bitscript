@@ -13,7 +13,7 @@ One number, four stores:
 | Store | How it publishes | 0.1.1 |
 | --- | --- | --- |
 | npm `@8bitscript/*` | `scripts/release.mjs` via Trusted Publishing | shipped |
-| Visual Studio Marketplace | `scripts/publish-marketplace.mjs` | vsce's client dies at 180s; we wait 10 minutes |
+| Visual Studio Marketplace | `scripts/publish-marketplace.mjs`, signed in through Microsoft Entra (GitHub OIDC); `VSCE_PAT` is the fallback | vsce's client dies at 180s; we wait 10 minutes |
 | Open VSX | `ovsx publish` | same VSIX; must not wait on Marketplace |
 | GitHub Release | `gh release create vX.Y.Z` | waits on the jobs above |
 
@@ -61,6 +61,26 @@ Jobs already run the toolchain on Node 26 (`node-version: 26`). The
 (`checkout`, `setup-node`, `cache`) declaring their *action* runtime,
 not the version `pnpm` and tests use. Keep those actions on a Node 24
 major (`@v5`).
+
+## Marketplace sign-in
+
+Azure DevOps retires global PATs on 2026-12-01, so the `extension` job
+signs in with Microsoft Entra instead. It runs in the `marketplace`
+GitHub environment, which holds the variables `AZURE_CLIENT_ID` and
+`AZURE_TENANT_ID`. `azure/login` exchanges the job's OIDC token for the
+user-assigned managed identity (federated credential subject
+`repo:8BitScript/8bitscript:environment:marketplace`, publisher
+`8bitscript`), then `az account get-access-token --resource
+499b84ac-1321-427f-aa17-267ca6975798` yields a token that is masked and
+passed to `publish-marketplace.mjs` as `VSCE_AAD_TOKEN`. The token lasts
+about an hour; the six retries span about five minutes.
+
+Until `AZURE_CLIENT_ID` exists the job skips the Azure steps and uses
+`VSCE_PAT`. Once an Entra release has shipped, the owner deletes the
+`VSCE_PAT` secret and the fallback goes quiet. The `marketplace-identity`
+workflow (manual) prints the identity's Marketplace member id and, with
+`verify`, runs `vsce verify-pat 8bitscript --azure-credential`; it
+publishes nothing.
 
 ## The `release` branch
 
