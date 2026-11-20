@@ -5,8 +5,8 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use fold::facts::Json;
 use fold::package::{NearestPackage, PACKAGE_FIELDS, nearest_package};
-use serde_json::{Value, json};
 
 struct Root(PathBuf);
 
@@ -39,33 +39,72 @@ impl Drop for Root {
     }
 }
 
+fn field<'a>(row: &'a Json, name: &str) -> &'a Json {
+    let Json::Object(map) = row else {
+        panic!("{row:?}")
+    };
+    &map[name]
+}
+
 #[test]
 fn nearest_package_matches_js() {
-    let fixture: Value = serde_json::from_str(include_str!("fixtures/package.json")).unwrap();
+    deep(nearest_package_matches_js_body);
+}
+
+fn nearest_package_matches_js_body() {
+    let fixture = Json::parse(include_str!("fixtures/package.json")).unwrap();
     let root = Root::new("fixture");
-    for (file, text) in fixture["tree"].as_object().unwrap() {
-        root.write(file, text.as_str().unwrap());
+    let Json::Object(tree) = field(&fixture, "tree") else {
+        panic!("tree")
+    };
+    for (file, text) in tree {
+        let Json::String(text) = text else {
+            panic!("text")
+        };
+        root.write(file, text);
     }
     // The null rows need no package.json above the temp dir.
     assert!(nearest_package(root.0.to_str().unwrap()).is_none());
-    for row in fixture["rows"].as_array().unwrap() {
-        match row["fn"].as_str().unwrap() {
-            "PACKAGE_FIELDS" => assert_eq!(json!(PACKAGE_FIELDS), row["result"]),
+    let Json::Array(rows) = field(&fixture, "rows") else {
+        panic!("rows")
+    };
+    for row in rows {
+        let Json::String(name) = field(row, "fn") else {
+            panic!("fn")
+        };
+        let Json::Array(args) = field(row, "args") else {
+            panic!("args")
+        };
+        let got = match name.as_str() {
+            "PACKAGE_FIELDS" => Json::Array(
+                PACKAGE_FIELDS
+                    .iter()
+                    .map(|f| Json::String((*f).to_string()))
+                    .collect(),
+            ),
             "nearestPackage" => {
-                let dir = root.0.join(row["args"][0].as_str().unwrap());
-                let got = match nearest_package(dir.to_str().unwrap()) {
-                    None => Value::Null,
-                    Some(NearestPackage::Found { path, json }) => {
-                        json!({ "path": root.rel(&path), "json": json })
-                    }
-                    Some(NearestPackage::Failed { path, error }) => {
-                        panic!("{path}: {error}")
-                    }
+                let Json::String(rel) = &args[0] else {
+                    panic!("dir")
                 };
-                assert_eq!(got, row["result"], "{}", row["args"]);
+                let dir = root.0.join(rel);
+                match nearest_package(dir.to_str().unwrap()) {
+                    None => Json::Null,
+                    Some(NearestPackage::Found { path, json }) => NearestPackage::Found {
+                        path: root.rel(&path),
+                        json,
+                    }
+                    .to_json(),
+                    Some(NearestPackage::Failed { path, error }) => panic!("{path}: {error}"),
+                }
             }
             other => panic!("unknown fn {other}"),
-        }
+        };
+        assert_eq!(
+            got.stringify(),
+            field(row, "result").stringify(),
+            "{}",
+            args[0].stringify()
+        );
     }
 }
 
@@ -83,10 +122,12 @@ fn nearest_package_reports_unreadable_and_invalid_files() {
     }
     // A directory named package.json exists but cannot be read.
     fs::create_dir_all(root.0.join("dir/package.json")).unwrap();
-    assert!(matches!(
-        nearest_package(root.0.join("dir").to_str().unwrap()),
-        Some(NearestPackage::Failed { .. })
-    ));
+    match nearest_package(root.0.join("dir").to_str().unwrap()) {
+        Some(NearestPackage::Failed { error, .. }) => {
+            assert_eq!(error, "EISDIR: illegal operation on a directory, read");
+        }
+        other => panic!("{other:?}"),
+    }
 }
 
 #[test]
@@ -102,4 +143,14 @@ fn relative_dir_resolves_against_the_working_directory() {
             .unwrap(),
     );
     assert_eq!(here, there);
+}
+
+/// Run `f` on a thread with a large stack: the fixtures nest thousands deep.
+fn deep(f: impl FnOnce() + Send + 'static) {
+    std::thread::Builder::new()
+        .stack_size(256 << 20)
+        .spawn(f)
+        .unwrap()
+        .join()
+        .unwrap();
 }

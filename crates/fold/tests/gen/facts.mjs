@@ -42,7 +42,7 @@ const controls = [
 for (const c of controls) add('controllerKind', [c], controllerKind(c));
 
 const requires = [
-  undefined, null, {}, { 'video.columns': 40 }, { 'video.sprites': 8, 'storage.save': true },
+  undefined, null, {}, { 'video.columns': 5 }, { 'video.columns': 16 }, { 'video.rows': 1, 'memory.ram': 100 }, { 'video.columns': 40 }, { 'video.sprites': 8, 'storage.save': true },
   { 'nope': 1 }, { 'video.frameRate': 50 }, { 'input.controls': ['a'] }, { 'input.mouse': true },
   { 'memory.bankedKib': 512 }, { 'storage.save': false }, { 'storage.save': 1 },
   { 'storage.save': 'yes' }, { 'storage.save': null }, { 'storage.save': { a: [1, 'x\n"q"'] } },
@@ -64,6 +64,9 @@ const sheets = [
   { 'input.mouse': true, 'memory.banked': true, 'memory.bankedKib': 512, 'input.controls': ['a'] },
   { 'video.columns': null, 'storage.save': null }, { 'video.columns': 80, 'storage.save': true },
   { 'video.columns': '80', 'video.rows': '25' }, { 'video.columns': true, 'video.rows': [] },
+  ...['0x10', '0X1f', '0o17', '0b101', '0x', '0b2', '-0x10', '+0x10', 'inf', '-inf', 'nan', 'NaN', 'Infinity',
+    '-Infinity', '+Infinity', 'infinity', '1_0', ' 12 ', '', '  ', '1e3', '.5', '5.', '+5', '1e400', '0x1g', '\u00a07\n']
+    .map((v) => ({ 'video.columns': v, 'video.rows': v, 'memory.ram': v })),
   { 'video.colorPerCell': true, 'video.scroll': true, 'video.raster': 1, 'video.bitmap': true },
   { 'video.frameRate': 60, 'video.spriteWidth': 24, 'video.spriteHeight': 21, 'audio.voices': 3 },
 ];

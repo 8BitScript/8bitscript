@@ -9,20 +9,47 @@ use std::env;
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 
-use serde::Serialize;
-
 use crate::facts::Json;
 
 /// The fields a program may read. Anything else is refused by name.
 pub const PACKAGE_FIELDS: [&str; 2] = ["name", "version"];
 
 /// What `nearestPackage` found: the parsed package.json, or the error from
-/// reading or parsing it. Serializes as `{path, json}` or `{path, error}`.
-#[derive(Debug, Clone, PartialEq, Serialize)]
-#[serde(untagged)]
+/// reading or parsing it.
+#[derive(Debug, Clone, PartialEq)]
 pub enum NearestPackage {
     Found { path: String, json: Json },
     Failed { path: String, error: String },
+}
+
+/// Node's text for a failed `readFileSync` of the common cases; anything else
+/// keeps the OS wording.
+fn read_error(error: &std::io::Error) -> String {
+    match error.raw_os_error() {
+        Some(2) => "ENOENT: no such file or directory, open".to_string(),
+        Some(13) => "EACCES: permission denied, open".to_string(),
+        Some(21) => "EISDIR: illegal operation on a directory, read".to_string(),
+        _ => error.to_string(),
+    }
+}
+
+impl NearestPackage {
+    /// The JS object: `{path, json}` or `{path, error}`.
+    #[must_use]
+    pub fn to_json(&self) -> Json {
+        let mut map = indexmap::IndexMap::new();
+        match self {
+            NearestPackage::Found { path, json } => {
+                map.insert("path".to_string(), Json::String(path.clone()));
+                map.insert("json".to_string(), json.clone());
+            }
+            NearestPackage::Failed { path, error } => {
+                map.insert("path".to_string(), Json::String(path.clone()));
+                map.insert("error".to_string(), Json::String(error.clone()));
+            }
+        }
+        Json::Object(map)
+    }
 }
 
 /// `path.resolve(dir)`: absolute against the working directory, `.` and `..`
@@ -61,10 +88,10 @@ pub fn nearest_package(dir: &str) -> Option<NearestPackage> {
         let path = candidate.to_string_lossy().into_owned();
         if candidate.exists() {
             let parsed = fs::read(&candidate)
-                .map_err(|e| e.to_string())
+                .map_err(|e| read_error(&e))
                 .and_then(|bytes| {
                     let text = String::from_utf8_lossy(&bytes);
-                    serde_json::from_str::<Json>(&text).map_err(|e| e.to_string())
+                    Json::parse(&text)
                 });
             return Some(match parsed {
                 Ok(json) => NearestPackage::Found { path, json },

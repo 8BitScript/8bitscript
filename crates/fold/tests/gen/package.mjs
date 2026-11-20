@@ -16,13 +16,21 @@ const tree = {
   'a/b/c/d/e.txt': 'x',
   'a/empty/f/g.txt': 'x',
   'z/y/x.txt': 'x',
+  // Inputs serde_json refuses and JSON.parse takes: deep nesting, a number
+  // past f64, a lone surrogate escape.
+  'deep/package.json': `{"name":"deep","version":"1","x":${'['.repeat(3000)}1${']'.repeat(3000)}}`,
+  'deep/sub/f.txt': 'x',
+  'big/package.json': '{"name":"big","version":"1","n":1e400,"m":-1e400,"k":123456789012345678901234567890}',
+  'big/sub/f.txt': 'x',
+  'surrogate/package.json': '{"name":"a\\ud800b","version":"1","pair":"\\ud83d\\ude00","7":1,"b":2,"3":3}',
+  'surrogate/sub/f.txt': 'x',
 };
 for (const [file, text] of Object.entries(tree)) {
   mkdirSync(dirname(join(root, file)), { recursive: true });
   writeFileSync(join(root, file), text);
 }
 const rows = [{ fn: 'PACKAGE_FIELDS', args: [], result: PACKAGE_FIELDS }];
-const dirs = ['a', 'a/b', 'a/b/c', 'a/b/c/d', 'a/empty', 'a/empty/f', 'a/b/c/../..', 'a/./b/', 'a/missing/dir'];
+const dirs = ['a', 'a/b', 'a/b/c', 'a/b/c/d', 'a/empty', 'a/empty/f', 'a/b/c/../..', 'a/./b/', 'a/missing/dir', 'deep/sub', 'big/sub', 'surrogate/sub'];
 for (const dir of dirs) {
   const found = nearestPackage(join(root, dir));
   const result = found && { ...found, path: relative(root, found.path) };

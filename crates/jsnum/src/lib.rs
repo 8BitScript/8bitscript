@@ -8,7 +8,9 @@ mod text;
 pub use fold::{fold_binop, wrap_unsigned};
 pub use nullable::Nullable;
 pub use order::{cmp_utf16, object_key_order};
-pub use text::{JS_WS, hex_upper, is_js_whitespace, js_trim, math_round, parse_int, utf16_len};
+pub use text::{
+    JS_WS, hex_upper, is_js_whitespace, js_trim, math_round, parse_int, string_to_number, utf16_len,
+};
 
 const TWO_32: f64 = 4_294_967_296.0;
 

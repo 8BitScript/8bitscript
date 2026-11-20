@@ -13,157 +13,11 @@
 
 use std::sync::LazyLock;
 
+pub use crate::json::Json;
+use crate::json::{at_least, less};
 use indexmap::IndexMap;
-use jsnum::{cmp_utf16, number_to_string, object_key_order};
+use jsnum::object_key_order;
 use serde::{Deserialize, Serialize};
-
-/// A JSON value as JS holds it after `JSON.parse`: numbers are f64 and an
-/// object keeps its keys in the order they were given.
-#[derive(Debug, Clone, PartialEq, Deserialize)]
-#[serde(untagged)]
-pub enum Json {
-    Null,
-    Bool(bool),
-    Number(f64),
-    String(String),
-    Array(Vec<Json>),
-    Object(IndexMap<String, Json>),
-}
-
-impl Serialize for Json {
-    /// An integral number is written as an integer, the way `JSON.stringify`
-    /// writes it.
-    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        match self {
-            Json::Null => serializer.serialize_unit(),
-            Json::Bool(b) => serializer.serialize_bool(*b),
-            Json::Number(n)
-                if n.is_finite() && n.fract() == 0.0 && n.abs() < 9_007_199_254_740_992.0 =>
-            {
-                serializer.serialize_i64(*n as i64)
-            }
-            Json::Number(n) => serializer.serialize_f64(*n),
-            Json::String(s) => serializer.serialize_str(s),
-            Json::Array(items) => items.serialize(serializer),
-            Json::Object(map) => map.serialize(serializer),
-        }
-    }
-}
-
-impl Json {
-    /// `JSON.stringify(value)` for a value that has no `undefined` in it.
-    #[must_use]
-    pub fn stringify(&self) -> String {
-        match self {
-            Json::Null => "null".to_string(),
-            Json::Bool(b) => b.to_string(),
-            Json::Number(n) => {
-                if n.is_finite() {
-                    number_to_string(*n)
-                } else {
-                    "null".to_string()
-                }
-            }
-            Json::String(s) => quote(s),
-            Json::Array(items) => {
-                let parts: Vec<String> = items.iter().map(Json::stringify).collect();
-                format!("[{}]", parts.join(","))
-            }
-            Json::Object(map) => {
-                let keys: Vec<&String> = map.keys().collect();
-                let parts: Vec<String> = object_key_order(&keys)
-                    .into_iter()
-                    .map(|i| format!("{}:{}", quote(keys[i]), map[keys[i]].stringify()))
-                    .collect();
-                format!("{{{}}}", parts.join(","))
-            }
-        }
-    }
-
-    /// `Number.isInteger(v)`.
-    fn is_integer(&self) -> bool {
-        matches!(self, Json::Number(n) if n.is_finite() && n.fract() == 0.0)
-    }
-
-    /// `String(v)` for a value that came out of JSON (an array joins with
-    /// commas, `null` inside it is empty).
-    fn to_js_string(&self) -> String {
-        match self {
-            Json::Null => "null".to_string(),
-            Json::Bool(b) => b.to_string(),
-            Json::Number(n) => number_to_string(*n),
-            Json::String(s) => s.clone(),
-            Json::Array(items) => items
-                .iter()
-                .map(|item| {
-                    if *item == Json::Null {
-                        String::new()
-                    } else {
-                        item.to_js_string()
-                    }
-                })
-                .collect::<Vec<String>>()
-                .join(","),
-            Json::Object(_) => "[object Object]".to_string(),
-        }
-    }
-
-    /// ToPrimitive then, for a relational operator, the string or the number.
-    fn to_operand(&self) -> Operand {
-        match self {
-            Json::Array(_) | Json::Object(_) => Operand::Text(self.to_js_string()),
-            Json::String(s) => Operand::Text(s.clone()),
-            Json::Null => Operand::Number(0.0),
-            Json::Bool(b) => Operand::Number(f64::from(u8::from(*b))),
-            Json::Number(n) => Operand::Number(*n),
-        }
-    }
-}
-
-/// An operand of a JS relational operator after ToPrimitive.
-enum Operand {
-    Text(String),
-    Number(f64),
-}
-
-impl Operand {
-    fn to_number(&self) -> f64 {
-        match self {
-            Operand::Number(n) => *n,
-            Operand::Text(s) => {
-                let t = jsnum::js_trim(s);
-                if t.is_empty() {
-                    0.0
-                } else {
-                    t.parse().unwrap_or(f64::NAN)
-                }
-            }
-        }
-    }
-}
-
-/// JS `a < b` and `a >= b` on two values that came out of JSON: two strings
-/// compare as UTF-16 code units, anything else as numbers (NaN is false in
-/// both).
-fn compare(a: &Json, b: &Json) -> Option<std::cmp::Ordering> {
-    match (a.to_operand(), b.to_operand()) {
-        (Operand::Text(x), Operand::Text(y)) => Some(cmp_utf16(&x, &y)),
-        (x, y) => x.to_number().partial_cmp(&y.to_number()),
-    }
-}
-
-fn less(a: &Json, b: &Json) -> bool {
-    compare(a, b).is_some_and(std::cmp::Ordering::is_lt)
-}
-
-fn at_least(a: &Json, b: &Json) -> bool {
-    compare(a, b).is_some_and(std::cmp::Ordering::is_ge)
-}
-
-/// `JSON.stringify` of a string.
-fn quote(s: &str) -> String {
-    serde_json::to_string(s).unwrap_or_default()
-}
 
 /// `Object.entries` order over an object given in insertion order.
 fn entries(map: &IndexMap<String, Json>) -> Vec<(&String, &Json)> {
@@ -702,11 +556,23 @@ pub fn requires_problems(requires: Option<&IndexMap<String, Json>>) -> Vec<Strin
 }
 
 /// One requirement a build's facts do not meet.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Unmet {
     pub key: String,
     pub need: Json,
     pub have: Json,
+}
+
+impl Unmet {
+    /// The JS object `{ key, need, have }`.
+    #[must_use]
+    pub fn to_json(&self) -> Json {
+        Json::Object(IndexMap::from([
+            ("key".to_string(), Json::String(self.key.clone())),
+            ("need".to_string(), self.need.clone()),
+            ("have".to_string(), self.have.clone()),
+        ]))
+    }
 }
 
 /// `facts?.[key] ?? factPlaceholder(key)`.
@@ -744,11 +610,23 @@ pub fn unmet_requirements(
 }
 
 /// A fact where one build's sheet is short of the baseline's.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Short {
     pub key: String,
     pub baseline: Json,
     pub have: Json,
+}
+
+impl Short {
+    /// The JS object `{ key, baseline, have }`.
+    #[must_use]
+    pub fn to_json(&self) -> Json {
+        Json::Object(IndexMap::from([
+            ("key".to_string(), Json::String(self.key.clone())),
+            ("baseline".to_string(), self.baseline.clone()),
+            ("have".to_string(), self.have.clone()),
+        ]))
+    }
 }
 
 /// Where one build's sheet is short of the baseline's: a flag the baseline
