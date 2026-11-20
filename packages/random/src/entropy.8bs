@@ -1,7 +1,7 @@
 // @8bitscript/random/entropy — the deterministic generator, or the machine's
 // own entropy source where it has one, behind one import.
 //
-//     import { entropy } from "@8bitscript/random/entropy";
+//     use @8bitscript::random::entropy::entropy;
 //
 //     entropy.begin();                    // first thing main() does
 //     // each frame:

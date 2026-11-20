@@ -2,7 +2,7 @@
 //
 // Named by "8bitscript".exports["./pad"] in this package's package.json:
 //
-//     import { pad, Pad } from "@8bitscript/nes/pad";
+//     use @8bitscript::nes::pad::{pad, Pad};
 //
 //     pad.scan();
 //     if (pad.pressed(Pad.PORT_1, Pad.RIGHT)) { ... }

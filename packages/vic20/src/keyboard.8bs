@@ -3,8 +3,8 @@
 //
 // Named by "8bitscript".exports["./keyboard"] in this package's package.json:
 //
-//     import { keyboard } from "@8bitscript/vic20/keyboard";
-//     import { Key } from "@8bitscript/vic20/keys";
+//     use @8bitscript::vic20::keyboard::keyboard;
+//     use @8bitscript::vic20::keys::Key;
 //
 // This is hardware-level, VIC-20-only surface — the layer the portable
 // input capability is built on: `@8bitscript/vic20/input` reads this file

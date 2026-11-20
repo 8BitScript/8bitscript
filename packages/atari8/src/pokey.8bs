@@ -2,7 +2,7 @@
 //
 // Named by "8bitscript".exports["./pokey"] in this package's package.json:
 //
-//     import { pokey, Distortion, Note } from "@8bitscript/atari8/pokey";
+//     use @8bitscript::atari8::pokey::{pokey, Distortion, Note};
 //
 //     pokey.reset();
 //     pokey.setDistortion(0, Distortion.TONE);

@@ -4,7 +4,7 @@
 // multiply on randomness was affordable, and it is still the cheapest random
 // byte 8BitScript can produce on any of the nine targets.
 //
-//     import { table } from "@8bitscript/random/table";
+//     use @8bitscript::random::table::table;
 //
 //     table.seed(37);                     // any utinyint start point
 //     let roll: utinyint = table.range(6) + 1; // 1..6

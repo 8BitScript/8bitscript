@@ -2,7 +2,7 @@
 // logo drops, at 300 the bars start. This is the frame counter and the
 // predicates that say when, the same pure code on all nine machines:
 //
-//     import { timeline } from "@8bitscript/timeline";
+//     use @8bitscript::timeline::timeline;
 //
 //     timeline.start();                  // frame 0 is now
 //     while (true) {

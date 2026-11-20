@@ -4,7 +4,7 @@
 // and by "8bitscript".entry.nes in @8bitscript/input's, so a portable
 // program writes
 //
-//     import { input } from "@8bitscript/input";
+//     use @8bitscript::input::input;
 //
 // and gets this file on an NES. The pad itself is ./pad.8bs, which stays
 // available to a program that wants both controllers or the buttons this

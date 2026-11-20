@@ -2,8 +2,8 @@
 //
 // Named by "8bitscript".exports["./keyboard"] in this package's package.json:
 //
-//     import { keyboard } from "@8bitscript/pet/keyboard";
-//     import { Key } from "@8bitscript/pet/keys";
+//     use @8bitscript::pet::keyboard::keyboard;
+//     use @8bitscript::pet::keys::Key;
 //
 // This is hardware-level, PET-only surface — the layer the portable input
 // capability is built on: `@8bitscript/pet/input` reads this file and

@@ -4,7 +4,7 @@
 // Named by "8bitscript".exports["./text"] in this package's package.json,
 // and what
 //
-//     import { text } from "@8bitscript/text";
+//     use @8bitscript::text::text;
 //
 // resolves to when the build is for the X16. Built on the VERA port protocol
 // @8bitscript/cx16 exports — read that file first for what the KERNAL

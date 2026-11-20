@@ -4,7 +4,7 @@
 // The module entry point named by the "8bitscript".entry field in this
 // package's package.json, resolved and linked for:
 //
-//     import { WebRegisters } from "@8bitscript/web";
+//     use @8bitscript::web::WebRegisters;
 //
 // What a program usually wants sits one layer up, in this package's own
 // implementations of the portable capability packages — `./src/screen.8bs`

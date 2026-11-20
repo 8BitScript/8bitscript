@@ -1,7 +1,7 @@
 // @8bitscript/graphics — play a sprite compiled from a .8bg file.
 //
-//     import { player } from "./player.8bg";
-//     import { graphics } from "@8bitscript/graphics";
+//     use self::player::player;
+//     use @8bitscript::graphics::graphics;
 //     graphics.place(player, x, y);
 //     graphics.update();
 //

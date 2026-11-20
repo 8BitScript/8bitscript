@@ -3,7 +3,7 @@
 //
 // Named by "8bitscript".exports["./bitmap"] in this package's package.json:
 //
-//     import { bitmap } from "@8bitscript/c64/bitmap";
+//     use @8bitscript::c64::bitmap::bitmap;
 //
 //     bitmap.enter(false);            // hi-res: 320x200, two colors a cell
 //     bitmap.clear();

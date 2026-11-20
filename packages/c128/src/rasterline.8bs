@@ -3,8 +3,8 @@
 //
 // Named by "8bitscript".exports["./rasterline"] in this package's
 // package.json, and by "8bitscript".entry.c128 in @8bitscript/raster's,
-// so a portable program's `import { raster, Slot } from
-// "@8bitscript/raster"` gets this file on a C128.
+// so a portable program's `use @8bitscript::raster::{raster, Slot};`
+// gets this file on a C128.
 //
 // The VIC-IIe raises raster interrupts the way the C64's VIC-II does
 // (documented, not measured here), but the C64's raster list — its

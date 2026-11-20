@@ -5,7 +5,7 @@
 // and by "8bitscript".entry.c64 in @8bitscript/pointer's, so a portable
 // program writes
 //
-//     import { pointer } from "@8bitscript/pointer";
+//     use @8bitscript::pointer::pointer;
 //
 // and gets this file on a C64. It is the *visible* half of the pointer
 // @8bitscript/input already reports: `input` says where the pointer is and

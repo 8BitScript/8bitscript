@@ -2,7 +2,7 @@
 //
 // Named by "8bitscript".exports["./sid"] in this package's package.json:
 //
-//     import { sid, Waveform, Note } from "@8bitscript/c128/sid";
+//     use @8bitscript::c128::sid::{sid, Waveform, Note};
 //
 //     sid.detectRegion();         // one byte on this machine; see below
 //     sid.setVolume(15);

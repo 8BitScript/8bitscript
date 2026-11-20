@@ -8,7 +8,7 @@
 // The module entry point named by the "8bitscript".entry field in this
 // package's package.json, resolved and linked for:
 //
-//     import { setVramAddress, locateTextMap, mapBank, mapLow } from "@8bitscript/cx16";
+//     use @8bitscript::cx16::{setVramAddress, locateTextMap, mapBank, mapLow};
 //
 // What a program usually wants sits one layer up, in this package's own
 // implementations of the portable capability packages — `./src/screen.8bs`

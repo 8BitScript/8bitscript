@@ -3,7 +3,7 @@
 //
 // Named by "8bitscript".exports["./reu"] in this package's package.json:
 //
-//     import { reu } from "@8bitscript/c64/reu";
+//     use @8bitscript::c64::reu::reu;
 //
 //     let banked: usmallint = reu.detect();   // KiB found, 0 for none
 //     if (banked != 0) {

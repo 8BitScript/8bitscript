@@ -2,7 +2,7 @@
 //
 // Named by "8bitscript".exports["./vdc80"] in this package's package.json:
 //
-//     import { vdc80, Vdc80Color } from "@8bitscript/c128/vdc80";
+//     use @8bitscript::c128::vdc80::{vdc80, Vdc80Color};
 //
 //     vdc80.blank();
 //     vdc80.setColor(Vdc80Color.CYAN);

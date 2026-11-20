@@ -3,8 +3,8 @@
 //
 // Named by "8bitscript".exports["./rasterline"] in this package's
 // package.json, and by "8bitscript".entry.cx16 in @8bitscript/raster's,
-// so a portable program's `import { raster, Slot } from
-// "@8bitscript/raster"` gets this file on a Commander X16.
+// so a portable program's `use @8bitscript::raster::{raster, Slot};`
+// gets this file on a Commander X16.
 // packages/cx16/AGENTS.md, "Raster splits", is the long form of
 // everything below and the measurements behind it; read it before
 // changing a cycle in the handler.

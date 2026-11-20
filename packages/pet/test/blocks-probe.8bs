@@ -1,7 +1,7 @@
 // Every call @8bitscript/pet/blocks offers, linked the way a program built
 // from inside the package tests it: the import is relative because a
 // package does not resolve its own name; a consumer writes
-// `import { blocks, digits } from "@8bitscript/pet/blocks"`.
+// `use @8bitscript::pet::blocks::{blocks, digits};`.
 use super::src::screen::screen;
 use super::src::blocks::{blocks, digits};
 

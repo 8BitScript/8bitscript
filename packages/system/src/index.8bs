@@ -1,6 +1,6 @@
 // @8bitscript/system — the machine a build is for, by name and by fact.
 //
-//     import { System, Video, Audio, Input, Storage, Memory } from "@8bitscript/system";
+//     use @8bitscript::system::{System, Video, Audio, Input, Storage, Memory};
 //
 //     if (#system() == System.PET) { ... }        // which machine
 //     if (Video.SPRITES == 0) { ... }             // what it has

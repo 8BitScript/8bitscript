@@ -2,8 +2,8 @@
 // 8×8 bitmap in the web's redefinable character set — and an animated
 // picture steps through up to eight of them.
 //
-//     import { player } from "./player.8bg";
-//     import { graphics } from "@8bitscript/graphics";
+//     use self::player::player;
+//     use @8bitscript::graphics::graphics;
 //     graphics.place(player, x, y);
 //     graphics.update();
 //

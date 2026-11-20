@@ -2,8 +2,8 @@
 //
 // Named by "8bitscript".exports["./keyboard"] in this package's package.json:
 //
-//     import { keyboard } from "@8bitscript/atari8/keyboard";
-//     import { Key } from "@8bitscript/atari8/keys";
+//     use @8bitscript::atari8::keyboard::keyboard;
+//     use @8bitscript::atari8::keys::Key;
 //
 //     keyboard.scan();
 //     if (keyboard.pressed(Key.SPACE)) { ... }

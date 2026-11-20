@@ -2,9 +2,9 @@
 //
 // Named by "8bitscript".exports["./border"] in this package's package.json:
 //
-//     import { border } from "@8bitscript/c64/border";
-//     import { raster } from "@8bitscript/c64/raster";
-//     import { sprites } from "@8bitscript/c64/sprites";
+//     use @8bitscript::c64::border::border;
+//     use @8bitscript::c64::raster::raster;
+//     use @8bitscript::c64::sprites::sprites;
 //
 //     raster.clear();
 //     border.top();            // the $D011 write at line 47 + YSCROLL

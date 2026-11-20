@@ -2,7 +2,7 @@
 //
 // Named by "8bitscript".exports["./console"] in this package's package.json:
 //
-//     import { console, ConsoleKey } from "@8bitscript/atari8/console";
+//     use @8bitscript::atari8::console::{console, ConsoleKey};
 //
 //     console.scan();
 //     if (console.pressed(ConsoleKey.START)) { ... }

@@ -4,7 +4,7 @@
 // The module entry point named by the "8bitscript".entry field in this
 // package's package.json, resolved and linked for:
 //
-//     import { borderColor, backgroundColor, cursorInhibit } from "@8bitscript/atari8";
+//     use @8bitscript::atari8::{borderColor, backgroundColor, cursorInhibit};
 //
 // The surface is the hardware, one register at a time. What a program
 // usually wants sits one layer up, in this package's own implementations of

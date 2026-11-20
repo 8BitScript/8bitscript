@@ -306,6 +306,13 @@ test('fences: a ```8bx block is converted as .8bx', () => {
   assert.equal(out.text, '```8bx\npub component Box() {\n    <A />;\n}\n```\n');
 });
 
+test('fences: ```8bs and ```8bx blocks in one file are both converted', () => {
+  const md = '```8bs\nfunction f(): void {}\n```\n\n```8bx\nexport component Box() { <A />; }\n```\n';
+  const out = convertFences(md, convert);
+  assert.equal(out.converted, 2);
+  assert.equal(out.text, '```8bs\nfn f() {\n}\n```\n\n```8bx\npub component Box() {\n    <A />;\n}\n```\n');
+});
+
 test('fences: a ```8bx block is not retried as .8bs when it fails', () => {
   const kinds = [];
   const out = convertFences('```8bx\nlet x = ;\n```\n', (body, kind) => (kinds.push(kind), convert(body, kind)));

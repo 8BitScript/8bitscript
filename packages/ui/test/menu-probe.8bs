@@ -1,7 +1,7 @@
 // Every call @8bitscript/ui/menu offers, linked for each target — the same
 // proof menubar-probe.8bs gives the bar. The import is relative because a
 // package does not resolve its own name; a consumer writes
-// `import { menu } from "@8bitscript/ui/menu"`.
+// `use @8bitscript::ui::menu::menu;`.
 use @8bitscript::text::{text, TextColor};
 use super::src::menu::menu;
 

@@ -3,7 +3,7 @@
 //
 // Named by "8bitscript".exports["./scroll"] in this package's package.json:
 //
-//     import { scroll } from "@8bitscript/c64/scroll";
+//     use @8bitscript::c64::scroll::scroll;
 //
 //     scroll.setNarrow(true);              // 38 columns: the edges are border
 //     let fine: u8 = 7;

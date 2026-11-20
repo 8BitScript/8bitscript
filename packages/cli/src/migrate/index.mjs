@@ -10,7 +10,7 @@
 //
 //   8bs migrate [paths] [--check]       .8bs/.8bx sources, in place
 //   8bs migrate --embedded <file>...    programs inside JS/TS sources (tests, generators, scripts)
-//   8bs migrate --fences <md>...        ```8bs fences in Markdown
+//   8bs migrate --fences <md>...        ```8bs and ```8bx fences in Markdown
 //   8bs migrate --all [paths]           all three over the same paths
 //   --alias @lib                        an import alias head from the config (repeatable)
 //
