@@ -304,6 +304,14 @@ pub static FACTS: LazyLock<IndexMap<&'static str, Fact>> = LazyLock::new(|| {
             ),
         ),
         (
+            "video.spriteKib",
+            count(
+                When::Build,
+                "KiB of the shared pool every sprite picture of the build is drawn from; 0 where the build models no such pool. KiB for the same reason as memory.bankedKib.",
+                true,
+            ),
+        ),
+        (
             "video.frameRate",
             count(
                 When::Build,
