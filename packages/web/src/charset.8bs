@@ -26,35 +26,35 @@
 // character, not a sprite: it lands on the grid, STEP 8. A real machine's
 // own --web build (pet, vic20, c64) keeps its own ROM's codes and has no
 // table; this module is for the synthetic web target.
-import { Video } from "./geometry.8bs";
+use self::geometry::Video;
 
-export namespace charset {
-    const FIRST: utinyint = Video.GLYPH_FIRST;   // the first redefinable code
-    const COUNT: utinyint = Video.GLYPH_COUNT;   // how many there are
+pub mod charset {
+    const FIRST: utinyint = Video::GLYPH_FIRST; // the first redefinable code
+    const COUNT: utinyint = Video::GLYPH_COUNT; // how many there are
 
     // One pixel row of one glyph. A code outside FIRST..FIRST+COUNT or a row
     // past 7 is refused, so a stray write cannot reach the raster list below
     // the table or the program's own data above it.
-    function setRow(code: utinyint, row: utinyint, bits: utinyint): void {
-        if (code < charset.FIRST || row > 7) {
+    fn setRow(code: utinyint, row: utinyint, bits: utinyint) {
+        if code < charset::FIRST || row > 7 {
             return;
         }
-        let glyph: usmallint = code - charset.FIRST;
-        if (glyph >= charset.COUNT) {
+        let glyph: usmallint = code - charset::FIRST;
+        if glyph >= charset::COUNT {
             return;
         }
-        memory.write(Video.GLYPH_BASE + (glyph << 3) + row, bits);
+        memory::write(Video::GLYPH_BASE + (glyph << 3) + row, bits);
     }
 
     // A whole glyph: eight rows, top to bottom.
-    function define(code: utinyint, r0: utinyint, r1: utinyint, r2: utinyint, r3: utinyint, r4: utinyint, r5: utinyint, r6: utinyint, r7: utinyint): void {
-        charset.setRow(code, 0, r0);
-        charset.setRow(code, 1, r1);
-        charset.setRow(code, 2, r2);
-        charset.setRow(code, 3, r3);
-        charset.setRow(code, 4, r4);
-        charset.setRow(code, 5, r5);
-        charset.setRow(code, 6, r6);
-        charset.setRow(code, 7, r7);
+    fn define(code: utinyint, r0: utinyint, r1: utinyint, r2: utinyint, r3: utinyint, r4: utinyint, r5: utinyint, r6: utinyint, r7: utinyint) {
+        charset::setRow(code, 0, r0);
+        charset::setRow(code, 1, r1);
+        charset::setRow(code, 2, r2);
+        charset::setRow(code, 3, r3);
+        charset::setRow(code, 4, r4);
+        charset::setRow(code, 5, r5);
+        charset::setRow(code, 6, r6);
+        charset::setRow(code, 7, r7);
     }
 }

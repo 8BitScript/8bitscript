@@ -59,11 +59,11 @@ Old-BASIC's `POKE` becomes a typed call rather than a magic number pair:
 Arrays are laid out at compile time — no heap, no `malloc`. Passed to a function by name, it's the address, nothing copied, and `t.length` is a compile-time constant inside the callee:
 
 ```8bs
-let board: array<utinyint, 16>;
+let board: [utinyint; 16];
 
-function sumBoard(t: array<utinyint, 16>): utinyint {
-    let total: utinyint = 0;
-    for (let i: utinyint = 0; i < t.length; i++) {
+fn sumBoard(t: [utinyint; 16]) -> utinyint {
+    let mut total: utinyint = 0;
+    for i: utinyint in 0..t.length {
         total = total + t[i];
     }
     return total;
@@ -79,7 +79,7 @@ Local arrays and pointers are not part of the compiled subset yet — a construc
 String literals as `string` parameters, `string` consts, fixed-capacity `string<N>` variables, and templates — all laid out at compile time. A format specifier after a colon pads/aligns a number inside a template:
 
 ```8bs
-text.print(0, `TICK ${ticks:1}`);
+text::print(0, `TICK ${ticks:1}`);
 ```
 
 ## §1.5 Functions and control flow
@@ -89,8 +89,7 @@ Functions with parameters and return values, arithmetic, `if`/`while`/`for` — 
 A plain counted `for` loop — `for (let i: T = 0; i < N; i++) { … }`, N a compile-time value — can be marked `@unroll` to pay code size for the cycles a branch back to the loop's top costs every iteration:
 
 ```8bs
-@unroll
-for (let i: utinyint = 0; i < 8; i++) {
+#[unroll] for i: utinyint in 0..8 {
     plot(i, row);
 }
 ```
@@ -114,7 +113,7 @@ Beside `tile.8bs`, a file named `tile.pet.8bs` is used only when building for th
 An `asm6502` operand may name the function's own parameters and locals: each is its zero-page slot, so a block can hand a native routine what the function was given —
 
 ```8bs
-function print(cell: usmallint, s: string): void {
+fn print(cell: usmallint, s: string) {
     asm6502 {
         lda cell        ; the parameter's low byte
         ldx cell+1      ; and its high byte, the offset folded in
@@ -132,13 +131,14 @@ A name the frame does not bind is a linker label, as before (`jsr __8bs_c64_rast
 `#fact(...)` asks a true/false question about the machine being built for — folded before the toolchain runs, so a guarded branch that can't be true on this target disappears entirely rather than shipping dead weight:
 
 ```8bs
-const HAS_RASTER: bool = #fact(video.raster);
+const HAS_RASTER: bool = #fact(video::raster);
 ```
 
 `#system()` compares the machine itself, both sides resolved at compile time, so a program branches on the machine without a per-machine file:
 
 ```8bs
-if (#system() == System.C64) { /* … */ }
+if #system() == System::C64 { /* … */
+}
 ```
 
 Common facts already read this way: `video.raster`, `input.keyboard`, `input.joysticks`, `input.pads`, `input.mouse`. An unknown fact name is a build error (`8BS1037`), not a silent `false`.
@@ -150,9 +150,9 @@ Common facts already read this way: `video.raster`, `input.keyboard`, `input.joy
 ```8bs
 const VERSION: string = #package("version");
 
-export function main(): void {
-    text.print(0, VERSION);          // "0.6.0", whatever package.json says
-    text.print(40, #package("name")); // the other readable field
+pub fn main() {
+    text::print(0, VERSION); // "0.6.0", whatever package.json says
+    text::print(40, #package("name")); // the other readable field
 }
 ```
 

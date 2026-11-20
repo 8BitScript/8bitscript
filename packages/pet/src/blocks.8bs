@@ -43,9 +43,9 @@
 // The pixel art above each row of the table is the font's real source —
 // redraw it there, then re-derive that row's two codes from `quad()`'s
 // table below (or a quick script over it) to change how a digit looks.
-import { Video } from "./geometry.8bs";
+use self::geometry::Video;
 
-const COLUMNS: utinyint = Video.COLUMNS; // cells per row, so cell = y * COLUMNS + x
+const COLUMNS: utinyint = Video::COLUMNS; // cells per row, so cell = y * COLUMNS + x
 
 // Screen code for each of the sixteen 2x2 patterns, indexed by
 // (topLeft<<3 | topRight<<2 | bottomLeft<<1 | bottomRight). The first eight
@@ -53,45 +53,45 @@ const COLUMNS: utinyint = Video.COLUMNS; // cells per row, so cell = y * COLUMNS
 // diagonal) are ROM glyphs; the rest are those same bits inverted, which is
 // exactly what reverse video already does in hardware, so the table just
 // names the +128 codes directly rather than setting a reverse flag.
-const QUAD: array<utinyint, 16> = [
-    32,  108, 123, 98,   // 0000 0001 0010 0011
-    124, 225, 255, 254,  // 0100 0101 0110 0111
-    126, 127, 97,  252,  // 1000 1001 1010 1011
-    226, 251, 236, 160,  // 1100 1101 1110 1111
+const QUAD: [utinyint; 16] = [
+    32, 108, 123, 98, // 0000 0001 0010 0011
+    124, 225, 255, 254, // 0100 0101 0110 0111
+    126, 127, 97, 252, // 1000 1001 1010 1011
+    226, 251, 236, 160, // 1100 1101 1110 1111
 ];
 
-function patternIndex(topLeft: bool, topRight: bool, bottomLeft: bool, bottomRight: bool): utinyint {
-    let index: utinyint = 0;
-    if (topLeft) {
+fn patternIndex(topLeft: bool, topRight: bool, bottomLeft: bool, bottomRight: bool) -> utinyint {
+    let mut index: utinyint = 0;
+    if topLeft {
         index = index + 8;
     }
-    if (topRight) {
+    if topRight {
         index = index + 4;
     }
-    if (bottomLeft) {
+    if bottomLeft {
         index = index + 2;
     }
-    if (bottomRight) {
+    if bottomRight {
         index = index + 1;
     }
     return index;
 }
 
-function place(cell: usmallint, code: utinyint): void {
-    memory.write(0x8000 + cell, code);
+fn place(cell: usmallint, code: utinyint) {
+    memory::write(0x8000 + cell, code);
 }
 
-export namespace blocks {
+pub mod blocks {
     // The screen code that draws one cell's four pseudo-pixels: `true` lights
     // a quadrant, `false` leaves it off. Anything a 2x2 block can show is one
     // call away — a checkerboard, a diagonal, a custom glyph of your own.
-    function quad(topLeft: bool, topRight: bool, bottomLeft: bool, bottomRight: bool): utinyint {
+    fn quad(topLeft: bool, topRight: bool, bottomLeft: bool, bottomRight: bool) -> utinyint {
         return QUAD[patternIndex(topLeft, topRight, bottomLeft, bottomRight)];
     }
 
     // Writes one cell's worth of pseudo-pixels at `cell`, so a caller who
     // does not want to hand-roll `memory.write` can still work in blocks.
-    function put(cell: usmallint, topLeft: bool, topRight: bool, bottomLeft: bool, bottomRight: bool): void {
+    fn put(cell: usmallint, topLeft: bool, topRight: bool, bottomLeft: bool, bottomRight: bool) {
         place(cell, QUAD[patternIndex(topLeft, topRight, bottomLeft, bottomRight)]);
     }
 }
@@ -123,10 +123,10 @@ export namespace blocks {
 //     #.#.  .#..  #...  ..#.  ..#.  ..#.  #.#.  ..#.  #.#.  ..#.
 //     ###.  ###.  ###.  ###.  ..#.  ###.  ###.  ..#.  ###.  ###.
 //
-const DIGIT_TILES: array<utinyint, 60> = [
+const DIGIT_TILES: [utinyint; 60] = [
     // 0
     236, 97,
-    97,  97,
+    97, 97,
     252, 97,
     // 1
     254, 32,
@@ -134,28 +134,28 @@ const DIGIT_TILES: array<utinyint, 60> = [
     254, 123,
     // 2
     226, 97,
-    98,  97,
+    98, 97,
     252, 123,
     // 3
     226, 97,
-    98,  97,
-    98,  97,
+    98, 97,
+    98, 97,
     // 4
-    97,  97,
+    97, 97,
     252, 97,
-    32,  97,
+    32, 97,
     // 5
     236, 126,
     252, 123,
-    98,  97,
+    98, 97,
     // 6
     236, 126,
     252, 123,
     252, 97,
     // 7
     226, 97,
-    32,  97,
-    32,  97,
+    32, 97,
+    32, 97,
     // 8
     236, 97,
     252, 97,
@@ -163,43 +163,43 @@ const DIGIT_TILES: array<utinyint, 60> = [
     // 9
     236, 97,
     252, 97,
-    98,  97,
+    98, 97,
 ];
 
 // Cell offset into DIGIT_TILES per digit (value * 6), read off instead of
 // multiplied — the 6502 has no multiply instruction, and every value here
 // is small and fixed.
-const DIGIT_BASE: array<usmallint, 10> = [0, 6, 12, 18, 24, 30, 36, 42, 48, 54];
+const DIGIT_BASE: [usmallint; 10] = [0, 6, 12, 18, 24, 30, 36, 42, 48, 54];
 
 // Places above a field are still taken off, so a field narrower than its
 // number shows the low digits — the same rule text.printNumber follows.
-const DIGIT_PLACES: array<usmallint, 5> = [10000, 1000, 100, 10, 1];
+const DIGIT_PLACES: [usmallint; 5] = [10000, 1000, 100, 10, 1];
 
 // How many cells `count` digit tiles take, read off instead of multiplied
 // by WIDTH (2) — the same reason DIGIT_BASE exists. Index 0 is unused (a
 // number always has at least one digit) and kept so `count` indexes it
 // directly.
-const DIGIT_TILE_WIDTHS: array<utinyint, 6> = [0, 2, 4, 6, 8, 10];
+const DIGIT_TILE_WIDTHS: [utinyint; 6] = [0, 2, 4, 6, 8, 10];
 
-export namespace digits {
-    const WIDTH: utinyint = 2;  // cells per digit tile
+pub mod digits {
+    const WIDTH: utinyint = 2; // cells per digit tile
     const HEIGHT: utinyint = 3; // cells per digit tile
 
     // How many decimal digits `value` has with no leading zeros — "16" is
     // 2, "2048" is 4 — the width printCentered() lays out around, as
     // opposed to print()'s fixed, zero-padded width.
-    function count(value: usmallint): utinyint {
-        let digitCount: utinyint = 1;
-        if (value >= 10) {
+    fn count(value: usmallint) -> utinyint {
+        let mut digitCount: utinyint = 1;
+        if value >= 10 {
             digitCount = 2;
         }
-        if (value >= 100) {
+        if value >= 100 {
             digitCount = 3;
         }
-        if (value >= 1000) {
+        if value >= 1000 {
             digitCount = 4;
         }
-        if (value >= 10000) {
+        if value >= 10000 {
             digitCount = 5;
         }
         return digitCount;
@@ -218,27 +218,27 @@ export namespace digits {
     // it. QUAD's sixteen codes were chosen to be closed under this exact
     // flip (every pattern's complement is also in the table), so inverting
     // costs one add-or-subtract of 128 per cell, no second font.
-    function draw(cell: usmallint, value: utinyint, invert: bool = false): void {
-        let base: usmallint = DIGIT_BASE[value];
-        let rowCell: usmallint = cell;
-        let row: utinyint = 0;
-        while (row < digits.HEIGHT) {
-            let col: utinyint = 0;
-            while (col < digits.WIDTH) {
-                let code: utinyint = DIGIT_TILES[base + col];
-                if (invert) {
-                    if (code < 128) {
+    fn draw(cell: usmallint, value: utinyint, invert: bool = false) {
+        let mut base: usmallint = DIGIT_BASE[value];
+        let mut rowCell: usmallint = cell;
+        let mut row: utinyint = 0;
+        while row < digits::HEIGHT {
+            let mut col: utinyint = 0;
+            while col < digits::WIDTH {
+                let mut code: utinyint = DIGIT_TILES[base + col];
+                if invert {
+                    if code < 128 {
                         code = code + 128;
                     } else {
                         code = code - 128;
                     }
                 }
                 place(rowCell + col, code);
-                col++;
+                col += 1;
             }
-            base = base + digits.WIDTH;
+            base = base + digits::WIDTH;
             rowCell = rowCell + COLUMNS;
-            row++;
+            row += 1;
         }
     }
 
@@ -247,25 +247,25 @@ export namespace digits {
     // line built from digits instead of text.printNumber's characters. `at`
     // advances by WIDTH cells per digit instead of multiplying width by
     // WIDTH, the same reason draw() steps rather than multiplies.
-    function print(cell: usmallint, value: usmallint, width: utinyint, invert: bool = false): void {
-        let k: utinyint = width;
-        if (k < DIGIT_PLACES.length) {
+    fn print(cell: usmallint, value: usmallint, width: utinyint, invert: bool = false) {
+        let mut k: utinyint = width;
+        if k < DIGIT_PLACES.length {
             k = DIGIT_PLACES.length;
         }
-        let at: usmallint = cell;
-        while (k > 0) {
-            let digit: utinyint = 0;
-            if (k <= DIGIT_PLACES.length) {
-                while (value >= DIGIT_PLACES[DIGIT_PLACES.length - k]) {
+        let mut at: usmallint = cell;
+        while k > 0 {
+            let mut digit: utinyint = 0;
+            if k <= DIGIT_PLACES.length {
+                while value >= DIGIT_PLACES[DIGIT_PLACES.length - k] {
                     value = value - DIGIT_PLACES[DIGIT_PLACES.length - k];
-                    digit++;
+                    digit += 1;
                 }
             }
-            if (k <= width) {
-                digits.draw(at, digit, invert);
-                at = at + digits.WIDTH;
+            if k <= width {
+                digits::draw(at, digit, invert);
+                at = at + digits::WIDTH;
             }
-            k--;
+            k -= 1;
         }
     }
 
@@ -276,13 +276,13 @@ export namespace digits {
     // left, the same way a centered thing usually does when it cannot split
     // evenly. If the digits are wider than the box, they simply start at
     // `left` and run past its right edge rather than negative into `pad`.
-    function printCentered(left: usmallint, widthCells: utinyint, value: usmallint, invert: bool = false): void {
-        let digitCount: utinyint = digits.count(value);
+    fn printCentered(left: usmallint, widthCells: utinyint, value: usmallint, invert: bool = false) {
+        let digitCount: utinyint = digits::count(value);
         let used: utinyint = DIGIT_TILE_WIDTHS[digitCount];
-        let pad: utinyint = 0;
-        if (widthCells > used) {
-            pad = (widthCells - used) >> 1;
+        let mut pad: utinyint = 0;
+        if widthCells > used {
+            pad = widthCells - used >> 1;
         }
-        digits.print(left + pad, value, digitCount, invert);
+        digits::print(left + pad, value, digitCount, invert);
     }
 }

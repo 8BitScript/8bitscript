@@ -14,30 +14,30 @@
 // @8bitscript/atari8/random's header for the rest, including its warning
 // that AUDCTL's POLY_9BIT bit shortens the counter to 511 states — a
 // program that sets it for its sound has changed what this returns.
-import { random } from "@8bitscript/atari8/random";
+use @8bitscript::atari8::random::random;
 
-export namespace entropy {
+pub mod entropy {
     // POKEY's counter is already running and belongs to nobody. Empty, and
     // inlines away to nothing.
-    function begin(): void {
+    fn begin() {
     }
 
-    function tick(): void {
+    fn tick() {
     }
 
     // One byte from the counter, 0-255.
-    function next(): utinyint {
-        return random.byte();
+    fn next() -> utinyint {
+        return random::byte();
     }
 
     // Exactly uniform over POKEY's bytes: the incomplete last block is
     // rejected and the register read again (./index.8bs explains why).
-    function range(bound: utinyint): utinyint {
+    fn range(bound: utinyint) -> utinyint {
         let limit: utinyint = 0 - bound;
-        let value: utinyint = random.byte();
-        let rest: utinyint = value % bound;
-        while (value - rest > limit) {
-            value = random.byte();
+        let mut value: utinyint = random::byte();
+        let mut rest: utinyint = value % bound;
+        while value - rest > limit {
+            value = random::byte();
             rest = value % bound;
         }
         return rest;
@@ -45,9 +45,9 @@ export namespace entropy {
 
     // The top `count` bits of one POKEY byte (1 to 8): a value from 0 up to
     // 2^count, no rejection.
-    function bits(count: utinyint): utinyint {
-        let value: utinyint = random.byte();
-        for (let i: utinyint = count; i < 8; i++) {
+    fn bits(count: utinyint) -> utinyint {
+        let mut value: utinyint = random::byte();
+        for i: utinyint in count..8 {
             value = value >> 1;
         }
         return value;

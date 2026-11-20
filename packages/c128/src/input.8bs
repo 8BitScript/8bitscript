@@ -64,12 +64,12 @@
 // matrix snapshot and waits for the SID after selecting the port; the
 // C64's `waitFrame()` `sei` is what makes the same select-at-end-of-poll
 // arrangement work there without a delay.
-import { cia1PortA, cia1PortB, cia1DirectionA, cia1DirectionB, extraKeyboardLines, paddleX, paddleY } from "./index.8bs";
+use self::index::{cia1PortA, cia1PortB, cia1DirectionA, cia1DirectionB, extraKeyboardLines, paddleX, paddleY};
 
-const HAS_MOUSE: bool = #fact(input.mouse);
+const HAS_MOUSE: bool = #fact(input::mouse);
 
 // The C64 matrix's codes, for the keys this file maps: `column * 8 + row`.
-namespace Key {
+mod Key {
     const RETURN: utinyint = 1;
     const CURSOR_RIGHT: utinyint = 2; // shifted: cursor left
     const CURSOR_DOWN: utinyint = 7; // shifted: cursor up
@@ -78,7 +78,7 @@ namespace Key {
     const STOP: utinyint = 63; // RUN/STOP
 }
 
-namespace Edge {
+mod Edge {
     const LEFT: utinyint = 1;
     const RIGHT: utinyint = 2;
     const UP: utinyint = 4;
@@ -90,15 +90,15 @@ namespace Edge {
 
 // The analogue lines' reading, as on the C64: a 1351 sits in 64..191 and
 // anything else at rest reads 255.
-namespace Pot {
-    const COUNTER: utinyint = 0x7F;  // VICE's 1351 is 7 bits; bit 0 is also fuzz
+mod Pot {
+    const COUNTER: utinyint = 0x7F; // VICE's 1351 is 7 bits; bit 0 is also fuzz
     const LOWEST: utinyint = 64;
     const HIGHEST: utinyint = 191;
     const HALF: utinyint = 64;
 }
 
 // Per-axis filter for 1-count steps — same machine as @8bitscript/c64/mouse.
-namespace Axis {
+mod Axis {
     const IDLE: utinyint = 0;
     const WAIT_POS: utinyint = 1;
     const RUN_POS: utinyint = 2;
@@ -110,8 +110,8 @@ namespace Axis {
 // keyboard column with the other six.
 const MOUSE_PORT_1: utinyint = 0x7F;
 
-const COLUMN_SELECT: array<utinyint, 8> = [254, 253, 251, 247, 239, 223, 191, 127];
-const ROW_BIT: array<utinyint, 8> = [1, 2, 4, 8, 16, 32, 64, 128];
+const COLUMN_SELECT: [utinyint; 8] = [254, 253, 251, 247, 239, 223, 191, 127];
+const ROW_BIT: [utinyint; 8] = [1, 2, 4, 8, 16, 32, 64, 128];
 
 // $D02F bits 0-2 drive extra columns K0-K2, active low like CIA1 port A.
 // $FF selects none (the C64-compatible scan); $FB drives K2, which is
@@ -120,7 +120,7 @@ const EXTRA_NONE: utinyint = 0xFF;
 const EXTRA_K2: utinyint = 0xFB;
 
 // Port B bits on K2, matching gtk3_pos.vkm's second number (`Up 10 3`).
-namespace Extra {
+mod Extra {
     const UP: utinyint = 8;
     const DOWN: utinyint = 16;
     const LEFT: utinyint = 32;
@@ -131,29 +131,29 @@ namespace Extra {
 // is 8 of them on the 40-column screen this file hit-tests against.
 // The grid this file hit-tests against, from the build's own fact sheet
 // rather than from a number typed here twice.
-const COLUMNS: utinyint = #fact(video.columns);
+const COLUMNS: utinyint = #fact(video::columns);
 const CELL_SHIFT: utinyint = 3;
 const LIMIT_X: usmallint = 319;
 const LIMIT_Y: usmallint = 199;
 
-let matrix: array<utinyint, 8>;
-let sticks: array<utinyint, 2>;
+let mut matrix: [utinyint; 8];
+let mut sticks: [utinyint; 2];
 
-let held: utinyint = 0;
-let before: utinyint = 0;
-let began: utinyint = 0;
+let mut held: utinyint = 0;
+let mut before: utinyint = 0;
+let mut began: utinyint = 0;
 
-let lastX: utinyint = 0;
-let lastY: utinyint = 0;
-let atX: usmallint = 0;
-let atY: usmallint = 0;
-let started: bool = false;
-let hold: array<utinyint, 2>;
-let atCell: usmallint = 0;
-let havePointer: bool = false;
+let mut lastX: utinyint = 0;
+let mut lastY: utinyint = 0;
+let mut atX: usmallint = 0;
+let mut atY: usmallint = 0;
+let mut started: bool = false;
+let mut hold: [utinyint; 2];
+let mut atCell: usmallint = 0;
+let mut havePointer: bool = false;
 
 // Is this key down in the last scan?
-function keyDown(key: utinyint): bool {
+fn keyDown(key: utinyint) -> bool {
     return (matrix[key >> 3] & ROW_BIT[key & 7]) != 0;
 }
 
@@ -165,55 +165,54 @@ function keyDown(key: utinyint): bool {
 // never exceeds `limit`, so `limit - at` cannot borrow and the sum that
 // could carry is never formed (see @8bitscript/ui/menubar on why a byte
 // sum is not to be trusted across both backends).
-function step(at: usmallint, last: utinyint, now: utinyint, limit: usmallint, axis: utinyint): usmallint {
-    let delta: utinyint = (now - last) & Pot.COUNTER;
+fn step(at: usmallint, last: utinyint, now: utinyint, limit: usmallint, axis: utinyint) -> usmallint {
+    let delta: utinyint = now - last & Pot::COUNTER;
     let state: utinyint = hold[axis];
-    if (delta == 0) {
-        if (state == Axis.RUN_POS || state == Axis.RUN_NEG) {
-            hold[axis] = Axis.IDLE;
+    if delta == 0 {
+        if state == Axis::RUN_POS || state == Axis::RUN_NEG {
+            hold[axis] = Axis::IDLE;
         }
         return at;
     }
-    if (delta < Pot.HALF) {
-        if (delta == 1) {
-            if (state == Axis.WAIT_POS || state == Axis.RUN_POS) {
-                hold[axis] = Axis.RUN_POS;
+    if delta < Pot::HALF {
+        if delta == 1 {
+            if state == Axis::WAIT_POS || state == Axis::RUN_POS {
+                hold[axis] = Axis::RUN_POS;
             } else {
-                hold[axis] = Axis.WAIT_POS;
+                hold[axis] = Axis::WAIT_POS;
                 return at;
             }
         } else {
-            hold[axis] = Axis.RUN_POS;
+            hold[axis] = Axis::RUN_POS;
         }
-        if (limit - at < delta) {
+        if limit - at < delta {
             return limit;
         }
         return at + delta;
     }
     let back: utinyint = 128 - delta;
-    if (back == 1) {
-        if (state == Axis.WAIT_NEG || state == Axis.RUN_NEG) {
-            hold[axis] = Axis.RUN_NEG;
+    if back == 1 {
+        if state == Axis::WAIT_NEG || state == Axis::RUN_NEG {
+            hold[axis] = Axis::RUN_NEG;
         } else {
-            hold[axis] = Axis.WAIT_NEG;
+            hold[axis] = Axis::WAIT_NEG;
             return at;
         }
     } else {
-        hold[axis] = Axis.RUN_NEG;
+        hold[axis] = Axis::RUN_NEG;
     }
-    if (back > at) {
+    if back > at {
         return 0;
     }
     return at - back;
 }
 
-export namespace input {
-
+pub mod input {
     // Once, at start-up, before the first poll(): point the SID at the
     // mouse's port so the first reading has had a frame to settle. Folds
     // to nothing on a build with no mouse.
-    function begin(): void {
-        if (HAS_MOUSE) {
+    fn begin() {
+        if HAS_MOUSE {
             cia1PortA = MOUSE_PORT_1;
         }
         // One poll before the program's first, so the edge detector starts
@@ -223,7 +222,7 @@ export namespace input {
         // starts reads as a fresh press on frame one. Measured on the
         // MEGA65, whose RETURN key is down at start-up: the joystick example
         // counted a confirm() nobody pressed until begin() primed this.
-        input.poll();
+        input::poll();
     }
 
     // Once a frame, right after waitFrame(), and never twice. The order is
@@ -233,9 +232,9 @@ export namespace input {
     // restore $D02F before the sticks — K2's arrow bits overlap the
     // joystick's on port B. Then point the SID back at the mouse's port.
     // `sei` across that work: the KERNAL IRQ owns CIA1 between scans.
-    function poll(): void {
+    fn poll() {
         asm6502 { sei }
-        if (HAS_MOUSE) {
+        if HAS_MOUSE {
             // Select, then wait: the SID needs ~0.5 ms after the port
             // bits change. 256 DEX/BNE is ~1.3 ms at 1 MHz, and `sei`
             // keeps the KERNAL from stealing the select during it.
@@ -251,8 +250,8 @@ export namespace input {
             // the same frame and the arrow flickered out; keep these.
             let rawX: utinyint = paddleX;
             let rawY: utinyint = paddleY;
-            havePointer = rawX >= Pot.LOWEST && rawX <= Pot.HIGHEST && rawY >= Pot.LOWEST && rawY <= Pot.HIGHEST;
-            if (started) {
+            havePointer = rawX >= Pot::LOWEST && rawX <= Pot::HIGHEST && rawY >= Pot::LOWEST && rawY <= Pot::HIGHEST;
+            if started {
                 atX = step(atX, lastX, rawX, LIMIT_X, 0);
                 // Same 1351 Y polarity as the C64: the counter runs
                 // opposite the screen. last and now swapped so the delta
@@ -267,7 +266,7 @@ export namespace input {
         cia1DirectionA = 0xFF;
         cia1DirectionB = 0x00;
         extraKeyboardLines = EXTRA_NONE;
-        for (let column: utinyint = 0; column < 8; column++) {
+        for column: utinyint in 0..8 {
             cia1PortA = COLUMN_SELECT[column];
             matrix[column] = cia1PortB ^ 0xFF;
         }
@@ -281,74 +280,74 @@ export namespace input {
         before = held;
         held = 0;
 
-        let shifted: bool = keyDown(Key.SHIFT_LEFT) || keyDown(Key.SHIFT_RIGHT);
-        if (keyDown(Key.CURSOR_RIGHT)) {
-            if (shifted) {
-                held = held | Edge.LEFT;
+        let shifted: bool = keyDown(Key::SHIFT_LEFT) || keyDown(Key::SHIFT_RIGHT);
+        if keyDown(Key::CURSOR_RIGHT) {
+            if shifted {
+                held = held | Edge::LEFT;
             } else {
-                held = held | Edge.RIGHT;
+                held = held | Edge::RIGHT;
             }
         }
-        if (keyDown(Key.CURSOR_DOWN)) {
-            if (shifted) {
-                held = held | Edge.UP;
+        if keyDown(Key::CURSOR_DOWN) {
+            if shifted {
+                held = held | Edge::UP;
             } else {
-                held = held | Edge.DOWN;
+                held = held | Edge::DOWN;
             }
         }
-        if (keyDown(Key.RETURN)) {
-            held = held | Edge.CONFIRM;
+        if keyDown(Key::RETURN) {
+            held = held | Edge::CONFIRM;
         }
-        if (keyDown(Key.STOP)) {
-            held = held | Edge.CANCEL;
+        if keyDown(Key::STOP) {
+            held = held | Edge::CANCEL;
         }
 
         // Dedicated arrows on K2 — physical keys, so or'ing them into
         // `held` before the edge is the right shape (unlike CRSR+SHIFT
         // above, which still composes then edges, the parked Commodore
         // gap). VICE's host arrows land here in C128 mode.
-        if ((extra & Extra.LEFT) != 0) {
-            held = held | Edge.LEFT;
+        if (extra & Extra::LEFT) != 0 {
+            held = held | Edge::LEFT;
         }
-        if ((extra & Extra.RIGHT) != 0) {
-            held = held | Edge.RIGHT;
+        if (extra & Extra::RIGHT) != 0 {
+            held = held | Edge::RIGHT;
         }
-        if ((extra & Extra.UP) != 0) {
-            held = held | Edge.UP;
+        if (extra & Extra::UP) != 0 {
+            held = held | Edge::UP;
         }
-        if ((extra & Extra.DOWN) != 0) {
-            held = held | Edge.DOWN;
+        if (extra & Extra::DOWN) != 0 {
+            held = held | Edge::DOWN;
         }
 
         // The stick in port 2, bits as on the C64: up 1, down 2, left 4,
         // right 8, fire 16.
         let stick: utinyint = sticks[1];
-        if ((stick & 4) != 0) {
-            held = held | Edge.LEFT;
+        if (stick & 4) != 0 {
+            held = held | Edge::LEFT;
         }
-        if ((stick & 8) != 0) {
-            held = held | Edge.RIGHT;
+        if (stick & 8) != 0 {
+            held = held | Edge::RIGHT;
         }
-        if ((stick & 1) != 0) {
-            held = held | Edge.UP;
+        if (stick & 1) != 0 {
+            held = held | Edge::UP;
         }
-        if ((stick & 2) != 0) {
-            held = held | Edge.DOWN;
+        if (stick & 2) != 0 {
+            held = held | Edge::DOWN;
         }
-        if ((stick & 16) != 0) {
-            held = held | Edge.CONFIRM;
+        if (stick & 16) != 0 {
+            held = held | Edge::CONFIRM;
         }
 
-        if (HAS_MOUSE) {
-            if (havePointer) {
+        if HAS_MOUSE {
+            if havePointer {
                 let column: usmallint = atX >> CELL_SHIFT;
                 let row: usmallint = atY >> CELL_SHIFT;
                 atCell = row * COLUMNS + column;
             }
             // The mouse's left button is FIRE on its own port's joystick
             // lines — port 1, which is the snapshot taken above.
-            if ((sticks[0] & 16) != 0) {
-                held = held | Edge.BUTTON;
+            if (sticks[0] & 16) != 0 {
+                held = held | Edge::BUTTON;
             }
             cia1PortA = MOUSE_PORT_1;
         }
@@ -357,40 +356,40 @@ export namespace input {
         began = held & (before ^ 0xFF);
     }
 
-    function left(): bool {
-        return (began & Edge.LEFT) != 0;
+    fn left() -> bool {
+        return (began & Edge::LEFT) != 0;
     }
 
-    function right(): bool {
-        return (began & Edge.RIGHT) != 0;
+    fn right() -> bool {
+        return (began & Edge::RIGHT) != 0;
     }
 
-    function up(): bool {
-        return (began & Edge.UP) != 0;
+    fn up() -> bool {
+        return (began & Edge::UP) != 0;
     }
 
-    function down(): bool {
-        return (began & Edge.DOWN) != 0;
+    fn down() -> bool {
+        return (began & Edge::DOWN) != 0;
     }
 
-    function confirm(): bool {
-        return (began & Edge.CONFIRM) != 0;
+    fn confirm() -> bool {
+        return (began & Edge::CONFIRM) != 0;
     }
 
-    function cancel(): bool {
-        return (began & Edge.CANCEL) != 0;
+    fn cancel() -> bool {
+        return (began & Edge::CANCEL) != 0;
     }
 
-    function pointer(): bool {
+    fn pointer() -> bool {
         return havePointer;
     }
 
-    function pointerCell(): usmallint {
+    fn pointerCell() -> usmallint {
         return atCell;
     }
 
-    function pointerButton(): bool {
-        return (began & Edge.BUTTON) != 0;
+    fn pointerButton() -> bool {
+        return (began & Edge::BUTTON) != 0;
     }
 }
 
@@ -398,23 +397,23 @@ export namespace input {
 // @8bitscript/c128/pointer draws from these rather than from
 // `pointerCell()`, which is in cells. Not a portable extra: a C64
 // program reaches the same three calls on `@8bitscript/c64/mouse`.
-export namespace mouse {
-    function x(): usmallint {
+pub mod mouse {
+    fn x() -> usmallint {
         return atX;
     }
 
-    function y(): usmallint {
+    fn y() -> usmallint {
         return atY;
     }
 
-    function present(): bool {
+    fn present() -> bool {
         return havePointer;
     }
 }
 
 // Compile-time names for the confirm control, interpolated into catalogs
 // as {control} / {other}. OR / ODER lives in the catalog, not here.
-export namespace Input {
+pub mod Input {
     const CONFIRM_LABEL: string = "RETURN";
     const ALT_CONFIRM_LABEL: string = "FIRE";
     const CONFIRM_LABELS: string = "RETURN OR FIRE";

@@ -43,25 +43,25 @@
 // keeps the portable program's shape choice in a `.c64.8bs` twin of its
 // own (`examples/swarm` shows the shape of that). Every sprite starts on
 // `hardware.FIRST_BLOCK` (@8bitscript/c64/sprites, the eight), colour 1, hidden.
-import { multiplex } from "@8bitscript/c64/multiplex";
-import { border } from "@8bitscript/c64/border";
-import { raster } from "@8bitscript/c64/raster";
-import { sprites as hardware } from "@8bitscript/c64/sprites";
+use @8bitscript::c64::multiplex::multiplex;
+use @8bitscript::c64::border::border;
+use @8bitscript::c64::raster::raster;
+use @8bitscript::c64::sprites::{sprites as hardware};
 
-let extended: bool = false;
-let opened: bool = false;   // extend(true) has been called at least once
-let enabled: bool = false;
+let mut extended: bool = false;
+let mut opened: bool = false; // extend(true) has been called at least once
+let mut enabled: bool = false;
 
-export namespace sprites {
-    const MAX: utinyint = 24;                     // multiplex.MAX
-    const PER_LINE: utinyint = 8;                 // the VIC's eight
-    const WIDTH: utinyint = 24;                   // a sprite, unexpanded
+pub mod sprites {
+    const MAX: utinyint = 24; // multiplex.MAX
+    const PER_LINE: utinyint = 8; // the VIC's eight
+    const WIDTH: utinyint = 24; // a sprite, unexpanded
     const HEIGHT: utinyint = 21;
-    const STEP_X: utinyint = 1;                   // the smallest move that shows: a pixel
+    const STEP_X: utinyint = 1; // the smallest move that shows: a pixel
     const STEP_Y: utinyint = 1;
-    const RESTORES: bool = true;                  // a sprite draws over the picture and leaves it whole
-    const EXTENDS: bool = true;                   // the vertical border opens
-    const ORIGIN_X: usmallint = 24;               // the playfield's top-left, in sprite coordinates
+    const RESTORES: bool = true; // a sprite draws over the picture and leaves it whole
+    const EXTENDS: bool = true; // the vertical border opens
+    const ORIGIN_X: usmallint = 24; // the playfield's top-left, in sprite coordinates
     const ORIGIN_Y: usmallint = 50;
 
     // Where a sprite's top-left can be and still show, in sprite
@@ -72,23 +72,23 @@ export namespace sprites {
     // line 261; NTSC has 263). The sides never open — that is
     // cycle-exact, and not offered — so left() and right() do not move.
     // A program bounces its sprites off these and follows the border.
-    function left(): usmallint {
+    fn left() -> usmallint {
         return 24;
     }
 
-    function top(): usmallint {
-        if (extended) {
+    fn top() -> usmallint {
+        if extended {
             return 30;
         }
         return 50;
     }
 
-    function right(): usmallint {
+    fn right() -> usmallint {
         return 320;
     }
 
-    function bottom(): usmallint {
-        if (extended) {
+    fn bottom() -> usmallint {
+        if extended {
             return 240;
         }
         return 229;
@@ -99,54 +99,54 @@ export namespace sprites {
     // setColor: a void function with one call site is inlined by the
     // linker (rule 9), and a program's own recolour loop is then sixteen
     // stores instead of sixteen calls — this is not that loop's second site.
-    function begin(n: utinyint): void {
-        multiplex.setCount(n);
-        for (let i: utinyint = 0; i < multiplex.MAX; i++) {
-            multiplex.set(i, 0, 255, hardware.FIRST_BLOCK, 1);
+    fn begin(n: utinyint) {
+        multiplex::setCount(n);
+        for i: utinyint in 0..multiplex::MAX {
+            multiplex::set(i, 0, 255, hardware::FIRST_BLOCK, 1);
         }
     }
 
     // The stage's y is sixteen bits (the portable rule); the VIC's is a
     // byte, and 255 means hidden to the multiplexer, so a sprite placed
     // at or below 255 is simply not drawn.
-    function place(n: utinyint, x: usmallint, y: usmallint): void {
-        if (y > 254) {
-            multiplex.hide(n);
+    fn place(n: utinyint, x: usmallint, y: usmallint) {
+        if y > 254 {
+            multiplex::hide(n);
         } else {
-            multiplex.place(n, x, y & 0xFF);
+            multiplex::place(n, x, y & 0xFF);
         }
     }
 
-    function setShape(n: utinyint, shape: utinyint): void {
-        multiplex.setShape(n, shape);
+    fn setShape(n: utinyint, shape: utinyint) {
+        multiplex::setShape(n, shape);
     }
 
-    function setColor(n: utinyint, color: utinyint): void {
-        multiplex.setColor(n, color);
+    fn setColor(n: utinyint, color: utinyint) {
+        multiplex::setColor(n, color);
     }
 
-    function hide(n: utinyint): void {
-        multiplex.hide(n);
+    fn hide(n: utinyint) {
+        multiplex::hide(n);
     }
 
     // Nothing to leave behind: a sprite draws over the picture.
-    function setBackground(code: utinyint): void {
+    fn setBackground(code: utinyint) {
     }
 
     // Open (or close) the vertical border: from the next update(), sprites
     // draw above line 50 and below line 249. The idle pattern is set
     // transparent by `border.bottom()` on the way.
-    function extend(on: bool): void {
+    fn extend(on: bool) {
         extended = on;
-        if (on) {
+        if on {
             opened = true;
         }
     }
 
     // Sprites the last update() could not fit — the ninth on a line, or
     // one whose hardware sprite was still busy above it.
-    function dropped(): utinyint {
-        return multiplex.dropped();
+    fn dropped() -> utinyint {
+        return multiplex::dropped();
     }
 
     // The frame's plan, into the list the program has opened. Returns how
@@ -165,26 +165,26 @@ export namespace sprites {
     // bottom() at 249-250 after them, so both are appends; inserted the
     // other way round each slid the whole list up a slot (1,500 cycles a
     // frame, measured).
-    function plan(): utinyint {
-        if (opened) {
-            border.top();
+    fn plan() -> utinyint {
+        if opened {
+            border::top();
         }
-        let shown: utinyint = multiplex.update();
-        if (extended) {
-            border.bottom();
+        let shown: utinyint = multiplex::update();
+        if extended {
+            border::bottom();
         }
         return shown;
     }
 
     // The frame's plan, list opened and committed here. Returns how many
     // sprites will draw.
-    function update(): utinyint {
-        raster.clear();
-        let shown: utinyint = sprites.plan();
-        if (enabled) {
-            raster.commit();
+    fn update() -> utinyint {
+        raster::clear();
+        let shown: utinyint = sprites::plan();
+        if enabled {
+            raster::commit();
         } else {
-            raster.enable();
+            raster::enable();
             enabled = true;
         }
         return shown;

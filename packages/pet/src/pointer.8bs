@@ -21,19 +21,18 @@
 // not have and this repository has no driver for: the light pen on the
 // 8296's user port, or a KoalaPad. Both would be a new hardware option in
 // packages/pet's catalog first, and neither would be a mouse.
-export namespace pointer {
-
+pub mod pointer {
     const DRAWS: bool = false;
 
-    function begin(): void {
+    fn begin() {
     }
 
-    function setColor(color: utinyint): void {
+    fn setColor(color: utinyint) {
     }
 
-    function update(): void {
+    fn update() {
     }
 
-    function hide(): void {
+    fn hide() {
     }
 }

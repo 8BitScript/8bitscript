@@ -35,70 +35,70 @@
 // a one-pixel marker, x 16 + X but y 15 + Y in the screenshot. The first
 // place() reads DC_VSTART once and adds that line back, so a sprite placed at
 // (0, 0) sits on the same pixel as the text grid's cell (0, 0).
-import { setVramAddress } from "@8bitscript/cx16";
+use @8bitscript::cx16::setVramAddress;
 
 const SLOTS: utinyint = 8;
 const KIND_CX16: utinyint = 5;
 const PALETTE_BYTES: utinyint = 32;
-const PALETTE_LOW: usmallint = 0xFB00;   // bank 1: palette entry 128
-const ATTR_LOW: usmallint = 0xFC00;      // bank 1: sprite 0's attributes
-const DATA_LOW: usmallint = 0x4000;      // bank 0: sprite 0's window
-const WINDOW: usmallint = 0x1000;        // bytes of pixels a sprite may hold
-const BACKUP_LOW: usmallint = 0xC000;    // bank 0: a copy of sprite 0's palette block
+const PALETTE_LOW: usmallint = 0xFB00; // bank 1: palette entry 128
+const ATTR_LOW: usmallint = 0xFC00; // bank 1: sprite 0's attributes
+const DATA_LOW: usmallint = 0x4000; // bank 0: sprite 0's window
+const WINDOW: usmallint = 0x1000; // bytes of pixels a sprite may hold
+const BACKUP_LOW: usmallint = 0xC000; // bank 0: a copy of sprite 0's palette block
 const DEFAULT_PALETTE_LOW: usmallint = 0xFA00; // bank 1: palette entry 0
-const OWN_COLORS: utinyint = 16;         // color(): from here up, the picture's own palette
-const SCREEN_X: usmallint = 640;         // VERA's X and Y are ten bits: a position at or past
-const SCREEN_Y: usmallint = 480;         // the screen's size is off it, and must not wrap to the left
+const OWN_COLORS: utinyint = 16; // color(): from here up, the picture's own palette
+const SCREEN_X: usmallint = 640; // VERA's X and Y are ten bits: a position at or past
+const SCREEN_Y: usmallint = 480; // the screen's size is off it, and must not wrap to the left
 const FIRST_PALETTE_OFFSET: utinyint = 8;
-const IN_FRONT: utinyint = 0x0C;         // z-depth 3: in front of both layers
+const IN_FRONT: utinyint = 0x0C; // z-depth 3: in front of both layers
 
-let frameCount: array<u8, 8>;
-let interval: array<u8, 8>;
-let tick: array<u8, 8>;
-let frame: array<u8, 8>;
-let shown: array<u8, 8>;
-let paused: array<u8, 8>;    // 1: automatic stepping paused
-let sizeBits: array<u8, 8>;
-let frameBytes: array<u16, 8>;
-let px: array<u16, 8>;
-let py: array<u16, 8>;
-let enabled: bool = false;
-let rise: usmallint = 0; // lines to add back to every sprite's Y; see above
+let mut frameCount: [u8; 8];
+let mut interval: [u8; 8];
+let mut tick: [u8; 8];
+let mut frame: [u8; 8];
+let mut shown: [u8; 8];
+let mut paused: [u8; 8]; // 1: automatic stepping paused
+let mut sizeBits: [u8; 8];
+let mut frameBytes: [u16; 8];
+let mut px: [u16; 8];
+let mut py: [u16; 8];
+let mut enabled: bool = false;
+let mut rise: usmallint = 0; // lines to add back to every sprite's Y; see above
 
-function vramWrite(bank: utinyint, low: usmallint, value: utinyint): void {
+fn vramWrite(bank: utinyint, low: usmallint, value: utinyint) {
     setVramAddress(bank, low, 1);
-    memory.write(0x9F23, value);
+    memory::write(0x9F23, value);
 }
 
-function attrAddress(slot: utinyint): usmallint {
+fn attrAddress(slot: utinyint) -> usmallint {
     let wide: usmallint = slot;
     return ATTR_LOW + (wide + 1) * 8;
 }
 
 // VERA's sprite switch is bit 6 of DC_VIDEO, which sits behind DCSEL = 0.
-function enableSprites(): void {
-    if (enabled) {
+fn enableSprites() {
+    if enabled {
         return;
     }
     enabled = true;
-    let ctrl: utinyint = memory.read(0x9F25);
-    memory.write(0x9F25, ctrl & 0xFD);
-    memory.write(0x9F29, memory.read(0x9F29) | 0x40);
-    memory.write(0x9F25, 0x02);
-    if (memory.read(0x9F2B) != 0) {
+    let ctrl: utinyint = memory::read(0x9F25);
+    memory::write(0x9F25, ctrl & 0xFD);
+    memory::write(0x9F29, memory::read(0x9F29) | 0x40);
+    memory::write(0x9F25, 0x02);
+    if memory::read(0x9F2B) != 0 {
         rise = 1;
     }
-    memory.write(0x9F25, ctrl);
+    memory::write(0x9F25, ctrl);
 }
 
-function sizeCode(n: utinyint): utinyint {
-    if (n >= 64) {
+fn sizeCode(n: utinyint) -> utinyint {
+    if n >= 64 {
         return 3;
     }
-    if (n >= 32) {
+    if n >= 32 {
         return 2;
     }
-    if (n >= 16) {
+    if n >= 16 {
         return 1;
     }
     return 0;
@@ -106,7 +106,7 @@ function sizeCode(n: utinyint): utinyint {
 
 // Point the sprite at the current frame: the pixel address in 32-byte units,
 // low byte first, its top nibble beside the 4bpp mode bit (clear).
-function writeFrame(slot: utinyint): void {
+fn writeFrame(slot: utinyint) {
     let wide: usmallint = slot;
     let step: usmallint = frame[slot];
     let unit: usmallint = (DATA_LOW + wide * WINDOW + step * frameBytes[slot]) / 32;
@@ -115,45 +115,45 @@ function writeFrame(slot: utinyint): void {
     vramWrite(1, at + 1, unit / 256);
 }
 
-function showSprite(slot: utinyint): void {
+fn showSprite(slot: utinyint) {
     let at: usmallint = attrAddress(slot);
     let x: usmallint = px[slot];
     let y: usmallint = py[slot] + rise;
     // VERA keeps ten bits of each coordinate, so 1020 would come back in at
     // the left edge: a sprite placed off the screen is switched off (z-depth
     // 0) instead, and place() writes it back on when it is on again.
-    let z: utinyint = IN_FRONT;
-    if (x >= SCREEN_X || y >= SCREEN_Y) {
+    let mut z: utinyint = IN_FRONT;
+    if x >= SCREEN_X || y >= SCREEN_Y {
         z = 0;
     }
     setVramAddress(1, at + 2, 1);
-    memory.write(0x9F23, x % 256);
-    memory.write(0x9F23, x / 256);
-    memory.write(0x9F23, y % 256);
-    memory.write(0x9F23, y / 256);
-    memory.write(0x9F23, z);
-    memory.write(0x9F23, sizeBits[slot]);
+    memory::write(0x9F23, x % 256);
+    memory::write(0x9F23, x / 256);
+    memory::write(0x9F23, y % 256);
+    memory::write(0x9F23, y / 256);
+    memory::write(0x9F23, z);
+    memory::write(0x9F23, sizeBits[slot]);
 }
 
-export namespace graphics {
+pub mod graphics {
     // The portable contract (index.8bs): what this machine answers.
-    const MAX: utinyint = 8;                  // VERA sprites 1-8; sprite 0 is the KERNAL's mouse
-    const FRAMES: utinyint = 2;               // of a WIDTH x HEIGHT picture: a sprite's 4096-byte window holds 32 at 16x16, 8 at 32x16, 2 at 64x64
-    const WIDTH: utinyint = 64;               // VERA's largest sprite
+    const MAX: utinyint = 8; // VERA sprites 1-8; sprite 0 is the KERNAL's mouse
+    const FRAMES: utinyint = 2; // of a WIDTH x HEIGHT picture: a sprite's 4096-byte window holds 32 at 16x16, 8 at 32x16, 2 at 64x64
+    const WIDTH: utinyint = 64; // VERA's largest sprite
     const HEIGHT: utinyint = 64;
-    const COLORS: utinyint = 15;              // 4 bpp: its own palette block, transparent aside
-    const RECOLORS: bool = true;              // color(): the object in one of the 16 default colors, or its own again
-    const STEP_X: utinyint = 1;               // a pixel
+    const COLORS: utinyint = 15; // 4 bpp: its own palette block, transparent aside
+    const RECOLORS: bool = true; // color(): the object in one of the 16 default colors, or its own again
+    const STEP_X: utinyint = 1; // a pixel
     const STEP_Y: utinyint = 1;
-    const RESTORES: bool = true;              // a sprite draws over the layers and leaves them whole
-    const TRANSPARENT: bool = true;           // palette entry 0 of a sprite is clear
+    const RESTORES: bool = true; // a sprite draws over the layers and leaves them whole
+    const TRANSPARENT: bool = true; // palette entry 0 of a sprite is clear
 
-    function bind(slot: utinyint, index: usmallint, value: utinyint): void {
-        if (slot >= SLOTS) {
+    fn bind(slot: utinyint, index: usmallint, value: utinyint) {
+        if slot >= SLOTS {
             return;
         }
         let wide: usmallint = slot;
-        if (index < PALETTE_BYTES) {
+        if index < PALETTE_BYTES {
             vramWrite(1, PALETTE_LOW + wide * 32 + index, value);
             vramWrite(0, BACKUP_LOW + wide * 32 + index, value);
             return;
@@ -161,8 +161,8 @@ export namespace graphics {
         vramWrite(0, DATA_LOW + wide * WINDOW + index - PALETTE_BYTES, value);
     }
 
-    function meta(slot: utinyint, frames: utinyint, every: utinyint, kind: utinyint, width: utinyint, height: utinyint): void {
-        if (slot >= SLOTS) {
+    fn meta(slot: utinyint, frames: utinyint, every: utinyint, kind: utinyint, width: utinyint, height: utinyint) {
+        if slot >= SLOTS {
             return;
         }
         let w: usmallint = width;
@@ -173,12 +173,12 @@ export namespace graphics {
         frame[slot] = 0;
         shown[slot] = 0;
         paused[slot] = 0;
-        frameBytes[slot] = (w * h) / 2;
+        frameBytes[slot] = w * h / 2;
         sizeBits[slot] = sizeCode(height) * 64 + sizeCode(width) * 16 + FIRST_PALETTE_OFFSET + slot;
     }
 
-    function place(slot: utinyint, x: usmallint, y: usmallint): void {
-        if (slot >= SLOTS) {
+    fn place(slot: utinyint, x: usmallint, y: usmallint) {
+        if slot >= SLOTS {
             return;
         }
         enableSprites();
@@ -190,39 +190,39 @@ export namespace graphics {
     }
 
     // Z-depth 0 disables a sprite; the next place() writes it back.
-    function hide(slot: utinyint): void {
-        if (slot >= SLOTS) {
+    fn hide(slot: utinyint) {
+        if slot >= SLOTS {
             return;
         }
         shown[slot] = 0;
-        if (enabled) {
+        if enabled {
             vramWrite(1, attrAddress(slot) + 6, 0);
         }
     }
 
-    function setFrame(slot: utinyint, n: utinyint): void {
-        if (slot >= SLOTS) {
+    fn setFrame(slot: utinyint, n: utinyint) {
+        if slot >= SLOTS {
             return;
         }
-        if (frameCount[slot] == 0) {
+        if frameCount[slot] == 0 {
             return;
         }
-        if (n >= frameCount[slot]) {
+        if n >= frameCount[slot] {
             n = frameCount[slot] - 1;
         }
         frame[slot] = n;
         tick[slot] = 0;
-        if (shown[slot] != 0) {
+        if shown[slot] != 0 {
             writeFrame(slot);
         }
     }
 
-    function animate(slot: utinyint, on: bool): void {
-        if (slot >= SLOTS) {
+    fn animate(slot: utinyint, on: bool) {
+        if slot >= SLOTS {
             return;
         }
         paused[slot] = 1;
-        if (on) {
+        if on {
             paused[slot] = 0;
         }
     }
@@ -236,45 +236,45 @@ export namespace graphics {
     // only the object's own palette block — fifteen entries, or the copy
     // bind() kept — so other objects, the text and the raster list are not
     // touched. Entry 0 is the transparent index and is left alone.
-    function color(slot: utinyint, c: utinyint): void {
-        if (slot >= SLOTS) {
+    fn color(slot: utinyint, c: utinyint) {
+        if slot >= SLOTS {
             return;
         }
         let wide: usmallint = slot;
         let block: usmallint = PALETTE_LOW + wide * 32;
-        if (c >= OWN_COLORS) {
-            for (let i: utinyint = 2; i < PALETTE_BYTES; i++) {
+        if c >= OWN_COLORS {
+            for i: utinyint in 2..PALETTE_BYTES {
                 let at: usmallint = i;
                 setVramAddress(0, BACKUP_LOW + wide * 32 + at, 0);
-                let byte: utinyint = memory.read(0x9F23);
+                let byte: utinyint = memory::read(0x9F23);
                 vramWrite(1, block + at, byte);
             }
             return;
         }
         let entry: usmallint = c;
         setVramAddress(1, DEFAULT_PALETTE_LOW + entry * 2, 1);
-        let low: utinyint = memory.read(0x9F23);
-        let high: utinyint = memory.read(0x9F23);
+        let low: utinyint = memory::read(0x9F23);
+        let high: utinyint = memory::read(0x9F23);
         setVramAddress(1, block + 2, 1);
-        for (let i: utinyint = 1; i < 16; i++) {
-            memory.write(0x9F23, low);
-            memory.write(0x9F23, high);
+        for i: utinyint in 1..16 {
+            memory::write(0x9F23, low);
+            memory::write(0x9F23, high);
         }
     }
 
-    function update(): void {
-        if (!enabled) {
+    fn update() {
+        if !enabled {
             return;
         }
-        for (let slot: utinyint = 0; slot < SLOTS; slot++) {
-            if (shown[slot] == 0 || frameCount[slot] < 2 || paused[slot] != 0) {
+        for slot: utinyint in 0..SLOTS {
+            if shown[slot] == 0 || frameCount[slot] < 2 || paused[slot] != 0 {
                 continue;
             }
             tick[slot] = tick[slot] + 1;
-            if (tick[slot] >= interval[slot]) {
+            if tick[slot] >= interval[slot] {
                 tick[slot] = 0;
                 frame[slot] = frame[slot] + 1;
-                if (frame[slot] >= frameCount[slot]) {
+                if frame[slot] >= frameCount[slot] {
                     frame[slot] = 0;
                 }
                 writeFrame(slot);

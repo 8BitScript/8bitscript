@@ -56,15 +56,15 @@
 // was on screen at (335, 254), which is (319, 239) plus the inset, so
 // the KERNAL is already in the inset space. Shift down by the 8-pixel
 // cell size; a pointer past the visible 76×56 clamps to the last cell.
-import { mouse } from "./mouse.8bs";
+use self::mouse::mouse;
 
-const HAS_MOUSE: bool = #fact(input.mouse);
+const HAS_MOUSE: bool = #fact(input::mouse);
 
-const COLUMNS: usmallint = #fact(video.columns);
-const ROWS: usmallint = #fact(video.rows);
+const COLUMNS: usmallint = #fact(video::columns);
+const ROWS: usmallint = #fact(video::rows);
 const CELL_SHIFT: utinyint = 3; // 8 pixels a cell
 
-namespace Edge {
+mod Edge {
     const LEFT: utinyint = 1;
     const RIGHT: utinyint = 2;
     const UP: utinyint = 4;
@@ -76,7 +76,7 @@ namespace Edge {
 
 // SNES / keyboard-joystick bits, active low. Same numbers as C_RT..C_B
 // and C_A in kernal/drivers/x16/joystick.s.
-namespace Snes {
+mod Snes {
     const RIGHT: utinyint = 1;
     const LEFT: utinyint = 2;
     const DOWN: utinyint = 4;
@@ -86,32 +86,29 @@ namespace Snes {
     const B: utinyint = 128;
 }
 
-namespace SnesHi {
+mod SnesHi {
     const A: utinyint = 128;
 }
 
 // Scratch for joystick_get's A/X/Y. $80-$84 is the mouse buffer; $85-$87
 // is the next three bytes of ZPKERNAL, which this poll owns under `sei`
 // the same way ./mouse.8bs owns $80-$84.
-@address(0x85)
-let joyA: volatile<utinyint>;
-@address(0x86)
-let joyX: volatile<utinyint>;
-@address(0x87)
-let joyY: volatile<utinyint>;
+#[address(0x85)] let joyA: volatile<utinyint>;
+#[address(0x86)] let joyX: volatile<utinyint>;
+#[address(0x87)] let joyY: volatile<utinyint>;
 
-let held: utinyint = 0;
-let before: utinyint = 0;
-let began: utinyint = 0;
+let mut held: utinyint = 0;
+let mut before: utinyint = 0;
+let mut began: utinyint = 0;
 
-let atCell: usmallint = 0;
+let mut atCell: usmallint = 0;
 
 // Pixel to a column or row on the visible grid: shift down by the cell
 // size, clamp to the last cell. mouse_get's origin is the active area's
 // top-left (see the header), so there is no inset to subtract.
-function cellOn(pixel: usmallint, limit: usmallint): usmallint {
+fn cellOn(pixel: usmallint, limit: usmallint) -> usmallint {
     let at: usmallint = pixel >> CELL_SHIFT;
-    if (at >= limit) {
+    if at >= limit {
         return limit - 1;
     }
     return at;
@@ -120,32 +117,31 @@ function cellOn(pixel: usmallint, limit: usmallint): usmallint {
 // Active-low SNES bits into the portable held mask. START and A both
 // confirm (Enter is START on joy0; a pad player's A is the reflex
 // button, same as the NES layer). SELECT and B cancel.
-function orSnes(lo: utinyint, hi: utinyint): void {
-    if ((lo & Snes.LEFT) == 0) {
-        held = held | Edge.LEFT;
+fn orSnes(lo: utinyint, hi: utinyint) {
+    if (lo & Snes::LEFT) == 0 {
+        held = held | Edge::LEFT;
     }
-    if ((lo & Snes.RIGHT) == 0) {
-        held = held | Edge.RIGHT;
+    if (lo & Snes::RIGHT) == 0 {
+        held = held | Edge::RIGHT;
     }
-    if ((lo & Snes.UP) == 0) {
-        held = held | Edge.UP;
+    if (lo & Snes::UP) == 0 {
+        held = held | Edge::UP;
     }
-    if ((lo & Snes.DOWN) == 0) {
-        held = held | Edge.DOWN;
+    if (lo & Snes::DOWN) == 0 {
+        held = held | Edge::DOWN;
     }
-    if ((lo & Snes.START) == 0 || (hi & SnesHi.A) == 0) {
-        held = held | Edge.CONFIRM;
+    if (lo & Snes::START) == 0 || (hi & SnesHi::A) == 0 {
+        held = held | Edge::CONFIRM;
     }
-    if ((lo & Snes.SELECT) == 0 || (lo & Snes.B) == 0) {
-        held = held | Edge.CANCEL;
+    if (lo & Snes::SELECT) == 0 || (lo & Snes::B) == 0 {
+        held = held | Edge::CANCEL;
     }
 }
 
-export namespace input {
-
-    function begin(): void {
-        if (HAS_MOUSE) {
-            mouse.begin();
+pub mod input {
+    fn begin() {
+        if HAS_MOUSE {
+            mouse::begin();
         }
         // One poll before the program's first, so the edge detector starts
         // from what is actually held rather than from nothing. `before` is
@@ -154,11 +150,11 @@ export namespace input {
         // starts reads as a fresh press on frame one. Measured on the
         // MEGA65, whose RETURN key is down at start-up: the joystick example
         // counted a confirm() nobody pressed until begin() primed this.
-        input.poll();
+        input::poll();
     }
 
     // Once a frame, right after waitFrame(), and never twice.
-    function poll(): void {
+    fn poll() {
         // Interrupts off for the KERNAL calls (none of them is re-entrant),
         // and back as they were after the last one: off in a waitFrame()
         // program, on while @8bitscript/cx16/rasterline's handler is
@@ -167,8 +163,8 @@ export namespace input {
             php
             sei
         }
-        if (HAS_MOUSE) {
-            mouse.poll();
+        if HAS_MOUSE {
+            mouse::poll();
         } else {
             asm6502 {
                 lda #8
@@ -187,8 +183,8 @@ export namespace input {
             stx $86
             sty $87
         }
-        let lo: utinyint = joyA;
-        let hi: utinyint = joyX;
+        let mut lo: utinyint = joyA;
+        let mut hi: utinyint = joyX;
         asm6502 {
             lda #1
             jsr $FF56
@@ -196,7 +192,7 @@ export namespace input {
             stx $86
             sty $87
         }
-        if (joyY == 0) {
+        if joyY == 0 {
             lo = lo & joyA;
             hi = hi & joyX;
         }
@@ -208,7 +204,7 @@ export namespace input {
             sty $87
             plp
         }
-        if (joyY == 0) {
+        if joyY == 0 {
             lo = lo & joyA;
             hi = hi & joyX;
         }
@@ -217,58 +213,58 @@ export namespace input {
         held = 0;
         orSnes(lo, hi);
 
-        if (HAS_MOUSE) {
-            let column: usmallint = cellOn(mouse.x(), COLUMNS);
-            let row: usmallint = cellOn(mouse.y(), ROWS);
+        if HAS_MOUSE {
+            let column: usmallint = cellOn(mouse::x(), COLUMNS);
+            let row: usmallint = cellOn(mouse::y(), ROWS);
             atCell = row * COLUMNS + column;
-            if (mouse.left()) {
-                held = held | Edge.BUTTON;
+            if mouse::left() {
+                held = held | Edge::BUTTON;
             }
         }
 
         began = held & (before ^ 0xFF);
     }
 
-    function left(): bool {
-        return (began & Edge.LEFT) != 0;
+    fn left() -> bool {
+        return (began & Edge::LEFT) != 0;
     }
 
-    function right(): bool {
-        return (began & Edge.RIGHT) != 0;
+    fn right() -> bool {
+        return (began & Edge::RIGHT) != 0;
     }
 
-    function up(): bool {
-        return (began & Edge.UP) != 0;
+    fn up() -> bool {
+        return (began & Edge::UP) != 0;
     }
 
-    function down(): bool {
-        return (began & Edge.DOWN) != 0;
+    fn down() -> bool {
+        return (began & Edge::DOWN) != 0;
     }
 
-    function confirm(): bool {
-        return (began & Edge.CONFIRM) != 0;
+    fn confirm() -> bool {
+        return (began & Edge::CONFIRM) != 0;
     }
 
-    function cancel(): bool {
-        return (began & Edge.CANCEL) != 0;
+    fn cancel() -> bool {
+        return (began & Edge::CANCEL) != 0;
     }
 
-    function pointer(): bool {
+    fn pointer() -> bool {
         return HAS_MOUSE;
     }
 
-    function pointerCell(): usmallint {
+    fn pointerCell() -> usmallint {
         return atCell;
     }
 
-    function pointerButton(): bool {
-        return (began & Edge.BUTTON) != 0;
+    fn pointerButton() -> bool {
+        return (began & Edge::BUTTON) != 0;
     }
 }
 
 // Compile-time names for the confirm control, interpolated into catalogs
 // as {control} / {other}. OR / ODER lives in the catalog, not here.
-export namespace Input {
+pub mod Input {
     const CONFIRM_LABEL: string = "RETURN";
     const ALT_CONFIRM_LABEL: string = "START";
     const CONFIRM_LABELS: string = "RETURN OR START";

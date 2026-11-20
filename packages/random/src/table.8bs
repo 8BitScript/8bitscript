@@ -34,39 +34,39 @@
 // not: any 256 consecutive calls to `next()`, from any starting `index`,
 // use every possible byte exactly once — perfectly even in the long run
 // by construction, not by chance, at the cost of the short period above.
-const TABLE: array<utinyint, 256> = [
-    184, 152, 234,  42, 232, 225, 236, 202, 129, 123, 183,  74, 187,  15, 249, 166,
-     47,  68, 218,  37, 134, 110, 147,  91, 219, 229, 148, 135,  13, 111, 222, 195,
-    113, 126,  19, 190,  49,  11, 142,  18,  10, 154, 206, 254,  77, 199,  99, 250,
-    231,  59, 233,  72, 107, 196,  26, 252, 235, 238, 100, 138, 139, 189, 178, 118,
-    212,  78,  98, 214, 167, 143,  71, 145,  87, 179, 165,  28,  16,  53,  30,  86,
-     60, 205, 247, 120, 128,  76, 185, 207,  97,  51, 204, 169,  39, 159, 217, 161,
-     43,  57,   4,  75, 141,   3, 251,  84, 155, 198,  23, 239,  61,  27,  90,  14,
-    177, 230, 245, 197,  64, 140,  65, 226, 151,   6,  56, 127, 181, 255,  88, 103,
-    223,  21,  29, 224,  62, 115,  46,  22, 173,   1, 156, 241,  17, 125, 208, 228,
-    122, 132,  54,  70,  69, 105, 149, 101, 200, 112, 243, 168,  80,  66, 182, 248,
-    203, 201,  31,  85, 176,  55,  63,  50, 211, 193,  52,  38,  45,  40, 209, 237,
-    119, 133, 216,  41, 244,  25, 246, 121, 215, 171,  12, 160, 144,  92, 106, 227,
-     35, 130,   8, 108, 158, 162,  36,  48, 174,  34, 117,  67, 153, 186, 194,  32,
-    157, 175,  95,  79, 221, 191,  81,  44, 163,   0, 253, 104, 136, 150, 240,  73,
-    210,  96,   7, 146, 188, 114,   5,  82, 213, 137,  93, 124,  94,  83,  89,  58,
-    116, 170, 180,   2, 242, 131, 192, 102,  20, 164, 109, 172, 220,  24,   9,  33,
+const TABLE: [utinyint; 256] = [
+    184, 152, 234, 42, 232, 225, 236, 202, 129, 123, 183, 74, 187, 15, 249, 166,
+    47, 68, 218, 37, 134, 110, 147, 91, 219, 229, 148, 135, 13, 111, 222, 195,
+    113, 126, 19, 190, 49, 11, 142, 18, 10, 154, 206, 254, 77, 199, 99, 250,
+    231, 59, 233, 72, 107, 196, 26, 252, 235, 238, 100, 138, 139, 189, 178, 118,
+    212, 78, 98, 214, 167, 143, 71, 145, 87, 179, 165, 28, 16, 53, 30, 86,
+    60, 205, 247, 120, 128, 76, 185, 207, 97, 51, 204, 169, 39, 159, 217, 161,
+    43, 57, 4, 75, 141, 3, 251, 84, 155, 198, 23, 239, 61, 27, 90, 14,
+    177, 230, 245, 197, 64, 140, 65, 226, 151, 6, 56, 127, 181, 255, 88, 103,
+    223, 21, 29, 224, 62, 115, 46, 22, 173, 1, 156, 241, 17, 125, 208, 228,
+    122, 132, 54, 70, 69, 105, 149, 101, 200, 112, 243, 168, 80, 66, 182, 248,
+    203, 201, 31, 85, 176, 55, 63, 50, 211, 193, 52, 38, 45, 40, 209, 237,
+    119, 133, 216, 41, 244, 25, 246, 121, 215, 171, 12, 160, 144, 92, 106, 227,
+    35, 130, 8, 108, 158, 162, 36, 48, 174, 34, 117, 67, 153, 186, 194, 32,
+    157, 175, 95, 79, 221, 191, 81, 44, 163, 0, 253, 104, 136, 150, 240, 73,
+    210, 96, 7, 146, 188, 114, 5, 82, 213, 137, 93, 124, 94, 83, 89, 58,
+    116, 170, 180, 2, 242, 131, 192, 102, 20, 164, 109, 172, 220, 24, 9, 33,
 ];
 
-let index: utinyint = 0;
+let mut index: utinyint = 0;
 
-export namespace table {
+pub mod table {
     // Replaces the running position, wherever a program wants to start —
     // `index` is a `utinyint`, so any value is in range and wraps at 256
     // for free (256 is exactly `TABLE.length`).
-    function seed(value: utinyint): void {
+    fn seed(value: utinyint) {
         index = value;
     }
 
     // The byte at the current position, then step to the next one.
-    function next(): utinyint {
+    fn next() -> utinyint {
         let value: utinyint = TABLE[index];
-        index++;
+        index += 1;
         return value;
     }
 
@@ -76,12 +76,12 @@ export namespace table {
     // sharper than the LCG's: any 256 consecutive bytes are every byte once,
     // so any stretch of 256 table steps gives each outcome 256 / bound
     // (rounded down) times *exactly*, not just on average.
-    function range(bound: utinyint): utinyint {
+    fn range(bound: utinyint) -> utinyint {
         let limit: utinyint = 0 - bound;
-        let value: utinyint = table.next();
-        let rest: utinyint = value % bound;
-        while (value - rest > limit) {
-            value = table.next();
+        let mut value: utinyint = table::next();
+        let mut rest: utinyint = value % bound;
+        while value - rest > limit {
+            value = table::next();
             rest = value % bound;
         }
         return rest;
@@ -90,9 +90,9 @@ export namespace table {
     // The top `count` bits of the next table byte (1 to 8): a value from 0
     // up to 2^count, exactly uniform, no rejection. Same call as the
     // default generator's `bits`.
-    function bits(count: utinyint): utinyint {
-        let value: utinyint = table.next();
-        for (let i: utinyint = count; i < 8; i++) {
+    fn bits(count: utinyint) -> utinyint {
+        let mut value: utinyint = table::next();
+        for i: utinyint in count..8 {
             value = value >> 1;
         }
         return value;
@@ -104,7 +104,7 @@ export namespace table {
     // rather than asking this file to keep a second counter next to it.
     // `at(0)` and repeated `next()` calls from `seed(0)` agree, because
     // this is exactly what `next()` reads before it steps `index`.
-    function at(i: utinyint): utinyint {
+    fn at(i: utinyint) -> utinyint {
         return TABLE[i];
     }
 }

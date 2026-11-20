@@ -1,7 +1,7 @@
 // Every screen code 0..255 in the lower-and-upper-case (text) set, chosen with
 // the machine's own register. See charsetdump.8bs.
-import { run } from "./charsetdump.8bs";
+use self::charsetdump::run;
 
-export function main(): void {
+pub fn main() {
     run(true);
 }

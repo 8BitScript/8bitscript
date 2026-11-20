@@ -42,13 +42,10 @@
 // both. `useLowercase` selects the ROM's mixed-case set at $D800 (the one
 // @8bitscript/text's next print selects anyway); `useUppercase` selects the
 // set the `define` family writes to.
-import {
-    control2, memoryPointer, backgroundColor1, backgroundColor2,
-    setupVideo, copyCharacterRom, videoMode, VideoMode, bankIoOut, bankIoIn, readUnderIo,
-} from "./index.8bs";
-import { Video } from "./geometry.8bs";
+use self::index::{control2, memoryPointer, backgroundColor1, backgroundColor2, setupVideo, copyCharacterRom, videoMode, VideoMode, bankIoOut, bankIoIn, readUnderIo};
+use self::geometry::Video;
 
-export namespace charset {
+pub mod charset {
     const COUNT: usmallint = 256;
     const BYTES: utinyint = 8; // a glyph: one byte a row
 
@@ -56,60 +53,60 @@ export namespace charset {
     // widened before the shift: a binop computes at its operands' own width,
     // so `code * 8` with a utinyint `code` wrapped at 8 bits and every glyph
     // from 32 up was written 256 bytes (32 glyphs) low.
-    function offset(code: utinyint): usmallint {
+    fn offset(code: utinyint) -> usmallint {
         let wide: usmallint = code;
-        return Video.CHARSET + (wide << 3);
+        return Video::CHARSET + (wide << 3);
     }
 
     // Glyph `code` becomes the eight rows given, top to bottom.
-    function define(code: utinyint, row0: utinyint, row1: utinyint, row2: utinyint, row3: utinyint, row4: utinyint, row5: utinyint, row6: utinyint, row7: utinyint): void {
+    fn define(code: utinyint, row0: utinyint, row1: utinyint, row2: utinyint, row3: utinyint, row4: utinyint, row5: utinyint, row6: utinyint, row7: utinyint) {
         setupVideo();
-        let at: usmallint = charset.offset(code);
+        let at: usmallint = charset::offset(code);
         bankIoOut();
-        memory.write(at, row0);
-        memory.write(at + 1, row1);
-        memory.write(at + 2, row2);
-        memory.write(at + 3, row3);
-        memory.write(at + 4, row4);
-        memory.write(at + 5, row5);
-        memory.write(at + 6, row6);
-        memory.write(at + 7, row7);
+        memory::write(at, row0);
+        memory::write(at + 1, row1);
+        memory::write(at + 2, row2);
+        memory::write(at + 3, row3);
+        memory::write(at + 4, row4);
+        memory::write(at + 5, row5);
+        memory::write(at + 6, row6);
+        memory::write(at + 7, row7);
         bankIoIn();
     }
 
     // One row of glyph `code`.
-    function setRow(code: utinyint, row: utinyint, bits: utinyint): void {
+    fn setRow(code: utinyint, row: utinyint, bits: utinyint) {
         setupVideo();
         bankIoOut();
-        memory.write(charset.offset(code) + (row & 7), bits);
+        memory::write(charset::offset(code) + (row & 7), bits);
         bankIoIn();
     }
 
     // Read one row back.
-    function readRow(code: utinyint, row: utinyint): utinyint {
+    fn readRow(code: utinyint, row: utinyint) -> utinyint {
         setupVideo();
-        return readUnderIo(charset.offset(code) + (row & 7));
+        return readUnderIo(charset::offset(code) + (row & 7));
     }
 
     // Glyph `target` becomes a copy of glyph `source`.
-    function copy(target: utinyint, source: utinyint): void {
+    fn copy(target: utinyint, source: utinyint) {
         setupVideo();
-        let sourceAt: usmallint = charset.offset(source);
-        let targetAt: usmallint = charset.offset(target);
+        let sourceAt: usmallint = charset::offset(source);
+        let targetAt: usmallint = charset::offset(target);
         bankIoOut();
-        for (let i: utinyint = 0; i < 8; i++) {
-            memory.write(targetAt + i, memory.read(sourceAt + i));
+        for i: utinyint in 0..8 {
+            memory::write(targetAt + i, memory::read(sourceAt + i));
         }
         bankIoIn();
     }
 
     // Every row of glyph `code` the same byte: 0 blank, 255 solid.
-    function fill(code: utinyint, bits: utinyint): void {
+    fn fill(code: utinyint, bits: utinyint) {
         setupVideo();
-        let at: usmallint = charset.offset(code);
+        let at: usmallint = charset::offset(code);
         bankIoOut();
-        for (let i: utinyint = 0; i < 8; i++) {
-            memory.write(at + i, bits);
+        for i: utinyint in 0..8 {
+            memory::write(at + i, bits);
         }
         bankIoIn();
     }
@@ -117,14 +114,14 @@ export namespace charset {
     // The ROM's glyphs again, both sets — all 4K under the I/O area, so
     // in bitmap mode this also overwrites the color matrix and the shape
     // blocks that live there: leave bitmap mode first.
-    function restore(): void {
+    fn restore() {
         setupVideo();
         copyCharacterRom();
     }
 
     // Multicolor text mode on or off (see the header).
-    function setMulticolor(on: bool): void {
-        if (on) {
+    fn setMulticolor(on: bool) {
+        if on {
             control2 = control2 | 0x10;
         } else {
             control2 = control2 & 0xEF;
@@ -132,26 +129,26 @@ export namespace charset {
     }
 
     // The two shared multicolor text colors ($D022, $D023).
-    function setSharedColors(color1: utinyint, color2: utinyint): void {
+    fn setSharedColors(color1: utinyint, color2: utinyint) {
         backgroundColor1 = color1 & 15;
         backgroundColor2 = color2 & 15;
     }
 
     // The ROM's mixed-case set (text mode only). @8bitscript/text's next
     // print selects it again on its own.
-    function useLowercase(): void {
+    fn useLowercase() {
         setupVideo();
-        if (videoMode == VideoMode.TEXT) {
-            memoryPointer = Video.MEMORY_POINTER_LOWERCASE;
+        if videoMode == VideoMode::TEXT {
+            memoryPointer = Video::MEMORY_POINTER_LOWERCASE;
         }
     }
 
     // The upper-case/graphics set: the one `define`, `setRow`, `copy` and
     // `fill` write to. Call it after a text print to see their glyphs.
-    function useUppercase(): void {
+    fn useUppercase() {
         setupVideo();
-        if (videoMode == VideoMode.TEXT) {
-            memoryPointer = Video.MEMORY_POINTER_UPPERCASE;
+        if videoMode == VideoMode::TEXT {
+            memoryPointer = Video::MEMORY_POINTER_UPPERCASE;
         }
     }
 }

@@ -18,7 +18,7 @@
 // 0. The width is a property of the build, chosen once, like Studio's tier.
 // See packages/pet/AGENTS.md ("Models are profiles").
 
-export namespace Video {
+pub mod Video {
     const COLUMNS: utinyint = 40;
     const ROWS: utinyint = 25;
     const CELL_COUNT: usmallint = 1000; // COLUMNS * ROWS: exactly the 1K of screen RAM at $8000

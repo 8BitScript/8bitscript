@@ -52,10 +52,10 @@
 // Every direction/confirm/cancel answer is **edge-triggered**: true on the
 // one frame the press begins, false while it is held. `poll()` must be
 // called exactly once a frame, right after waitFrame().
-import { WebRegisters } from "./index.8bs";
-import { Video } from "./geometry.8bs";
+use self::index::WebRegisters;
+use self::geometry::Video;
 
-namespace Edge {
+mod Edge {
     const LEFT: utinyint = 1;
     const RIGHT: utinyint = 2;
     const UP: utinyint = 4;
@@ -67,30 +67,29 @@ namespace Edge {
 // Bits of the HOST_OFFSET byte. Zero is a desktop with a mouse and a
 // keyboard — what a screenshot host writes — so each bit says how a host
 // differs from that. The page's side is web-layout.mjs's HostStatus.
-namespace HostStatus {
+mod HostStatus {
     const TOUCH: utinyint = 1;
     const NO_KEYBOARD: utinyint = 2;
 }
 
-let held: utinyint = 0;
-let before: utinyint = 0;
-let began: utinyint = 0;
+let mut held: utinyint = 0;
+let mut before: utinyint = 0;
+let mut began: utinyint = 0;
 
 // The pointer, read once a frame in poll() and kept, so the arrow a program
 // draws and the cell it hit-tests share one answer. Only the Modern host
 // has a block (WebRegisters.HAS_POINTER); on a skin none of this is reached.
-let pointerHere: bool = false;
-let pointerX: usmallint = 0;
-let pointerY: usmallint = 0;
-let buttonHeld: bool = false;
-let buttonBefore: bool = false;
+let mut pointerHere: bool = false;
+let mut pointerX: usmallint = 0;
+let mut pointerY: usmallint = 0;
+let mut buttonHeld: bool = false;
+let mut buttonBefore: bool = false;
 
-export namespace input {
-
+pub mod input {
     // Nothing to set up: the page owns the snapshot byte. Here so a
     // program written for nine machines calls the same thing on all of
     // them.
-    function begin(): void {
+    fn begin() {
         // One poll before the program's first, so the edge detector starts
         // from what is actually held rather than from nothing. `before` is
         // zero until something fills it, and an edge is "held now, not held
@@ -98,84 +97,84 @@ export namespace input {
         // starts reads as a fresh press on frame one. Measured on the
         // MEGA65, whose RETURN key is down at start-up: the joystick example
         // counted a confirm() nobody pressed until begin() primed this.
-        input.poll();
+        input::poll();
     }
 
     // Read the page's snapshot and work out what began this frame. Once
     // a frame, right after waitFrame().
-    function poll(): void {
+    fn poll() {
         before = held;
-        held = memory.read(WebRegisters.INPUT_OFFSET);
+        held = memory::read(WebRegisters::INPUT_OFFSET);
         began = held & (before ^ 0xFF);
-        if (WebRegisters.HAS_POINTER) {
-            pointerHere = memory.read(WebRegisters.POINTER_BASE) != 0;
+        if WebRegisters::HAS_POINTER {
+            pointerHere = memory::read(WebRegisters::POINTER_BASE) != 0;
             buttonBefore = buttonHeld;
-            buttonHeld = (memory.read(WebRegisters.POINTER_BASE + 1) & 1) != 0;
-            pointerX = memory.read(WebRegisters.POINTER_BASE + 3);
-            pointerX = (pointerX << 8) | memory.read(WebRegisters.POINTER_BASE + 2);
-            pointerY = memory.read(WebRegisters.POINTER_BASE + 5);
-            pointerY = (pointerY << 8) | memory.read(WebRegisters.POINTER_BASE + 4);
+            buttonHeld = (memory::read(WebRegisters::POINTER_BASE + 1) & 1) != 0;
+            pointerX = memory::read(WebRegisters::POINTER_BASE + 3);
+            pointerX = pointerX << 8 | memory::read(WebRegisters::POINTER_BASE + 2);
+            pointerY = memory::read(WebRegisters::POINTER_BASE + 5);
+            pointerY = pointerY << 8 | memory::read(WebRegisters::POINTER_BASE + 4);
         }
     }
 
-    function left(): bool {
-        return (began & Edge.LEFT) != 0;
+    fn left() -> bool {
+        return (began & Edge::LEFT) != 0;
     }
 
-    function right(): bool {
-        return (began & Edge.RIGHT) != 0;
+    fn right() -> bool {
+        return (began & Edge::RIGHT) != 0;
     }
 
-    function up(): bool {
-        return (began & Edge.UP) != 0;
+    fn up() -> bool {
+        return (began & Edge::UP) != 0;
     }
 
-    function down(): bool {
-        return (began & Edge.DOWN) != 0;
+    fn down() -> bool {
+        return (began & Edge::DOWN) != 0;
     }
 
-    function confirm(): bool {
-        return (began & Edge.CONFIRM) != 0;
+    fn confirm() -> bool {
+        return (began & Edge::CONFIRM) != 0;
     }
 
-    function cancel(): bool {
-        return (began & Edge.CANCEL) != 0;
+    fn cancel() -> bool {
+        return (began & Edge::CANCEL) != 0;
     }
 
     // A device property, not a press: true while the page has marked this
     // host as a touchscreen. Not edge-triggered; does not need poll().
-    function touch(): bool {
-        return (memory.read(WebRegisters.HOST_OFFSET) & HostStatus.TOUCH) != 0;
+    fn touch() -> bool {
+        return (memory::read(WebRegisters::HOST_OFFSET) & HostStatus::TOUCH) != 0;
     }
 
     // A device property, not a press: true while the page believes this
     // host has a keyboard to press arrows on — false on a phone or a
     // tablet in the hands, and true again from the first key a plugged-in
     // keyboard sends. Not edge-triggered; does not need poll().
-    function keyboard(): bool {
-        return (memory.read(WebRegisters.HOST_OFFSET) & HostStatus.NO_KEYBOARD) == 0;
+    fn keyboard() -> bool {
+        return (memory::read(WebRegisters::HOST_OFFSET) & HostStatus::NO_KEYBOARD) == 0;
     }
 
     // The browser's own cursor over the picture: a mouse, or the spot a
     // finger last touched. True once the page has written a position.
-    function pointer(): bool {
-        if (WebRegisters.HAS_POINTER) {
+    fn pointer() -> bool {
+        if WebRegisters::HAS_POINTER {
             return pointerHere;
         }
         return false;
     }
 
     // Where it is, as a flat cell index, the unit text.print() takes.
-    function pointerCell(): usmallint {
-        if (WebRegisters.HAS_POINTER) {
-            return (pointerY >> 3) * Video.columns() + (pointerX >> 3);
+    fn pointerCell() -> usmallint {
+        if WebRegisters::HAS_POINTER {
+            return (pointerY >> 3) * Video::columns() + (pointerX >> 3);
         }
         return 0;
     }
 
     // The left button (or a tap), on the frame its press began.
-    function pointerButton(): bool {
-        if (WebRegisters.HAS_POINTER) {
+    fn pointerButton() -> bool {
+        if WebRegisters::HAS_POINTER {
             return buttonHeld && !buttonBefore;
         }
         return false;
@@ -184,7 +183,7 @@ export namespace input {
 
 // Compile-time names for the confirm control, interpolated into catalogs
 // as {control} / {other}. OR / ODER lives in the catalog, not here.
-export namespace Input {
+pub mod Input {
     const CONFIRM_LABEL: string = "ENTER";
     const ALT_CONFIRM_LABEL: string = "ENTER";
     const CONFIRM_LABELS: string = "ENTER";

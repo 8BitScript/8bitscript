@@ -94,33 +94,33 @@
 // are not lowered by the 6502 backend yet, so a program loops over its own
 // `const` table calling `at()` — or, for a per-frame effect whose lines
 // stand, `setValue()` per entry — itself.
-import { raster as addressList, Register } from "./raster.8bs";
-import { control2, videoMode, VideoMode } from "./index.8bs";
-import { Video } from "./geometry.8bs";
+use self::raster::{raster as addressList, Register};
+use self::index::{control2, videoMode, VideoMode};
+use self::geometry::Video;
 
 // What the picture does at a line, named without an address. The numbers
 // are arbitrary and the same in all nine rasterline files.
-export namespace Slot {
-    const BORDER: utinyint = 0;     // the border's color
+pub mod Slot {
+    const BORDER: utinyint = 0; // the border's color
     const BACKGROUND: utinyint = 1; // the playfield's background color
-    const SCROLL_X: utinyint = 2;   // the horizontal fine scroll, 0-7
-    const CHARSET: utinyint = 3;    // 0 = upper case/graphics ($D018 $84), 1 = lower/upper case ($86)
+    const SCROLL_X: utinyint = 2; // the horizontal fine scroll, 0-7
+    const CHARSET: utinyint = 3; // 0 = upper case/graphics ($D018 $84), 1 = lower/upper case ($86)
 }
 
-export namespace raster {
+pub mod raster {
     const ENTRIES: utinyint = 63; // the list's capacity, ./raster.8bs's MAX
-    const STRIDE: utinyint = 4;   // bytes per entry: line, address low, address high, value
+    const STRIDE: utinyint = 4; // bytes per entry: line, address low, address high, value
     const FINE_SCROLL: bool = true; // Slot.SCROLL_X entries are accepted: $D016's XSCROLL
-    const COLORS: bool = true;     // Slot.BORDER/BACKGROUND entries are accepted
-    const CHARSET: bool = true;    // Slot.CHARSET entries are accepted: $D018 bit 1, text mode only
+    const COLORS: bool = true; // Slot.BORDER/BACKGROUND entries are accepted
+    const CHARSET: bool = true; // Slot.CHARSET entries are accepted: $D018 bit 1, text mode only
     const FRAME_COUNTER: bool = true; // frame() counts video frames since enable()
-    const TOP: utinyint = 50;     // picture line 0 is raster line 50
-    const LINES: utinyint = 200;  // visible picture lines, 0-199
-    const KEEP: utinyint = 0xF8;  // $D016 bits 3-7 — CSEL, MCM — kept in every SCROLL_X byte
+    const TOP: utinyint = 50; // picture line 0 is raster line 50
+    const LINES: utinyint = 200; // visible picture lines, 0-199
+    const KEEP: utinyint = 0xF8; // $D016 bits 3-7 — CSEL, MCM — kept in every SCROLL_X byte
 
     // Empty the list.
-    function clear(): void {
-        addressList.clear();
+    fn clear() {
+        addressList::clear();
     }
 
     // Append: at picture line `line`, give `slot` the value `value`.
@@ -128,21 +128,21 @@ export namespace raster {
     // the slot is not one of the four (or is CHARSET over a bitmap), or the
     // underlying list refuses it
     // (full, or a line below the last entry's).
-    function at(line: utinyint, slot: utinyint, value: utinyint): bool {
-        if (line >= raster.LINES) {
+    fn at(line: utinyint, slot: utinyint, value: utinyint) -> bool {
+        if line >= raster::LINES {
             return false;
         }
-        if (slot == Slot.BORDER) {
-            return addressList.at(line + raster.TOP, Register.BORDER, value);
+        if slot == Slot::BORDER {
+            return addressList::at(line + raster::TOP, Register::BORDER, value);
         }
-        if (slot == Slot.BACKGROUND) {
-            return addressList.at(line + raster.TOP, Register.BACKGROUND, value);
+        if slot == Slot::BACKGROUND {
+            return addressList::at(line + raster::TOP, Register::BACKGROUND, value);
         }
-        if (slot == Slot.SCROLL_X) {
-            return addressList.at(line + raster.TOP, Register.CONTROL_2, (control2 & raster.KEEP) | (value & 7));
+        if slot == Slot::SCROLL_X {
+            return addressList::at(line + raster::TOP, Register::CONTROL_2, control2 & raster::KEEP | value & 7);
         }
-        if (slot == Slot.CHARSET && videoMode == VideoMode.TEXT) {
-            return addressList.at(line + raster.TOP, Register.MEMORY_POINTER, charsetPointer(value));
+        if slot == Slot::CHARSET && videoMode == VideoMode::TEXT {
+            return addressList::at(line + raster::TOP, Register::MEMORY_POINTER, charsetPointer(value));
         }
         return false;
     }
@@ -151,34 +151,34 @@ export namespace raster {
     // — slid into place, so a program adding a few entries of its own
     // beside another package's plan (sprites', say) need not know what
     // else the list holds. False, and nothing added, if full.
-    function insert(line: utinyint, slot: utinyint, value: utinyint): bool {
-        if (line >= raster.LINES) {
+    fn insert(line: utinyint, slot: utinyint, value: utinyint) -> bool {
+        if line >= raster::LINES {
             return false;
         }
-        if (slot == Slot.BORDER) {
-            return addressList.insert(line + raster.TOP, Register.BORDER, value);
+        if slot == Slot::BORDER {
+            return addressList::insert(line + raster::TOP, Register::BORDER, value);
         }
-        if (slot == Slot.BACKGROUND) {
-            return addressList.insert(line + raster.TOP, Register.BACKGROUND, value);
+        if slot == Slot::BACKGROUND {
+            return addressList::insert(line + raster::TOP, Register::BACKGROUND, value);
         }
-        if (slot == Slot.SCROLL_X) {
-            return addressList.insert(line + raster.TOP, Register.CONTROL_2, (control2 & raster.KEEP) | (value & 7));
+        if slot == Slot::SCROLL_X {
+            return addressList::insert(line + raster::TOP, Register::CONTROL_2, control2 & raster::KEEP | value & 7);
         }
-        if (slot == Slot.CHARSET && videoMode == VideoMode.TEXT) {
-            return addressList.insert(line + raster.TOP, Register.MEMORY_POINTER, charsetPointer(value));
+        if slot == Slot::CHARSET && videoMode == VideoMode::TEXT {
+            return addressList::insert(line + raster::TOP, Register::MEMORY_POINTER, charsetPointer(value));
         }
         return false;
     }
 
     // How many entries the list holds.
-    function count(): utinyint {
-        return addressList.count();
+    fn count() -> utinyint {
+        return addressList::count();
     }
 
     // Hand a rebuilt list over: live from the next frame, whole. A list
     // built once before enable() never needs it (enable() commits).
-    function commit(): void {
-        addressList.commit();
+    fn commit() {
+        addressList::commit();
     }
 
     // Rewrite one entry's value, leaving its line and slot: `entry` is the
@@ -189,39 +189,39 @@ export namespace raster {
     // wobble never handles the register encoding. Other slots' values are
     // the byte to write, as they are in `at`. A CHARSET entry takes 0 or 1
     // and is re-encoded as `at` would encode it.
-    function setValue(entry: utinyint, value: utinyint): bool {
-        let address: usmallint = addressList.addressOf(entry);
-        if (address == Register.CONTROL_2) {
-            return addressList.setValue(entry, (control2 & raster.KEEP) | (value & 7));
+    fn setValue(entry: utinyint, value: utinyint) -> bool {
+        let address: usmallint = addressList::addressOf(entry);
+        if address == Register::CONTROL_2 {
+            return addressList::setValue(entry, control2 & raster::KEEP | value & 7);
         }
-        if (address == Register.MEMORY_POINTER) {
-            return addressList.setValue(entry, charsetPointer(value));
+        if address == Register::MEMORY_POINTER {
+            return addressList::setValue(entry, charsetPointer(value));
         }
-        return addressList.setValue(entry, value);
+        return addressList::setValue(entry, value);
     }
 
     // Own the IRQ: the list is applied from the next frame on.
-    function enable(): void {
-        addressList.enable();
+    fn enable() {
+        addressList::enable();
     }
 
     // Video frames since enable(), wrapping at 256: the handler adds one at
     // line 0 of every frame, however slowly the game loop runs.
-    function frame(): utinyint {
-        return addressList.frame();
+    fn frame() -> utinyint {
+        return addressList::frame();
     }
 
     // Interrupts off again; the list is kept.
-    function disable(): void {
-        addressList.disable();
+    fn disable() {
+        addressList::disable();
     }
 }
 
 // Slot.CHARSET's 0/1 as the $D018 byte the list writes: the text screen
 // at $E000 over the upper-case set ($84) or the lower-case one ($86).
-function charsetPointer(value: utinyint): utinyint {
-    if ((value & 1) != 0) {
-        return Video.MEMORY_POINTER_LOWERCASE;
+fn charsetPointer(value: utinyint) -> utinyint {
+    if (value & 1) != 0 {
+        return Video::MEMORY_POINTER_LOWERCASE;
     }
-    return Video.MEMORY_POINTER_UPPERCASE;
+    return Video::MEMORY_POINTER_UPPERCASE;
 }

@@ -63,7 +63,7 @@
 // on an 800 build it is four. Asking for a port the machine does not have
 // answers "nothing pushed" rather than reading PORTB and calling the
 // memory-control bits a joystick.
-import { attract } from "./index.8bs";
+use self::index::attract;
 
 // The OS's per-port shadows, refreshed by its VBI: four directions at
 // STICK0 and one button at STRIG0, one byte each, consecutive.
@@ -73,9 +73,9 @@ const STRIG0: usmallint = 0x0284;
 // The last scan, one byte per port, `Joystick.*` bits, 1 = pushed — the
 // hardware's active-low sense inverted once, here, so nothing above has to
 // think about it. All zero until the first scan.
-let state: array<utinyint, 4>;
+let mut state: [utinyint; 4];
 
-export namespace Joystick {
+pub mod Joystick {
     const PORT_1: utinyint = 0;
     const PORT_2: utinyint = 1;
     // Only on a 400 or an 800; `Joystick.PORTS` says whether this build has
@@ -92,10 +92,10 @@ export namespace Joystick {
     // What this build's model has: 4 on a 400 or 800, 2 on every XL/XE.
     // The same number as `Input.JOYSTICKS` from @8bitscript/system — the
     // fact sheet is the one source, this is it spelled without the import.
-    const PORTS: utinyint = #fact(input.joysticks);
+    const PORTS: utinyint = #fact(input::joysticks);
 }
 
-export namespace joystick {
+pub mod joystick {
     // Read every port this machine has into the snapshot. Once a frame,
     // right after waitFrame().
     //
@@ -108,12 +108,12 @@ export namespace joystick {
     // into slowly rolling colors partway through a long session. Three
     // bytes here is the whole fix, and this is the one function a
     // joystick-only game is certain to call every frame.
-    function scan(): void {
-        for (let port: utinyint = 0; port < Joystick.PORTS; port++) {
-            let pushed: utinyint = (memory.read(STICK0 + port) ^ 0x0F) & 0x0F;
+    fn scan() {
+        for port: utinyint in 0..Joystick::PORTS {
+            let mut pushed: utinyint = (memory::read(STICK0 + port) ^ 0x0F) & 0x0F;
             // TRIG is 0 while the button is down.
-            if (memory.read(STRIG0 + port) == 0) {
-                pushed = pushed + Joystick.FIRE;
+            if memory::read(STRIG0 + port) == 0 {
+                pushed = pushed + Joystick::FIRE;
             }
             state[port] = pushed;
         }
@@ -121,27 +121,27 @@ export namespace joystick {
     }
 
     // The five switches of one port as `Joystick.*` bits, 1 = pushed.
-    function bits(port: utinyint): utinyint {
+    fn bits(port: utinyint) -> utinyint {
         return state[port];
     }
 
-    function up(port: utinyint): bool {
-        return (state[port] & Joystick.UP) != 0;
+    fn up(port: utinyint) -> bool {
+        return (state[port] & Joystick::UP) != 0;
     }
 
-    function down(port: utinyint): bool {
-        return (state[port] & Joystick.DOWN) != 0;
+    fn down(port: utinyint) -> bool {
+        return (state[port] & Joystick::DOWN) != 0;
     }
 
-    function left(port: utinyint): bool {
-        return (state[port] & Joystick.LEFT) != 0;
+    fn left(port: utinyint) -> bool {
+        return (state[port] & Joystick::LEFT) != 0;
     }
 
-    function right(port: utinyint): bool {
-        return (state[port] & Joystick.RIGHT) != 0;
+    fn right(port: utinyint) -> bool {
+        return (state[port] & Joystick::RIGHT) != 0;
     }
 
-    function fire(port: utinyint): bool {
-        return (state[port] & Joystick.FIRE) != 0;
+    fn fire(port: utinyint) -> bool {
+        return (state[port] & Joystick::FIRE) != 0;
     }
 }

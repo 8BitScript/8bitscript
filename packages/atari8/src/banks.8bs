@@ -49,55 +49,55 @@
 // around `$9C00`), and worth checking the linked image's symbol map for
 // a program big enough to reach `$4000`. See ../AGENTS.md.
 
-@address(0xD301) let portB: volatile<u8>;
+#[address(0xD301)] let mut portB: volatile<u8>;
 
-namespace Xe {
-    const KEEP: utinyint = 0xE3;         // bits 0, 1, 5, 6, 7 — everything but the bank and CPU-access bits
-    const CPU_BASE: utinyint = 0x10;     // bit 4 set: the CPU sees base RAM again
-    const WINDOW: usmallint = 0x4000;    // first byte of the 16 KiB window
-    const BASE_MARK: utinyint = 0x5A;    // what base RAM is given to hold
-    const BANK_MARK: utinyint = 0xA0;    // plus the bank number, what each bank is given
-    const BANKS: utinyint = 4;           // banks the 130XE's two bits can name
+mod Xe {
+    const KEEP: utinyint = 0xE3; // bits 0, 1, 5, 6, 7 — everything but the bank and CPU-access bits
+    const CPU_BASE: utinyint = 0x10; // bit 4 set: the CPU sees base RAM again
+    const WINDOW: usmallint = 0x4000; // first byte of the 16 KiB window
+    const BASE_MARK: utinyint = 0x5A; // what base RAM is given to hold
+    const BANK_MARK: utinyint = 0xA0; // plus the bank number, what each bank is given
+    const BANKS: utinyint = 4; // banks the 130XE's two bits can name
 }
 
-export namespace banks {
+pub mod banks {
     // Point the window at extended bank `bank` for the CPU only, keeping
     // every other PORTB bit as `saved` had it.
-    function select(bank: utinyint, saved: utinyint): void {
-        portB = (saved & Xe.KEEP) | (bank * 4);
+    fn select(bank: utinyint, saved: utinyint) {
+        portB = saved & Xe::KEEP | bank * 4;
     }
 
     // Put the window back on base RAM.
-    function base(saved: utinyint): void {
-        portB = saved | Xe.CPU_BASE;
+    fn base(saved: utinyint) {
+        portB = saved | Xe::CPU_BASE;
     }
 
     // Give every bank a marker of its own.
-    function markAll(saved: utinyint): void {
-        let bank: utinyint = 0;
-        while (bank != Xe.BANKS) {
-            banks.select(bank, saved);
-            memory.write(Xe.WINDOW, Xe.BANK_MARK + bank);
+    fn markAll(saved: utinyint) {
+        let mut bank: utinyint = 0;
+        while bank != Xe::BANKS {
+            banks::select(bank, saved);
+            memory::write(Xe::WINDOW, Xe::BANK_MARK + bank);
             bank = bank + 1;
         }
-        banks.base(saved);
+        banks::base(saved);
     }
 
     // How many banks kept their own marker — 0 if the first one did not,
     // which is what a machine with no extended RAM looks like once base
     // RAM has been overwritten.
-    function kept(saved: utinyint): utinyint {
-        let bank: utinyint = 0;
-        while (bank != Xe.BANKS) {
-            banks.select(bank, saved);
-            let back: utinyint = memory.read(Xe.WINDOW);
-            banks.base(saved);
-            if (back != (Xe.BANK_MARK + bank)) {
+    fn kept(saved: utinyint) -> utinyint {
+        let mut bank: utinyint = 0;
+        while bank != Xe::BANKS {
+            banks::select(bank, saved);
+            let back: utinyint = memory::read(Xe::WINDOW);
+            banks::base(saved);
+            if back != Xe::BANK_MARK + bank {
                 return bank;
             }
             bank = bank + 1;
         }
-        return Xe.BANKS;
+        return Xe::BANKS;
     }
 
     // KiB of extended RAM this machine has: 0 on an 800XL or a 65XE, 64
@@ -106,16 +106,16 @@ export namespace banks {
     // A machine with more than the 130XE's four banks (a 320XE, a 1088XE)
     // needs more bank bits than the two this reads, and answers 64 here —
     // the four it was asked about.
-    function kib(): usmallint {
+    fn kib() -> usmallint {
         let saved: utinyint = portB;
-        banks.base(saved);
-        memory.write(Xe.WINDOW, Xe.BASE_MARK);
-        banks.markAll(saved);
-        let found: utinyint = 0;
+        banks::base(saved);
+        memory::write(Xe::WINDOW, Xe::BASE_MARK);
+        banks::markAll(saved);
+        let mut found: utinyint = 0;
         // Base RAM still holding its own marker is what says the bank
         // writes went somewhere else at all.
-        if (memory.read(Xe.WINDOW) == Xe.BASE_MARK) {
-            found = banks.kept(saved);
+        if memory::read(Xe::WINDOW) == Xe::BASE_MARK {
+            found = banks::kept(saved);
         }
         portB = saved;
         let k: usmallint = found;

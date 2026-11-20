@@ -18,11 +18,11 @@
 // `fancy`, `swarm`, `joystick` and `media-walk` all call `audio.update()`
 // inside `waitFrame()`, which is the shape that both sounds and stops. The
 // smallest whole program is this one, and it is small.
-import { screen } from "@8bitscript/screen";
-import { text } from "@8bitscript/text";
+use @8bitscript::screen::screen;
+use @8bitscript::text::text;
 
-export function main(): void {
-    screen.blank();
-    text.print(0, "Hello World!");
-    text.releaseCursor();
+pub fn main() {
+    screen::blank();
+    text::print(0, "Hello World!");
+    text::releaseCursor();
 }
