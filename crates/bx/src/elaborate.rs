@@ -298,7 +298,10 @@ impl<'a> Ctx<'a> {
                         ids,
                         attr.start,
                         end_of(attr),
-                        NodeKind::BooleanLiteral { value: true },
+                        NodeKind::BooleanLiteral {
+                            value: true,
+                            raw: None,
+                        },
                     )
                 });
                 by_name.insert(name.as_str(), value);
@@ -320,6 +323,7 @@ impl<'a> Ctx<'a> {
                     NodeKind::StringLiteral {
                         value: text.clone(),
                         unterminated: None,
+                        raw: None,
                     },
                 ));
             } else if let Some(id) = prop.default_value {

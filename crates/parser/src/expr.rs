@@ -433,6 +433,7 @@ impl Parser<'_> {
                         value: strip_quotes(&token.text),
                         // Already reported by the lexer; the checker leaves its text alone.
                         unterminated: (token.unterminated == Some(true)).then_some(true),
+                        raw: None,
                     },
                 ))
             }
@@ -504,6 +505,7 @@ impl Parser<'_> {
                     end,
                     NodeKind::BooleanLiteral {
                         value: token.text == "true",
+                        raw: None,
                     },
                 ))
             }
