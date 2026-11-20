@@ -120,10 +120,10 @@ fn pack_sprite(indices: &[u8], width: usize, height: usize) -> Vec<u8> {
 fn quantize_1bit(rgba: &[u8], width: usize, height: usize) -> (Vec<u8>, usize) {
     let mut indices = vec![0u8; width * height];
     let mut seen: HashSet<(i32, i32, i32)> = HashSet::new();
-    for i in 0..width * height {
+    for (i, index) in indices.iter_mut().enumerate() {
         let o = i * 4;
         if px(rgba, o + 3) < 16.0 {
-            indices[i] = 255;
+            *index = 255;
             continue;
         }
         let key = (
@@ -132,7 +132,7 @@ fn quantize_1bit(rgba: &[u8], width: usize, height: usize) -> (Vec<u8>, usize) {
             to_int32(px(rgba, o + 2)) >> 4,
         );
         seen.insert(key);
-        indices[i] = 1;
+        *index = 1;
     }
     (indices, seen.len())
 }
@@ -242,7 +242,10 @@ impl MachineMedia for C64 {
         let mut samples = Vec::new();
         let mut songs = Vec::new();
         for sample in &air.samples {
-            let fallback = sample.fallback.as_ref().map_or("noise", |f| f.synth.as_str());
+            let fallback = sample
+                .fallback
+                .as_ref()
+                .map_or("noise", |f| f.synth.as_str());
             diagnostics.push(diagnostic(
                 "8BS2210",
                 format!(
@@ -265,13 +268,7 @@ impl MachineMedia for C64 {
             songs.push(LoweredAsset {
                 name: song.name.clone(),
                 data: Some(encoded.data),
-                events: Some(
-                    encoded
-                        .events
-                        .into_iter()
-                        .map(LoweredEvent::Song)
-                        .collect(),
-                ),
+                events: Some(encoded.events.into_iter().map(LoweredEvent::Song).collect()),
             });
         }
         AudioLowered {

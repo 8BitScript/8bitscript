@@ -244,10 +244,7 @@ impl MachineMedia for Cx16 {
             ));
             order.truncate(fit as usize);
         }
-        let used: Vec<&Frame> = order
-            .iter()
-            .filter_map(|i| pick(frames, *i))
-            .collect();
+        let used: Vec<&Frame> = order.iter().filter_map(|i| pick(frames, *i)).collect();
         let (colors, distinct) = build_palette(&used);
         if distinct > PALETTE_COLORS {
             diagnostics.push(diagnostic(
@@ -348,7 +345,10 @@ impl MachineMedia for Cx16 {
             };
         }
         for sample in &air.samples {
-            let fallback = sample.fallback.as_ref().map_or("noise", |f| f.synth.as_str());
+            let fallback = sample
+                .fallback
+                .as_ref()
+                .map_or("noise", |f| f.synth.as_str());
             diagnostics.push(diagnostic(
                 "8BS2210",
                 format!(
@@ -371,13 +371,7 @@ impl MachineMedia for Cx16 {
             songs.push(LoweredAsset {
                 name: song.name.clone(),
                 data: Some(encoded.data),
-                events: Some(
-                    encoded
-                        .events
-                        .into_iter()
-                        .map(LoweredEvent::Song)
-                        .collect(),
-                ),
+                events: Some(encoded.events.into_iter().map(LoweredEvent::Song).collect()),
             });
         }
         AudioLowered {

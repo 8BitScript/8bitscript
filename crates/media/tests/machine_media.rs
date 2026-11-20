@@ -6,8 +6,8 @@ mod common;
 
 use common::{json, norm, rows};
 use indexmap::IndexMap;
-use media::audio::song::encode_song;
 use media::audio::Song;
+use media::audio::song::encode_song;
 use media::machine::{Facts, Frame, MachineMedia, MediaSlots};
 use media::machines::{c64::C64, cx16::Cx16, vic20::Vic20};
 use media::{parse_audio, parse_graphics, tokenize_media};
@@ -66,7 +66,7 @@ fn replay(machine: &dyn MachineMedia, src: &str) -> (usize, usize) {
             "audio": slots.audio,
             "audioBytes": slots.audio_bytes,
         });
-        assert_eq!(got, norm(&row["result"]), "{name}");
+        assert_eq!(norm(&got), norm(&row["result"]), "{name}");
     }
     (g, a)
 }
@@ -74,20 +74,17 @@ fn replay(machine: &dyn MachineMedia, src: &str) -> (usize, usize) {
 #[test]
 fn c64_matches_js() {
     let (g, a) = replay(&C64, include_str!("fixtures/machine-media-c64.json"));
-    assert!(g >= 40, "{g} graphics rows");
-    assert!(a >= 120, "{a} audio rows");
+    assert_eq!((g, a), (92, 139), "graphics and audio rows");
 }
 
 #[test]
 fn cx16_matches_js() {
     let (g, a) = replay(&Cx16, include_str!("fixtures/machine-media-cx16.json"));
-    assert!(g >= 40, "{g} graphics rows");
-    assert!(a >= 120, "{a} audio rows");
+    assert_eq!((g, a), (92, 139), "graphics and audio rows");
 }
 
 #[test]
 fn vic20_matches_js() {
     let (g, a) = replay(&Vic20, include_str!("fixtures/machine-media-vic20.json"));
-    assert!(g >= 40, "{g} graphics rows");
-    assert!(a >= 120, "{a} audio rows");
+    assert_eq!((g, a), (92, 139), "graphics and audio rows");
 }

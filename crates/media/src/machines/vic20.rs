@@ -130,7 +130,10 @@ fn frame_codes(frame: &Frame, cw: usize, ch: usize) -> Vec<u8> {
             let x = cx * 2;
             let y = cy * 2;
             codes.push(
-                QUAD[(at(x, y) << 3) | (at(x + 1, y) << 2) | (at(x, y + 1) << 1) | at(x + 1, y + 1)],
+                QUAD[(at(x, y) << 3)
+                    | (at(x + 1, y) << 2)
+                    | (at(x, y + 1) << 1)
+                    | at(x + 1, y + 1)],
             );
         }
     }
@@ -301,7 +304,10 @@ impl MachineMedia for Vic20 {
             };
         }
         for sample in &air.samples {
-            let fallback = sample.fallback.as_ref().map_or("noise", |f| f.synth.as_str());
+            let fallback = sample
+                .fallback
+                .as_ref()
+                .map_or("noise", |f| f.synth.as_str());
             diagnostics.push(diagnostic(
                 "8BS2210",
                 format!(
@@ -334,13 +340,7 @@ impl MachineMedia for Vic20 {
             songs.push(LoweredAsset {
                 name: song.name.clone(),
                 data: Some(encoded.data),
-                events: Some(
-                    encoded
-                        .events
-                        .into_iter()
-                        .map(LoweredEvent::Song)
-                        .collect(),
-                ),
+                events: Some(encoded.events.into_iter().map(LoweredEvent::Song).collect()),
             });
         }
         AudioLowered {
