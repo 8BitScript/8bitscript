@@ -106,12 +106,63 @@ pub fn placeholders_of(text: Option<&str>) -> Vec<String> {
     seen.into_iter().map(str::to_string).collect()
 }
 
+/// The names JS finds on `Object.prototype` when it reads `params[name]` and `params` has no
+/// own property of that name, with the text `String(value)` gives for each (V8's, for Node).
+const PROTOTYPE_PROPERTIES: [(&str, &str); 12] = [
+    ("constructor", "function Object() { [native code] }"),
+    (
+        "__defineGetter__",
+        "function __defineGetter__() { [native code] }",
+    ),
+    (
+        "__defineSetter__",
+        "function __defineSetter__() { [native code] }",
+    ),
+    (
+        "hasOwnProperty",
+        "function hasOwnProperty() { [native code] }",
+    ),
+    (
+        "__lookupGetter__",
+        "function __lookupGetter__() { [native code] }",
+    ),
+    (
+        "__lookupSetter__",
+        "function __lookupSetter__() { [native code] }",
+    ),
+    (
+        "isPrototypeOf",
+        "function isPrototypeOf() { [native code] }",
+    ),
+    (
+        "propertyIsEnumerable",
+        "function propertyIsEnumerable() { [native code] }",
+    ),
+    ("toString", "function toString() { [native code] }"),
+    ("valueOf", "function valueOf() { [native code] }"),
+    ("__proto__", "[object Object]"),
+    (
+        "toLocaleString",
+        "function toLocaleString() { [native code] }",
+    ),
+];
+
+/// `params[name]` as text: an own value, else what the prototype chain gives.
+fn param_value<'a>(params: &'a IndexMap<String, String>, name: &str) -> Option<&'a str> {
+    params.get(name).map(String::as_str).or_else(|| {
+        PROTOTYPE_PROPERTIES
+            .iter()
+            .find(|(proto, _)| *proto == name)
+            .map(|(_, text)| *text)
+    })
+}
+
 /// Substitute `{name}` from `params` (insertion order, as the JS object was written). Missing
 /// or leftover names are an error.
 ///
-/// A name that is also a property of `Object.prototype` (`constructor`, `toString`, ...) reads
-/// as present in JS and is replaced with that function's text; here it is missing, like any
-/// other name `params` lacks.
+/// A placeholder named like a property of `Object.prototype` (`constructor`, `toString`, ...)
+/// is never missing in JS: `params[name]` finds the inherited function and the template gets
+/// its source text. [`PROTOTYPE_PROPERTIES`] reproduces that.
 ///
 /// # Errors
 ///
@@ -124,7 +175,10 @@ pub fn format_message(template: &str, params: &IndexMap<String, String>) -> Resu
         .map(|i| keys[i])
         .filter(|name| !needed.contains(name))
         .collect();
-    let missing: Vec<&String> = needed.iter().filter(|n| !params.contains_key(*n)).collect();
+    let missing: Vec<&String> = needed
+        .iter()
+        .filter(|n| param_value(params, n).is_none())
+        .collect();
     if let Some(first) = missing.first() {
         return Err(format!("i18n.format is missing {{{first}}}"));
     }
@@ -137,7 +191,7 @@ pub fn format_message(template: &str, params: &IndexMap<String, String>) -> Resu
     let mut last = 0;
     for (start, end, name) in placeholder_matches(template) {
         out.push_str(&template[last..start]);
-        out.push_str(&params[name]);
+        out.push_str(param_value(params, name).unwrap_or_default());
         last = end;
     }
     out.push_str(&template[last..]);
@@ -467,15 +521,10 @@ fn parse_catalog_file(fs: &dyn CatalogFs, file: &str) -> Result<CatalogModule, S
 /// Compare `other` against `baseline` (the default locale). Extra keys and placeholder
 /// mismatches are errors; missing keys are filled later.
 ///
-/// `other_file` is `other.file` in the JS, which `catalogSchema` never sets: a namespace with
-/// no members then has no file and the diagnostic's `file` is missing. Here that is `""`.
+/// A namespace with no members has no file in JS (`catalogSchema` sets no `file` on the schema)
+/// and the diagnostic's `file` is missing; here that is `""`.
 #[must_use]
-pub fn compare_catalog_schemas(
-    baseline: &Schema,
-    other: &Schema,
-    locale: &str,
-    other_file: Option<&str>,
-) -> Vec<Diagnostic> {
+pub fn compare_catalog_schemas(baseline: &Schema, other: &Schema, locale: &str) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
     for extra in &other.extras {
         diagnostics.push(diagnostic(
@@ -493,7 +542,7 @@ pub fn compare_catalog_schemas(
             diagnostics.push(diagnostic(
                 codes::CATALOG_SCHEMA,
                 format!("locale '{locale}' has pub mod '{ns}', which the default locale does not"),
-                first.map(|m| m.file.as_str()).or(other_file).unwrap_or(""),
+                first.map_or("", |m| m.file.as_str()),
                 first.map_or(0, |m| m.start),
                 first.map_or(0, |m| m.length),
                 Severity::Error,
@@ -742,7 +791,7 @@ pub fn prepare_catalog(fs: &dyn CatalogFs, options: &PrepareOptions) -> Result<P
             continue;
         }
         let schema = catalog_schema(&module.ast, &module.file);
-        diagnostics.extend(compare_catalog_schemas(&baseline, &schema, locale, None));
+        diagnostics.extend(compare_catalog_schemas(&baseline, &schema, locale));
     }
 
     let selected = parsed

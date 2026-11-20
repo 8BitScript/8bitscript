@@ -36,6 +36,12 @@ const tree = {
   'bad/src/i18n/en.8bs': 'pub mod Game {\n    const NAME: number = 1;\n    fn f() {}\n    const OK: string = 3;\n}\nfn top() {}\n',
   'bad/src/i18n/de.8bs': 'pub mod Game {\n    const NAME: string = "unterminated;\n',
   'empty/src/i18n/readme.txt': 'x',
+  // Probes: escapes and a newline in a value, a nested pub mod, an expression statement in a
+  // mod, duplicate consts and namespaces.
+  'esc/src/i18n/en.8bs': 'pub mod Game {\n    const A: string = "line\\nbreak \\"q\\" \\\\ \\t end";\n    const B: string = "a\nb";\n}\n',
+  'nest/src/i18n/en.8bs': 'pub mod A {\n    pub mod B {\n        const C: string = "x";\n    }\n    const D: string = "y";\n}\n',
+  'expr/src/i18n/en.8bs': 'pub mod A {\n    f();\n    const B: string = "x";\n}\n',
+  'dup/src/i18n/en.8bs': 'pub mod A {\n    const B: string = "x";\n    const B: string = "y {p}";\n}\npub mod A {\n    const C: string = "z";\n}\n',
 };
 for (const [file, text] of Object.entries(tree)) {
   mkdirSync(dirname(join(root, file)), { recursive: true });
@@ -82,6 +88,13 @@ const formats = [
   ['{a}', [['a', '$&']]],
   ['{{a}}', [['a', 'v']]],
 ];
+// Names `Object.prototype` has: JS finds them on `params` unless `params` owns the name.
+for (const name of Object.getOwnPropertyNames(Object.prototype)) {
+  formats.push([`{${name}}`, []]);
+  formats.push([`<{${name}}> {a}`, [['a', '1']]]);
+  formats.push([`{${name}}`, [[name, 'own']]]);
+  formats.push(['x', [[name, 'extra']]]);
+}
 for (const [template, pairs] of formats) row('formatMessage', [template, pairs], formatMessage(template, Object.fromEntries(pairs)));
 
 // transliterate: every key, then mixes.
@@ -99,6 +112,7 @@ const schemaTexts = [
   'mod Private { const B: string = "x"; }\n',
   'pub mod A { let b: string = "x"; pub const c: string = "y"; const d: string = f(); }\n',
   '',
+  tree['esc/src/i18n/en.8bs'], tree['nest/src/i18n/en.8bs'], tree['expr/src/i18n/en.8bs'], tree['dup/src/i18n/en.8bs'],
 ];
 for (const text of schemaTexts) row('catalogSchema', [text, 'cat.8bs'], schemaOut(catalogSchema(parseText(text, 'cat.8bs'), 'cat.8bs')));
 const compareDiagnostics = (a, b, locale) => compareCatalogSchemas(
@@ -112,6 +126,10 @@ for (const [a, b, locale] of [
   [EN, '', 'nl'],
   // `catalogSchema` sets no `file` on the schema, so an empty extra namespace has no file in JS.
   [EN, 'pub mod Nothing {\n}\n', 'pt'],
+  ['pub mod A { const B: string = "{x} {y}"; }\n', 'pub mod A { const B: string = "{y} {x}"; }\n', 'sv'],
+  ['pub mod A { const B: string = "{y} {x}"; }\n', 'pub mod A { const B: string = "{x} {y}"; }\n', 'sv'],
+  [tree['dup/src/i18n/en.8bs'], tree['dup/src/i18n/en.8bs'], 'dd'],
+  [tree['nest/src/i18n/en.8bs'], tree['expr/src/i18n/en.8bs'], 'ee'],
 ]) row('compareCatalogSchemas', [a, b, locale], compareDiagnostics(a, b, locale));
 
 // applyCatalogCharset over parsed text; result is the diagnostics and the string values after.
@@ -135,12 +153,12 @@ for (const [file, i18n] of [
   [`${D}/readme.txt`, undefined], ['/proj/src/game/en.8bs', undefined], ['/proj/src/game/en.8bs', { catalogDir: '/proj/src/game' }],
   [`${D}/en.8bs`, { catalogDir: '/proj/src/game' }], [`${D}/en.8bs`, { catalogDir: '/proj/src/../src/i18n/' }],
   [`${D}/en.8bs`, { catalogDir: '' }], [`${D}/en.8bs`, {}], ['', undefined], ['/i18n/en.8bs', undefined], [`${D}/./en.8bs`, undefined],
-  [`${D}/EN.8bs`, undefined], [`${D}/1.8bs`, undefined], [`${D}/x_y.8bs`, undefined],
+  ['src/i18n/en.8bs', { catalogDir: 'src/i18n/.' }], [`${D}/EN.8bs`, undefined], [`${D}/1.8bs`, undefined], [`${D}/x_y.8bs`, undefined],
 ]) row('isCatalogFile', i18n === undefined ? [file] : [file, i18n], isCatalogFile(file, i18n));
 for (const file of [
   '/p/i18n/src/index.8bs', '/p/i18n/src/index.de.8bs', 'C:\\p\\i18n\\src\\index.en-GB.8bs', '/p/i18n/src/index.8bs.8bs',
   'i18n/src/index.8bs', '/i18n/src/index.8bs', '/p/i18n/src/index..8bs', '/p/i18n/src/index.a.b.8bs', '/p/i18n/src/index.8bx',
-  '/p/i18n/src/other.8bs', '/p/i18n/src/index.d_e.8bs', '', '/i18n/src/index/i18n/src/index.x.8bs', '/p/i18n/src/index.i18n/src/index.8bs',
+  '/p/i18n/src/other.8bs', '/p/i18n/src/index.d_e.8bs', '/p/i18n/src/index.-.8bs', '/p/i18n/src/index.x.8bs/', '', '/i18n/src/index/i18n/src/index.x.8bs', '/p/i18n/src/index.i18n/src/index.8bs',
 ]) row('isI18nPackageFile', [file], isI18nPackageFile(file));
 
 for (const dir of ['<root>/ok/src/i18n', '<root>/empty/src/i18n', '<root>/missing/dir', '<root>/ok/src/game/main.8bs', '<root>/ok/src/i18n/en.8bs'])
@@ -174,6 +192,14 @@ const prepares = [
   { i18n: options('empty') },
   { i18n: options('missing') },
   { i18n: options('ok', { defaultLocale: undefined, fallbackLocale: undefined }) },
+  { i18n: options('ok', { defaultLocale: '' }) },
+  { i18n: options('ok', { locales: ['en', 'en', 'de'] }), locale: 'de' },
+  { i18n: options('ok', { catalogDir: '<root>/ok/src/i18n/' }) },
+  { i18n: options('esc', { locales: ['en'] }) },
+  { i18n: options('esc', { locales: ['en'], charset: 'strict' }) },
+  { i18n: options('nest', { locales: ['en'] }) },
+  { i18n: options('expr', { locales: ['en'] }) },
+  { i18n: options('dup', { locales: ['en'] }) },
   { i18n: { catalogDir: '' } },
   { fromFile: '<root>/x.8bs' },
   {},

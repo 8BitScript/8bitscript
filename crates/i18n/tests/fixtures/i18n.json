@@ -13,7 +13,11 @@
     "nodefault/src/i18n/de.8bs": "pub mod Game {\n    const NAME: string = \"2048\";\n    const SCORE: string = \"PUNKTE\";\n}\npub mod Prompt {\n    const START: string = \"{control} DRÜCKEN\";\n}\n",
     "bad/src/i18n/en.8bs": "pub mod Game {\n    const NAME: number = 1;\n    fn f() {}\n    const OK: string = 3;\n}\nfn top() {}\n",
     "bad/src/i18n/de.8bs": "pub mod Game {\n    const NAME: string = \"unterminated;\n",
-    "empty/src/i18n/readme.txt": "x"
+    "empty/src/i18n/readme.txt": "x",
+    "esc/src/i18n/en.8bs": "pub mod Game {\n    const A: string = \"line\\nbreak \\\"q\\\" \\\\ \\t end\";\n    const B: string = \"a\nb\";\n}\n",
+    "nest/src/i18n/en.8bs": "pub mod A {\n    pub mod B {\n        const C: string = \"x\";\n    }\n    const D: string = \"y\";\n}\n",
+    "expr/src/i18n/en.8bs": "pub mod A {\n    f();\n    const B: string = \"x\";\n}\n",
+    "dup/src/i18n/en.8bs": "pub mod A {\n    const B: string = \"x\";\n    const B: string = \"y {p}\";\n}\npub mod A {\n    const C: string = \"z\";\n}\n"
   },
   "rows": [
     {
@@ -349,6 +353,714 @@
       "result": {
         "ok": true,
         "text": "{v}"
+      }
+    },
+    {
+      "fn": "formatMessage",
+      "args": [
+        "{constructor}",
+        []
+      ],
+      "result": {
+        "ok": true,
+        "text": "function Object() { [native code] }"
+      }
+    },
+    {
+      "fn": "formatMessage",
+      "args": [
+        "<{constructor}> {a}",
+        [
+          [
+            "a",
+            "1"
+          ]
+        ]
+      ],
+      "result": {
+        "ok": true,
+        "text": "<function Object() { [native code] }> 1"
+      }
+    },
+    {
+      "fn": "formatMessage",
+      "args": [
+        "{constructor}",
+        [
+          [
+            "constructor",
+            "own"
+          ]
+        ]
+      ],
+      "result": {
+        "ok": true,
+        "text": "own"
+      }
+    },
+    {
+      "fn": "formatMessage",
+      "args": [
+        "x",
+        [
+          [
+            "constructor",
+            "extra"
+          ]
+        ]
+      ],
+      "result": {
+        "ok": false,
+        "error": "i18n.format was given 'constructor', which is not a placeholder in the template"
+      }
+    },
+    {
+      "fn": "formatMessage",
+      "args": [
+        "{__defineGetter__}",
+        []
+      ],
+      "result": {
+        "ok": true,
+        "text": "function __defineGetter__() { [native code] }"
+      }
+    },
+    {
+      "fn": "formatMessage",
+      "args": [
+        "<{__defineGetter__}> {a}",
+        [
+          [
+            "a",
+            "1"
+          ]
+        ]
+      ],
+      "result": {
+        "ok": true,
+        "text": "<function __defineGetter__() { [native code] }> 1"
+      }
+    },
+    {
+      "fn": "formatMessage",
+      "args": [
+        "{__defineGetter__}",
+        [
+          [
+            "__defineGetter__",
+            "own"
+          ]
+        ]
+      ],
+      "result": {
+        "ok": true,
+        "text": "own"
+      }
+    },
+    {
+      "fn": "formatMessage",
+      "args": [
+        "x",
+        [
+          [
+            "__defineGetter__",
+            "extra"
+          ]
+        ]
+      ],
+      "result": {
+        "ok": false,
+        "error": "i18n.format was given '__defineGetter__', which is not a placeholder in the template"
+      }
+    },
+    {
+      "fn": "formatMessage",
+      "args": [
+        "{__defineSetter__}",
+        []
+      ],
+      "result": {
+        "ok": true,
+        "text": "function __defineSetter__() { [native code] }"
+      }
+    },
+    {
+      "fn": "formatMessage",
+      "args": [
+        "<{__defineSetter__}> {a}",
+        [
+          [
+            "a",
+            "1"
+          ]
+        ]
+      ],
+      "result": {
+        "ok": true,
+        "text": "<function __defineSetter__() { [native code] }> 1"
+      }
+    },
+    {
+      "fn": "formatMessage",
+      "args": [
+        "{__defineSetter__}",
+        [
+          [
+            "__defineSetter__",
+            "own"
+          ]
+        ]
+      ],
+      "result": {
+        "ok": true,
+        "text": "own"
+      }
+    },
+    {
+      "fn": "formatMessage",
+      "args": [
+        "x",
+        [
+          [
+            "__defineSetter__",
+            "extra"
+          ]
+        ]
+      ],
+      "result": {
+        "ok": false,
+        "error": "i18n.format was given '__defineSetter__', which is not a placeholder in the template"
+      }
+    },
+    {
+      "fn": "formatMessage",
+      "args": [
+        "{hasOwnProperty}",
+        []
+      ],
+      "result": {
+        "ok": true,
+        "text": "function hasOwnProperty() { [native code] }"
+      }
+    },
+    {
+      "fn": "formatMessage",
+      "args": [
+        "<{hasOwnProperty}> {a}",
+        [
+          [
+            "a",
+            "1"
+          ]
+        ]
+      ],
+      "result": {
+        "ok": true,
+        "text": "<function hasOwnProperty() { [native code] }> 1"
+      }
+    },
+    {
+      "fn": "formatMessage",
+      "args": [
+        "{hasOwnProperty}",
+        [
+          [
+            "hasOwnProperty",
+            "own"
+          ]
+        ]
+      ],
+      "result": {
+        "ok": true,
+        "text": "own"
+      }
+    },
+    {
+      "fn": "formatMessage",
+      "args": [
+        "x",
+        [
+          [
+            "hasOwnProperty",
+            "extra"
+          ]
+        ]
+      ],
+      "result": {
+        "ok": false,
+        "error": "i18n.format was given 'hasOwnProperty', which is not a placeholder in the template"
+      }
+    },
+    {
+      "fn": "formatMessage",
+      "args": [
+        "{__lookupGetter__}",
+        []
+      ],
+      "result": {
+        "ok": true,
+        "text": "function __lookupGetter__() { [native code] }"
+      }
+    },
+    {
+      "fn": "formatMessage",
+      "args": [
+        "<{__lookupGetter__}> {a}",
+        [
+          [
+            "a",
+            "1"
+          ]
+        ]
+      ],
+      "result": {
+        "ok": true,
+        "text": "<function __lookupGetter__() { [native code] }> 1"
+      }
+    },
+    {
+      "fn": "formatMessage",
+      "args": [
+        "{__lookupGetter__}",
+        [
+          [
+            "__lookupGetter__",
+            "own"
+          ]
+        ]
+      ],
+      "result": {
+        "ok": true,
+        "text": "own"
+      }
+    },
+    {
+      "fn": "formatMessage",
+      "args": [
+        "x",
+        [
+          [
+            "__lookupGetter__",
+            "extra"
+          ]
+        ]
+      ],
+      "result": {
+        "ok": false,
+        "error": "i18n.format was given '__lookupGetter__', which is not a placeholder in the template"
+      }
+    },
+    {
+      "fn": "formatMessage",
+      "args": [
+        "{__lookupSetter__}",
+        []
+      ],
+      "result": {
+        "ok": true,
+        "text": "function __lookupSetter__() { [native code] }"
+      }
+    },
+    {
+      "fn": "formatMessage",
+      "args": [
+        "<{__lookupSetter__}> {a}",
+        [
+          [
+            "a",
+            "1"
+          ]
+        ]
+      ],
+      "result": {
+        "ok": true,
+        "text": "<function __lookupSetter__() { [native code] }> 1"
+      }
+    },
+    {
+      "fn": "formatMessage",
+      "args": [
+        "{__lookupSetter__}",
+        [
+          [
+            "__lookupSetter__",
+            "own"
+          ]
+        ]
+      ],
+      "result": {
+        "ok": true,
+        "text": "own"
+      }
+    },
+    {
+      "fn": "formatMessage",
+      "args": [
+        "x",
+        [
+          [
+            "__lookupSetter__",
+            "extra"
+          ]
+        ]
+      ],
+      "result": {
+        "ok": false,
+        "error": "i18n.format was given '__lookupSetter__', which is not a placeholder in the template"
+      }
+    },
+    {
+      "fn": "formatMessage",
+      "args": [
+        "{isPrototypeOf}",
+        []
+      ],
+      "result": {
+        "ok": true,
+        "text": "function isPrototypeOf() { [native code] }"
+      }
+    },
+    {
+      "fn": "formatMessage",
+      "args": [
+        "<{isPrototypeOf}> {a}",
+        [
+          [
+            "a",
+            "1"
+          ]
+        ]
+      ],
+      "result": {
+        "ok": true,
+        "text": "<function isPrototypeOf() { [native code] }> 1"
+      }
+    },
+    {
+      "fn": "formatMessage",
+      "args": [
+        "{isPrototypeOf}",
+        [
+          [
+            "isPrototypeOf",
+            "own"
+          ]
+        ]
+      ],
+      "result": {
+        "ok": true,
+        "text": "own"
+      }
+    },
+    {
+      "fn": "formatMessage",
+      "args": [
+        "x",
+        [
+          [
+            "isPrototypeOf",
+            "extra"
+          ]
+        ]
+      ],
+      "result": {
+        "ok": false,
+        "error": "i18n.format was given 'isPrototypeOf', which is not a placeholder in the template"
+      }
+    },
+    {
+      "fn": "formatMessage",
+      "args": [
+        "{propertyIsEnumerable}",
+        []
+      ],
+      "result": {
+        "ok": true,
+        "text": "function propertyIsEnumerable() { [native code] }"
+      }
+    },
+    {
+      "fn": "formatMessage",
+      "args": [
+        "<{propertyIsEnumerable}> {a}",
+        [
+          [
+            "a",
+            "1"
+          ]
+        ]
+      ],
+      "result": {
+        "ok": true,
+        "text": "<function propertyIsEnumerable() { [native code] }> 1"
+      }
+    },
+    {
+      "fn": "formatMessage",
+      "args": [
+        "{propertyIsEnumerable}",
+        [
+          [
+            "propertyIsEnumerable",
+            "own"
+          ]
+        ]
+      ],
+      "result": {
+        "ok": true,
+        "text": "own"
+      }
+    },
+    {
+      "fn": "formatMessage",
+      "args": [
+        "x",
+        [
+          [
+            "propertyIsEnumerable",
+            "extra"
+          ]
+        ]
+      ],
+      "result": {
+        "ok": false,
+        "error": "i18n.format was given 'propertyIsEnumerable', which is not a placeholder in the template"
+      }
+    },
+    {
+      "fn": "formatMessage",
+      "args": [
+        "{toString}",
+        []
+      ],
+      "result": {
+        "ok": true,
+        "text": "function toString() { [native code] }"
+      }
+    },
+    {
+      "fn": "formatMessage",
+      "args": [
+        "<{toString}> {a}",
+        [
+          [
+            "a",
+            "1"
+          ]
+        ]
+      ],
+      "result": {
+        "ok": true,
+        "text": "<function toString() { [native code] }> 1"
+      }
+    },
+    {
+      "fn": "formatMessage",
+      "args": [
+        "{toString}",
+        [
+          [
+            "toString",
+            "own"
+          ]
+        ]
+      ],
+      "result": {
+        "ok": true,
+        "text": "own"
+      }
+    },
+    {
+      "fn": "formatMessage",
+      "args": [
+        "x",
+        [
+          [
+            "toString",
+            "extra"
+          ]
+        ]
+      ],
+      "result": {
+        "ok": false,
+        "error": "i18n.format was given 'toString', which is not a placeholder in the template"
+      }
+    },
+    {
+      "fn": "formatMessage",
+      "args": [
+        "{valueOf}",
+        []
+      ],
+      "result": {
+        "ok": true,
+        "text": "function valueOf() { [native code] }"
+      }
+    },
+    {
+      "fn": "formatMessage",
+      "args": [
+        "<{valueOf}> {a}",
+        [
+          [
+            "a",
+            "1"
+          ]
+        ]
+      ],
+      "result": {
+        "ok": true,
+        "text": "<function valueOf() { [native code] }> 1"
+      }
+    },
+    {
+      "fn": "formatMessage",
+      "args": [
+        "{valueOf}",
+        [
+          [
+            "valueOf",
+            "own"
+          ]
+        ]
+      ],
+      "result": {
+        "ok": true,
+        "text": "own"
+      }
+    },
+    {
+      "fn": "formatMessage",
+      "args": [
+        "x",
+        [
+          [
+            "valueOf",
+            "extra"
+          ]
+        ]
+      ],
+      "result": {
+        "ok": false,
+        "error": "i18n.format was given 'valueOf', which is not a placeholder in the template"
+      }
+    },
+    {
+      "fn": "formatMessage",
+      "args": [
+        "{__proto__}",
+        []
+      ],
+      "result": {
+        "ok": true,
+        "text": "[object Object]"
+      }
+    },
+    {
+      "fn": "formatMessage",
+      "args": [
+        "<{__proto__}> {a}",
+        [
+          [
+            "a",
+            "1"
+          ]
+        ]
+      ],
+      "result": {
+        "ok": true,
+        "text": "<[object Object]> 1"
+      }
+    },
+    {
+      "fn": "formatMessage",
+      "args": [
+        "{__proto__}",
+        [
+          [
+            "__proto__",
+            "own"
+          ]
+        ]
+      ],
+      "result": {
+        "ok": true,
+        "text": "own"
+      }
+    },
+    {
+      "fn": "formatMessage",
+      "args": [
+        "x",
+        [
+          [
+            "__proto__",
+            "extra"
+          ]
+        ]
+      ],
+      "result": {
+        "ok": false,
+        "error": "i18n.format was given '__proto__', which is not a placeholder in the template"
+      }
+    },
+    {
+      "fn": "formatMessage",
+      "args": [
+        "{toLocaleString}",
+        []
+      ],
+      "result": {
+        "ok": true,
+        "text": "function toLocaleString() { [native code] }"
+      }
+    },
+    {
+      "fn": "formatMessage",
+      "args": [
+        "<{toLocaleString}> {a}",
+        [
+          [
+            "a",
+            "1"
+          ]
+        ]
+      ],
+      "result": {
+        "ok": true,
+        "text": "<function toLocaleString() { [native code] }> 1"
+      }
+    },
+    {
+      "fn": "formatMessage",
+      "args": [
+        "{toLocaleString}",
+        [
+          [
+            "toLocaleString",
+            "own"
+          ]
+        ]
+      ],
+      "result": {
+        "ok": true,
+        "text": "own"
+      }
+    },
+    {
+      "fn": "formatMessage",
+      "args": [
+        "x",
+        [
+          [
+            "toLocaleString",
+            "extra"
+          ]
+        ]
+      ],
+      "result": {
+        "ok": false,
+        "error": "i18n.format was given 'toLocaleString', which is not a placeholder in the template"
       }
     },
     {
@@ -802,6 +1514,104 @@
       }
     },
     {
+      "fn": "catalogSchema",
+      "args": [
+        "pub mod Game {\n    const A: string = \"line\\nbreak \\\"q\\\" \\\\ \\t end\";\n    const B: string = \"a\nb\";\n}\n",
+        "cat.8bs"
+      ],
+      "result": {
+        "namespaces": {
+          "Game": {
+            "A": {
+              "value": "line\\nbreak \\\"q\\\" \\\\ \\t end",
+              "placeholders": [],
+              "start": 25,
+              "length": 1,
+              "file": "cat.8bs"
+            },
+            "B": {
+              "value": "",
+              "placeholders": [],
+              "start": 78,
+              "length": 1,
+              "file": "cat.8bs"
+            }
+          }
+        },
+        "extras": []
+      }
+    },
+    {
+      "fn": "catalogSchema",
+      "args": [
+        "pub mod A {\n    pub mod B {\n        const C: string = \"x\";\n    }\n    const D: string = \"y\";\n}\n",
+        "cat.8bs"
+      ],
+      "result": {
+        "namespaces": {
+          "A": {
+            "C": {
+              "value": "x",
+              "placeholders": [],
+              "start": 42,
+              "length": 1,
+              "file": "cat.8bs"
+            }
+          }
+        },
+        "extras": [
+          {
+            "message": "a message catalog may make only mods of string consts pub",
+            "start": 69,
+            "length": 22,
+            "file": "cat.8bs"
+          }
+        ]
+      }
+    },
+    {
+      "fn": "catalogSchema",
+      "args": [
+        "pub mod A {\n    f();\n    const B: string = \"x\";\n}\n",
+        "cat.8bs"
+      ],
+      "result": {
+        "namespaces": {
+          "A": {
+            "B": {
+              "value": "x",
+              "placeholders": [],
+              "start": 31,
+              "length": 1,
+              "file": "cat.8bs"
+            }
+          }
+        },
+        "extras": []
+      }
+    },
+    {
+      "fn": "catalogSchema",
+      "args": [
+        "pub mod A {\n    const B: string = \"x\";\n    const B: string = \"y {p}\";\n}\npub mod A {\n    const C: string = \"z\";\n}\n",
+        "cat.8bs"
+      ],
+      "result": {
+        "namespaces": {
+          "A": {
+            "C": {
+              "value": "z",
+              "placeholders": [],
+              "start": 94,
+              "length": 1,
+              "file": "cat.8bs"
+            }
+          }
+        },
+        "extras": []
+      }
+    },
+    {
       "fn": "compareCatalogSchemas",
       "args": [
         "pub mod Game {\n    const NAME: string = \"2048\";\n    const SCORE: string = \"SCORE\";\n}\npub mod Prompt {\n    const START: string = \"PRESS {control}\";\n}\n",
@@ -967,6 +1777,69 @@
           "message": "locale 'pt' has pub mod 'Nothing', which the default locale does not",
           "start": 0,
           "length": 0,
+          "severity": "error"
+        }
+      ]
+    },
+    {
+      "fn": "compareCatalogSchemas",
+      "args": [
+        "pub mod A { const B: string = \"{x} {y}\"; }\n",
+        "pub mod A { const B: string = \"{y} {x}\"; }\n",
+        "sv"
+      ],
+      "result": [
+        {
+          "code": "8BS1045",
+          "message": "A.B in locale 'sv' has placeholders {y}, {x}; the default locale has {x}, {y}",
+          "file": "sv.8bs",
+          "start": 18,
+          "length": 1,
+          "severity": "error"
+        }
+      ]
+    },
+    {
+      "fn": "compareCatalogSchemas",
+      "args": [
+        "pub mod A { const B: string = \"{y} {x}\"; }\n",
+        "pub mod A { const B: string = \"{x} {y}\"; }\n",
+        "sv"
+      ],
+      "result": [
+        {
+          "code": "8BS1045",
+          "message": "A.B in locale 'sv' has placeholders {x}, {y}; the default locale has {y}, {x}",
+          "file": "sv.8bs",
+          "start": 18,
+          "length": 1,
+          "severity": "error"
+        }
+      ]
+    },
+    {
+      "fn": "compareCatalogSchemas",
+      "args": [
+        "pub mod A {\n    const B: string = \"x\";\n    const B: string = \"y {p}\";\n}\npub mod A {\n    const C: string = \"z\";\n}\n",
+        "pub mod A {\n    const B: string = \"x\";\n    const B: string = \"y {p}\";\n}\npub mod A {\n    const C: string = \"z\";\n}\n",
+        "dd"
+      ],
+      "result": []
+    },
+    {
+      "fn": "compareCatalogSchemas",
+      "args": [
+        "pub mod A {\n    pub mod B {\n        const C: string = \"x\";\n    }\n    const D: string = \"y\";\n}\n",
+        "pub mod A {\n    f();\n    const B: string = \"x\";\n}\n",
+        "ee"
+      ],
+      "result": [
+        {
+          "code": "8BS1044",
+          "message": "locale 'ee' exports A.B, which the default locale does not",
+          "file": "ee.8bs",
+          "start": 31,
+          "length": 1,
           "severity": "error"
         }
       ]
@@ -1374,6 +2247,16 @@
     {
       "fn": "isCatalogFile",
       "args": [
+        "src/i18n/en.8bs",
+        {
+          "catalogDir": "src/i18n/."
+        }
+      ],
+      "result": true
+    },
+    {
+      "fn": "isCatalogFile",
+      "args": [
         "/proj/src/i18n/EN.8bs"
       ],
       "result": false
@@ -1466,6 +2349,20 @@
       "fn": "isI18nPackageFile",
       "args": [
         "/p/i18n/src/index.d_e.8bs"
+      ],
+      "result": false
+    },
+    {
+      "fn": "isI18nPackageFile",
+      "args": [
+        "/p/i18n/src/index.-.8bs"
+      ],
+      "result": true
+    },
+    {
+      "fn": "isI18nPackageFile",
+      "args": [
+        "/p/i18n/src/index.x.8bs/"
       ],
       "result": false
     },
@@ -2206,6 +3103,310 @@
         "ok": true,
         "path": "<root>/ok/src/i18n/en.8bs",
         "text": "// Merged message catalog — selected locale, with missing keys from the fallback.\n// Generated by the compiler; do not edit.\n\npub mod Game {\n    const NAME: string = \"2048\";\n    const SCORE: string = \"SCORE\";\n}\n\npub mod Prompt {\n    const START: string = \"PRESS {control}\";\n}\n",
+        "diagnostics": []
+      }
+    },
+    {
+      "fn": "prepareCatalog",
+      "args": [
+        {
+          "i18n": {
+            "catalogDir": "<root>/ok/src/i18n",
+            "defaultLocale": "",
+            "fallbackLocale": "en",
+            "locales": [
+              "en",
+              "de"
+            ],
+            "charset": "transliterate"
+          }
+        }
+      ],
+      "result": {
+        "ok": false,
+        "diagnostics": [
+          {
+            "code": "8BS1043",
+            "message": "message catalog '<root>/ok/src/i18n/.8bs' is missing — the default locale '' needs a file",
+            "file": "<root>/ok/src/i18n/.8bs",
+            "start": 0,
+            "length": 0,
+            "severity": "error"
+          }
+        ]
+      }
+    },
+    {
+      "fn": "prepareCatalog",
+      "args": [
+        {
+          "i18n": {
+            "catalogDir": "<root>/ok/src/i18n",
+            "defaultLocale": "en",
+            "fallbackLocale": "en",
+            "locales": [
+              "en",
+              "en",
+              "de"
+            ],
+            "charset": "transliterate"
+          },
+          "locale": "de"
+        }
+      ],
+      "result": {
+        "ok": true,
+        "path": "<root>/ok/src/i18n/de.8bs",
+        "text": "// Merged message catalog — selected locale, with missing keys from the fallback.\n// Generated by the compiler; do not edit.\n\npub mod Game {\n    const NAME: string = \"2048\";\n    const SCORE: string = \"PUNKTE\";\n}\n\npub mod Prompt {\n    const START: string = \"{control} DRUECKEN\";\n}\n",
+        "diagnostics": []
+      }
+    },
+    {
+      "fn": "prepareCatalog",
+      "args": [
+        {
+          "i18n": {
+            "catalogDir": "<root>/ok/src/i18n/",
+            "defaultLocale": "en",
+            "fallbackLocale": "en",
+            "locales": [
+              "en",
+              "de"
+            ],
+            "charset": "transliterate"
+          }
+        }
+      ],
+      "result": {
+        "ok": true,
+        "path": "<root>/ok/src/i18n/en.8bs",
+        "text": "// Merged message catalog — selected locale, with missing keys from the fallback.\n// Generated by the compiler; do not edit.\n\npub mod Game {\n    const NAME: string = \"2048\";\n    const SCORE: string = \"SCORE\";\n}\n\npub mod Prompt {\n    const START: string = \"PRESS {control}\";\n}\n",
+        "diagnostics": []
+      }
+    },
+    {
+      "fn": "prepareCatalog",
+      "args": [
+        {
+          "i18n": {
+            "catalogDir": "<root>/esc/src/i18n",
+            "defaultLocale": "en",
+            "fallbackLocale": "en",
+            "locales": [
+              "en"
+            ],
+            "charset": "transliterate"
+          }
+        }
+      ],
+      "result": {
+        "ok": false,
+        "path": "<root>/esc/src/i18n/en.8bs",
+        "text": "// Merged message catalog — selected locale, with missing keys from the fallback.\n// Generated by the compiler; do not edit.\n\npub mod Game {\n    const A: string = \"line\\\\nbreak \\\\\\\"q\\\\\\\" \\\\\\\\ \\\\t end\";\n    const B: string = \"\";\n}\n",
+        "diagnostics": [
+          {
+            "code": "8BS1002",
+            "message": "unterminated string literal",
+            "file": "<root>/esc/src/i18n/en.8bs",
+            "start": 90,
+            "length": 2,
+            "severity": "error"
+          },
+          {
+            "code": "8BS1002",
+            "message": "unterminated string literal",
+            "file": "<root>/esc/src/i18n/en.8bs",
+            "start": 94,
+            "length": 2,
+            "severity": "error"
+          },
+          {
+            "code": "8BS1101",
+            "message": "expected ';', found 'b'",
+            "file": "<root>/esc/src/i18n/en.8bs",
+            "start": 93,
+            "length": 1,
+            "severity": "error"
+          },
+          {
+            "code": "8BS1101",
+            "message": "expected a function or const inside a mod, found 'b'",
+            "file": "<root>/esc/src/i18n/en.8bs",
+            "start": 93,
+            "length": 1,
+            "severity": "error"
+          },
+          {
+            "code": "8BS1026",
+            "message": "'\\' is not in the portable character set and has no Latin transliteration",
+            "file": "<root>/esc/src/i18n/en.8bs",
+            "start": 25,
+            "length": 1,
+            "severity": "error"
+          }
+        ]
+      }
+    },
+    {
+      "fn": "prepareCatalog",
+      "args": [
+        {
+          "i18n": {
+            "catalogDir": "<root>/esc/src/i18n",
+            "defaultLocale": "en",
+            "fallbackLocale": "en",
+            "locales": [
+              "en"
+            ],
+            "charset": "strict"
+          }
+        }
+      ],
+      "result": {
+        "ok": false,
+        "path": "<root>/esc/src/i18n/en.8bs",
+        "text": "// Merged message catalog — selected locale, with missing keys from the fallback.\n// Generated by the compiler; do not edit.\n\npub mod Game {\n    const A: string = \"line\\\\nbreak \\\\\\\"q\\\\\\\" \\\\\\\\ \\\\t end\";\n    const B: string = \"\";\n}\n",
+        "diagnostics": [
+          {
+            "code": "8BS1002",
+            "message": "unterminated string literal",
+            "file": "<root>/esc/src/i18n/en.8bs",
+            "start": 90,
+            "length": 2,
+            "severity": "error"
+          },
+          {
+            "code": "8BS1002",
+            "message": "unterminated string literal",
+            "file": "<root>/esc/src/i18n/en.8bs",
+            "start": 94,
+            "length": 2,
+            "severity": "error"
+          },
+          {
+            "code": "8BS1101",
+            "message": "expected ';', found 'b'",
+            "file": "<root>/esc/src/i18n/en.8bs",
+            "start": 93,
+            "length": 1,
+            "severity": "error"
+          },
+          {
+            "code": "8BS1101",
+            "message": "expected a function or const inside a mod, found 'b'",
+            "file": "<root>/esc/src/i18n/en.8bs",
+            "start": 93,
+            "length": 1,
+            "severity": "error"
+          },
+          {
+            "code": "8BS1026",
+            "message": "'\\' is not in the portable character set (space, 0-9, A-Z, a-z, and ! , - . : ?)",
+            "file": "<root>/esc/src/i18n/en.8bs",
+            "start": 25,
+            "length": 1,
+            "severity": "error"
+          }
+        ]
+      }
+    },
+    {
+      "fn": "prepareCatalog",
+      "args": [
+        {
+          "i18n": {
+            "catalogDir": "<root>/nest/src/i18n",
+            "defaultLocale": "en",
+            "fallbackLocale": "en",
+            "locales": [
+              "en"
+            ],
+            "charset": "transliterate"
+          }
+        }
+      ],
+      "result": {
+        "ok": false,
+        "path": "<root>/nest/src/i18n/en.8bs",
+        "text": "// Merged message catalog — selected locale, with missing keys from the fallback.\n// Generated by the compiler; do not edit.\n\npub mod A {\n    const C: string = \"x\";\n}\n",
+        "diagnostics": [
+          {
+            "code": "8BS1101",
+            "message": "expected a function or const inside a mod, found 'mod'",
+            "file": "<root>/nest/src/i18n/en.8bs",
+            "start": 20,
+            "length": 3,
+            "severity": "error"
+          },
+          {
+            "code": "8BS1101",
+            "message": "expected an expression, found '}'",
+            "file": "<root>/nest/src/i18n/en.8bs",
+            "start": 92,
+            "length": 1,
+            "severity": "error"
+          },
+          {
+            "code": "8BS1043",
+            "message": "a message catalog may make only mods of string consts pub",
+            "file": "<root>/nest/src/i18n/en.8bs",
+            "start": 69,
+            "length": 22,
+            "severity": "error"
+          }
+        ]
+      }
+    },
+    {
+      "fn": "prepareCatalog",
+      "args": [
+        {
+          "i18n": {
+            "catalogDir": "<root>/expr/src/i18n",
+            "defaultLocale": "en",
+            "fallbackLocale": "en",
+            "locales": [
+              "en"
+            ],
+            "charset": "transliterate"
+          }
+        }
+      ],
+      "result": {
+        "ok": false,
+        "path": "<root>/expr/src/i18n/en.8bs",
+        "text": "// Merged message catalog — selected locale, with missing keys from the fallback.\n// Generated by the compiler; do not edit.\n\npub mod A {\n    const B: string = \"x\";\n}\n",
+        "diagnostics": [
+          {
+            "code": "8BS1101",
+            "message": "expected a function or const inside a mod, found 'f'",
+            "file": "<root>/expr/src/i18n/en.8bs",
+            "start": 16,
+            "length": 1,
+            "severity": "error"
+          }
+        ]
+      }
+    },
+    {
+      "fn": "prepareCatalog",
+      "args": [
+        {
+          "i18n": {
+            "catalogDir": "<root>/dup/src/i18n",
+            "defaultLocale": "en",
+            "fallbackLocale": "en",
+            "locales": [
+              "en"
+            ],
+            "charset": "transliterate"
+          }
+        }
+      ],
+      "result": {
+        "ok": true,
+        "path": "<root>/dup/src/i18n/en.8bs",
+        "text": "// Merged message catalog — selected locale, with missing keys from the fallback.\n// Generated by the compiler; do not edit.\n\npub mod A {\n    const C: string = \"z\";\n}\n",
         "diagnostics": []
       }
     },

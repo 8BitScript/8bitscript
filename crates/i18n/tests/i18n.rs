@@ -26,8 +26,9 @@ use syntax::{Node, NodeKind, SourceKind, children_mut};
 struct Root(PathBuf);
 
 impl Root {
-    fn new() -> Root {
-        let dir = std::env::temp_dir().join(format!("i18n-fixture-{}", std::process::id()));
+    /// A temp dir of its own per test (`tag`), so parallel tests never share one.
+    fn new(tag: &str) -> Root {
+        let dir = std::env::temp_dir().join(format!("i18n-{tag}-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         Root(dir)
@@ -128,7 +129,7 @@ fn run(fs: &RootedFs, name: &str, args: &[Value]) -> (Value, Option<Value>) {
             let file = format!("{locale}.8bs");
             let other = catalog_schema(&parse_text(arg_str(args, 1), &file), &file);
             (
-                to_value(&compare_catalog_schemas(&base, &other, locale, None)),
+                to_value(&compare_catalog_schemas(&base, &other, locale)),
                 None,
             )
         }
@@ -181,7 +182,7 @@ fn run(fs: &RootedFs, name: &str, args: &[Value]) -> (Value, Option<Value>) {
 #[test]
 fn i18n_matches_js() {
     let fixture: Value = serde_json::from_str(include_str!("fixtures/i18n.json")).unwrap();
-    let root = Root::new();
+    let root = Root::new("fixture");
     for (file, text) in fixture["tree"].as_object().unwrap() {
         let path = root.0.join(file);
         fs::create_dir_all(path.parent().unwrap()).unwrap();
@@ -222,7 +223,7 @@ fn every_transliteration_key_is_a_fixture_row() {
 
 #[test]
 fn unreadable_catalog_is_an_error_not_a_panic() {
-    let root = Root::new();
+    let root = Root::new("unreadable");
     let dir = root.0.join("p/src/i18n");
     fs::create_dir_all(&dir).unwrap();
     fs::write(dir.join("en.8bs"), [0xff, 0xfe, b'x']).unwrap();
