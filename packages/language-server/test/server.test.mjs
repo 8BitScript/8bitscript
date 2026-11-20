@@ -8,7 +8,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 import { readFileSync } from 'node:fs';
-import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, rename, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -1053,6 +1053,29 @@ test('staleConfigPath finds an old 8bitscript.config.8bs only when no current co
     assert.equal(staleConfigPath(join(dir, 'src')), join(dir, '8bitscript.config.8bs'));
     await writeFile(join(dir, '8bitscript.config.ts'), 'export default {};\n');
     assert.equal(staleConfigPath(join(dir, 'src')), null);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('forgetFixedStale drops a warned old-name config once it is renamed, so a regression warns again', async () => {
+  const { forgetFixedStale, staleConfigPath } = await import('../src/server.mjs');
+  const dir = await mkdtemp(join(tmpdir(), '8bs-ls-stale-'));
+  try {
+    const old = join(dir, '8bitscript.config.8bs');
+    await writeFile(old, 'export default {};\n');
+    const warned = new Set([staleConfigPath(dir)]);
+    forgetFixedStale(warned);
+    assert.deepEqual([...warned], [old], 'still stale: stays warned');
+    await rename(old, join(dir, '8bitscript.config.ts'));
+    forgetFixedStale(warned);
+    assert.equal(warned.size, 0, 'fixed: forgotten');
+    await rename(join(dir, '8bitscript.config.ts'), old);
+    assert.equal(staleConfigPath(dir), old, 'a regression is stale again');
+    warned.add(old);
+    await writeFile(join(dir, '8bitscript.config.ts'), 'export default {};\n');
+    forgetFixedStale(warned);
+    assert.equal(warned.size, 0, 'a current config beside it also clears it');
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

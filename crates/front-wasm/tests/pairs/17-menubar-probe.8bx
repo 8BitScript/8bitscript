@@ -3,7 +3,7 @@
 // every target proves an exported, slotted component crosses the module
 // boundary and lowers to the same menubar calls the .8bs probe makes by
 // hand.
-use super::src::menubar::{MenuBar, MenuItem};
+use "../src/menubar.8bx"::{MenuBar, MenuItem};
 
 pub fn main() {
     <MenuBar row={0} width={40}>

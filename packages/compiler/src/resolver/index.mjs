@@ -159,7 +159,7 @@ export function machineOfVariant(path) {
  * are read as a tag here, which is only ever a wording in a diagnostic —
  * chooseVariant decides by probing with the build's own tags and locale.
  */
-function variantsPresent(path) {
+export function variantsPresent(path) {
   const ext = sourceKindOf(path) ?? '.8bs';
   const stem = basename(stripSourceExtension(path));
   let entries;

@@ -367,7 +367,8 @@ export function convertEmbedded(src, convert) {
 }
 
 /**
- * Convert the ```8bs fences of a Markdown file.
+ * Convert the ```8bs and ```8bx fences of a Markdown file. A fence's tag names its
+ * source kind; a ```8bs fence that only parses as `.8bx` is retried.
  *
  * @param {string} md
  * @param {(body: string, sourceKind: '.8bs'|'.8bx') => { status: string, text?: string, message?: string }} convert
@@ -380,7 +381,7 @@ export function convertFences(md, convert) {
   let unchanged = 0;
   let i = 0;
   while (i < lines.length) {
-    const open = /^(\s*)```8bs\s*$/.exec(lines[i]);
+    const open = /^(\s*)```(8bs|8bx)\s*$/.exec(lines[i]);
     out.push(lines[i]);
     if (!open) {
       i += 1;
@@ -394,8 +395,9 @@ export function convertFences(md, convert) {
     }
     const indent = open[1];
     const body = lines.slice(i + 1, close).map((l) => (l.startsWith(indent) ? l.slice(indent.length) : l)).join('\n');
-    let result = convert(`${body}\n`, '.8bs');
-    if (result.status === 'failed') {
+    const firstKind = open[2] === '8bx' ? '.8bx' : '.8bs';
+    let result = convert(`${body}\n`, firstKind);
+    if (result.status === 'failed' && firstKind === '.8bs') {
       const retry = convert(`${body}\n`, '.8bx');
       if (retry.status !== 'failed') result = retry;
     }

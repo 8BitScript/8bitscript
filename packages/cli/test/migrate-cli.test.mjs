@@ -128,6 +128,18 @@ test('--alias lets a package import with an extension take the path form', async
   }
 });
 
+test('docs/spec/8bx.md is a design record: --fences skips it and leaves it as written', async () => {
+  const files = { 'docs/spec/8bx.md': `x\n\n\`\`\`8bx\nlet x = ;\n\`\`\`\n\n\`\`\`8bs\n${OLD}\`\`\`\n`, 'docs/other.md': `\`\`\`8bs\n${OLD}\`\`\`\n` };
+  const dir = project(files);
+  try {
+    const result = await run(dir, '--fences');
+    assert.deepEqual(result.lines, ['converted 1 fences in docs/other.md', '1 converted, 0 already new syntax, 0 differences, 0 failures']);
+    assert.equal(readFileSync(join(dir, 'docs/spec/8bx.md'), 'utf8'), files['docs/spec/8bx.md']);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('--embedded and --fences convert their own files, --all does all three', async () => {
   const files = {
     'a.8bs': OLD,
@@ -286,6 +298,26 @@ test('fences: a ```8bs block holding a component is converted as .8bx', () => {
   const out = convertFences('```8bs\nexport component Box() { <A />; }\n```\n', convert);
   assert.equal(out.converted, 1);
   assert.equal(out.text, '```8bs\npub component Box() {\n    <A />;\n}\n```\n');
+});
+
+test('fences: a ```8bx block is converted as .8bx', () => {
+  const out = convertFences('```8bx\nexport component Box() { <A />; }\n```\n', convert);
+  assert.equal(out.converted, 1);
+  assert.equal(out.text, '```8bx\npub component Box() {\n    <A />;\n}\n```\n');
+});
+
+test('fences: ```8bs and ```8bx blocks in one file are both converted', () => {
+  const md = '```8bs\nfunction f(): void {}\n```\n\n```8bx\nexport component Box() { <A />; }\n```\n';
+  const out = convertFences(md, convert);
+  assert.equal(out.converted, 2);
+  assert.equal(out.text, '```8bs\nfn f() {\n}\n```\n\n```8bx\npub component Box() {\n    <A />;\n}\n```\n');
+});
+
+test('fences: a ```8bx block is not retried as .8bs when it fails', () => {
+  const kinds = [];
+  const out = convertFences('```8bx\nlet x = ;\n```\n', (body, kind) => (kinds.push(kind), convert(body, kind)));
+  assert.deepEqual(kinds, ['.8bx']);
+  assert.equal(out.failures.length, 1);
 });
 
 test('fences: an indented fence keeps its indent', () => {
@@ -483,4 +515,88 @@ test('8bs build prints the stale-config line and exits 1', () => {
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+// ---- same-stem modules ---------------------------------------------------------
+
+const IMPORT_MENUBAR = 'import { f } from "./menubar.8bs";\nexport function g(): void { f(); }\n';
+const LIB = 'export function f(): void {}\n';
+
+test('a stem that exists as .8bs and .8bx keeps the string path; a unique stem gets the :: path', async () => {
+  const dir = project({
+    'main.8bs': IMPORT_MENUBAR + 'import { h } from "./solo";\n',
+    'menubar.8bs': LIB,
+    'menubar.8bx': 'export function f(): void { <A />; }\n',
+    'solo.8bs': 'export function h(): void {}\n',
+  });
+  try {
+    const { code } = await run(dir);
+    assert.equal(code, 0);
+    const text = readFileSync(join(dir, 'main.8bs'), 'utf8');
+    assert.match(text, /^use "\.\/menubar\.8bs"::f;$/m);
+    assert.match(text, /^use self::solo::h;$/m);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('an .8bx file importing its same-stem .8bs by extension keeps the string path', async () => {
+  const dir = project({
+    'menubar.8bs': LIB,
+    'menubar.8bx': 'import { f } from "./menubar.8bs";\nexport function g(): void { <A />; f(); }\n',
+  });
+  try {
+    const { code } = await run(dir);
+    assert.equal(code, 0);
+    assert.match(readFileSync(join(dir, 'menubar.8bx'), 'utf8'), /^use "\.\/menubar\.8bs"::f;$/m);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('a machine twin of the other extension counts: m.8bs beside m.nes.8bx keeps the string path', async () => {
+  const dir = project({
+    'main.8bs': 'import { f } from "./m.8bs";\nexport function g(): void { f(); }\n',
+    'm.8bs': LIB,
+    'm.nes.8bx': LIB,
+  });
+  try {
+    const { code } = await run(dir);
+    assert.equal(code, 0);
+    assert.match(readFileSync(join(dir, 'main.8bs'), 'utf8'), /^use "\.\/m\.8bs"::f;$/m);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('stems that differ only in case count as one stem: Mark.8bx beside mark.8bg keeps the string path', async () => {
+  const dir = project({
+    'main.8bs': 'import { m } from "./mark.8bg";\nexport function g(): void { m(); }\n',
+    'Mark.8bx': LIB,
+    'mark.8bg': LIB,
+  });
+  try {
+    const { code } = await run(dir);
+    assert.equal(code, 0);
+    assert.match(readFileSync(join(dir, 'main.8bs'), 'utf8'), /^use "\.\/mark\.8bg"::m;$/m);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('--check reports a same-stem file as convertible without writing it', async () => {
+  const dir = project({ 'main.8bs': IMPORT_MENUBAR, 'menubar.8bs': LIB, 'menubar.8bx': LIB });
+  try {
+    const { code, lines } = await run(dir, '--check');
+    assert.equal(code, 0);
+    assert.ok(lines.some((l) => /would convert .*main\.8bs/.test(l)));
+    assert.equal(readFileSync(join(dir, 'main.8bs'), 'utf8'), IMPORT_MENUBAR);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('migrateText takes the predicate: true keeps the string, false gives the path', () => {
+  assert.match(migrateText(IMPORT_MENUBAR, { sameStem: () => true }).text, /^use "\.\/menubar\.8bs"::f;$/m);
+  assert.match(migrateText(IMPORT_MENUBAR, { sameStem: () => false }).text, /^use self::menubar::f;$/m);
 });

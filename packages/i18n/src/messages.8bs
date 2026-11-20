@@ -3,19 +3,19 @@
 // `@8bitscript/i18n/catalog`). Widths belong to the layout, not the
 // catalog: a shorter translation never carries a blank filler. Import
 // this when a slot's text changes width but the cells it occupies do not.
-import { text } from "@8bitscript/text";
+use @8bitscript::text::text;
 
-export namespace messages {
+pub mod messages {
     // `line` at `cell`, then spaces through `cell + width - 1`.
-    function printLine(cell: usmallint, line: string, width: utinyint): void {
-        text.print(cell, line);
+    fn printLine(cell: usmallint, line: string, width: utinyint) {
+        text::print(cell, line);
         let n: utinyint = line.length;
-        if (width > n) {
-            text.fill(cell + n, width - n, 32);
+        if width > n {
+            text::fill(cell + n, width - n, 32);
         }
     }
 
-    function clearLine(cell: usmallint, width: utinyint): void {
-        text.fill(cell, width, 32);
+    fn clearLine(cell: usmallint, width: utinyint) {
+        text::fill(cell, width, 32);
     }
 }

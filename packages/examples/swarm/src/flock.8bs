@@ -21,60 +21,60 @@
 // sprites' worth of 16-bit motion cost ~12,000 cycles a frame in the
 // first draft; this loop costs ~2,600 for its eight. See swarm.8bs's
 // header for where the C64's frame actually goes.
-import { sprites } from "@8bitscript/sprites";
-import { Video } from "@8bitscript/system";
-import { shapes } from "./shapes.8bs";
+use @8bitscript::sprites::sprites;
+use @8bitscript::system::Video;
+use self::shapes::shapes;
 
 const RIGHT: utinyint = 1; // direction bits
 const DOWN: utinyint = 2;
 
 // Four colours every machine's palette has: white, yellow, cyan, green.
-const PALETTE: array<utinyint, 4> = [1, 7, 3, 5];
+const PALETTE: [utinyint; 4] = [1, 7, 3, 5];
 
-let xh: array<u8, 20>;      // x in half pixels
-let y: array<u8, 20>;
-let dir: array<u8, 20>;
-let count: utinyint = 0;
-let released: bool = false;
-let shift: utinyint = 0;
-let phase: utinyint = 0;     // which half of the flock moves this frame
+let mut xh: [u8; 20]; // x in half pixels
+let mut y: [u8; 20];
+let mut dir: [u8; 20];
+let mut count: utinyint = 0;
+let mut released: bool = false;
+let mut shift: utinyint = 0;
+let mut phase: utinyint = 0; // which half of the flock moves this frame
 
-export namespace flock {
-    const WANTED: utinyint = 16;      // sprites this program asks for; MAX is what it gets — the same sixteen on every machine
-    const TEXT_ROWS: utinyint = 2;    // rows at the top a cell machine keeps for text
+pub mod flock {
+    const WANTED: utinyint = 16; // sprites this program asks for; MAX is what it gets — the same sixteen on every machine
+    const TEXT_ROWS: utinyint = 2; // rows at the top a cell machine keeps for text
 
     // Every sprite placed and coloured, hidden until release().
-    function begin(): void {
-        count = flock.WANTED;
-        if (count > sprites.MAX) {
-            count = sprites.MAX;
+    fn begin() {
+        count = flock::WANTED;
+        if count > sprites::MAX {
+            count = sprites::MAX;
         }
-        shapes.begin();
-        sprites.begin(count);
-        let leftWall: usmallint = sprites.left();
-        let rightWall: usmallint = sprites.right();
+        shapes::begin();
+        sprites::begin(count);
+        let leftWall: usmallint = sprites::left();
+        let mut rightWall: usmallint = sprites::right();
         rightWall = rightWall >> 1;
-        if (rightWall > 255) {
+        if rightWall > 255 {
             rightWall = 255;
         }
-        let left: utinyint = (leftWall >> 1) & 0xFF;
+        let left: utinyint = leftWall >> 1 & 0xFF;
         let width: utinyint = (rightWall & 0xFF) - left;
-        for (let i: utinyint = 0; i < count; i++) {
-            let x: utinyint = i * 9;
-            while (x > width) {
+        for i: utinyint in 0..count {
+            let mut x: utinyint = i * 9;
+            while x > width {
                 x = x - width;
             }
             xh[i] = left + x;
-            y[i] = flock.floor() + i * 7;
+            y[i] = flock::floor() + i * 7;
             dir[i] = i & 3;
-            sprites.setShape(i, shapes.ACTOR);
+            sprites::setShape(i, shapes::ACTOR);
         }
         shift = 3;
-        flock.recolor(); // the first colours, through the one place that sets them (below)
+        flock::recolor(); // the first colours, through the one place that sets them (below)
     }
 
     // How many sprites this machine gave.
-    function size(): utinyint {
+    fn size() -> utinyint {
         return count;
     }
 
@@ -86,12 +86,12 @@ export namespace flock {
     // hardware overlay the text shows through (the C64's, at pixel
     // steps). The stage's y is sixteen bits; the flock keeps a byte of
     // it, as it keeps a byte of half pixels, and stops at 255.
-    function floor(): utinyint {
-        let topWall: usmallint = sprites.top();
-        if (sprites.STEP_X != 1) {
-            topWall = topWall + flock.TEXT_ROWS * 8;
+    fn floor() -> utinyint {
+        let mut topWall: usmallint = sprites::top();
+        if sprites::STEP_X != 1 {
+            topWall = topWall + flock::TEXT_ROWS * 8;
         }
-        if (topWall > 255) {
+        if topWall > 255 {
             topWall = 255;
         }
         return topWall & 0xFF;
@@ -105,67 +105,67 @@ export namespace flock {
     // inlining seen 2026-09-19. right() can pass 510 on an eighty-column
     // grid; a byte of half pixels stops there, and so do the sprites.
     // Where sprite i is, in pixels.
-    function put(i: utinyint): void {
+    fn put(i: utinyint) {
         let x: usmallint = xh[i];
-        sprites.place(i, x << 1, y[i]);
+        sprites::place(i, x << 1, y[i]);
     }
 
     // Show them. Until then, they exist but are hidden.
-    function release(): void {
+    fn release() {
         released = true;
-        for (let i: utinyint = 0; i < count; i++) {
-            flock.put(i);
+        for i: utinyint in 0..count {
+            flock::put(i);
         }
     }
 
     // One frame's motion, for half the flock (see the header). The walls
     // are read once a frame, not once a sprite: on the C64 they follow
     // the border.
-    function move(): void {
-        if (!released) {
+    fn move() {
+        if !released {
             return;
         }
         phase = phase ^ 1;
-        let top: utinyint = flock.floor();
-        let bottomWall: usmallint = sprites.bottom();
-        if (bottomWall > 255) {
+        let top: utinyint = flock::floor();
+        let mut bottomWall: usmallint = sprites::bottom();
+        if bottomWall > 255 {
             bottomWall = 255;
         }
         let bottom: utinyint = bottomWall & 0xFF;
-        let leftWall: usmallint = sprites.left();
-        let rightWall: usmallint = sprites.right();
+        let leftWall: usmallint = sprites::left();
+        let mut rightWall: usmallint = sprites::right();
         rightWall = rightWall >> 1;
-        if (rightWall > 255) {
+        if rightWall > 255 {
             rightWall = 255;
         }
-        let left: utinyint = (leftWall >> 1) & 0xFF;
+        let left: utinyint = leftWall >> 1 & 0xFF;
         let right: utinyint = rightWall & 0xFF;
-        for (let i: utinyint = phase; i < count; i = i + 2) {
-            let d: utinyint = dir[i];
-            let x: utinyint = xh[i];
-            if ((d & RIGHT) != 0) {
+        for (let mut i: utinyint = phase; i < count; i = i + 2) {
+            let mut d: utinyint = dir[i];
+            let mut x: utinyint = xh[i];
+            if (d & RIGHT) != 0 {
                 x = x + 2;
-                if (x >= right) {
+                if x >= right {
                     x = right;
                     d = d & DOWN;
                 }
             } else {
-                if (x <= left + 2) {
+                if x <= left + 2 {
                     x = left;
                     d = d | RIGHT;
                 } else {
                     x = x - 2;
                 }
             }
-            let py: utinyint = y[i];
-            if ((d & DOWN) != 0) {
+            let mut py: utinyint = y[i];
+            if (d & DOWN) != 0 {
                 py = py + 2;
-                if (py >= bottom) {
+                if py >= bottom {
                     py = bottom;
                     d = d & RIGHT;
                 }
             } else {
-                if (py <= top + 2) {
+                if py <= top + 2 {
                     py = top;
                     d = d | DOWN;
                 } else {
@@ -175,7 +175,7 @@ export namespace flock {
             xh[i] = x;
             y[i] = py;
             dir[i] = d;
-            flock.put(i);
+            flock::put(i);
         }
     }
 
@@ -185,10 +185,10 @@ export namespace flock {
     // than sixteen calls — ~1,000 cycles against ~3,400, measured on the
     // C64 (2026-09-19), the difference between a recolor frame fitting
     // the frame and not.
-    function recolor(): void {
-        shift = (shift + 1) & 3;
-        for (let i: utinyint = 0; i < count; i++) {
-            sprites.setColor(i, PALETTE[(i + shift) & 3]);
+    fn recolor() {
+        shift = shift + 1 & 3;
+        for i: utinyint in 0..count {
+            sprites::setColor(i, PALETTE[i + shift & 3]);
         }
     }
 }

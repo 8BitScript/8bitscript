@@ -14,10 +14,10 @@
     "prefix": "program",
     "description": "The shape of a program: set up once, then one pass per frame, forever.",
     "body": [
-      "export function ${1:main}(): void {",
+      "pub fn ${1:main}() {",
       "\t$2",
       "",
-      "\twhile (true) {",
+      "\tloop {",
       "\t\twaitFrame();",
       "\t\t$0",
       "\t}",
@@ -26,9 +26,9 @@
   },
   "Frame loop": {
     "prefix": "loop",
-    "description": "while (true) { waitFrame(); ... } — the loop a program writes itself.",
+    "description": "loop { waitFrame(); ... } — the loop a program writes itself.",
     "body": [
-      "while (true) {",
+      "loop {",
       "\twaitFrame();",
       "\t$0",
       "}"
@@ -38,8 +38,8 @@
     "prefix": "countdown",
     "description": "Count frames down to a tick, then reload — the usual way to do something every N seconds.",
     "body": [
-      "${1:framesUntilTick} = ${1:framesUntilTick} - 1;",
-      "if (${1:framesUntilTick} == 0) {",
+      "${1:framesUntilTick} -= 1;",
+      "if ${1:framesUntilTick} == 0 {",
       "\t${1:framesUntilTick} = #frames(${2:0.5}, seconds);",
       "\t$0",
       "}"
@@ -54,9 +54,9 @@
   },
   "Print a template": {
     "prefix": "print",
-    "description": "text.print(cell, `...`) — text and ${...} data fields, laid out at compile time.",
+    "description": "text::print(cell, `...`) — text and ${...} data fields, laid out at compile time.",
     "body": [
-      "text.print(${1:0}, `${2:TICK }\\${${3:ticks}:${4:1}}`);"
+      "text::print(${1:0}, `${2:TICK }\\${${3:ticks}:${4:1}}`);"
     ]
   },
   "Compile-time constant": {
@@ -68,69 +68,49 @@
   },
   "Variable": {
     "prefix": "let",
-    "description": "A variable: a global at the top level, a local inside a function.",
+    "description": "A variable: let mut for one that changes, plain let for one that does not.",
     "body": [
-      "let ${1:name}: ${2:utinyint} = ${3:0};"
+      "let mut ${1:name}: ${2:utinyint} = ${3:0};"
     ]
   },
   "For loop": {
     "prefix": "for",
-    "description": "for (let i = 0; i < n; i++) — a counted loop with its own local.",
+    "description": "for i: T in a..b — a counted loop with its own local (a..=b includes the end).",
     "body": [
-      "for (let ${1:i}: ${2:utinyint} = 0; ${1:i} < ${3:count}; ${1:i}++) {",
+      "for ${1:i}: ${2:utinyint} in 0..${3:count} {",
       "\t$0",
       "}"
     ]
   },
   "Array in RAM": {
     "prefix": "array",
-    "description": "let name: array<T, N> — N values of T in RAM, zero until written; a[i] and a.length.",
+    "description": "let mut name: [T; N] — N values of T in RAM, zero until written; a[i] and a.length.",
     "body": [
-      "let ${1:name}: array<${2:utinyint}, ${3:4}>;"
+      "let mut ${1:name}: [${2:utinyint}; ${3:4}];"
     ]
   },
   "Data table": {
     "prefix": "table",
-    "description": "const NAME: array<T, N> = [...] — N values as data in the program, never in RAM; read with NAME[i].",
+    "description": "const NAME: [T; N] = [...] — N values as data in the program, never in RAM; read with NAME[i].",
     "body": [
-      "const ${1:TABLE}: array<${2:utinyint}, ${3:3}> = [${4:1, 2, 3}];"
+      "const ${1:TABLE}: [${2:utinyint}; ${3:3}] = [${4:1, 2, 3}];"
     ]
   },
   "Hardware register": {
     "prefix": "address",
-    "description": "@address — a name for a fixed memory location, not storage the compiler assigns.",
+    "description": "#[address] — a name for a fixed memory location, not storage the compiler assigns.",
     "body": [
-      "@address(${1:0xD020})",
-      "let ${2:borderColor}: volatile<utinyint>;"
+      "#[address(${1:0xD020})]",
+      "let mut ${2:borderColor}: volatile<utinyint>;"
     ]
   },
   "Function": {
-    "prefix": "function",
-    "description": "A function with scalar parameters and a return type.",
+    "prefix": "fn",
+    "description": "A function with scalar parameters.",
     "body": [
-      "function ${1:name}(${2:value}: ${3:utinyint}): ${4:void} {",
+      "fn ${1:name}(${2:value}: ${3:utinyint}) {",
       "\t$0",
       "}"
-    ]
-  },
-  "Namespace": {
-    "prefix": "namespace",
-    "description": "A namespace: compile-time qualification for a library surface, with no runtime cost.",
-    "body": [
-      "export namespace ${1:screen} {",
-      "\tconst ${2:CELL_COUNT}: usmallint = ${3:1000};",
-      "",
-      "\tfunction ${4:setColors}(${5:border}: utinyint): void {",
-      "\t\t$0",
-      "\t}",
-      "}"
-    ]
-  },
-  "Import a capability": {
-    "prefix": "import",
-    "description": "Import a capability package; it resolves to whichever machine is being built.",
-    "body": [
-      "import { ${1:text} } from \"@8bitscript/${1:text}\";"
     ]
   },
   "Inline 6502 assembly": {
@@ -144,37 +124,37 @@
   },
   "Poke a byte": {
     "prefix": "poke",
-    "description": "memory.write — the low-level equivalent of POKE.",
+    "description": "memory::write — the low-level equivalent of POKE.",
     "body": [
-      "memory.write(${1:0xD020}, ${2:6});"
+      "memory::write(${1:0xD020}, ${2:6});"
     ]
   },
   "Peek a byte": {
     "prefix": "peek",
-    "description": "memory.read — the low-level equivalent of PEEK.",
+    "description": "memory::read — the low-level equivalent of PEEK.",
     "body": [
-      "memory.read(${1:0xD012})"
+      "memory::read(${1:0xD012})"
     ]
   },
   "Write a port": {
     "prefix": "out",
-    "description": "port.write — Z80 OUT / SM83 LDH. Memory-mapped machines use memory.write.",
+    "description": "port::write — Z80 OUT / SM83 LDH. Memory-mapped machines use memory::write.",
     "body": [
-      "port.write(${1:0xFE}, ${2:0});"
+      "port::write(${1:0xFE}, ${2:0});"
     ]
   },
   "Read a port": {
     "prefix": "in",
-    "description": "port.read — Z80 IN / SM83 LDH. Memory-mapped machines use memory.read.",
+    "description": "port::read — Z80 IN / SM83 LDH. Memory-mapped machines use memory::read.",
     "body": [
-      "port.read(${1:0xFE})"
+      "port::read(${1:0xFE})"
     ]
   },
   "Branch on a machine fact": {
     "prefix": "#fact",
-    "description": "if (#fact(key)) { ... } — one fact from the machine's hardware sheet, folded while compiling; the branch for hardware this build lacks disappears.",
+    "description": "if #fact(key) { ... } — one fact from the machine's hardware sheet, folded while compiling; the branch for hardware this build lacks disappears.",
     "body": [
-      "if (#fact(${1:video.raster})) {",
+      "if #fact(${1:video.raster}) {",
       "\t$0",
       "}"
     ]
@@ -198,6 +178,26 @@
     "description": "#define(\"NAME\", default) — a value the build is handed (--define NAME=VALUE, or a program's define block in the config), with the default written here; folded at compile time.",
     "body": [
       "const ${1:SEED}: utinyint = #define(\"${1:SEED}\", ${2:10});"
+    ]
+  },
+  "Module": {
+    "prefix": "mod",
+    "description": "A module: compile-time qualification for a library surface, with no runtime cost.",
+    "body": [
+      "pub mod ${1:screen} {",
+      "\tconst ${2:CELL_COUNT}: usmallint = ${3:1000};",
+      "",
+      "\tfn ${4:setColors}(${5:border}: utinyint) {",
+      "\t\t$0",
+      "\t}",
+      "}"
+    ]
+  },
+  "Use a capability": {
+    "prefix": "use",
+    "description": "Use a capability package; it resolves to whichever machine is being built.",
+    "body": [
+      "use @8bitscript::${1:text}::{ ${1:text} };"
     ]
   }
 }

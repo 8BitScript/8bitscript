@@ -79,6 +79,18 @@ export function staleConfigPath(dir) {
 }
 
 /**
+ * Drop warned old-name configs that no longer apply (renamed, deleted, or a
+ * current config now beside them), so a later regression warns again.
+ *
+ * @param {Set<string>} warned
+ */
+export function forgetFixedStale(warned) {
+  for (const path of warned) {
+    if (!existsSync(path) || findConfigPath(dirname(path))) warned.delete(path);
+  }
+}
+
+/**
  * Walk upward from `dir` looking for 8bitscript.config.ts (or the older
  * 8bs.config.ts), so a document opened from src/ (or deeper) still finds its
  * project's config. Stops at the filesystem root.
@@ -232,6 +244,7 @@ export function start({ checkout } = {}) {
     const text = document.getText();
     const { version } = document;
     const path = filePathOf(document.uri);
+    forgetFixedStale(warnedStale);
     const stale = path ? staleConfigPath(dirname(path)) : null;
     if (stale && !warnedStale.has(stale)) {
       warnedStale.add(stale);

@@ -3,14 +3,14 @@
 // Named by "8bitscript".exports["./text"] in this package's package.json,
 // and what
 //
-//     import { text } from "@8bitscript/text";
+//     use @8bitscript::text::text;
 //
 // resolves to when the build is for the MEGA65. Built on the registers
 // @8bitscript/mega65 exports. Every machine's text.8bs exports this same
 // namespace — the same names, the same shapes, ASCII codes, and a cell 0
 // at the top-left corner inside the border — so a program that imports it
 // from @8bitscript/text draws the same thing on every target.
-import { memoryPointer, vicIIIControlA, VicIIIControl } from "./index.8bs";
+use self::index::{memoryPointer, vicIIIControlA, VicIIIControl};
 
 // The screen is addressed by flat cell index — a position is
 // `y * text.COLUMNS + x` — and these are the plainest things a text API
@@ -53,16 +53,16 @@ import { memoryPointer, vicIIIControlA, VicIIIControl } from "./index.8bs";
 // straight through into the graphics range. $26 selecting the mixed-case
 // set was measured the same way: screen codes 08 05 0C 0C 0F render as
 // `hello` and 48 45 4C 4C 4F as `HELLO`.
-namespace CharacterSet {
+mod CharacterSet {
     const UPPERCASE_SCREEN_AT_0800: utinyint = 0x24;
     const MIXED_CASE_SCREEN_AT_0800: utinyint = 0x26; // the same screen, bit 1 selecting the other set
 }
 
-function asciiToScreenCode(code: utinyint): utinyint {
+fn asciiToScreenCode(code: utinyint) -> utinyint {
     // The mixed-case set keeps lower case at 1-26 and upper case at its own
     // ASCII values, 65-90 — the layout every Commodore character ROM in this
     // workspace shares, measured on each.
-    if (code >= 97 && code < 123) {
+    if code >= 97 && code < 123 {
         return code - 96; // 'a'-'z'
     }
     return code;
@@ -86,24 +86,24 @@ function asciiToScreenCode(code: utinyint): utinyint {
 // upper-case set once for the run.
 // `text.putChar` and `text.putColor` stay the one-cell pokes a caller can
 // build anything from.
-let currentColor: utinyint = 1; // white, until text.setColor() says otherwise
-let currentReverse: bool = false; // until text.setReverse() says otherwise
+let mut currentColor: utinyint = 1; // white, until text.setColor() says otherwise
+let mut currentReverse: bool = false; // until text.setReverse() says otherwise
 
 // Reverse video is bit 7 of the screen code, as on the C64. Color RAM's
 // upper nibble is also an attribute field (blink, reverse) — keep it
 // clear, and invert by the ROM copy instead.
-function toScreen(code: utinyint): utinyint {
-    let screen: utinyint = asciiToScreenCode(code);
-    if (currentReverse) {
+fn toScreen(code: utinyint) -> utinyint {
+    let mut screen: utinyint = asciiToScreenCode(code);
+    if currentReverse {
         screen = screen + 128;
     }
     return screen;
 }
 
 // What a run of text needs once, before its first character.
-function prepare(): void {
-    memoryPointer = CharacterSet.MIXED_CASE_SCREEN_AT_0800;
-    vicIIIControlA = VicIIIControl.COLOR_RAM_2K;
+fn prepare() {
+    memoryPointer = CharacterSet::MIXED_CASE_SCREEN_AT_0800;
+    vicIIIControlA = VicIIIControl::COLOR_RAM_2K;
 }
 
 // CRAM2K maps colour RAM's second KB over $DC00-$DFFF, which is where the
@@ -122,13 +122,13 @@ function prepare(): void {
 // $44 is what start-up stores (VicIIIControl.STARTUP): the same bits
 // without CRAM2K. Writing anything else here re-maps ROM over the program,
 // which is why this restores a recorded value rather than clearing a bit.
-function release(): void {
-    vicIIIControlA = VicIIIControl.STARTUP;
+fn release() {
+    vicIIIControlA = VicIIIControl::STARTUP;
 }
 
-function place(cell: usmallint, code: utinyint): void {
-    memory.write(0x0800 + cell, toScreen(code));
-    memory.write(0xD800 + cell, currentColor & 15); // the upper nibble is attributes (blink, reverse) — keep it clear
+fn place(cell: usmallint, code: utinyint) {
+    memory::write(0x0800 + cell, toScreen(code));
+    memory::write(0xD800 + cell, currentColor & 15); // the upper nibble is attributes (blink, reverse) — keep it clear
 }
 
 // ---- digits -------------------------------------------------------------
@@ -138,9 +138,9 @@ function place(cell: usmallint, code: utinyint): void {
 // and `value / 10` would link a 250-byte routine to do it. Places above the
 // field are still taken off, so a field narrower than its number shows the
 // low digits; places the number does not reach print as zeros.
-const DIGIT_PLACES: array<usmallint, 5> = [10000, 1000, 100, 10, 1];
+const DIGIT_PLACES: [usmallint; 5] = [10000, 1000, 100, 10, 1];
 
-export namespace text {
+pub mod text {
     const CELL_COUNT: usmallint = 2000; // 80 columns x 25 rows
     const COLUMNS: utinyint = 80; // cells per row, so cell = y * text.COLUMNS + x
     const ROWS: utinyint = 25;
@@ -150,32 +150,31 @@ export namespace text {
     // Here so a program that lays itself out from the grid it is actually on
     // runs unchanged on every target; see the web target's Modern host, the
     // one grid that does change.
-    function columns(): utinyint {
-        return text.COLUMNS;
+    fn columns() -> utinyint {
+        return text::COLUMNS;
     }
 
-    function rows(): utinyint {
-        return text.ROWS;
+    fn rows() -> utinyint {
+        return text::ROWS;
     }
 
-
-    function putChar(cell: usmallint, code: utinyint): void {
+    fn putChar(cell: usmallint, code: utinyint) {
         prepare();
-        memory.write(0x0800 + cell, toScreen(code));
+        memory::write(0x0800 + cell, toScreen(code));
         release();
     }
 
-    function putColor(cell: usmallint, color: utinyint): void {
-        vicIIIControlA = VicIIIControl.COLOR_RAM_2K; // cells past 1023 live behind CRAM2K
-        memory.write(0xD800 + cell, color & 15);
+    fn putColor(cell: usmallint, color: utinyint) {
+        vicIIIControlA = VicIIIControl::COLOR_RAM_2K; // cells past 1023 live behind CRAM2K
+        memory::write(0xD800 + cell, color & 15);
         release();
     }
 
-    function setColor(color: utinyint): void {
+    fn setColor(color: utinyint) {
         currentColor = color;
     }
 
-    function setReverse(on: bool): void {
+    fn setReverse(on: bool) {
         currentReverse = on;
     }
 
@@ -188,7 +187,7 @@ export namespace text {
     // included — lands wherever the cursor was before the program ran,
     // not under what the program just drew. Row 1, not 0: see
     // packages/vic20/src/text.8bs's own releaseCursor() for why.
-    function releaseCursor(): void {
+    fn releaseCursor() {
         asm6502 {
             ldx #1
             ldy #0
@@ -197,9 +196,9 @@ export namespace text {
         }
     }
 
-    function print(cell: usmallint, s: string): void {
+    fn print(cell: usmallint, s: string) {
         prepare();
-        for (let i: utinyint = 0; i < s.length; i++) {
+        for i: utinyint in 0..s.length {
             place(cell + i, s[i]);
         }
         release();
@@ -219,32 +218,32 @@ export namespace text {
     // at `$1800`), and every glyph on the screen draws as the same junk
     // character. Measured under xmega65: dumpmem still had the right screen
     // codes at `$0800`; CHARPTR and `$DD00` were what moved.
-    function fill(cell: usmallint, count: usmallint, code: utinyint): void {
+    fn fill(cell: usmallint, count: usmallint, code: utinyint) {
         prepare();
-        for (let i: usmallint = 0; i < count; i++) {
+        for i: usmallint in 0..count {
             place(cell + i, code);
         }
         release();
     }
 
-    function printNumber(cell: usmallint, value: usmallint, width: utinyint): void {
+    fn printNumber(cell: usmallint, value: usmallint, width: utinyint) {
         prepare();
-        let k: utinyint = width;
-        if (k < DIGIT_PLACES.length) {
+        let mut k: utinyint = width;
+        if k < DIGIT_PLACES.length {
             k = DIGIT_PLACES.length;
         }
-        while (k > 0) {
-            let digit: utinyint = 48; // '0'
-            if (k <= DIGIT_PLACES.length) {
-                while (value >= DIGIT_PLACES[DIGIT_PLACES.length - k]) {
+        while k > 0 {
+            let mut digit: utinyint = 48; // '0'
+            if k <= DIGIT_PLACES.length {
+                while value >= DIGIT_PLACES[DIGIT_PLACES.length - k] {
                     value = value - DIGIT_PLACES[DIGIT_PLACES.length - k];
-                    digit++;
+                    digit += 1;
                 }
             }
-            if (k <= width) {
+            if k <= width {
                 place(cell + width - k, digit);
             }
-            k--;
+            k -= 1;
         }
         release();
     }
@@ -252,7 +251,7 @@ export namespace text {
 
 // The colors `text.setColor()` takes: the eight names every machine
 // shares, with this machine's color-RAM values.
-export namespace TextColor {
+pub mod TextColor {
     const BLACK: utinyint = 0;
     const WHITE: utinyint = 1;
     const RED: utinyint = 2;

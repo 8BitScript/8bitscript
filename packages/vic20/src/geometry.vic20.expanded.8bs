@@ -10,7 +10,7 @@
 // whether there is 8K or more, not on how much more, and a tag names
 // exactly the thing a file differs on.
 
-export namespace Video {
+pub mod Video {
     const SCREEN: usmallint = 0x1000; // screen matrix: one screen code per cell
     const COLOR: usmallint = 0x9400; // color RAM: one nybble per cell, same cell index
     const MEMORY_POINTER_UPPERCASE: utinyint = 0xC0; // $9005: this screen, upper-case ROM

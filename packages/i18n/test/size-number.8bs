@@ -1,12 +1,12 @@
 // Built for the 6502 by i18n.test.mjs: number.print's frame and the
 // code it links fit the PET and the unexpanded VIC-20, the two smallest
 // zero-page and RAM budgets. The number is a variable so nothing folds.
-import { text } from "@8bitscript/text";
-import { number } from "../src/number.8bs";
+use @8bitscript::text::text;
+use super::src::number::number;
 
 let v: usmallint = 12345;
 
-export function main(): void {
+pub fn main() {
     waitFrame();
-    number.print(0, v, 6);
+    number::print(0, v, 6);
 }

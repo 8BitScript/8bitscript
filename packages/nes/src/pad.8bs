@@ -2,7 +2,7 @@
 //
 // Named by "8bitscript".exports["./pad"] in this package's package.json:
 //
-//     import { pad, Pad } from "@8bitscript/nes/pad";
+//     use @8bitscript::nes::pad::{pad, Pad};
 //
 //     pad.scan();
 //     if (pad.pressed(Pad.PORT_1, Pad.RIGHT)) { ... }
@@ -65,9 +65,9 @@ const JOY1: usmallint = 0x4016;
 const JOY2: usmallint = 0x4017;
 
 // The last scan: index 0 is port 1, index 1 is port 2; bits as in `Pad`.
-let state: array<utinyint, 2>;
+let mut state: [utinyint; 2];
 
-export namespace Pad {
+pub mod Pad {
     const PORT_1: utinyint = 0;
     const PORT_2: utinyint = 1;
 
@@ -83,38 +83,38 @@ export namespace Pad {
     const RIGHT: utinyint = 128;
 }
 
-export namespace pad {
+pub mod pad {
     // Strobe both pads and clock all sixteen buttons in. Once a frame,
     // right after waitFrame().
-    function scan(): void {
-        memory.write(JOY1, 1);
-        memory.write(JOY1, 0);
+    fn scan() {
+        memory::write(JOY1, 1);
+        memory::write(JOY1, 0);
         // Both ports are clocked by the same eight reads, so they are read
         // together rather than in two loops — one strobe, one pass.
-        let one: utinyint = 0;
-        let two: utinyint = 0;
-        for (let i: utinyint = 0; i < 8; i++) {
+        let mut one: utinyint = 0;
+        let mut two: utinyint = 0;
+        for i: utinyint in 0..8 {
             one = one >> 1;
-            if ((memory.read(JOY1) & 1) != 0) {
+            if (memory::read(JOY1) & 1) != 0 {
                 one = one | 128;
             }
             two = two >> 1;
-            if ((memory.read(JOY2) & 1) != 0) {
+            if (memory::read(JOY2) & 1) != 0 {
                 two = two | 128;
             }
         }
-        state[Pad.PORT_1] = one;
-        state[Pad.PORT_2] = two;
+        state[Pad::PORT_1] = one;
+        state[Pad::PORT_2] = two;
     }
 
     // The eight buttons of one port as `Pad.*` bits, 1 = held down.
-    function bits(port: utinyint): utinyint {
+    fn bits(port: utinyint) -> utinyint {
         return state[port];
     }
 
     // Is this button — one `Pad.*` bit, or several or'd together — down in
     // the last scan? Several bits ask "any of these".
-    function pressed(port: utinyint, button: utinyint): bool {
+    fn pressed(port: utinyint, button: utinyint) -> bool {
         return (state[port] & button) != 0;
     }
 }

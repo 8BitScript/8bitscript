@@ -3,7 +3,7 @@
 //
 // Named by "8bitscript".exports["./mouse"] in this package's package.json:
 //
-//     import { mouse } from "@8bitscript/c64/mouse";
+//     use @8bitscript::c64::mouse::mouse;
 //
 //     mouse.select(Mouse.PORT_1);      // once, at start-up
 //     ...
@@ -66,24 +66,24 @@
 // used. The converter needs about half a millisecond after a select, so
 // the order that works is: `select()` at start-up, then one `poll()` a
 // frame.
-import { paddleX, paddleY, cia1PortA, cia1PortB } from "./index.8bs";
+use self::index::{paddleX, paddleY, cia1PortA, cia1PortB};
 
-export namespace Mouse {
-    const PORT_1: utinyint = 0x7F;   // %01 in the top bits, no keyboard column driven
-    const PORT_2: utinyint = 0xBF;   // %10
+pub mod Mouse {
+    const PORT_1: utinyint = 0x7F; // %01 in the top bits, no keyboard column driven
+    const PORT_2: utinyint = 0xBF; // %10
 }
 
-namespace Pot {
-    const COUNTER: utinyint = 0x7F;  // VICE's 1351 is 7 bits; bit 0 is also fuzz
-    const LOWEST: utinyint = 64;     // a 1351 at its zero point
-    const HIGHEST: utinyint = 191;   // and at the other end of its wrap
-    const HALF: utinyint = 64;       // half the 7-bit wrap space: a bigger step is a wrap
+mod Pot {
+    const COUNTER: utinyint = 0x7F; // VICE's 1351 is 7 bits; bit 0 is also fuzz
+    const LOWEST: utinyint = 64; // a 1351 at its zero point
+    const HIGHEST: utinyint = 191; // and at the other end of its wrap
+    const HALF: utinyint = 64; // half the 7-bit wrap space: a bigger step is a wrap
 }
 
 // Per-axis filter for 1-count steps. Rest's 64/65 flicker is +1 then -1
 // and never leaves WAIT; a slow host move is +1, +1 and then tracks at
 // one pixel a count instead of jumping two and stalling on the next.
-namespace Axis {
+mod Axis {
     const IDLE: utinyint = 0;
     const WAIT_POS: utinyint = 1;
     const RUN_POS: utinyint = 2;
@@ -92,12 +92,12 @@ namespace Axis {
 }
 
 // The last counter reading on each axis, and where the pointer has got to.
-let lastX: utinyint = 0;
-let lastY: utinyint = 0;
-let atX: usmallint = 0;
-let atY: usmallint = 0;
-let started: bool = false;
-let hold: array<utinyint, 2>;
+let mut lastX: utinyint = 0;
+let mut lastY: utinyint = 0;
+let mut atX: usmallint = 0;
+let mut atY: usmallint = 0;
+let mut started: bool = false;
+let mut hold: [utinyint; 2];
 
 // Whether the reading the last poll() took was consistent with a 1351.
 // **Kept, rather than asked again**, and that is not an optimization: the
@@ -108,21 +108,21 @@ let hold: array<utinyint, 2>;
 // taken a few instructions later in the same frame said there was one, so
 // an arrow drawn from one answer and hit-tested from the other flickered
 // out of existence. One reading a frame, and everyone shares it.
-let there: bool = false;
+let mut there: bool = false;
 
 // How far the pointer may travel on each axis. A 1351's counters run on
 // for as long as the mouse is pushed, so without a ceiling a pointer
 // shoved off the right of the screen has to be dragged all the way back
 // before it reappears — the accumulator, not the display, is what has to
 // stop. Wide open until a program calls `setLimits()`.
-let limitX: usmallint = 65535;
-let limitY: usmallint = 65535;
+let mut limitX: usmallint = 65535;
+let mut limitY: usmallint = 65535;
 
-export namespace mouse {
+pub mod mouse {
     // Point the SID's analogue lines at one control port: Mouse.PORT_1 or
     // Mouse.PORT_2. Once, at start-up — the converter needs a frame to
     // settle before the first poll() means anything.
-    function select(port: utinyint): void {
+    fn select(port: utinyint) {
         cia1PortA = port;
     }
 
@@ -131,7 +131,7 @@ export namespace mouse {
     // program scales before it gets here. Both axes stop at 0 either way.
     // Set it once at start-up; a program that never calls this gets an
     // accumulator that runs as far as the mouse is pushed.
-    function setLimits(x: usmallint, y: usmallint): void {
+    fn setLimits(x: usmallint, y: usmallint) {
         limitX = x;
         limitY = y;
     }
@@ -153,43 +153,43 @@ export namespace mouse {
     // rest cannot walk; a still frame while *waiting* is kept, because a
     // slow host move is often one count then several frames of zero —
     // idling there ate the second count (Studio, 2026-09-07).
-    function step(at: usmallint, last: utinyint, now: utinyint, limit: usmallint, axis: utinyint): usmallint {
-        let delta: utinyint = (now - last) & Pot.COUNTER;
+    fn step(at: usmallint, last: utinyint, now: utinyint, limit: usmallint, axis: utinyint) -> usmallint {
+        let delta: utinyint = now - last & Pot::COUNTER;
         let state: utinyint = hold[axis];
-        if (delta == 0) {
-            if (state == Axis.RUN_POS || state == Axis.RUN_NEG) {
-                hold[axis] = Axis.IDLE;
+        if delta == 0 {
+            if state == Axis::RUN_POS || state == Axis::RUN_NEG {
+                hold[axis] = Axis::IDLE;
             }
             return at;
         }
-        if (delta < Pot.HALF) {
-            if (delta == 1) {
-                if (state == Axis.WAIT_POS || state == Axis.RUN_POS) {
-                    hold[axis] = Axis.RUN_POS;
+        if delta < Pot::HALF {
+            if delta == 1 {
+                if state == Axis::WAIT_POS || state == Axis::RUN_POS {
+                    hold[axis] = Axis::RUN_POS;
                 } else {
-                    hold[axis] = Axis.WAIT_POS;
+                    hold[axis] = Axis::WAIT_POS;
                     return at;
                 }
             } else {
-                hold[axis] = Axis.RUN_POS;
+                hold[axis] = Axis::RUN_POS;
             }
-            if (limit - at < delta) {
+            if limit - at < delta {
                 return limit;
             }
             return at + delta;
         }
         let back: utinyint = 128 - delta;
-        if (back == 1) {
-            if (state == Axis.WAIT_NEG || state == Axis.RUN_NEG) {
-                hold[axis] = Axis.RUN_NEG;
+        if back == 1 {
+            if state == Axis::WAIT_NEG || state == Axis::RUN_NEG {
+                hold[axis] = Axis::RUN_NEG;
             } else {
-                hold[axis] = Axis.WAIT_NEG;
+                hold[axis] = Axis::WAIT_NEG;
                 return at;
             }
         } else {
-            hold[axis] = Axis.RUN_NEG;
+            hold[axis] = Axis::RUN_NEG;
         }
-        if (back > at) {
+        if back > at {
             return 0;
         }
         return at - back;
@@ -203,18 +203,18 @@ export namespace mouse {
     // 1351 and the difference from last frame says how far. Reading the
     // registers a second time later in the frame — which is what
     // `present()` used to do — samples a converter that has moved on.
-    function poll(): void {
+    fn poll() {
         let rawX: utinyint = paddleX;
         let rawY: utinyint = paddleY;
-        there = rawX >= Pot.LOWEST && rawX <= Pot.HIGHEST && rawY >= Pot.LOWEST && rawY <= Pot.HIGHEST;
-        if (started) {
-            atX = mouse.step(atX, lastX, rawX, limitX, 0);
+        there = rawX >= Pot::LOWEST && rawX <= Pot::HIGHEST && rawY >= Pot::LOWEST && rawY <= Pot::HIGHEST;
+        if started {
+            atX = mouse::step(atX, lastX, rawX, limitX, 0);
             // Y runs opposite the screen. Verified under x64sc (Studio,
             // 2026-09-07): the same sign as X moved the arrow up when the
             // mouse moved down. last and now are swapped so the *delta*
             // flips and the rest position stays 0 (top-left). Reporting
             // `limitY - atY` would park the arrow at the bottom instead.
-            atY = mouse.step(atY, rawY, lastY, limitY, 1);
+            atY = mouse::step(atY, rawY, lastY, limitY, 1);
         }
         lastX = rawX;
         lastY = rawY;
@@ -231,17 +231,17 @@ export namespace mouse {
     // is false until the first poll and it gives every caller in a frame
     // the same answer. See `there` above for the measurement that made
     // that necessary.
-    function present(): bool {
+    fn present() -> bool {
         return there;
     }
 
     // Where the pointer has moved to since the program started, in mouse
     // counts. A program scales these to its own screen.
-    function x(): usmallint {
+    fn x() -> usmallint {
         return atX;
     }
 
-    function y(): usmallint {
+    fn y() -> usmallint {
         return atY;
     }
 
@@ -249,15 +249,15 @@ export namespace mouse {
     // UP. Port 1 is CIA1 port B; port 2 is port A, which is also the
     // register select() writes, so a port-2 mouse's buttons are read from
     // what the port reads back, not from what was written.
-    function left(port: utinyint): bool {
-        if (port == Mouse.PORT_1) {
+    fn left(port: utinyint) -> bool {
+        if port == Mouse::PORT_1 {
             return (cia1PortB & 16) == 0;
         }
         return (cia1PortA & 16) == 0;
     }
 
-    function right(port: utinyint): bool {
-        if (port == Mouse.PORT_1) {
+    fn right(port: utinyint) -> bool {
+        if port == Mouse::PORT_1 {
             return (cia1PortB & 1) == 0;
         }
         return (cia1PortA & 1) == 0;

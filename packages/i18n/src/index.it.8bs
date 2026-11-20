@@ -1,13 +1,13 @@
 // Italian — index.8bs's twin for `--locale it`. CLDR it: decimal ",",
 // group "." (1.234,5).
-export namespace Locale {
+pub mod Locale {
     const DECIMAL: utinyint = 44; // ','
-    const GROUP: utinyint = 46;   // '.'
+    const GROUP: utinyint = 46; // '.'
 }
 
-export namespace i18n {
+pub mod i18n {
     // Interpolate {name} slots in a catalog string. Folded at every
     // call site; the body is never linked on a retro build.
-    function format(template: string): void {
+    fn format(template: string) {
     }
 }

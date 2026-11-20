@@ -12,12 +12,12 @@ A program is always `.8bs`. This is the rule that decides how it ever reaches a 
 A component declared `component Player(x: utinyint, y: utinyint)` is visible to a `.8bs` module as an ordinary callable with that exact positional signature. A call from `.8bs` is an element instantiation at that call site, elaborated exactly as `<Player x={..} y={..} />` would be, checked by every rule in [§2.2](composition.md#22-declare-a-component-with-props-and-defaults):
 
 ```8bs
-import { App } from "./App.8bx";
-import { Player } from "./Player.8bx";
+use self::App::App;
+use self::Player::Player;
 
-export function main(): void {
-    App();            // elaborated here, exactly like <App />
-    Player(20, 40);   // props are the positional arguments
+pub fn main() {
+    App(); // elaborated here, exactly like <App />
+    Player(20, 40); // props are the positional arguments
 }
 ```
 

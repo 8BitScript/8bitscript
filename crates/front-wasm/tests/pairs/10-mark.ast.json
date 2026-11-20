@@ -1,30 +1,29 @@
 {
   "body": [
     {
-      "length": 21,
+      "length": 23,
       "source": {
-        "length": 10,
+        "length": 12,
         "start": 4,
         "type": "StringLiteral",
-        "value": "./mark"
+        "value": "./mark.8bg"
       },
       "specifiers": [
         {
           "length": 4,
           "name": "mark",
-          "start": 16,
+          "start": 18,
           "type": "Identifier"
         }
       ],
       "start": 0,
-      "type": "ImportDeclaration",
-      "usePath": true
+      "type": "ImportDeclaration"
     },
     {
       "length": 36,
       "source": {
         "length": 21,
-        "start": 26,
+        "start": 28,
         "type": "StringLiteral",
         "value": "@8bitscript/graphics"
       },
@@ -32,11 +31,11 @@
         {
           "length": 8,
           "name": "graphics",
-          "start": 49,
+          "start": 51,
           "type": "Identifier"
         }
       ],
-      "start": 22,
+      "start": 24,
       "type": "ImportDeclaration",
       "usePath": true
     },
@@ -50,14 +49,14 @@
                 {
                   "length": 4,
                   "name": "mark",
-                  "start": 103,
+                  "start": 105,
                   "type": "Identifier"
                 },
                 {
                   "length": 3,
                   "radix": 10,
                   "raw": "120",
-                  "start": 109,
+                  "start": 111,
                   "type": "IntegerLiteral",
                   "value": 120
                 },
@@ -65,7 +64,7 @@
                   "length": 1,
                   "radix": 10,
                   "raw": "0",
-                  "start": 114,
+                  "start": 116,
                   "type": "IntegerLiteral",
                   "value": 0
                 }
@@ -75,29 +74,29 @@
                 "object": {
                   "length": 8,
                   "name": "graphics",
-                  "start": 87,
+                  "start": 89,
                   "type": "Identifier"
                 },
                 "property": {
                   "length": 5,
                   "name": "place",
-                  "start": 97,
+                  "start": 99,
                   "type": "Identifier"
                 },
-                "start": 87,
+                "start": 89,
                 "type": "MemberExpression"
               },
               "length": 29,
-              "start": 87,
+              "start": 89,
               "type": "CallExpression"
             },
             "length": 30,
-            "start": 87,
+            "start": 89,
             "type": "ExpressionStatement"
           }
         ],
         "length": 38,
-        "start": 81,
+        "start": 83,
         "type": "BlockStatement"
       },
       "exported": true,
@@ -105,15 +104,15 @@
       "name": {
         "length": 4,
         "name": "Mark",
-        "start": 74,
+        "start": 76,
         "type": "Identifier"
       },
       "params": [],
-      "start": 60,
+      "start": 62,
       "type": "ComponentDeclaration"
     }
   ],
-  "length": 120,
+  "length": 122,
   "start": 0,
   "type": "Program"
 }

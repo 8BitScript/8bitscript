@@ -1,7 +1,7 @@
 // @8bitscript/graphics — play a sprite compiled from a .8bg file.
 //
-//     import { player } from "./player.8bg";
-//     import { graphics } from "@8bitscript/graphics";
+//     use self::player::player;
+//     use @8bitscript::graphics::graphics;
 //     graphics.place(player, x, y);
 //     graphics.update();
 //
@@ -60,50 +60,50 @@
 // lowering, packages/compiler/src/media/lower-default.mjs, up to STEPS of
 // them) and @8bitscript/sprites draws it as a cell. Nothing is sampled or
 // scaled at run time: what reaches here is a byte per frame.
-import { sprites } from "@8bitscript/sprites";
-import { Video } from "@8bitscript/system";
+use @8bitscript::sprites::sprites;
+use @8bitscript::system::Video;
 
 const SLOTS: utinyint = 8;
 const STEPS: utinyint = 4;
-let codes: array<u8, 32>;  // STEPS codes per picture: slot << 2 | step
-let counts: array<u8, 8>;  // frames in this picture's animation
-let every: array<u8, 8>;   // update() calls between frames
-let tick: array<u8, 8>;    // update() calls since the last frame
-let step: array<u8, 8>;    // the frame on show
-let held: array<u8, 8>;    // 1: automatic stepping paused
-let started: bool = false;
+let mut codes: [u8; 32]; // STEPS codes per picture: slot << 2 | step
+let mut counts: [u8; 8]; // frames in this picture's animation
+let mut every: [u8; 8]; // update() calls between frames
+let mut tick: [u8; 8]; // update() calls since the last frame
+let mut step: [u8; 8]; // the frame on show
+let mut held: [u8; 8]; // 1: automatic stepping paused
+let mut started: bool = false;
 
-function ensure(): void {
-    if (!started) {
-        sprites.begin(SLOTS);
+fn ensure() {
+    if !started {
+        sprites::begin(SLOTS);
         started = true;
     }
 }
 
-export namespace graphics {
+pub mod graphics {
     const MAX: utinyint = 8;
     const FRAMES: utinyint = 4;
-    const WIDTH: utinyint = sprites.WIDTH;      // one cell
-    const HEIGHT: utinyint = sprites.HEIGHT;
+    const WIDTH: utinyint = sprites::WIDTH; // one cell
+    const HEIGHT: utinyint = sprites::HEIGHT;
     const COLORS: utinyint = 1;
-    const RECOLORS: bool = Video.COLOR_PER_CELL;
-    const STEP_X: utinyint = sprites.STEP_X;
-    const STEP_Y: utinyint = sprites.STEP_Y;
-    const RESTORES: bool = sprites.RESTORES;
-    const TRANSPARENT: bool = false;            // a cell is drawn whole
+    const RECOLORS: bool = Video::COLOR_PER_CELL;
+    const STEP_X: utinyint = sprites::STEP_X;
+    const STEP_Y: utinyint = sprites::STEP_Y;
+    const RESTORES: bool = sprites::RESTORES;
+    const TRANSPARENT: bool = false; // a cell is drawn whole
 
-    function bind(slot: utinyint, index: utinyint, value: utinyint): void {
-        if (slot >= SLOTS || index >= STEPS) {
+    fn bind(slot: utinyint, index: utinyint, value: utinyint) {
+        if slot >= SLOTS || index >= STEPS {
             return;
         }
         codes[(slot << 2) + index] = value;
     }
 
-    function meta(slot: utinyint, frameCount: utinyint, interval: utinyint, kind: utinyint, width: utinyint, height: utinyint): void {
-        if (slot >= SLOTS) {
+    fn meta(slot: utinyint, frameCount: utinyint, interval: utinyint, kind: utinyint, width: utinyint, height: utinyint) {
+        if slot >= SLOTS {
             return;
         }
-        if (frameCount > STEPS) {
+        if frameCount > STEPS {
             frameCount = STEPS;
         }
         counts[slot] = frameCount;
@@ -113,75 +113,75 @@ export namespace graphics {
         held[slot] = 0;
     }
 
-    function place(slot: utinyint, x: usmallint, y: usmallint): void {
-        if (slot >= SLOTS) {
+    fn place(slot: utinyint, x: usmallint, y: usmallint) {
+        if slot >= SLOTS {
             return;
         }
         ensure();
-        sprites.setShape(slot, codes[(slot << 2) + step[slot]]);
-        sprites.place(slot, x, y);
+        sprites::setShape(slot, codes[(slot << 2) + step[slot]]);
+        sprites::place(slot, x, y);
     }
 
-    function hide(slot: utinyint): void {
-        if (slot >= SLOTS) {
+    fn hide(slot: utinyint) {
+        if slot >= SLOTS {
             return;
         }
         ensure();
-        sprites.hide(slot);
+        sprites::hide(slot);
     }
 
-    function setFrame(slot: utinyint, frame: utinyint): void {
-        if (slot >= SLOTS) {
+    fn setFrame(slot: utinyint, frame: utinyint) {
+        if slot >= SLOTS {
             return;
         }
         ensure();
-        if (frame >= counts[slot]) {
+        if frame >= counts[slot] {
             frame = counts[slot];
-            if (frame > 0) {
+            if frame > 0 {
                 frame = frame - 1;
             }
         }
         step[slot] = frame;
         tick[slot] = 0;
-        sprites.setShape(slot, codes[(slot << 2) + frame]);
+        sprites::setShape(slot, codes[(slot << 2) + frame]);
     }
 
-    function animate(slot: utinyint, on: bool): void {
-        if (slot >= SLOTS) {
+    fn animate(slot: utinyint, on: bool) {
+        if slot >= SLOTS {
             return;
         }
         held[slot] = 1;
-        if (on) {
+        if on {
             held[slot] = 0;
         }
     }
 
-    function color(slot: utinyint, c: utinyint): void {
-        if (slot >= SLOTS) {
+    fn color(slot: utinyint, c: utinyint) {
+        if slot >= SLOTS {
             return;
         }
         ensure();
-        sprites.setColor(slot, c);
+        sprites::setColor(slot, c);
     }
 
-    function update(): void {
-        if (!started) {
+    fn update() {
+        if !started {
             return;
         }
-        for (let i: utinyint = 0; i < SLOTS; i++) {
-            if (counts[i] > 1 && held[i] == 0) {
+        for i: utinyint in 0..SLOTS {
+            if counts[i] > 1 && held[i] == 0 {
                 tick[i] = tick[i] + 1;
-                if (tick[i] >= every[i]) {
+                if tick[i] >= every[i] {
                     tick[i] = 0;
-                    let next: utinyint = step[i] + 1;
-                    if (next >= counts[i]) {
+                    let mut next: utinyint = step[i] + 1;
+                    if next >= counts[i] {
                         next = 0;
                     }
                     step[i] = next;
-                    sprites.setShape(i, codes[(i << 2) + next]);
+                    sprites::setShape(i, codes[(i << 2) + next]);
                 }
             }
         }
-        sprites.update();
+        sprites::update();
     }
 }
