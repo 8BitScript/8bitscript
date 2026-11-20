@@ -17,6 +17,7 @@
 // `--check` writes nothing and exits 1 on any difference or failure.
 import { existsSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { basename, dirname, extname, join, relative, resolve, sep } from 'node:path';
+import { SOURCE_EXTENSIONS, stripSourceExtension, variantsPresent } from '@8bitscript/compiler';
 import { check as proveEqual, parse as parseNew, tokenize as tokenizeNew } from '@8bitscript/compiler/front';
 import { convertEmbedded, convertFences } from './embedded.mjs';
 import { tokenize } from './legacy/lexer.mjs';
@@ -96,10 +97,46 @@ function proves(oldAst, text, file, sourceKind) {
 }
 
 /**
+ * The predicate migrateText takes: true when a relative specifier's module stem
+ * exists under more than one source extension next to `file`. `use self::m::x`
+ * would then be ambiguous (8BS2217), so the printer keeps the string path.
+ * An extension counts as present when the plain file or a machine, tag or
+ * locale twin of it exists (the resolver's variantsPresent), as twins count there.
+ * Stems are compared case-folded.
+ *
+ * @param {string} file
+ * @returns {(specifier: string) => boolean}
+ */
+export function sameStemIn(file) {
+  return (specifier) => {
+    if (!specifier.startsWith('./') && !specifier.startsWith('../')) return false;
+    const target = stripSourceExtension(resolve(dirname(file), specifier));
+    const dir = dirname(target);
+    // Stems that differ only in case are one stem: on a case-insensitive file
+    // system (macOS, Windows) the compiler's probes find both, and 8BS2217 follows.
+    const folded = basename(target).toLowerCase();
+    let entries;
+    try {
+      entries = readdirSync(dir);
+    } catch {
+      return false;
+    }
+    const stems = new Set(
+      entries.filter((e) => e.toLowerCase().startsWith(`${folded}.`)).map((e) => e.slice(0, folded.length)),
+    );
+    const present = (ext) => [...stems].some((stem) => {
+      const path = join(dir, stem + ext);
+      return existsSync(path) || variantsPresent(path).length > 0;
+    });
+    return SOURCE_EXTENSIONS.filter(present).length > 1;
+  };
+}
+
+/**
  * Convert one old-syntax text and prove the result.
  *
  * @param {string} text
- * @param {{ file?: string, sourceKind?: '.8bs'|'.8bx', aliasHeads?: string[] }} [options]
+ * @param {{ file?: string, sourceKind?: '.8bs'|'.8bx', aliasHeads?: string[], sameStem?: (specifier: string) => boolean }} [options]
  * @returns {{ status: 'converted' | 'already-new' | 'failed' | 'different', text?: string, message?: string }}
  */
 export function migrateText(text, options = {}) {
@@ -120,7 +157,7 @@ export function migrateText(text, options = {}) {
   }
   let printed;
   try {
-    printed = printProgram(parsed.ast, lexed.tokens, text, { aliasHeads: options.aliasHeads ?? [] });
+    printed = printProgram(parsed.ast, lexed.tokens, text, { aliasHeads: options.aliasHeads ?? [], sameStem: options.sameStem });
   } catch (error) {
     if (error instanceof UnsupportedError) return { status: 'failed', message: error.message };
     throw error;
@@ -212,7 +249,7 @@ export async function migrate(args, io = {}) {
     for (const file of files) {
       const text = readFileSync(file, 'utf8');
       const sourceKind = extname(file);
-      const result = migrateText(text, { file, sourceKind, aliasHeads: opts.aliasHeads });
+      const result = migrateText(text, { file, sourceKind, aliasHeads: opts.aliasHeads, sameStem: sameStemIn(file) });
       if (result.status === 'already-new') {
         totals.alreadyNew += 1;
         out(`already new syntax ${show(file)}`);
@@ -231,7 +268,8 @@ export async function migrate(args, io = {}) {
     const files = roots.flatMap((r) => collect(r, wanted)).filter((f) => !isExcluded(f));
     for (const file of files) {
       const text = readFileSync(file, 'utf8');
-      const result = convertFile(text, (body, sourceKind) => migrateText(body, { file, sourceKind, aliasHeads: opts.aliasHeads }));
+      // Embedded programs and fences have no file of their own: the predicate looks beside the host file.
+      const result = convertFile(text, (body, sourceKind) => migrateText(body, { file, sourceKind, aliasHeads: opts.aliasHeads, sameStem: sameStemIn(file) }));
       for (const failure of result.failures) record(`${show(file)}:${failure.line}`, failure.status, failure.message);
       if (result.converted > 0 || result.unchanged > 0) {
         totals.converted += result.converted;
