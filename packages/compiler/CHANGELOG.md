@@ -1,5 +1,18 @@
 # @8bitscript/compiler
 
+## 0.26.0
+
+### Patch Changes
+
+- 33f8179: Make builds deterministic across directory order and repeated builds in one process: variant names in a diagnostic are listed in a fixed order, and generated label names restart with each build.
+- 8cf8f99: Prepare the compiler for the new syntax: the checker reports assigning to a plain `let` (8BS1031) by block scope, `findImports` reads `use` paths, and a path-form import searches the source extensions (8BS2217 when two files match).
+  
+  The block-scope store scan now lives once in the compiler and `8bs migrate` imports it, so the converter and the checker cannot drift.
+- 562eb57: A message catalog that exports an empty namespace, or one the default locale lacks, now reports the catalog file in its error instead of leaving the file blank.
+- 5910aec: Add `8bs migrate`: converts old-syntax `.8bs` and `.8bx` files to the new syntax in place, proving each result against the new front end first. `--check` reports without writing, and `--embedded` and `--fences` also convert programs inside JavaScript test files and Markdown fences. The compiler package now exports its front end as `@8bitscript/compiler/front`.
+- cd22c5f: Rebuild the front wasm after a parser cleanup; no behavior change.
+- 2b7edfe: Add an optional `dump` callback to the compiler's `link()` and both `build()` functions. It is called with each stage's value as the build reaches it, and a build without it is unchanged.
+
 ## 0.25.0
 
 ### Minor Changes
