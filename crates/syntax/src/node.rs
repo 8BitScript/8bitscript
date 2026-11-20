@@ -237,11 +237,17 @@ pub enum NodeKind {
     },
     BooleanLiteral {
         value: bool,
+        /// Set by a fold that replaces a `#fact`, `#locale` or `#define` call (`fold/index.mjs:188-204`).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        raw: Option<String>,
     },
     StringLiteral {
         value: String,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         unterminated: Option<bool>,
+        /// Set by a fold that replaces a `#package` or string `#define` call.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        raw: Option<String>,
     },
     TemplateLiteral {
         parts: Vec<Node>,
