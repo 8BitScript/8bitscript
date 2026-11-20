@@ -385,7 +385,7 @@ pub fn is_template_call(node: Option<&Node>) -> bool {
     let Some(node) = node else {
         return false;
     };
-    let NodeKind::CallExpression { callee, args } = &node.kind else {
+    let NodeKind::CallExpression { callee, args, .. } = &node.kind else {
         return false;
     };
     let NodeKind::MemberExpression { object, property } = &callee.kind else {
