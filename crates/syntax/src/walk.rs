@@ -196,7 +196,7 @@ macro_rules! child_fn {
                 }
                 NodeKind::UnaryExpression { argument, .. }
                 | NodeKind::UpdateExpression { argument, .. } => Slot::add(argument, &mut out),
-                NodeKind::CallExpression { callee, args } => {
+                NodeKind::CallExpression { callee, args, .. } => {
                     Slot::add(callee, &mut out);
                     Slot::add(args, &mut out);
                 }
