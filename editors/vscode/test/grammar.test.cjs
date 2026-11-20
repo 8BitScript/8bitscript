@@ -30,13 +30,19 @@ function rules(node, out = []) {
 
 const all = rules(grammar);
 
+// Oniguruma's `(?i:...)` group is not JavaScript: compile it as `(?:...)` with
+// the `i` flag, which is equivalent for the patterns this grammar writes.
+function jsRegExp(source) {
+  return source.includes('(?i:') ? new RegExp(source.replaceAll('(?i:', '(?:'), 'i') : new RegExp(source);
+}
+
 test('every match/begin/end pattern is a regular expression that compiles', () => {
   for (const rule of all) {
     for (const key of ['match', 'begin', 'end']) {
       if (typeof rule[key] !== 'string') continue;
       // Oniguruma accepts `\\G` and back-references into `begin` captures
       // that JavaScript does not; the grammar uses neither.
-      assert.doesNotThrow(() => new RegExp(rule[key]), `${key}: ${rule[key]}`);
+      assert.doesNotThrow(() => jsRegExp(rule[key]), `${key}: ${rule[key]}`);
     }
   }
 });
@@ -90,9 +96,174 @@ test('the language configuration auto-closes and surrounds backticks, like the o
 test('a #name or @name is one word, so completing one replaces the sigil too', () => {
   const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'language-configuration.json'), 'utf8'));
   const word = new RegExp(config.wordPattern);
-  for (const [text, expected] of [['#frames', '#frames'], ['@address', '@address'], ['ticks', 'ticks'], ['_x9', '_x9']]) {
+  for (const [text, expected] of [['#frames', '#frames'], ['@scope', '@scope'], ['ticks', 'ticks'], ['_x9', '_x9']]) {
     assert.equal(text.match(word)[0], expected);
   }
+});
+
+// ---- the new syntax, through the real tokenizer ----------------------------
+
+async function loadNew() {
+  const vsctm = require('vscode-textmate');
+  const onig = require('vscode-oniguruma');
+  const wasm = fs.readFileSync(require.resolve('vscode-oniguruma/release/onig.wasm')).buffer;
+  const onigLib = onig.loadWASM(wasm).then(() => ({
+    createOnigScanner: (patterns) => new onig.OnigScanner(patterns),
+    createOnigString: (text) => new onig.OnigString(text),
+  }));
+  const registry = new vsctm.Registry({
+    onigLib,
+    loadGrammar: (scope) => (scope === grammar.scopeName
+      ? vsctm.parseRawGrammar(fs.readFileSync(GRAMMAR, 'utf8'), GRAMMAR)
+      : null),
+  });
+  const compiled = await registry.loadGrammar(grammar.scopeName);
+  /** Every token of `source` as [text, innermost scope without the `.8bs` suffix]. */
+  return (source) => {
+    const out = [];
+    let state = vsctm.INITIAL;
+    for (const line of source.split('\n')) {
+      const { tokens, ruleStack } = compiled.tokenizeLine(line, state);
+      for (const t of tokens) {
+        const text = line.slice(t.startIndex, t.endIndex);
+        if (text.trim() === '') continue;
+        out.push([text, t.scopes.at(-1).replace(/\.8bs$/, '')]);
+      }
+      state = ruleStack;
+    }
+    return out;
+  };
+}
+
+const NEW_SAMPLE = `use self::geo::{a, b};
+use @lib::game::rules::x;
+#[address($D020)]
+let mut border: volatile<u8>;
+const MAX: u8 = 0xFF;
+mod Color { pub const RED: u8 = 0b0010; }
+pub fn main(r#loop: u8) -> u8 {
+  let x: u16 = 1_000;
+  let mut y = $FF;
+  for i: u8 in 0..=9 { y += i; }
+  for j: u8 in 0..4 {}
+  loop { break; }
+  match x { 1 => y = 2, _ => {} }
+  memory::read(r#loop);
+  assert_eq!(x, 1);
+  let t = \`HP \${hp:3}\`;
+  let s = "hi";
+  let d = #frames(0.5, seconds);
+  #fact("k");
+  asm6502 { lda #$01 ; set
+    sta $D020,X }
+  x as u8;
+  return y;
+}
+#[test]
+fn ok() {}
+`;
+
+test('every token class of the new syntax gets its scope', async () => {
+  const tokens = (await loadNew())(NEW_SAMPLE);
+  const scopeOf = (text, nth = 0) => tokens.filter((t) => t[0] === text)[nth]?.[1];
+
+  assert.equal(scopeOf('use'), 'keyword.control.import');
+  assert.equal(scopeOf('self'), 'variable.language');
+  assert.equal(scopeOf('::'), 'punctuation.accessor');
+  assert.equal(scopeOf('@lib'), 'entity.name.namespace.scope');
+  assert.equal(scopeOf('#['), 'punctuation.definition.attribute.begin');
+  assert.equal(scopeOf('address'), 'entity.name.function.attribute');
+  assert.equal(scopeOf('$D020'), 'constant.numeric.hex');
+  assert.equal(scopeOf('let'), 'storage.type');
+  assert.equal(scopeOf('mut'), 'storage.modifier');
+  assert.equal(scopeOf('border'), 'variable.other.readwrite');
+  assert.equal(scopeOf('volatile'), 'support.type.constructor');
+  assert.equal(scopeOf('u8'), 'support.type.primitive');
+  assert.equal(scopeOf('const'), 'storage.type');
+  assert.equal(scopeOf('MAX'), 'variable.other.constant');
+  assert.equal(scopeOf('0xFF'), 'constant.numeric.hex');
+  assert.equal(scopeOf('mod'), 'storage.type');
+  assert.equal(scopeOf('Color'), 'entity.name.namespace');
+  assert.equal(scopeOf('pub'), 'storage.modifier');
+  assert.equal(scopeOf('0b0010'), 'constant.numeric.binary');
+  assert.equal(scopeOf('fn'), 'storage.type.function');
+  assert.equal(scopeOf('main'), 'entity.name.function');
+  assert.equal(scopeOf('r#loop'), 'variable.other.raw');
+  assert.equal(scopeOf('->'), 'keyword.operator.arrow');
+  assert.equal(scopeOf('1_000'), 'constant.numeric.decimal');
+  assert.equal(scopeOf('for'), 'keyword.control');
+  assert.equal(scopeOf('in'), 'keyword.control');
+  assert.equal(scopeOf('..='), 'keyword.operator.range');
+  assert.equal(scopeOf('..'), 'keyword.operator.range');
+  assert.equal(scopeOf('+='), 'keyword.operator');
+  assert.equal(scopeOf('loop'), 'keyword.control');
+  assert.equal(scopeOf('match'), 'keyword.control');
+  assert.equal(scopeOf('=>'), 'keyword.operator.fat-arrow');
+  assert.equal(scopeOf('memory'), 'entity.name.namespace');
+  assert.equal(scopeOf('read'), 'entity.name.function.call');
+  assert.equal(scopeOf('assert_eq'), 'support.function.macro');
+  assert.equal(scopeOf('!'), 'support.function.macro.bang');
+  assert.equal(scopeOf('HP '), 'string.template');
+  assert.equal(scopeOf('hp'), 'meta.template.field', 'a template field holds source');
+  assert.equal(scopeOf('hi'), 'string.quoted.double');
+  assert.equal(scopeOf('#frames'), 'support.function.compile-time');
+  assert.equal(scopeOf('0.5'), 'constant.numeric.decimal.fraction');
+  assert.equal(scopeOf('seconds'), 'constant.language.unit');
+  assert.equal(scopeOf('#fact'), 'support.function.compile-time');
+  assert.equal(scopeOf('as'), 'keyword.other.as');
+  assert.equal(scopeOf('return'), 'keyword.control');
+  assert.equal(scopeOf('test'), 'entity.name.function.attribute');
+});
+
+test('asm6502 colours 6502 mnemonics, operands and its own comments, and ends at the brace', async () => {
+  const tokens = (await loadNew())(NEW_SAMPLE);
+  const scopeOf = (text, nth = 0) => tokens.filter((t) => t[0] === text)[nth]?.[1];
+  assert.equal(scopeOf('asm6502'), 'storage.modifier');
+  assert.equal(scopeOf('lda'), 'keyword.mnemonic');
+  assert.equal(scopeOf('#'), 'keyword.operator.immediate');
+  assert.equal(scopeOf('$01'), 'constant.numeric.hex');
+  assert.equal(scopeOf('; set'), 'comment.line.semicolon');
+  assert.equal(scopeOf('sta'), 'keyword.mnemonic');
+  assert.equal(scopeOf(',X'), 'variable.language.register');
+  // After the closing brace the grammar is back in ordinary source.
+  assert.equal(scopeOf('as'), 'keyword.other.as');
+  assert.equal(scopeOf('return'), 'keyword.control');
+});
+
+test('old keywords and old spellings are not colored as language', async () => {
+  const tokenize = await loadNew();
+  const tokens = tokenize('function namespace import export switch case\nlet x = a % 2;\nlet b = %1010;');
+  // Unscoped text merges into one token, so the check is that nothing in the input got a keyword scope.
+  assert.ok(!tokens.some((t) => t[0] !== 'let' && /^(keyword\.control|storage)/.test(t[1])), JSON.stringify(tokens));
+  // `%` is only modulo: no binary-literal scope exists for %1010.
+  assert.ok(!tokens.some((t) => t[1] === 'constant.numeric.binary'));
+});
+
+test('reserved words are flagged, and a range is not a fraction', async () => {
+  const tokenize = await loadNew();
+  const tokens = tokenize('struct enum\nfor i: u8 in 0..5 {}');
+  assert.equal(tokens.find((t) => t[0] === 'struct')[1], 'invalid.illegal.reserved');
+  assert.equal(tokens.find((t) => t[0] === 'enum')[1], 'invalid.illegal.reserved');
+  assert.ok(!tokens.some((t) => t[1] === 'constant.numeric.decimal.fraction'));
+});
+
+test('a string ends at the end of its line, so an unterminated one does not swallow the file', async () => {
+  const tokenize = await loadNew();
+  const tokens = tokenize('let s = "oops;\nlet n = 1;');
+  assert.equal(tokens.find((t) => t[0] === '1')[1], 'constant.numeric.decimal');
+});
+
+test('a use list may span lines and ends at the semicolon', async () => {
+  const tokenize = await loadNew();
+  const tokens = tokenize('use self::geo::{\n  a,\n  b\n};\nlet n = 1;');
+  assert.equal(tokens.find((t) => t[0] === 'b')[1], 'variable.other.readwrite');
+  assert.equal(tokens.find((t) => t[0] === '1')[1], 'constant.numeric.decimal');
+});
+
+test('#[ is an attribute and #name is a compile-time call, never the other way round', async () => {
+  const tokenize = await loadNew();
+  const tokens = tokenize('#[cfg(test)]\n#[test]\nfn t() {}');
+  assert.equal(tokens.find((t) => t[0] === 'cfg')[1], 'entity.name.function.attribute');
 });
 
 // ---- snippets ---------------------------------------------------------------
@@ -364,19 +535,22 @@ async function loadBx() {
   };
 }
 
-const SAMPLE = `component Player(name: string) {
+const SAMPLE = `pub component Player(name: string) {
     state health: utinyint = 100;
-    let a: array<utinyint, 4>;
-    if (health < 50 && a[0] << 2 > 3) { damage(1); }
+    let a: [utinyint; 4];
+    let mut p: ptr<utinyint>;
+    if health < 50 && a[0] << 2 > 3 { damage(1); }
 }
-export function draw(): void {
+pub fn draw() {
     <MenuBar row={0} width={40} wide>
         <MenuItem label="FILE" />
-        {open && <MenuItem label={"EDIT"} />}
+        {open && <MenuItem label="EDIT" />}
         <Text>Hello World!</Text>
     </MenuBar>;
-    <Box>{c ? <A /> : <B />}</Box>;
-    return (<>{on ? <A /> : <slot />}</>);
+    <Box>
+        {if c { <A /> } else { <B /> }}
+    </Box>;
+    return <>{if on { <A /> } else { <slot /> }}</>;
 }
 `;
 
@@ -401,17 +575,19 @@ test('the 8bx grammar colours components, tags, props, children and expressions 
   assert.equal(scopeOf('&&', 1), 'keyword.operator.ternary', 'inside {…} between tags');
   assert.equal(scopeOf('Hello World!'), 'meta.tag', 'text is plain, inside its tag');
   assert.equal(scopeOf('MenuBar', 1), 'entity.name.tag.component', 'the closing tag is the same tag');
-  assert.equal(scopeOf('?'), 'keyword.operator.ternary');
-  assert.ok(tokens.some(([text, scope]) => text === ':' && scope === 'keyword.operator.ternary'), 'the ternary\'s colon, not a type separator');
+  assert.equal(scopeOf('if', 1), 'keyword.control', 'an if expression inside {…} between tags');
+  assert.equal(scopeOf('else'), 'keyword.control', 'its else');
   assert.ok(tokens.some(([text, scope]) => text === ':' && scope === 'punctuation.separator.type'), 'the parameter\'s colon still is one');
   assert.equal(scopeOf('slot'), 'entity.name.tag.component');
   // And nothing 8BitScript already had is disturbed: `<` is still the
-  // operator in a comparison, a shift, and a generic.
-  assert.equal(scopeOf('<', 0), 'keyword.operator', 'array<…>');
+  // operator in a comparison, a shift, and after ptr.
+  assert.equal(scopeOf('<', 0), 'keyword.operator', 'ptr<…>');
   assert.equal(scopeOf('<', 1), 'keyword.operator', 'health < 50');
   assert.equal(scopeOf('<<'), 'keyword.operator');
   assert.equal(scopeOf('&&', 0), 'keyword.operator', 'outside a tag, the 8bs operator');
-  assert.equal(scopeOf('draw'), 'entity.name.function.call');
+  assert.equal(scopeOf('damage'), 'entity.name.function.call');
+  assert.equal(scopeOf('draw'), 'entity.name.function');
+  assert.equal(scopeOf('pub'), 'storage.modifier', 'pub component, not export');
 });
 
 test('every snippet has a unique prefix, a description, and a body', () => {
@@ -433,3 +609,38 @@ test('a template field in a snippet body is escaped, so it is text and not a pla
 // Whether each snippet's expansion actually compiles is asserted in
 // packages/compiler/test/snippets.test.mjs: the compiler is the source of
 // truth for what the language accepts, and this package cannot import it.
+
+test('mnemonics match in any case, immediates take #<label and #>label, and the register may be upper case', async () => {
+  const tokenize = await loadNew();
+  const tokens = tokenize('asm6502 { LDA #<tbl ; x\n  Lda #>tbl\n  sta $D020,Y }');
+  const mnemonics = tokens.filter((t) => t[1] === 'keyword.mnemonic').map((t) => t[0]);
+  assert.deepEqual(mnemonics, ['LDA', 'Lda', 'sta']);
+  assert.equal(tokens.filter((t) => t[0] === '#').length, 2);
+  assert.ok(tokens.every((t) => t[0] !== '#' || t[1] === 'keyword.operator.immediate'));
+  assert.equal(tokens.find((t) => t[0] === ',Y')[1], 'variable.language.register');
+});
+
+test('a use without its semicolon ends before the next statement', async () => {
+  const tokenize = await loadNew();
+  const tokens = tokenize('use self::geo::a\nfn f() {}\nuse x::y as z;');
+  assert.equal(tokens.find((t) => t[0] === 'fn')[1], 'storage.type.function');
+  assert.equal(tokens.find((t) => t[0] === 'f')[1], 'entity.name.function');
+  assert.equal(tokens.find((t) => t[0] === 'as')[1], 'keyword.other.as', 'as is one scope in and out of use');
+});
+
+test('the C-style for and the fn after an attribute are colored', async () => {
+  const tokenize = await loadNew();
+  const tokens = tokenize('#[test]\nfn t() {\n  for (let mut i: u8 = 0; i < 9; i -= 1) {}\n}');
+  assert.equal(tokens.find((t) => t[0] === 'fn')[1], 'storage.type.function');
+  assert.equal(tokens.find((t) => t[0] === 't')[1], 'entity.name.function');
+  assert.equal(tokens.find((t) => t[0] === 'for')[1], 'keyword.control');
+  assert.equal(tokens.find((t) => t[0] === 'mut')[1], 'storage.modifier');
+  assert.equal(tokens.find((t) => t[0] === 'i')[1], 'variable.other.readwrite');
+  assert.equal(tokens.find((t) => t[0] === '-=')[1], 'keyword.operator');
+});
+
+test('single quotes are not an auto-closing or surrounding pair', () => {
+  const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'language-configuration.json'), 'utf8'));
+  assert.ok(!config.autoClosingPairs.some((p) => p.open === "'"));
+  assert.ok(!config.surroundingPairs.some((p) => p[0] === "'"));
+});

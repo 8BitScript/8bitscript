@@ -1,17 +1,16 @@
 {
-  "_comment": "wordPattern makes `#frames` and `@address` one word each, not a sigil beside a word. Completion replaces the word under the cursor, so without this, accepting `#frames` half-way through `#fra` would leave `##frames`; double-click selection and word-wise motion follow the same rule.",
+  "_comment": "wordPattern makes `#frames` and `@scope` one word each, not a sigil beside a word. Completion replaces the word under the cursor, so without this, accepting `#frames` half-way through `#fra` would leave `##frames`; double-click selection and word-wise motion follow the same rule.",
   "wordPattern": "[#@]?[A-Za-z_][A-Za-z0-9_]*",
   "comments": {
     "lineComment": "//",
     "blockComment": ["/*", "*/"]
   },
-  "brackets": [["{", "}"], ["[", "]"], ["(", ")"]],
+  "brackets": [["{", "}"], ["#[", "]"], ["[", "]"], ["(", ")"]],
   "autoClosingPairs": [
     { "open": "{", "close": "}" },
     { "open": "[", "close": "]" },
     { "open": "(", "close": ")" },
     { "open": "\"", "close": "\"", "notIn": ["string", "comment"] },
-    { "open": "'", "close": "'", "notIn": ["string", "comment"] },
     { "open": "`", "close": "`", "notIn": ["string", "comment"] }
   ],
   "surroundingPairs": [
@@ -19,7 +18,6 @@
     ["[", "]"],
     ["(", ")"],
     ["\"", "\""],
-    ["'", "'"],
     ["`", "`"]
   ],
   "_autoCloseBefore": "Autoclose a quote or bracket only before whitespace or a closing bracket — typing `\"` in front of an identifier is nearly always a wrap, not a new string. The default set has no backtick reason to differ.",
