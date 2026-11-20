@@ -17,9 +17,9 @@
 //
 // The four release-target tests (pet, c64, vic20, cx16) launch a real
 // emulator, which opens a window on a developer machine. They run only
-// when EIGHTBS_EMULATOR_TESTS=1 is set (CI and the headless xvfb runs
-// set it); otherwise they skip. They also skip when the emulator is not
-// on PATH.
+// when EIGHTBS_EMULATOR_TESTS=1 is set (set it, under xvfb-run -a on a
+// headless box, to run them); otherwise they skip. They also skip when
+// the emulator is not on PATH.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
