@@ -48,7 +48,7 @@ const TWINS = {
   vic20: { file: 'index.vic20.8bs', MAX: 8, FRAMES: 8, WIDTH: 16, HEIGHT: 16, COLORS: 1, STEP_X: 8, STEP_Y: 8, RECOLORS: true, RESTORES: false, TRANSPARENT: false },
   c64: { file: 'index.c64.8bs', MAX: 24, FRAMES: 4, WIDTH: 24, HEIGHT: 21, COLORS: 1, STEP_X: 1, STEP_Y: 1, RECOLORS: true, RESTORES: true, TRANSPARENT: true },
   cx16: { file: 'index.cx16.8bs', MAX: 8, FRAMES: 2, WIDTH: 64, HEIGHT: 64, COLORS: 15, STEP_X: 1, STEP_Y: 1, RECOLORS: true, RESTORES: true, TRANSPARENT: true },
-  web: { file: 'index.web.8bs', MAX: 8, FRAMES: 8, WIDTH: 8, HEIGHT: 8, COLORS: 1, STEP_X: 8, STEP_Y: 8, RECOLORS: true, RESTORES: false, TRANSPARENT: false },
+  web: { file: 'index.web.8bs', MAX: 16, FRAMES: 2, WIDTH: 64, HEIGHT: 64, COLORS: 15, STEP_X: 1, STEP_Y: 1, RECOLORS: true, RESTORES: true, TRANSPARENT: true },
   nes: { file: 'index.nes.8bs', MAX: 8, FRAMES: 4, WIDTH: 16, HEIGHT: 16, COLORS: 3, STEP_X: 1, STEP_Y: 1, RECOLORS: false, RESTORES: true, TRANSPARENT: true },
 };
 

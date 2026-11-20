@@ -96,6 +96,11 @@ pub mod Video {
     const POINTER_BASE: usmallint = 9036;
     const HAS_POINTER: bool = true;
 
+    // Where the sprite region starts, after the pointer block: the slot table,
+    // then the palettes, then the pool (agreementFor().spriteTable in
+    // packages/cli/src/web-layout.mjs; @8bitscript/graphics reads it).
+    const SPRITE_TABLE: usmallint = 9042;
+
     // True where the grid can change under a running program. A build-time
     // fact, so `if (screen.RESIZABLE)` folds away entirely on every machine
     // that cannot — see ./screen.8bs.

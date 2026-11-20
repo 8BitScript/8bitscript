@@ -1,189 +1,215 @@
-// @8bitscript/graphics on the Commander X16's WebAssembly build: a picture is one
-// cell of real art — an 8×8 bitmap in a redefinable character set — and an
-// animated picture steps through up to eight of them.
+// @8bitscript/graphics on the Commander X16's WebAssembly build: a picture is
+// a 4bpp pixel sprite the page draws.
 //
 // This file is linked only by `8bs build --target cx16 --web` (the build's
 // internal `web` tag, resolved the way text.cx16.web.8bs is). The native X16
-// draws a picture as a VERA hardware sprite (index.cx16.8bs); our wasm model of
-// the machine has no VERA — writes to its ports land in flat memory and
-// accumulate into nothing a page could draw (packages/cx16/src/
-// text.cx16.web.8bs says why) — so there is no sprite to place. The page
-// instead keeps the redefinable glyph table the synthetic web target has
-// (packages/cli/src/web-layout.mjs, REAL_MACHINE_LAYOUT.cx16.userGlyphs): 80
-// glyphs of eight row bytes for the character codes 176-255, drawn when any of
-// a glyph's rows is nonzero. A picture lowers to those row bytes at build time
-// with the web target's own module (the cx16 package's "wasmMedia"), `bind()`
-// below writes them into the table, and the cell layer draws the character
-// (@8bitscript/sprites, the glyph path): the position is in stage pixels and
-// lands on the cell at x >> 3, y >> 3, so STEP_X and STEP_Y are 8, and a
-// picture does not restore what it covers.
-//
-// ---- what it does not show -------------------------------------------------
-//
-// One cell is 8×8 pixels in the cell's one ink: colour is dropped (the build
-// says so with 8BS2111) and `graphics.color()` tints the cell. A picture
-// bigger than a cell is reduced by area. This is the X16's sprites rendered as
-// the closest thing the wasm rail has, and `8bs targets --json` lists it among
-// the cx16 wasm module's limits; the real VERA sprite stays the native
-// behaviour.
+// draws a picture as a VERA hardware sprite (index.cx16.8bs, 8 of them); our
+// wasm model of the machine has no VERA — writes to its ports land in flat
+// memory and accumulate into nothing a page could draw (packages/cx16/src/
+// text.cx16.web.8bs says why) — so the page draws the pictures itself, from
+// the sprite region of its agreement (packages/cli/src/web-layout.mjs,
+// REAL_MACHINE_LAYOUT.cx16.sprites): the cx16 catalog's 128 sprites over a
+// 32 KiB pool, lowered with the web target's own module (the cx16 package's
+// "wasmMedia"), which keeps the VERA palette and frame packing byte for byte.
+// What it is not: VERA. There is no sprite 0 mouse cursor, no z-depth, flip or
+// collision, and `8bs targets --json` lists that among the cx16 wasm module's
+// limits; the real VERA sprite stays the native behaviour.
 //
 // ---- the number this file must agree with -------------------------------------
 //
-// GLYPH_BASE is where the page reads the table: layoutForRealMachine('cx16')
-// .glyphBase. It moves if the grid or the raster list does, so a test
-// (packages/cli/test/web-cx16-graphics.test.mjs) pins this constant to the
+// SPRITE_TABLE is where the page reads the region:
+// layoutForRealMachine('cx16', the catalog's facts).spriteTable. It moves if
+// the grid or the layers before the region do, so a test
+// (packages/cli/test/web-pixel-sprites.test.mjs) pins this constant to the
 // layout and fails, naming both, when they part.
-use @8bitscript::sprites::sprites;
-use @8bitscript::system::Video;
+const SPRITE_TABLE: usmallint = 9357;
 
-// The glyph table, as the cx16 wasm page reads it.
-const GLYPH_FIRST: utinyint = 176; // the first redefinable character code
-const GLYPH_COUNT: utinyint = 80; // how many there are
-const GLYPH_BASE: usmallint = 8710; // its first byte in linear memory
+// ---- shared body ----
+//
+// Everything below this line is the same text in index.web.8bs and
+// index.cx16.web.8bs (a test pins that); only the lines above differ.
+//
+// The page draws the sprite region at the end of its agreement
+// (packages/cli/src/web-layout.mjs, web-sprites.mjs): a table of MAX
+// ten-byte entries at SPRITE_TABLE, MAX palettes of 32 bytes after it, then
+// the pool of 4bpp frames every picture shares. This file writes those bytes
+// and keeps the animation state; the page does the drawing, so a picture
+// shows with its own colours, in front of the cells, and covers nothing for
+// good (RESTORES).
+//
+// Entry fields, from the slot's entry: 0 FLAGS (bit 0: shown), 1-2 X, 3-4 Y
+// (low byte first), 5 WIDTH, 6 HEIGHT, 7-8 FRAME (the pool offset of the frame
+// on show), 9 TINT (255: the picture's own colours; below 16: a host colour).
+//
+// What the compiler's binders hand bind() (packages/web/media/index.cjs):
+// bytes 0-1 the pool offset where this picture's frames start, 2-33 its
+// palette, 34 on its frames. meta() follows with the frame count, the speed
+// and the size. A program never calls either.
+const SLOTS: utinyint = #fact(video::sprites);
+const ENTRY_BYTES: usmallint = 10;
+const PALETTE_BYTES: usmallint = 32;
+const POOL_KIB: usmallint = #fact(video::spriteKib);
+const FIRST_FRAME_BYTE: usmallint = 34; // after the pool offset and the palette
+const OWN_COLORS: utinyint = 255; // TINT: the picture's own colours
 
-// One pixel row of one glyph. A code outside the table or a row past 7 is
-// refused, so a stray write cannot reach the raster list below the table or the
-// program's own data above it.
-fn glyphRow(code: utinyint, row: utinyint, bits: utinyint) {
-    if code < GLYPH_FIRST || row > 7 {
-        return;
-    }
-    let glyph: usmallint = code - GLYPH_FIRST;
-    if glyph >= GLYPH_COUNT {
-        return;
-    }
-    memory::write(GLYPH_BASE + (glyph << 3) + row, bits);
+let mut frameCount: [u8; 128];
+let mut interval: [u8; 128];
+let mut tick: [u8; 128];
+let mut frame: [u8; 128];
+let mut shown: [u8; 128];
+let mut paused: [u8; 128]; // 1: automatic stepping paused
+let mut base: [u16; 128]; // where the picture's frames start in the pool
+let mut frameBytes: [u16; 128];
+
+// A slot's entry in the table.
+fn entryAt(slot: usmallint) -> usmallint {
+    return SPRITE_TABLE + slot * ENTRY_BYTES;
 }
 
-const SLOTS: utinyint = 8;
-const STEPS: utinyint = 8;
-const BYTES: utinyint = 64; // a picture's row bytes: STEPS glyphs of eight
-let mut counts: [u8; 8]; // steps in this picture's animation
-let mut every: [u8; 8]; // update() calls between steps
-let mut tick: [u8; 8]; // update() calls since the last step
-let mut step: [u8; 8]; // the step on show
-let mut held: [u8; 8]; // 1: automatic stepping paused
-let mut animated: utinyint = 0; // pictures with more than one step
-let mut started: bool = false;
-
-fn ensure() {
-    if !started {
-        sprites::begin(SLOTS);
-        started = true;
-    }
-}
-
-// The character code of a picture's step: glyph (slot << 3) + step of the table.
-fn codeOf(slot: utinyint, frame: utinyint) -> utinyint {
-    return GLYPH_FIRST + (slot << 3) + frame;
+// Point the entry at the frame on show: the pool offset of its first byte.
+fn writeFrame(slot: utinyint) {
+    let step: usmallint = frame[slot];
+    let at: usmallint = base[slot] + step * frameBytes[slot];
+    let entry: usmallint = entryAt(slot);
+    memory::write(entry + 7, at % 256);
+    memory::write(entry + 8, at / 256);
 }
 
 pub mod graphics {
-    // The portable contract (index.8bs): what this machine answers.
-    const MAX: utinyint = 8;
-    const FRAMES: utinyint = 8;
-    const WIDTH: utinyint = sprites::WIDTH; // one cell, an 8×8 bitmap
-    const HEIGHT: utinyint = sprites::HEIGHT;
-    const COLORS: utinyint = 1; // the glyph's one ink
-    const RECOLORS: bool = Video::COLOR_PER_CELL; // color() tints the cell
-    const STEP_X: utinyint = sprites::STEP_X;
-    const STEP_Y: utinyint = sprites::STEP_Y;
-    const RESTORES: bool = sprites::RESTORES; // false: what a picture covers is lost
-    const TRANSPARENT: bool = false; // a cell is drawn whole
+    // The portable contract (index.8bs): what this build answers.
+    const MAX: utinyint = #fact(video::sprites);
+    const FRAMES: utinyint = 2; // of a WIDTH x HEIGHT picture; smaller pictures hold more
+    const WIDTH: utinyint = 64;
+    const HEIGHT: utinyint = 64;
+    const COLORS: utinyint = 15; // 4 bpp, transparent aside
+    const RECOLORS: bool = true; // color(): the picture in a host colour, or its own again
+    const STEP_X: utinyint = 1; // a pixel
+    const STEP_Y: utinyint = 1;
+    const RESTORES: bool = true; // a sprite draws over the cells and leaves them whole
+    const TRANSPARENT: bool = true; // palette entry 0 of a sprite is clear
 
-    // Row (index & 7) of step (index >> 3) of picture `slot`, straight into the glyph table.
-    fn bind(slot: utinyint, index: utinyint, value: utinyint) {
-        if slot >= SLOTS || index >= BYTES {
-            return;
-        }
-        glyphRow(codeOf(slot, index >> 3), index & 7, value);
-    }
-
-    fn meta(slot: utinyint, frameCount: utinyint, interval: utinyint, kind: utinyint, width: utinyint, height: utinyint) {
+    fn bind(slot: utinyint, index: usmallint, value: utinyint) {
         if slot >= SLOTS {
             return;
         }
-        counts[slot] = frameCount;
-        every[slot] = interval;
-        tick[slot] = 0;
-        step[slot] = 0;
-        held[slot] = 0;
-        if frameCount > 1 {
-            animated = animated + 1;
+        let wide: usmallint = slot;
+        let byte: usmallint = value;
+        let count: usmallint = SLOTS;
+        let palettes: usmallint = SPRITE_TABLE + count * ENTRY_BYTES;
+        if index == 0 {
+            base[slot] = base[slot] - base[slot] % 256 + byte;
+            return;
         }
+        if index == 1 {
+            base[slot] = base[slot] % 256 + byte * 256;
+            return;
+        }
+        if index < FIRST_FRAME_BYTE {
+            memory::write(palettes + wide * PALETTE_BYTES + index - 2, value);
+            return;
+        }
+        let at: usmallint = base[slot] + index - FIRST_FRAME_BYTE;
+        let limit: usmallint = POOL_KIB * 1024;
+        if at >= limit {
+            return;
+        }
+        memory::write(palettes + count * PALETTE_BYTES + at, value);
+    }
+
+    fn meta(slot: utinyint, frames: utinyint, every: utinyint, kind: utinyint, width: utinyint, height: utinyint) {
+        if slot >= SLOTS {
+            return;
+        }
+        let w: usmallint = width;
+        let h: usmallint = height;
+        frameCount[slot] = frames;
+        interval[slot] = every;
+        tick[slot] = 0;
+        frame[slot] = 0;
+        shown[slot] = 0;
+        paused[slot] = 0;
+        frameBytes[slot] = w * h / 2;
+        let entry: usmallint = entryAt(slot);
+        memory::write(entry + 5, width);
+        memory::write(entry + 6, height);
+        memory::write(entry + 9, OWN_COLORS);
+        memory::write(entry, 0);
     }
 
     fn place(slot: utinyint, x: usmallint, y: usmallint) {
         if slot >= SLOTS {
             return;
         }
-        ensure();
-        sprites::setShape(slot, codeOf(slot, step[slot]));
-        sprites::place(slot, x, y);
+        if frameCount[slot] == 0 {
+            return;
+        }
+        let entry: usmallint = entryAt(slot);
+        memory::write(entry + 1, x % 256);
+        memory::write(entry + 2, x / 256);
+        memory::write(entry + 3, y % 256);
+        memory::write(entry + 4, y / 256);
+        writeFrame(slot);
+        shown[slot] = 1;
+        memory::write(entry, 1);
     }
 
     fn hide(slot: utinyint) {
         if slot >= SLOTS {
             return;
         }
-        ensure();
-        sprites::hide(slot);
+        shown[slot] = 0;
+        memory::write(entryAt(slot), 0);
     }
 
-    fn setFrame(slot: utinyint, frame: utinyint) {
+    fn setFrame(slot: utinyint, n: utinyint) {
         if slot >= SLOTS {
             return;
         }
-        ensure();
-        if frame >= counts[slot] {
-            frame = counts[slot];
-            if frame > 0 {
-                frame = frame - 1;
-            }
+        if frameCount[slot] == 0 {
+            return;
         }
-        step[slot] = frame;
+        if n >= frameCount[slot] {
+            n = frameCount[slot] - 1;
+        }
+        frame[slot] = n;
         tick[slot] = 0;
-        sprites::setShape(slot, codeOf(slot, frame));
+        writeFrame(slot);
     }
 
     fn animate(slot: utinyint, on: bool) {
         if slot >= SLOTS {
             return;
         }
-        held[slot] = 1;
+        paused[slot] = 1;
         if on {
-            held[slot] = 0;
+            paused[slot] = 0;
         }
     }
 
+    // The picture in host colour c (0..15): every opaque pixel takes it, a
+    // silhouette, as on the other machines. 16 and up give the picture's own
+    // colours back.
     fn color(slot: utinyint, c: utinyint) {
         if slot >= SLOTS {
             return;
         }
-        ensure();
-        sprites::setColor(slot, c);
+        memory::write(entryAt(slot) + 9, c);
     }
 
     fn update() {
-        if !started {
-            return;
-        }
-        if animated > 0 {
-            for i: utinyint in 0..SLOTS {
-                if counts[i] > 1 && held[i] == 0 {
-                    tick[i] = tick[i] + 1;
-                    if tick[i] >= every[i] {
-                        tick[i] = 0;
-                        let mut next: utinyint = step[i] + 1;
-                        if next >= counts[i] {
-                            next = 0;
-                        }
-                        step[i] = next;
-                        sprites::setShape(i, codeOf(i, next));
-                    }
+        for slot: utinyint in 0..SLOTS {
+            if shown[slot] == 0 || frameCount[slot] < 2 || paused[slot] != 0 {
+                continue;
+            }
+            tick[slot] = tick[slot] + 1;
+            if tick[slot] >= interval[slot] {
+                tick[slot] = 0;
+                frame[slot] = frame[slot] + 1;
+                if frame[slot] >= frameCount[slot] {
+                    frame[slot] = 0;
                 }
+                writeFrame(slot);
             }
         }
-        sprites::update();
     }
 }

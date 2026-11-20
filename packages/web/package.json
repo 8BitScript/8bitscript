@@ -31,7 +31,8 @@
       "./rasterline": "./src/rasterline.8bs",
       "./charset": "./src/charset.8bs",
       "./voice": "./src/voice.8bs",
-      "./color": "./src/color.8bs"
+      "./color": "./src/color.8bs",
+      "./geometry": "./src/geometry.8bs"
     },
     "hardware": {
       "facts": {
@@ -50,12 +51,12 @@
         "video.scroll": false,
         "video.raster": true,
         "video.colorBlend": false,
-        "video.sprites": 0,
-        "video.spritesPerLine": 0,
-        "video.spriteWidth": 0,
-        "video.spriteHeight": 0,
-        "video.spriteColors": 0,
-        "video.spriteKib": 0,
+        "video.sprites": 16,
+        "video.spritesPerLine": 16,
+        "video.spriteWidth": 64,
+        "video.spriteHeight": 64,
+        "video.spriteColors": 15,
+        "video.spriteKib": 16,
         "video.frameRate": 60,
         "audio.voices": 1,
         "audio.noise": false,
@@ -140,6 +141,120 @@
                 "video.cellColors": 2,
                 "video.colorPerCell": true,
                 "video.frameRate": 60
+              }
+            }
+          }
+        },
+        "sprites": {
+          "label": "Sprites",
+          "default": "16",
+          "values": {
+            "0": {
+              "label": "0 sprites",
+              "tag": null,
+              "build": {},
+              "facts": {
+                "video.sprites": 0,
+                "video.spritesPerLine": 0
+              }
+            },
+            "8": {
+              "label": "8 sprites",
+              "tag": null,
+              "build": {},
+              "facts": {
+                "video.sprites": 8,
+                "video.spritesPerLine": 8
+              }
+            },
+            "16": {
+              "label": "16 sprites",
+              "tag": null,
+              "build": {},
+              "facts": {
+                "video.sprites": 16,
+                "video.spritesPerLine": 16
+              }
+            },
+            "32": {
+              "label": "32 sprites",
+              "tag": null,
+              "build": {},
+              "facts": {
+                "video.sprites": 32,
+                "video.spritesPerLine": 32
+              }
+            },
+            "64": {
+              "label": "64 sprites",
+              "tag": null,
+              "build": {},
+              "facts": {
+                "video.sprites": 64,
+                "video.spritesPerLine": 64
+              }
+            },
+            "128": {
+              "label": "128 sprites",
+              "tag": null,
+              "build": {},
+              "facts": {
+                "video.sprites": 128,
+                "video.spritesPerLine": 128
+              }
+            }
+          }
+        },
+        "spriteMemory": {
+          "label": "Sprite memory",
+          "default": "16",
+          "values": {
+            "0": {
+              "label": "0 KiB sprite memory",
+              "tag": null,
+              "build": {},
+              "facts": {
+                "video.spriteKib": 0
+              }
+            },
+            "4": {
+              "label": "4 KiB sprite memory",
+              "tag": null,
+              "build": {},
+              "facts": {
+                "video.spriteKib": 4
+              }
+            },
+            "8": {
+              "label": "8 KiB sprite memory",
+              "tag": null,
+              "build": {},
+              "facts": {
+                "video.spriteKib": 8
+              }
+            },
+            "16": {
+              "label": "16 KiB sprite memory",
+              "tag": null,
+              "build": {},
+              "facts": {
+                "video.spriteKib": 16
+              }
+            },
+            "24": {
+              "label": "24 KiB sprite memory",
+              "tag": null,
+              "build": {},
+              "facts": {
+                "video.spriteKib": 24
+              }
+            },
+            "32": {
+              "label": "32 KiB sprite memory",
+              "tag": null,
+              "build": {},
+              "facts": {
+                "video.spriteKib": 32
               }
             }
           }

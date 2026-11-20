@@ -7,13 +7,13 @@
 //    lands on the cell, bit 0 the leftmost pixel, in the cell's colour; a code
 //    below the table, or one the font owns (the corner masks), is refused and
 //    left as it was; the program's own data above the table is not touched.
-//  - .8bg pictures arriving as the art they are: asymmetric 8x8 patterns, a
-//    16x16 one reduced exactly, an eight-frame animation stepping in order, a
-//    paused one holding, a recoloured one, a hidden one gone, a moved one
-//    leaving no copy behind, the grid's last cell, and a CHARSET band over the
-//    pictures leaving them alone. Patterns are asymmetric on purpose: a
-//    flipped bit order, a flipped row order or a transposed glyph is a
-//    different picture.
+//  - .8bg pictures arriving as the art they are, drawn by the page as pixel
+//    sprites: asymmetric 8x8 patterns, a 16x16 one at its full size, an
+//    eight-frame animation stepping in order, a paused one holding, a
+//    recoloured one, a hidden one gone, a moved one leaving no copy behind,
+//    the grid's last cell, and a CHARSET band over the pictures leaving them
+//    alone. Patterns are asymmetric on purpose: a flipped bit order, a flipped
+//    row order or a transposed picture is a different one.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, writeFile, rm, readFile } from 'node:fs/promises';
@@ -56,6 +56,23 @@ function cellBits(png, col, cellRow, ink) {
 }
 
 const BLANK = new Array(8).fill(0);
+
+/** The 16x16 pixels at cell (col, row) as 16 rows of 16 bits, bit x the pixel x. */
+function bigBits(png, col, cellRow, ink) {
+  const rows = [];
+  for (let gy = 0; gy < 16; gy += 1) {
+    let bits = 0;
+    for (let gx = 0; gx < 16; gx += 1) {
+      const px = pixelAt(png, BORDER_PX + col * 8 + gx, BORDER_PX + cellRow * 8 + gy);
+      if (px.every((v, i) => v === ink[i])) bits |= 1 << gx;
+    }
+    rows.push(bits);
+  }
+  return rows;
+}
+
+/** A row byte with every pixel drawn twice: a 16-bit row. */
+const doubled = (byte) => Array.from({ length: 8 }, (_, x) => ((byte >> x) & 1) * (3 << (x * 2))).reduce((a, b) => a | b, 0);
 
 async function buildProgram(files, machine) {
   const dir = await mkdtemp(join(tmpdir(), '8bs-web-glyph-'));
@@ -275,8 +292,11 @@ for (const machine of [undefined, 'pet-2001']) {
         assert.deepEqual(cellBits(png, lastCol, lastRow, white), FLAG, `flag on the last cell at frame ${frames}`);
         assert.deepEqual(cellBits(png, 5, 3, red), DIAMOND, `diamond in its colour at frame ${frames}`);
         assert.deepEqual(cellBits(png, 10, 3, white), BLANK, 'the hidden picture\'s cell is empty');
-        assert.deepEqual(cellBits(png, 12, 8, white), BLANK, 'the moved picture left nothing behind');
-        assert.deepEqual(cellBits(png, 14, 8, white), BIG, 'a 16x16 picture reduced to exactly the 8x8 it was drawn from, in the CHARSET band');
+        for (const [col, row] of [[12, 8], [13, 8], [12, 9], [13, 9]]) {
+          assert.deepEqual(cellBits(png, col, row, white), BLANK, `the moved picture left nothing behind at column ${col} row ${row}`);
+        }
+        // A 16x16 picture is drawn at its full size: each of the 8x8 pixels it was made from, twice over.
+        assert.deepEqual(bigBits(png, 14, 8, white), BIG.flatMap((b) => [doubled(b), doubled(b)]), 'a 16x16 picture is drawn pixel for pixel, in the CHARSET band');
         assert.deepEqual(cellBits(png, 25, 13, white), HOLD[3], 'the paused picture holds its frame');
         seen.push(spinStep(png));
         assert.deepEqual(cellBits(png, 0, 1, white), BLANK, 'nothing wrapped onto the next row');

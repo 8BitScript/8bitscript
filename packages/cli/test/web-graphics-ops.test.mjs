@@ -4,7 +4,7 @@
 // proves placement. setFrame() shows the frame it names and clamps one past
 // the last, animate(false) holds an animation where it is while others play,
 // hide() takes a picture off until place() puts it back, and color() tints
-// the cell. The same twin code (packages/graphics/src/index.web.8bs) is the
+// the sprite. The same twin code (packages/graphics/src/index.web.8bs) is the
 // pattern the generic twin (index.8bs) follows, which no emulator reaches.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -14,7 +14,6 @@ import { join, resolve } from 'node:path';
 
 import { compile } from '../src/build.mjs';
 import { captureScreenshot } from '../src/screenshot.mjs';
-import { BLOCK_CODE_BASE, glyphRows } from '../src/font8x8.mjs';
 import { encodePNG, pixelAt } from '../src/png.mjs';
 import { BORDER_PX, layoutFromHardware } from '../src/web-layout.mjs';
 import { rgbPalette } from '../src/web-scanline.mjs';
@@ -142,21 +141,29 @@ const PROGRAM = [
   '}',
 ].join('\n');
 
-function cellBits(png, col, cellRow, ink) {
+/** The w×h box at stage pixel (x, y) as rows of 0/1: 1 where the pixel is exactly `color`. */
+function spriteBits(png, x, y, w, h, color) {
   const rows = [];
-  for (let gy = 0; gy < 8; gy += 1) {
-    let bits = 0;
-    for (let gx = 0; gx < 8; gx += 1) {
-      const px = pixelAt(png, BORDER_PX + col * 8 + gx, BORDER_PX + cellRow * 8 + gy);
-      if (px.every((v, i) => v === ink[i])) bits |= 1 << gx;
+  for (let gy = 0; gy < h; gy += 1) {
+    const row = [];
+    for (let gx = 0; gx < w; gx += 1) {
+      const px = pixelAt(png, BORDER_PX + x + gx, BORDER_PX + y + gy);
+      row.push(px.every((v, i) => v === color[i]) ? 1 : 0);
     }
-    rows.push(bits);
+    rows.push(row);
   }
   return rows;
 }
 
-const blockRows = (quadrants) => [...glyphRows(BLOCK_CODE_BASE + quadrants)];
-const BLANK = new Array(8).fill(0);
+function quadrantBits(w, h, quadrants) {
+  return Array.from({ length: h }, (_, y) => Array.from({ length: w }, (_, x) => {
+    const bit = y < h / 2 ? (x < w / 2 ? TL : TR) : (x < w / 2 ? BL : BR);
+    return quadrants & bit ? 1 : 0;
+  }));
+}
+
+const blank = (w, h) => Array.from({ length: h }, () => new Array(w).fill(0));
+const WHITE = [255, 255, 255];
 
 test('graphics.setFrame, animate, hide, place-after-hide and color work on the web', async () => {
   const dir = await mkdtemp(join(tmpdir(), '8bs-web-graphics-ops-'));
@@ -171,24 +178,22 @@ test('graphics.setFrame, animate, hide, place-after-hide and color work on the w
     assert.equal(result.ok, true, 'builds');
     const layout = layoutFromHardware(result.hardware);
     const palette = rgbPalette(layout.palette);
-    const ink = palette[1];
     const tint = palette[2];
-    assert.notDeepEqual(ink, tint, 'colours 1 and 2 differ, or the colour check proves nothing');
+    assert.notDeepEqual(WHITE, tint, 'white and colour 2 differ, or the colour check proves nothing');
 
     const seenFree = [];
     for (const frames of [3, 5, 7, 9]) {
       const shot = join(dir, `out-${frames}.png`);
       await captureScreenshot('web', result.outFile, shot, { frames, hardware: result.hardware });
       const png = await readFile(shot);
-      const hold = cellBits(png, 2, 2, ink);
-      assert.deepEqual(hold, blockRows(ORDER[2]), `animate(false) holds setFrame(2) at frame ${frames}`);
-      assert.deepEqual(cellBits(png, 10, 2, ink), blockRows(ORDER[3]), `setFrame(99) is the last frame at ${frames}`);
-      assert.deepEqual(cellBits(png, 14, 2, ink), BLANK, `a hidden picture draws nothing at ${frames}`);
-      assert.deepEqual(cellBits(png, 16, 2, ink), blockRows(15), `place() after hide() draws it again at ${frames}`);
-      assert.deepEqual(cellBits(png, 18, 2, tint), blockRows(15), `color(2) tints the cell at ${frames}`);
-      assert.deepEqual(cellBits(png, 18, 2, ink), BLANK, `and leaves none of it in colour 1 at ${frames}`);
-      const bits = cellBits(png, 6, 2, ink);
-      const step = ORDER.findIndex((q) => bits.every((b, i) => b === blockRows(q)[i]));
+      assert.deepEqual(spriteBits(png, 16, 16, 16, 16, WHITE), quadrantBits(16, 16, ORDER[2]), `animate(false) holds setFrame(2) at frame ${frames}`);
+      assert.deepEqual(spriteBits(png, 80, 16, 16, 16, WHITE), quadrantBits(16, 16, ORDER[3]), `setFrame(99) is the last frame at ${frames}`);
+      assert.deepEqual(spriteBits(png, 112, 16, 8, 8, WHITE), blank(8, 8), `a hidden picture draws nothing at ${frames}`);
+      assert.deepEqual(spriteBits(png, 128, 16, 8, 8, WHITE), quadrantBits(8, 8, 15), `place() after hide() draws it again at ${frames}`);
+      assert.deepEqual(spriteBits(png, 144, 16, 8, 8, tint), quadrantBits(8, 8, 15), `color(2) tints the sprite at ${frames}`);
+      assert.deepEqual(spriteBits(png, 144, 16, 8, 8, WHITE), blank(8, 8), `and leaves none of it in its own colour at ${frames}`);
+      const bits = spriteBits(png, 48, 16, 16, 16, WHITE);
+      const step = ORDER.findIndex((q) => JSON.stringify(bits) === JSON.stringify(quadrantBits(16, 16, q)));
       assert.notEqual(step, -1, `the free picture is one of the frames at ${frames}`);
       seenFree.push(step);
     }

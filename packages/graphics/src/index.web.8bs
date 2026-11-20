@@ -1,176 +1,216 @@
-// @8bitscript/graphics on the web: a picture is one cell of real art — an
-// 8×8 bitmap in the web's redefinable character set — and an animated
-// picture steps through up to eight of them.
+// @8bitscript/graphics on the web: a picture is a pixel sprite. The build
+// lowers each .8bg (packages/web/media/index.cjs) to a 4bpp palette and
+// frames, `bind()` below writes them into the sprite region of the page's
+// agreement, and the page draws the sprite over the cells, in its own
+// colours.
 //
 //     use self::player::player;
 //     use @8bitscript::graphics::graphics;
 //     graphics.place(player, x, y);
 //     graphics.update();
 //
-// packages/web/media/index.cjs lowers each animation step to eight row bytes
-// while the program is being built, and `bind()` below writes them straight
-// into the glyph table (@8bitscript/web/charset, character codes 176-255),
-// so nothing is sampled, scaled or looked up at run time and the twin keeps
-// no copy of its own. The cell layer draws the picture's character
-// (@8bitscript/sprites, the glyph path): the position is in stage pixels
-// and lands on the cell at x >> 3, y >> 3, so STEP_X and STEP_Y are 8, and
-// a picture does not restore what it covers (RESTORES is false).
+// How many sprites there are, and how much memory their frames share, is the
+// build's: the web catalog options `sprites` (0, 8, 16, 32, 64, 128) and
+// `spriteMemory` (0 to 32 KiB) set `video.sprites` and `video.spriteKib`
+// (`8bs build --hardware sprites=32,spriteMemory=24`). A picture past the last
+// slot is never drawn, and one whose frames do not fit the pool keeps the
+// frames that do; the lowering says so with 8BS2111.
 //
-// ---- what the web shows, and does not -------------------------------------
+// ---- the number this file must agree with ----------------------------------
 //
-// One cell is 8×8 pixels, and a picture is exactly that: an 8×8 source is
-// carried pixel for pixel, a larger one is reduced by area at build time
-// (the lowering says so with 8BS2111). Colour is dropped to the cell's one
-// ink (`graphics.color()` tints it), and an animation longer than STEPS steps
-// keeps the first STEPS. The table holds 80 glyphs and MAX x STEPS is 64, so
-// every picture a program declares has its frames.
-//
-// The web has no sprite hardware to be honest about: #fact(video.sprites)
-// is 0, and a true pixel sprite layer is a later item in
-// packages/web/AGENTS.md ("What a superset runtime would add", item 7).
-// This file is the glyph path until then, and `update()` below is the part
-// the generic twin (index.8bs) never had: it advances each picture's
-// animation, once per call.
-//
-// ---- the numbers a program can fold on -------------------------------------
-//
-// MAX pictures at once (a program's .8bg files, in the order it declares
-// them), STEPS animation steps each. `bind()` and `meta()` are called by
-// the compiler's generated binders before main() runs; a program never
-// calls them.
-use @8bitscript::sprites::sprites;
-use @8bitscript::system::Video;
-use @8bitscript::web::charset::charset;
+// SPRITE_TABLE is where the page reads the region: the skin's geometry file
+// (packages/web/src/geometry*.8bs) states it, and a test pins each to
+// agreementFor() in packages/cli/src/web-layout.mjs.
+use @8bitscript::web::geometry::Video;
 
-const SLOTS: utinyint = 8;
-const STEPS: utinyint = 8;
-const BYTES: utinyint = 64; // a picture's row bytes: STEPS glyphs of eight
-let mut counts: [u8; 8]; // steps in this picture's animation
-let mut every: [u8; 8]; // update() calls between steps
-let mut tick: [u8; 8]; // update() calls since the last step
-let mut step: [u8; 8]; // the step on show
-let mut held: [u8; 8]; // 1: automatic stepping paused
-let mut animated: utinyint = 0; // pictures with more than one step
-let mut started: bool = false;
+const SPRITE_TABLE: usmallint = Video::SPRITE_TABLE;
 
-fn ensure() {
-    if !started {
-        sprites::begin(SLOTS);
-        started = true;
-    }
+// ---- shared body ----
+//
+// Everything below this line is the same text in index.web.8bs and
+// index.cx16.web.8bs (a test pins that); only the lines above differ.
+//
+// The page draws the sprite region at the end of its agreement
+// (packages/cli/src/web-layout.mjs, web-sprites.mjs): a table of MAX
+// ten-byte entries at SPRITE_TABLE, MAX palettes of 32 bytes after it, then
+// the pool of 4bpp frames every picture shares. This file writes those bytes
+// and keeps the animation state; the page does the drawing, so a picture
+// shows with its own colours, in front of the cells, and covers nothing for
+// good (RESTORES).
+//
+// Entry fields, from the slot's entry: 0 FLAGS (bit 0: shown), 1-2 X, 3-4 Y
+// (low byte first), 5 WIDTH, 6 HEIGHT, 7-8 FRAME (the pool offset of the frame
+// on show), 9 TINT (255: the picture's own colours; below 16: a host colour).
+//
+// What the compiler's binders hand bind() (packages/web/media/index.cjs):
+// bytes 0-1 the pool offset where this picture's frames start, 2-33 its
+// palette, 34 on its frames. meta() follows with the frame count, the speed
+// and the size. A program never calls either.
+const SLOTS: utinyint = #fact(video::sprites);
+const ENTRY_BYTES: usmallint = 10;
+const PALETTE_BYTES: usmallint = 32;
+const POOL_KIB: usmallint = #fact(video::spriteKib);
+const FIRST_FRAME_BYTE: usmallint = 34; // after the pool offset and the palette
+const OWN_COLORS: utinyint = 255; // TINT: the picture's own colours
+
+let mut frameCount: [u8; 128];
+let mut interval: [u8; 128];
+let mut tick: [u8; 128];
+let mut frame: [u8; 128];
+let mut shown: [u8; 128];
+let mut paused: [u8; 128]; // 1: automatic stepping paused
+let mut base: [u16; 128]; // where the picture's frames start in the pool
+let mut frameBytes: [u16; 128];
+
+// A slot's entry in the table.
+fn entryAt(slot: usmallint) -> usmallint {
+    return SPRITE_TABLE + slot * ENTRY_BYTES;
 }
 
-// The character code of a picture's step: glyph (slot << 3) + step of the table.
-fn codeOf(slot: utinyint, frame: utinyint) -> utinyint {
-    return charset::FIRST + (slot << 3) + frame;
+// Point the entry at the frame on show: the pool offset of its first byte.
+fn writeFrame(slot: utinyint) {
+    let step: usmallint = frame[slot];
+    let at: usmallint = base[slot] + step * frameBytes[slot];
+    let entry: usmallint = entryAt(slot);
+    memory::write(entry + 7, at % 256);
+    memory::write(entry + 8, at / 256);
 }
 
 pub mod graphics {
-    // The portable contract (index.8bs): what this machine answers.
-    const MAX: utinyint = 8;
-    const FRAMES: utinyint = 8;
-    const WIDTH: utinyint = sprites::WIDTH; // one cell, an 8×8 bitmap
-    const HEIGHT: utinyint = sprites::HEIGHT;
-    const COLORS: utinyint = 1; // the glyph's one ink
-    const RECOLORS: bool = Video::COLOR_PER_CELL; // color() tints the cell
-    const STEP_X: utinyint = sprites::STEP_X;
-    const STEP_Y: utinyint = sprites::STEP_Y;
-    const RESTORES: bool = sprites::RESTORES; // false: what a picture covers is lost
-    const TRANSPARENT: bool = false; // a cell is drawn whole
+    // The portable contract (index.8bs): what this build answers.
+    const MAX: utinyint = #fact(video::sprites);
+    const FRAMES: utinyint = 2; // of a WIDTH x HEIGHT picture; smaller pictures hold more
+    const WIDTH: utinyint = 64;
+    const HEIGHT: utinyint = 64;
+    const COLORS: utinyint = 15; // 4 bpp, transparent aside
+    const RECOLORS: bool = true; // color(): the picture in a host colour, or its own again
+    const STEP_X: utinyint = 1; // a pixel
+    const STEP_Y: utinyint = 1;
+    const RESTORES: bool = true; // a sprite draws over the cells and leaves them whole
+    const TRANSPARENT: bool = true; // palette entry 0 of a sprite is clear
 
-    // Row (index & 7) of step (index >> 3) of picture `slot`, straight into the glyph table.
-    fn bind(slot: utinyint, index: utinyint, value: utinyint) {
-        if slot >= SLOTS || index >= BYTES {
-            return;
-        }
-        charset::setRow(codeOf(slot, index >> 3), index & 7, value);
-    }
-
-    fn meta(slot: utinyint, frameCount: utinyint, interval: utinyint, kind: utinyint, width: utinyint, height: utinyint) {
+    fn bind(slot: utinyint, index: usmallint, value: utinyint) {
         if slot >= SLOTS {
             return;
         }
-        counts[slot] = frameCount;
-        every[slot] = interval;
-        tick[slot] = 0;
-        step[slot] = 0;
-        held[slot] = 0;
-        if frameCount > 1 {
-            animated = animated + 1;
+        let wide: usmallint = slot;
+        let byte: usmallint = value;
+        let count: usmallint = SLOTS;
+        let palettes: usmallint = SPRITE_TABLE + count * ENTRY_BYTES;
+        if index == 0 {
+            base[slot] = base[slot] - base[slot] % 256 + byte;
+            return;
         }
+        if index == 1 {
+            base[slot] = base[slot] % 256 + byte * 256;
+            return;
+        }
+        if index < FIRST_FRAME_BYTE {
+            memory::write(palettes + wide * PALETTE_BYTES + index - 2, value);
+            return;
+        }
+        let at: usmallint = base[slot] + index - FIRST_FRAME_BYTE;
+        let limit: usmallint = POOL_KIB * 1024;
+        if at >= limit {
+            return;
+        }
+        memory::write(palettes + count * PALETTE_BYTES + at, value);
+    }
+
+    fn meta(slot: utinyint, frames: utinyint, every: utinyint, kind: utinyint, width: utinyint, height: utinyint) {
+        if slot >= SLOTS {
+            return;
+        }
+        let w: usmallint = width;
+        let h: usmallint = height;
+        frameCount[slot] = frames;
+        interval[slot] = every;
+        tick[slot] = 0;
+        frame[slot] = 0;
+        shown[slot] = 0;
+        paused[slot] = 0;
+        frameBytes[slot] = w * h / 2;
+        let entry: usmallint = entryAt(slot);
+        memory::write(entry + 5, width);
+        memory::write(entry + 6, height);
+        memory::write(entry + 9, OWN_COLORS);
+        memory::write(entry, 0);
     }
 
     fn place(slot: utinyint, x: usmallint, y: usmallint) {
         if slot >= SLOTS {
             return;
         }
-        ensure();
-        sprites::setShape(slot, codeOf(slot, step[slot]));
-        sprites::place(slot, x, y);
+        if frameCount[slot] == 0 {
+            return;
+        }
+        let entry: usmallint = entryAt(slot);
+        memory::write(entry + 1, x % 256);
+        memory::write(entry + 2, x / 256);
+        memory::write(entry + 3, y % 256);
+        memory::write(entry + 4, y / 256);
+        writeFrame(slot);
+        shown[slot] = 1;
+        memory::write(entry, 1);
     }
 
     fn hide(slot: utinyint) {
         if slot >= SLOTS {
             return;
         }
-        ensure();
-        sprites::hide(slot);
+        shown[slot] = 0;
+        memory::write(entryAt(slot), 0);
     }
 
-    fn setFrame(slot: utinyint, frame: utinyint) {
+    fn setFrame(slot: utinyint, n: utinyint) {
         if slot >= SLOTS {
             return;
         }
-        ensure();
-        if frame >= counts[slot] {
-            frame = counts[slot];
-            if frame > 0 {
-                frame = frame - 1;
-            }
+        if frameCount[slot] == 0 {
+            return;
         }
-        step[slot] = frame;
+        if n >= frameCount[slot] {
+            n = frameCount[slot] - 1;
+        }
+        frame[slot] = n;
         tick[slot] = 0;
-        sprites::setShape(slot, codeOf(slot, frame));
+        writeFrame(slot);
     }
 
     fn animate(slot: utinyint, on: bool) {
         if slot >= SLOTS {
             return;
         }
-        held[slot] = 1;
+        paused[slot] = 1;
         if on {
-            held[slot] = 0;
+            paused[slot] = 0;
         }
     }
 
+    // The picture in host colour c (0..15): every opaque pixel takes it, a
+    // silhouette, as on the other machines. 16 and up give the picture's own
+    // colours back.
     fn color(slot: utinyint, c: utinyint) {
         if slot >= SLOTS {
             return;
         }
-        ensure();
-        sprites::setColor(slot, c);
+        memory::write(entryAt(slot) + 9, c);
     }
 
     fn update() {
-        if !started {
-            return;
-        }
-        if animated > 0 {
-            for i: utinyint in 0..SLOTS {
-                if counts[i] > 1 && held[i] == 0 {
-                    tick[i] = tick[i] + 1;
-                    if tick[i] >= every[i] {
-                        tick[i] = 0;
-                        let mut next: utinyint = step[i] + 1;
-                        if next >= counts[i] {
-                            next = 0;
-                        }
-                        step[i] = next;
-                        sprites::setShape(i, codeOf(i, next));
-                    }
+        for slot: utinyint in 0..SLOTS {
+            if shown[slot] == 0 || frameCount[slot] < 2 || paused[slot] != 0 {
+                continue;
+            }
+            tick[slot] = tick[slot] + 1;
+            if tick[slot] >= interval[slot] {
+                tick[slot] = 0;
+                frame[slot] = frame[slot] + 1;
+                if frame[slot] >= frameCount[slot] {
+                    frame[slot] = 0;
                 }
+                writeFrame(slot);
             }
         }
-        sprites::update();
     }
 }
