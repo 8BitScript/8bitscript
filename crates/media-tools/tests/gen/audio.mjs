@@ -94,26 +94,33 @@ decodeRow('encodeWav-roundtrip', encodeWav(Float32Array.from([0, 0.5, -0.5, 1, -
 function sine(n, hz, rate) {
   return Float32Array.from({ length: n }, (_, i) => Math.fround(Math.sin((2 * Math.PI * hz * i) / rate)));
 }
+// long inputs are recorded as a recipe the Rust test rebuilds: fround(((i * mul) % mod) / div + off)
+const RECIPES = new Map();
+function ramp(n, mul, mod, div, off) {
+  const f = Float32Array.from({ length: n }, (_, i) => Math.fround(((i * mul) % mod) / div + off));
+  RECIPES.set(f, { n, mul, mod, div, off });
+  return f;
+}
 const dpcm = [
   [sine(800, 440, 8000), 8000],
   [sine(8000, 220, 8000), 8000],
-  [Float32Array.from({ length: 1000 }, (_, i) => Math.fround(((i * 7) % 9) / 10)), 1],
+  [ramp(1000, 7, 9, 10, 0), 1],
   [sine(1, 1, 8000), 8000],
   [sine(7, 1, 33143.9), 33143.9],
   [new Float32Array(0), 8000],
-  [new Float32Array(8000).fill(0.5), 8000],
+  [ramp(8000, 0, 1, 1, 0.5), 8000],
   [Float32Array.from([0.9, 0.9, 0.9, -0.9, -0.9, -0.9, 0.9, -0.9, 0.5, 0.25, 0, -1, 1, 1]), 16000],
   [Float32Array.from({ length: 256 }, (_, i) => Math.fround(((i * 37) % 200) / 100 - 1)), 44100],
-  [Float32Array.from({ length: 32648 }, (_, i) => Math.fround(((i * 37) % 9) / 10)), 33143.9],
-  [Float32Array.from({ length: 32649 }, (_, i) => Math.fround(((i * 37) % 9) / 10)), 33143.9],
-  [Float32Array.from({ length: 65296 }, (_, i) => Math.fround(((i * 5) % 7) / 10 - 0.3)), 66287.8],
+  [ramp(32648, 37, 9, 10, 0), 33143.9],
+  [ramp(32649, 37, 9, 10, 0), 33143.9],
+  [ramp(65296, 5, 7, 10, -0.3), 66287.8],
   [Float32Array.from([NaN, 0.5, NaN]), 8000],
 ];
 for (const [s, rate] of dpcm) {
   const r = encodeDpcm(s, rate);
   rows.push({
     fn: 'encodeDpcm',
-    args: [[...s].map((x) => (Number.isNaN(x) ? 'NaN' : x)), rate],
+    args: [RECIPES.get(s) ?? [...s].map((x) => (Number.isNaN(x) ? 'NaN' : x)), rate],
     result: r === null ? null : { bytes: [...r.bytes], rate: r.rate, length: r.length },
   });
 }

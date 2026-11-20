@@ -48,12 +48,21 @@ fn wav_and_dpcm_fixtures_match_js() {
                 }
             }
             "encodeDpcm" => {
-                let samples: Vec<f32> = a[0]
-                    .as_array()
-                    .unwrap()
-                    .iter()
-                    .map(|v| v.as_f64().map_or(f32::NAN, |x| x as f32))
-                    .collect();
+                let samples: Vec<f32> = match a[0].as_array() {
+                    Some(list) => list
+                        .iter()
+                        .map(|v| v.as_f64().map_or(f32::NAN, |x| x as f32))
+                        .collect(),
+                    // recipe: fround(((i * mul) % mod) / div + off)
+                    None => {
+                        let r = &a[0];
+                        let (mul, m) = (r["mul"].as_u64().unwrap(), r["mod"].as_u64().unwrap());
+                        let (div, off) = (r["div"].as_f64().unwrap(), r["off"].as_f64().unwrap());
+                        (0..r["n"].as_u64().unwrap())
+                            .map(|i| (((i * mul) % m) as f64 / div + off) as f32)
+                            .collect()
+                    }
+                };
                 let got = encode_dpcm(&samples, a[1].as_f64().unwrap());
                 match (&row["result"], got) {
                     (Value::Null, g) => assert!(g.is_none(), "dpcm {dpcms}"),
@@ -192,4 +201,128 @@ fn real_flac_decode_matches_js() {
         .map(|v| v.as_f64().unwrap() as f32)
         .collect();
     assert_eq!(got.samples, want);
+}
+
+fn wav(channels: u16, bits: u16, data: &[u8]) -> Vec<u8> {
+    let mut fmt = vec![1, 0];
+    fmt.extend(channels.to_le_bytes());
+    fmt.extend(8000u32.to_le_bytes());
+    fmt.extend(8000u32.to_le_bytes());
+    fmt.extend([1, 0]);
+    fmt.extend(bits.to_le_bytes());
+    let mut body = b"WAVE".to_vec();
+    body.extend(b"fmt ");
+    body.extend((fmt.len() as u32).to_le_bytes());
+    body.extend(&fmt);
+    body.extend(b"data");
+    body.extend((data.len() as u32).to_le_bytes());
+    body.extend(data);
+    let mut out = b"RIFF".to_vec();
+    out.extend((body.len() as u32).to_le_bytes());
+    out.extend(body);
+    out
+}
+
+// Accepted deviation: the JS never leaves its loop for zero channels.
+#[test]
+fn wav_with_zero_channels_is_an_error() {
+    assert_eq!(
+        decode_wav(&wav(0, 8, &[1, 2, 3])).unwrap_err(),
+        "WAV has zero channels"
+    );
+    assert_eq!(
+        decode_wav(&wav(0, 16, &[1, 2])).unwrap_err(),
+        "WAV has zero channels"
+    );
+    // a format the JS rejects before any loop keeps its own message
+    assert_eq!(
+        decode_wav(&wav(0, 24, &[1, 2])).unwrap_err(),
+        "WAV PCM 24-bit format 1 is not supported"
+    );
+}
+
+#[test]
+fn decoded_audio_serializes_with_the_js_field_names() {
+    let v = serde_json::to_value(decode_wav(&wav(1, 8, &[128])).unwrap()).unwrap();
+    assert_eq!(v["sampleRate"], 8000);
+    assert!(v.get("sample_rate").is_none());
+    assert_eq!(v["samples"], serde_json::json!([0.0]));
+}
+
+#[cfg(unix)]
+#[test]
+fn flac_output_past_the_buffer_limit_is_a_failure() {
+    let dir = scratch("fake-big-stdout");
+    let file = dir.join("a.flac");
+    std::fs::write(&file, b"x").unwrap();
+    let search = fake_ffmpeg(
+        &dir,
+        "[ \"$1\" = -version ] && exit 0\necho oops >&2\nhead -c 40000000 /dev/zero",
+    );
+    let err = decode_flac_in(file.to_str().unwrap(), Some(&search)).unwrap_err();
+    assert_eq!(err.code, None);
+    assert_eq!(
+        err.message,
+        format!("ffmpeg could not decode '{}': oops\n", file.display())
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn flac_exactly_at_the_buffer_limit_is_accepted() {
+    let dir = scratch("fake-limit-stdout");
+    let file = dir.join("a.flac");
+    std::fs::write(&file, b"x").unwrap();
+    let search = fake_ffmpeg(
+        &dir,
+        "[ \"$1\" = -version ] && exit 0\nhead -c 33554432 /dev/zero",
+    );
+    let got = decode_flac_in(file.to_str().unwrap(), Some(&search)).unwrap();
+    assert_eq!(got.samples.len(), 33554432 / 4);
+}
+
+#[cfg(unix)]
+#[test]
+fn flac_stderr_past_the_buffer_limit_is_a_failure() {
+    let dir = scratch("fake-big-stderr");
+    let file = dir.join("a.flac");
+    std::fs::write(&file, b"x").unwrap();
+    let search = fake_ffmpeg(
+        &dir,
+        "[ \"$1\" = -version ] && exit 0\nhead -c 40000000 /dev/zero >&2",
+    );
+    let err = decode_flac_in(file.to_str().unwrap(), Some(&search)).unwrap_err();
+    assert!(
+        err.message
+            .starts_with(&format!("ffmpeg could not decode '{}': ", file.display()))
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn flac_spawn_failure_is_a_decode_error() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = scratch("fake-spawn-fails");
+    let file = dir.join("a.flac");
+    std::fs::write(&file, b"x").unwrap();
+    // passes the version probe, then makes itself unrunnable
+    let search = fake_ffmpeg(
+        &dir,
+        "[ \"$1\" = -version ] && { chmod 644 \"$0\"; exit 0; }\nexit 0",
+    );
+    // the probe inside `decode_flac_in` passes; the real run then cannot start it
+    let err = decode_flac_in(file.to_str().unwrap(), Some(&search)).unwrap_err();
+    assert_eq!(
+        std::fs::metadata(dir.join("ffmpeg"))
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o111,
+        0
+    );
+    assert_eq!(
+        err.message,
+        format!("ffmpeg could not decode '{}': ", file.display())
+    );
+    assert_eq!(err.code, None);
 }

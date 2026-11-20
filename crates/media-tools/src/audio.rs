@@ -6,6 +6,7 @@ use std::path::PathBuf;
 
 /// Result of `decodeWav` / `decodeFlac`: mono float samples.
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Decoded {
     pub sample_rate: u32,
     pub samples: Vec<f32>,
@@ -191,6 +192,13 @@ pub fn ffmpeg_available_in(search: Option<&OsStr>) -> bool {
     }
 }
 
+fn needs_ffmpeg() -> AudioError {
+    AudioError {
+        message: "FLAC needs ffmpeg on PATH".to_string(),
+        code: Some("FLAC_NEEDS_FFMPEG".to_string()),
+    }
+}
+
 /// `decodeFlac`: FLAC (or anything ffmpeg reads) to mono f32 at 48000 Hz.
 /// Missing ffmpeg gives code `FLAC_NEEDS_FFMPEG`.
 pub fn decode_flac(path: &str) -> Result<Decoded, AudioError> {
@@ -203,51 +211,100 @@ pub fn decode_flac_in(path: &str, search: Option<&OsStr>) -> Result<Decoded, Aud
         return Err(AudioError::plain(format!("cannot read '{path}'")));
     }
     if !ffmpeg_available_in(search) {
-        return Err(AudioError {
-            message: "FLAC needs ffmpeg on PATH".to_string(),
-            code: Some("FLAC_NEEDS_FFMPEG".to_string()),
-        });
+        return Err(needs_ffmpeg());
     }
     run_ffmpeg(path, search)
 }
 
 #[cfg(target_arch = "wasm32")]
 fn run_ffmpeg(_path: &str, _search: Option<&OsStr>) -> Result<Decoded, AudioError> {
-    unreachable!("ffmpeg_available() is false on wasm32")
+    Err(needs_ffmpeg())
+}
+
+/// `spawnSync`'s `maxBuffer` for ffmpeg's output.
+#[cfg(not(target_arch = "wasm32"))]
+const MAX_BUFFER: usize = 32 * 1024 * 1024;
+
+/// Reads `r` up to `MAX_BUFFER` bytes; the flag says the limit was passed
+/// (the bytes kept are the first `MAX_BUFFER`).
+#[cfg(not(target_arch = "wasm32"))]
+fn read_capped(mut r: impl std::io::Read) -> (Vec<u8>, bool) {
+    let mut buf = Vec::new();
+    let mut chunk = [0u8; 64 * 1024];
+    loop {
+        match r.read(&mut chunk) {
+            Ok(0) | Err(_) => return (buf, false),
+            Ok(n) => {
+                buf.extend_from_slice(&chunk[..n]);
+                if buf.len() > MAX_BUFFER {
+                    buf.truncate(MAX_BUFFER);
+                    return (buf, true);
+                }
+            }
+        }
+    }
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 fn run_ffmpeg(path: &str, search: Option<&OsStr>) -> Result<Decoded, AudioError> {
-    const MAX_BUFFER: usize = 32 * 1024 * 1024;
-    let bin = resolve_ffmpeg(search).expect("checked by ffmpeg_available");
-    let result = std::process::Command::new(bin)
-        .args([
-            "-nostdin", "-v", "error", "-i", path, "-f", "f32le", "-ac", "1", "-ar", "48000",
-            "pipe:1",
-        ])
-        .stdin(std::process::Stdio::null())
-        .output();
+    use std::process::{Command, Stdio};
+    use std::sync::mpsc;
     let fail = |stderr: &[u8]| {
         let text = String::from_utf8_lossy(stderr);
         let units: Vec<u16> = text.encode_utf16().collect();
         let tail = String::from_utf16_lossy(&units[units.len().saturating_sub(200)..]);
         AudioError::plain(format!("ffmpeg could not decode '{path}': {tail}"))
     };
-    match result {
-        Err(_) => Err(fail(b"")),
-        Ok(o) if !o.status.success() || o.stdout.len() > MAX_BUFFER => Err(fail(&o.stderr)),
-        Ok(o) => {
-            let samples = o
-                .stdout
-                .chunks_exact(4)
-                .map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]]))
-                .collect();
-            Ok(Decoded {
-                sample_rate: 48000,
-                samples,
-            })
+    let Some(bin) = resolve_ffmpeg(search) else {
+        return Err(needs_ffmpeg());
+    };
+    let spawned = Command::new(bin)
+        .args([
+            "-nostdin", "-v", "error", "-i", path, "-f", "f32le", "-ac", "1", "-ar", "48000",
+            "pipe:1",
+        ])
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn();
+    let Ok(mut child) = spawned else {
+        return Err(fail(b""));
+    };
+    let (out_pipe, err_pipe) = (child.stdout.take().unwrap(), child.stderr.take().unwrap());
+    let (tx, rx) = mpsc::channel();
+    let tx_err = tx.clone();
+    let out_reader = std::thread::spawn(move || {
+        let r = read_capped(out_pipe);
+        let _ = tx.send(r.1);
+        r.0
+    });
+    let err_reader = std::thread::spawn(move || {
+        let r = read_capped(err_pipe);
+        let _ = tx_err.send(r.1);
+        r.0
+    });
+    let mut exceeded = false;
+    for over in rx.iter().take(2) {
+        if over && !exceeded {
+            exceeded = true;
+            // like spawnSync: past maxBuffer the child is killed
+            let _ = child.kill();
         }
     }
+    let stdout = out_reader.join().unwrap_or_default();
+    let stderr = err_reader.join().unwrap_or_default();
+    let status = child.wait();
+    if exceeded || !status.is_ok_and(|s| s.success()) {
+        return Err(fail(&stderr));
+    }
+    let samples = stdout
+        .chunks_exact(4)
+        .map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]]))
+        .collect();
+    Ok(Decoded {
+        sample_rate: 48000,
+        samples,
+    })
 }
 
 /// `encodeDpcm`: NES DPCM, 1-bit delta at about 33144 Hz, 16-byte aligned,

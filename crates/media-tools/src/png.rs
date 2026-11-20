@@ -36,30 +36,57 @@ fn paeth(a: i32, b: i32, c: i32) -> i32 {
     }
 }
 
-fn alloc(len: u64) -> Result<Vec<u8>, String> {
-    let n = usize::try_from(len).map_err(|_| "Array buffer allocation failed".to_string())?;
-    let mut v: Vec<u8> = Vec::new();
-    v.try_reserve_exact(n)
-        .map_err(|_| "Array buffer allocation failed".to_string())?;
-    v.resize(n, 0);
-    Ok(v)
+/// A zeroed buffer allocated lazily (like Node's `calloc`), failing without
+/// aborting. `Vec::resize` would touch every page.
+fn alloc_zeroed_vec(n: usize) -> Result<Vec<u8>, String> {
+    use std::alloc::{Layout, alloc_zeroed};
+    const FAILED: &str = "Array buffer allocation failed";
+    if n == 0 {
+        return Ok(Vec::new());
+    }
+    let layout = Layout::array::<u8>(n).map_err(|_| FAILED.to_string())?;
+    // SAFETY: `layout` has non-zero size; a null result is handled; the
+    // pointer, length and capacity describe one `u8` allocation that came
+    // from the global allocator with this layout.
+    unsafe {
+        let ptr = alloc_zeroed(layout);
+        if ptr.is_null() {
+            return Err(FAILED.to_string());
+        }
+        Ok(Vec::from_raw_parts(ptr, n, n))
+    }
+}
+
+/// `new Uint8Array(len)` for a JS number length: V8 rejects 2^53 and up
+/// with the length in the message, and anything it cannot allocate with
+/// "Array buffer allocation failed".
+fn typed_array(len: f64) -> Result<Vec<u8>, String> {
+    let len = len.trunc();
+    if len >= 9_007_199_254_740_992.0 {
+        return Err(format!("Invalid typed array length: {len}"));
+    }
+    match usize::try_from(len as u64) {
+        Ok(n) => alloc_zeroed_vec(n),
+        Err(_) => Err("Array buffer allocation failed".to_string()),
+    }
 }
 
 fn unfilter(data: &[u8], width: u32, bpp: usize) -> Result<Vec<u8>, String> {
-    let stride = width as usize * bpp;
+    let stride_f = width as f64 * bpp as f64;
     // `new Uint8Array(stride * (data.length / (stride + 1)))` truncates.
-    let len = (stride as f64) * (data.len() as f64 / (stride + 1) as f64);
-    let mut out = alloc(len as u64)?;
+    let mut out = typed_array(stride_f * (data.len() as f64 / (stride_f + 1.0)))?;
+    let mut prev = typed_array(stride_f)?;
+    // an allocation of `stride` bytes succeeded, so it fits usize
+    let stride = prev.len();
     let mut src = 0usize;
     let mut dst = 0usize;
-    let mut prev = vec![0u8; stride];
     while src < data.len() {
         let ty = data[src];
         src += 1;
-        let end = (src + stride).min(data.len());
+        let end = src.saturating_add(stride).min(data.len());
         let row = &data[src.min(data.len())..end];
-        src += stride;
-        let mut recon = vec![0u8; stride];
+        src = src.saturating_add(stride);
+        let mut recon = typed_array(stride_f)?;
         for i in 0..stride {
             let a = if i >= bpp { recon[i - bpp] as i32 } else { 0 };
             let b = prev[i] as i32;
@@ -82,7 +109,7 @@ fn unfilter(data: &[u8], width: u32, bpp: usize) -> Result<Vec<u8>, String> {
                 }
             };
         }
-        if dst + stride > out.len() {
+        if dst.saturating_add(stride) > out.len() {
             return Err("offset is out of bounds".to_string());
         }
         out[dst..dst + stride].copy_from_slice(&recon);
@@ -124,10 +151,6 @@ fn read_chunks(bytes: &[u8]) -> Result<Vec<Chunk<'_>>, String> {
     Ok(chunks)
 }
 
-fn pixel_bytes(width: u32, height: u32, per: u64) -> u64 {
-    width as u64 * height as u64 * per
-}
-
 fn to_rgba(
     raw: &[u8],
     width: u32,
@@ -136,7 +159,7 @@ fn to_rgba(
     palette: Option<&[u8]>,
     transparency: Option<&[u8]>,
 ) -> Result<Vec<u8>, String> {
-    let mut rgba = alloc(pixel_bytes(width, height, 4))?;
+    let mut rgba = typed_array(width as f64 * height as f64 * 4.0)?;
     let pixels = rgba.len() / 4;
     let r = |i: usize| raw.get(i).copied().unwrap_or(0);
     match color_type {
@@ -213,7 +236,13 @@ fn inflate(idat: &[u8]) -> Result<Vec<u8>, String> {
         return Err("invalid window size".to_string());
     }
     if flg & 0x20 != 0 {
-        return Err("Missing dictionary".to_string());
+        // zlib needs the 4-byte dictionary id before it asks for a dictionary
+        return Err(if idat.len() < 6 {
+            "unexpected end of file"
+        } else {
+            "Missing dictionary"
+        }
+        .to_string());
     }
     decompress_to_vec_zlib(idat).map_err(|e| {
         match e.status {
@@ -438,4 +467,38 @@ pub fn bitmask(indices: &[u8], src_w: usize, src_h: usize, dst_w: usize, dst_h: 
         bits.push(row);
     }
     bits
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn allocation_failure_is_an_error() {
+        // larger than any address space the allocator can map
+        assert_eq!(
+            alloc_zeroed_vec(usize::MAX / 2).unwrap_err(),
+            "Array buffer allocation failed"
+        );
+        assert_eq!(alloc_zeroed_vec(0).unwrap(), Vec::<u8>::new());
+        assert_eq!(alloc_zeroed_vec(5).unwrap(), vec![0u8; 5]);
+    }
+
+    #[test]
+    fn typed_array_lengths_match_v8() {
+        assert_eq!(
+            typed_array(4.0 * 4294967295.0 * 4294967295.0).unwrap_err(),
+            "Invalid typed array length: 73786976260478470000"
+        );
+        assert_eq!(
+            typed_array(9007199254740992.0).unwrap_err(),
+            "Invalid typed array length: 9007199254740992"
+        );
+        assert_eq!(typed_array(2.9).unwrap(), vec![0, 0]);
+        // below 2^53 but not allocatable
+        assert_eq!(
+            typed_array(1125899906842624.0 * 4.0).unwrap_err(),
+            "Array buffer allocation failed"
+        );
+    }
 }

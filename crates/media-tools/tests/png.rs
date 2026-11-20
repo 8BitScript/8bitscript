@@ -100,3 +100,11 @@ fn png_fixtures_match_js() {
         "{decoded} {errors} {other}"
     );
 }
+
+// Accepted deviation: the JS never terminates for a zero frame size.
+#[test]
+fn slice_frames_with_a_zero_frame_size_is_empty() {
+    assert!(slice_frames(&[0; 16], 2, 2, 0, 1).is_empty());
+    assert!(slice_frames(&[0; 16], 2, 2, 1, 0).is_empty());
+    assert_eq!(slice_frames(&[7; 16], 2, 2, 1, 1).len(), 4);
+}

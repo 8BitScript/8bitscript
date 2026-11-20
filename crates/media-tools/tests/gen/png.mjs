@@ -116,7 +116,17 @@ decodeRow('err-ihdr-8-bytes', png({ ihdrData: Buffer.from([0, 0, 0, 1, 0, 0, 0, 
 decodeRow('err-ihdr-13-short-color', png({ ihdrData: Buffer.from([0, 0, 0, 1, 0, 0, 0, 1, 8]), rows: [[0, 1]] }));
 decodeRow('err-no-idat', Buffer.concat([SIG, chunk('IHDR', ihdr(1, 1, 8, 0)), chunk('IEND', Buffer.alloc(0))]));
 decodeRow('err-zlib-header', png({ w: 1, h: 1, ct: 0, idat: Buffer.from([1, 2, 3, 4, 5, 6]) }));
-decodeRow('err-zlib-method', png({ w: 1, h: 1, ct: 0, idat: Buffer.from([0x79, 0x9c, 0, 0, 0, 0]) }));
+// zlib header bytes with a valid check value: CMF, then the FLG that makes (CMF*256+FLG) % 31 == 0
+const zhead = (cmf, flags = 0) => Buffer.from([cmf, flags | (31 - (((cmf << 8) | flags) % 31)) % 31]);
+const zhdr = (cmf, flags, tail = []) => png({ w: 1, h: 1, ct: 0, idat: Buffer.concat([zhead(cmf, flags), Buffer.from(tail)]) });
+decodeRow('err-zlib-method', zhdr(0x79, 0, [3, 0, 0, 0, 0]));
+decodeRow('err-zlib-method-1', zhdr(0x71, 0, [3, 0, 0, 0, 0]));
+decodeRow('err-zlib-window', zhdr(0x88, 0, [3, 0, 0, 0, 0]));
+decodeRow('err-zlib-window-max', zhdr(0xf8, 0, [3, 0, 0, 0, 0]));
+decodeRow('err-zlib-dict-2-bytes', zhdr(0x78, 0x20));
+decodeRow('err-zlib-dict-5-bytes', zhdr(0x78, 0x20, [0, 0, 0]));
+decodeRow('err-zlib-dict-6-bytes', zhdr(0x78, 0x20, [0, 0, 0, 1]));
+decodeRow('err-zlib-dict-with-body', zhdr(0x78, 0x20, [1, 2, 3, 4, 3, 0, 0, 0, 1]));
 decodeRow('err-zlib-truncated', png({ w: 4, h: 4, ct: 0, idat: idatOf([[0, 1, 2, 3, 4], [0, 1, 2, 3, 4], [0, 1, 2, 3, 4], [0, 1, 2, 3, 4]]).subarray(0, 10) }));
 decodeRow('err-zlib-one-byte', png({ w: 1, h: 1, ct: 0, idat: Buffer.from([0x78]) }));
 decodeRow('err-zlib-adler', (() => {
@@ -125,6 +135,10 @@ decodeRow('err-zlib-adler', (() => {
   return png({ w: 4, h: 1, ct: 0, idat: z });
 })());
 decodeRow('err-zlib-block-type', png({ w: 1, h: 1, ct: 0, idat: Buffer.from([0x78, 0x9c, 0x07, 0, 0, 0, 0]) }));
+// sizes the JS cannot allocate: V8's own messages
+const hugeIhdr = (w, h) => png({ ihdrData: ihdr(w, h, 8, 0), idat: deflateSync(Buffer.alloc(0)) });
+decodeRow('err-huge-both-dimensions', hugeIhdr(0xffffffff, 0xffffffff));
+decodeRow('err-huge-height', hugeIhdr(0xffffffff, 0x10000));
 decodeRow('err-ragged-last-row', png({ w: 3, h: 2, ct: 0, rows: [[0, 1, 2, 3], [0, 4]] }));
 decodeRow('err-ragged-one-extra', png({ w: 3, h: 1, ct: 0, rows: [[0, 1, 2, 3], [0]] }));
 
