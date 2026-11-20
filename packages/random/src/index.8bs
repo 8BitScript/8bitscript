@@ -22,9 +22,9 @@
 // player cannot predict by reading the source — nothing here is
 // cryptographic, on any target, any more than the hardware sources are.
 
-let mut state: usmallint = 1;
+let state: usmallint = 1;
 
-pub mod random {
+export namespace random {
     // Replaces the generator's whole state. A program that never calls this
     // gets the same sequence on every run, starting from `state`'s own
     // initializer above — a deterministic default, not a random one nobody
@@ -32,7 +32,7 @@ pub mod random {
     // next `next()` still moves state away from it, unlike a generator
     // built on multiplication or XOR alone, where an all-zero state is a
     // fixed point.
-    fn seed(value: usmallint) {
+    function seed(value: usmallint): void {
         state = value;
     }
 
@@ -49,7 +49,7 @@ pub mod random {
     // byte carries the full 65536-state period. `state >> 8` costs one
     // instruction on the 6502 and is exact on the web target too — no
     // divide, on either backend.
-    fn next() -> utinyint {
+    function next(): utinyint {
         state = state * 25173 + 13849;
         return state >> 8;
     }
@@ -79,12 +79,12 @@ pub mod random {
     // a call draws 1.0 to 2.0 bytes and, on average, under 1.5 for the
     // bounds a game uses. The number of bytes a call takes is not fixed —
     // the sequence is still fully determined by the seed.
-    fn range(bound: utinyint) -> utinyint {
+    function range(bound: utinyint): utinyint {
         let limit: utinyint = 0 - bound;
-        let mut value: utinyint = random::next();
-        let mut rest: utinyint = value % bound;
-        while value - rest > limit {
-            value = random::next();
+        let value: utinyint = random.next();
+        let rest: utinyint = value % bound;
+        while (value - rest > limit) {
+            value = random.next();
             rest = value % bound;
         }
         return rest;
@@ -101,9 +101,9 @@ pub mod random {
     // has no shift by a run-time amount and the compiler refuses one
     // ("index a table of masks instead"). A loop of constant shifts is
     // small, and exact.
-    fn bits(count: utinyint) -> utinyint {
-        let mut value: utinyint = random::next();
-        for i: utinyint in count..8 {
+    function bits(count: utinyint): utinyint {
+        let value: utinyint = random.next();
+        for (let i: utinyint = count; i < 8; i++) {
             value = value >> 1;
         }
         return value;

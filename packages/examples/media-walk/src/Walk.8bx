@@ -1,12 +1,12 @@
-use self::player::player;
-use self::theme::{blip, theme};
-use @8bitscript::graphics::graphics;
-use @8bitscript::audio::audio;
-use @8bitscript::text::text;
+import { player } from "./player.8bg";
+import { blip, theme } from "./theme.8ba";
+import { graphics } from "@8bitscript/graphics";
+import { audio } from "@8bitscript/audio";
+import { text } from "@8bitscript/text";
 
-pub component Walk() {
-    text::print(0, "WALK");
-    graphics::place(player, 40, 40);
-    audio::play(blip);
-    audio::music(theme);
+export component Walk() {
+    text.print(0, "WALK");
+    graphics.place(player, 40, 40);
+    audio.play(blip);
+    audio.music(theme);
 }

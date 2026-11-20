@@ -5,10 +5,10 @@
 // machine's zero page, the shape every real program has (a program that
 // never waits a frame is a polite guest of BASIC with eight bytes of it
 // on the VIC-20, which not even text.printNumber fits).
-use @8bitscript::text::text;
-use super::src::index::Locale;
+import { text } from "@8bitscript/text";
+import { Locale } from "../src/index.8bs";
 
-pub fn main() {
+export function main(): void {
     waitFrame();
-    text::putChar(0, Locale::GROUP);
+    text.putChar(0, Locale.GROUP);
 }

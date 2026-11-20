@@ -49,7 +49,7 @@
 //          list, and the page's input writes and the program's strings
 //          overwrote each other.
 
-pub mod Video {
+export namespace Video {
     // The largest grid the host will hand out, and what the map is sized for.
     const MAX_COLUMNS: utinyint = 64;
     const MAX_ROWS: utinyint = 64;
@@ -107,18 +107,18 @@ pub mod Video {
     // that asks would otherwise get nothing. Answering with the compiled
     // default makes that frame lay out like a 16:9 window rather than like a
     // zero-column screen, and the next resized() corrects it.
-    fn columns() -> utinyint {
-        let live: utinyint = memory::read(Video::COLUMNS_OFFSET);
-        if live == 0 {
-            return Video::COLUMNS;
+    function columns(): utinyint {
+        let live: utinyint = memory.read(Video.COLUMNS_OFFSET);
+        if (live == 0) {
+            return Video.COLUMNS;
         }
         return live;
     }
 
-    fn rows() -> utinyint {
-        let live: utinyint = memory::read(Video::ROWS_OFFSET);
-        if live == 0 {
-            return Video::ROWS;
+    function rows(): utinyint {
+        let live: utinyint = memory.read(Video.ROWS_OFFSET);
+        if (live == 0) {
+            return Video.ROWS;
         }
         return live;
     }
@@ -127,8 +127,8 @@ pub mod Video {
     // utinyint, and 27 x 48 is 1296 — a product that does not fit in the type
     // its operands have. Every cell index on this host has the same hazard,
     // which is why a derived layout computes them in usmallint throughout.
-    fn cells() -> usmallint {
-        let wide: usmallint = Video::columns();
-        return wide * Video::rows();
+    function cells(): usmallint {
+        let wide: usmallint = Video.columns();
+        return wide * Video.rows();
     }
 }

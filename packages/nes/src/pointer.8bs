@@ -21,18 +21,19 @@
 // empty, so a program's `if (pointer.DRAWS)` folds away and the fold
 // removes the calls — which matters most here, where a program has 2 KiB of RAM
 // and every byte of the cartridge is budgeted.
-pub mod pointer {
+export namespace pointer {
+
     const DRAWS: bool = false;
 
-    fn begin() {
+    function begin(): void {
     }
 
-    fn setColor(color: utinyint) {
+    function setColor(color: utinyint): void {
     }
 
-    fn update() {
+    function update(): void {
     }
 
-    fn hide() {
+    function hide(): void {
     }
 }

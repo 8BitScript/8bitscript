@@ -23,7 +23,7 @@
 // to the same place — so row 1 is the one that costs nothing extra
 // and is provably stable (rows 1, 2 and 5 all measured one row below
 // where PLOT put them).
-pub fn releaseCursor() {
+export function releaseCursor(): void {
     asm6502 {
         ldx #1
         ldy #0

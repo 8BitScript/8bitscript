@@ -7,12 +7,12 @@
 // or to draw a placed object from. These two are meant to be the same
 // program written two ways — the 8BX zero-cost gate compares their bytes —
 // so what one of them cannot do, neither of them carries.
-use @8bitscript::screen::screen;
-use self::Hello::Hello;
-use @8bitscript::text::text;
+import { screen } from "@8bitscript/screen";
+import { Hello } from "./Hello.8bx";
+import { text } from "@8bitscript/text";
 
-pub fn main() {
-    screen::blank();
+export function main(): void {
+    screen.blank();
     Hello();
-    text::releaseCursor();
+    text.releaseCursor();
 }

@@ -11,7 +11,7 @@
 // namespace — the same names, the same shapes, ASCII codes, and a cell 0
 // at the top-left corner inside the border — so a program that imports it
 // from @8bitscript/text draws the same thing on every target.
-use self::index::cursorInhibit;
+import { cursorInhibit } from "./index.8bs";
 
 // ANTIC mode 2 (GR.0) is 40x24 = 960 cells, pointed to by SAVMSC at $58
 // (lo) / $59 (hi) — not a fixed address the way the Commodore machines have
@@ -32,11 +32,11 @@ use self::index::cursorInhibit;
 // should use, for the NES's sake — does not get its first cell inverted by
 // the cursor sitting on it.
 
-fn atasciiToInternal(code: utinyint) -> utinyint {
-    if code < 32 {
+function atasciiToInternal(code: utinyint): utinyint {
+    if (code < 32) {
         return code + 64;
     }
-    if code < 96 {
+    if (code < 96) {
         return code - 32;
     }
     return code;
@@ -60,29 +60,29 @@ fn atasciiToInternal(code: utinyint) -> utinyint {
 // cursor and reading where the OS put screen memory once for the run.
 // `text.putChar` and `text.putColor` stay the one-cell pokes a caller can
 // build anything from.
-let mut currentReverse: bool = false; // until text.setReverse() says otherwise
+let currentReverse: bool = false; // until text.setReverse() says otherwise
 
 // Where the OS put screen memory (SAVMSC, $58/$59), read by prepare().
-let mut screenBase: usmallint = 0;
+let screenBase: usmallint = 0;
 
 // Reverse video is bit 7 of ANTIC's internal code. A reverse space is a
 // solid block in COLPF1, which is how a selected menu item becomes a bar.
-fn toInternal(code: utinyint) -> utinyint {
-    let mut screen: utinyint = atasciiToInternal(code);
-    if currentReverse {
+function toInternal(code: utinyint): utinyint {
+    let screen: utinyint = atasciiToInternal(code);
+    if (currentReverse) {
         screen = screen + 128;
     }
     return screen;
 }
 
 // What a run of text needs once, before its first character.
-fn prepare() {
+function prepare(): void {
     cursorInhibit = 1;
-    screenBase = memory::read(0x58) + memory::read(0x59) * 256;
+    screenBase = memory.read(0x58) + memory.read(0x59) * 256;
 }
 
-fn place(cell: usmallint, code: utinyint) {
-    memory::write(screenBase + cell, toInternal(code));
+function place(cell: usmallint, code: utinyint): void {
+    memory.write(screenBase + cell, toInternal(code));
 }
 
 // ---- digits -------------------------------------------------------------
@@ -92,9 +92,9 @@ fn place(cell: usmallint, code: utinyint) {
 // and `value / 10` would link a 250-byte routine to do it. Places above the
 // field are still taken off, so a field narrower than its number shows the
 // low digits; places the number does not reach print as zeros.
-const DIGIT_PLACES: [usmallint; 5] = [10000, 1000, 100, 10, 1];
+const DIGIT_PLACES: array<usmallint, 5> = [10000, 1000, 100, 10, 1];
 
-pub mod text {
+export namespace text {
     const CELL_COUNT: usmallint = 960; // 40 columns x 24 rows
     const COLUMNS: utinyint = 40; // cells per row, so cell = y * text.COLUMNS + x
     const ROWS: utinyint = 24;
@@ -104,28 +104,29 @@ pub mod text {
     // Here so a program that lays itself out from the grid it is actually on
     // runs unchanged on every target; see the web target's Modern host, the
     // one grid that does change.
-    fn columns() -> utinyint {
-        return text::COLUMNS;
+    function columns(): utinyint {
+        return text.COLUMNS;
     }
 
-    fn rows() -> utinyint {
-        return text::ROWS;
+    function rows(): utinyint {
+        return text.ROWS;
     }
 
-    fn putChar(cell: usmallint, code: utinyint) {
+
+    function putChar(cell: usmallint, code: utinyint): void {
         prepare();
-        memory::write(screenBase + cell, toInternal(code));
+        memory.write(screenBase + cell, toInternal(code));
     }
 
-    fn putColor(cell: usmallint, color: utinyint) {
+    function putColor(cell: usmallint, color: utinyint): void {
         // Deliberately empty — GR.0 has no per-cell color RAM.
     }
 
-    fn setColor(color: utinyint) {
+    function setColor(color: utinyint): void {
         // Deliberately empty — GR.0 has no per-cell color RAM.
     }
 
-    fn setReverse(on: bool) {
+    function setReverse(on: bool): void {
         currentReverse = on;
     }
 
@@ -133,12 +134,12 @@ pub mod text {
     // end does not return to a BASIC prompt the way a Commodore one does
     // (see packages/vic20/src/text.8bs's own releaseCursor() for what
     // this closes there), so there is no cursor to hand back here.
-    fn releaseCursor() {
+    function releaseCursor(): void {
     }
 
-    fn print(cell: usmallint, s: string) {
+    function print(cell: usmallint, s: string): void {
         prepare();
-        for i: utinyint in 0..s.length {
+        for (let i: utinyint = 0; i < s.length; i++) {
             place(cell + i, s[i]);
         }
     }
@@ -148,30 +149,30 @@ pub mod text {
     // built at run time — it cannot, so a layout whose width is only known
     // while the program runs (a responsive tile, a panel being cleared) needs
     // this instead of a string constant per possible width.
-    fn fill(cell: usmallint, count: usmallint, code: utinyint) {
-        for i: usmallint in 0..count {
+    function fill(cell: usmallint, count: usmallint, code: utinyint): void {
+        for (let i: usmallint = 0; i < count; i++) {
             place(cell + i, code);
         }
     }
 
-    fn printNumber(cell: usmallint, value: usmallint, width: utinyint) {
+    function printNumber(cell: usmallint, value: usmallint, width: utinyint): void {
         prepare();
-        let mut k: utinyint = width;
-        if k < DIGIT_PLACES.length {
+        let k: utinyint = width;
+        if (k < DIGIT_PLACES.length) {
             k = DIGIT_PLACES.length;
         }
-        while k > 0 {
-            let mut digit: utinyint = 48; // '0'
-            if k <= DIGIT_PLACES.length {
-                while value >= DIGIT_PLACES[DIGIT_PLACES.length - k] {
+        while (k > 0) {
+            let digit: utinyint = 48; // '0'
+            if (k <= DIGIT_PLACES.length) {
+                while (value >= DIGIT_PLACES[DIGIT_PLACES.length - k]) {
                     value = value - DIGIT_PLACES[DIGIT_PLACES.length - k];
-                    digit += 1;
+                    digit++;
                 }
             }
-            if k <= width {
+            if (k <= width) {
                 place(cell + width - k, digit);
             }
-            k -= 1;
+            k--;
         }
     }
 }
@@ -179,7 +180,7 @@ pub mod text {
 // The colors `text.setColor()` takes. GR.0 has no per-cell color RAM, so the
 // names are here for a program that compiles everywhere and their values
 // go nowhere.
-pub mod TextColor {
+export namespace TextColor {
     const BLACK: utinyint = 0;
     const WHITE: utinyint = 1;
     const RED: utinyint = 2;

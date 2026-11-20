@@ -111,15 +111,15 @@
 // Slot.SCROLL_X is refused: $9000's horizontal origin moves the picture in
 // four-pixel steps, not the 0-7 fine scroll the slot means everywhere else.
 
-use self::geometry::Video;
+import { Video } from "./geometry.8bs";
 
 // What the picture does at a line, named without an address. The numbers
 // are arbitrary and the same in all nine rasterline files.
-pub mod Slot {
-    const BORDER: utinyint = 0; // the border's color, 0-7 here
+export namespace Slot {
+    const BORDER: utinyint = 0;     // the border's color, 0-7 here
     const BACKGROUND: utinyint = 1; // the playfield's background color, 0-15
-    const SCROLL_X: utinyint = 2; // the horizontal fine scroll: refused here
-    const CHARSET: utinyint = 3; // 0 upper-case/graphics ($8000), 1 mixed-case text ($8800)
+    const SCROLL_X: utinyint = 2;   // the horizontal fine scroll: refused here
+    const CHARSET: utinyint = 3;    // 0 upper-case/graphics ($8000), 1 mixed-case text ($8800)
 }
 
 // Everything below at a fixed address lives in the cassette buffer
@@ -132,33 +132,40 @@ pub mod Slot {
 // The list as the program built it: three bytes an entry — picture line,
 // slot, and the value as its bits in $900F — so `setValue`'s byte offset
 // is index * STRIDE, the unit every rasterline file takes.
-#[address(0x037C)] let mut entries: [utinyint; 48];
+@address(0x037C)
+let entries: array<utinyint, 48>;
 // Which planned line each entry was merged into.
-#[address(0x03AC)] let mut entryPlan: [utinyint; 16];
-let mut entryCount: utinyint = 0;
+@address(0x03AC)
+let entryPlan: array<utinyint, 16>;
+let entryCount: utinyint = 0;
 // True between a change to the list and the commit that hands it over:
 // setValue then edits only the list, the way the C64's edits only the
 // page the handler is not reading.
-let mut listDirty: bool = false;
+let listDirty: bool = false;
 
 // The plan the hook reads.
-#[address(0x033C)] let mut planCoarse: [utinyint; 16]; // wait while $9004 < this
-#[address(0x034C)] let mut planEven: [utinyint; 16]; // nonzero: sync on the even line of the pair after it
-#[address(0x035C)] let mut planFirst: [utinyint; 16]; // store 1: the new border, the old background
-#[address(0x036C)] let mut planSecond: [utinyint; 16]; // store 2: both new
-#[address(0x03BC)] let mut planCharset: [utinyint; 16]; // store 3: the whole $9005 byte
+@address(0x033C)
+let planCoarse: array<utinyint, 16>; // wait while $9004 < this
+@address(0x034C)
+let planEven: array<utinyint, 16>;   // nonzero: sync on the even line of the pair after it
+@address(0x035C)
+let planFirst: array<utinyint, 16>;  // store 1: the new border, the old background
+@address(0x036C)
+let planSecond: array<utinyint, 16>; // store 2: both new
+@address(0x03BC)
+let planCharset: array<utinyint, 16>; // store 3: the whole $9005 byte
 // The count, read by the hook in 8BitScript — the global the hook shares
 // with commit(), which is what keeps it linked (see the header).
-let mut planCount: utinyint = 0;
+let planCount: utinyint = 0;
 // The $900F bits the list does not own: the hook keeps the program's.
-let mut keepMask: utinyint = 0xFF;
+let keepMask: utinyint = 0xFF;
 // Whether the list sets CHARSET, and the $9005 byte the frame starts with
 // when it does: the last entry's, as the colors wrap.
-let mut charsetOwned: bool = false;
-let mut charsetTop: utinyint = 0;
-let mut enabled: bool = false;
+let charsetOwned: bool = false;
+let charsetTop: utinyint = 0;
+let enabled: bool = false;
 // 0 until commit() has probed the region, then 1 NTSC or 2 PAL.
-let mut region: utinyint = 0;
+let region: utinyint = 0;
 
 // The frame runtime's hook: FRAME_SYNC.vic20.frameHook names it, and
 // waitFrame() calls it after every frame edge. Not for a program to call —
@@ -186,23 +193,23 @@ let mut region: utinyint = 0;
 // the timing does not change with where the linker happens to place this
 // function (a taken branch that crosses a page costs a cycle more). One
 // copy per region, chosen once a frame before any waiting starts.
-pub fn vic20RasterFrame() {
-    let mut n: utinyint = planCount;
-    if n == 0 {
+export function vic20RasterFrame(): void {
+    let n: utinyint = planCount;
+    if (n == 0) {
         return;
     }
-    let mut base: utinyint = memory::read(0x900F) & keepMask;
+    let base: utinyint = memory.read(0x900F) & keepMask;
     // Before any waiting, so none of it is timed. A list without CHARSET
     // entries still makes the third store; it stores $9005's own byte back.
-    if charsetOwned {
-        memory::write(0x9005, charsetTop);
+    if (charsetOwned) {
+        memory.write(0x9005, charsetTop);
     } else {
-        let current: utinyint = memory::read(0x9005);
-        for p: utinyint in 0..n {
+        let current: utinyint = memory.read(0x9005);
+        for (let p: utinyint = 0; p < n; p++) {
             planCharset[p] = current;
         }
     }
-    if region == 2 {
+    if (region == 2) {
         asm6502 {
             ; PAL, 71-cycle lines: stores 36, 72 and 76 cycles after the edge
             ldx #0
@@ -297,17 +304,17 @@ pub fn vic20RasterFrame() {
     return;
 }
 
-pub mod raster {
+export namespace raster {
     const ENTRIES: utinyint = 16; // the list's capacity
-    const STRIDE: utinyint = 3; // bytes per entry: line, slot, value
+    const STRIDE: utinyint = 3;   // bytes per entry: line, slot, value
     const FINE_SCROLL: bool = false; // Slot.SCROLL_X is refused: $9000 moves the picture in 4-pixel steps
-    const COLORS: bool = true; // Slot.BORDER/BACKGROUND entries are accepted
-    const CHARSET: bool = true; // Slot.CHARSET entries are accepted: $9005's character base
+    const COLORS: bool = true;      // Slot.BORDER/BACKGROUND entries are accepted
+    const CHARSET: bool = true;    // Slot.CHARSET entries are accepted: $9005's character base
     const FRAME_COUNTER: bool = false; // no video-frame counter: the VIC-20 has no raster or vertical-blank interrupt here
-    const LINES: utinyint = 184; // visible picture lines: Video.ROWS (23) * 8
+    const LINES: utinyint = 184;  // visible picture lines: Video.ROWS (23) * 8
 
     // Empty the list. What shows keeps showing until the next commit().
-    fn clear() {
+    function clear(): void {
         entryCount = 0;
         listDirty = true;
     }
@@ -316,17 +323,17 @@ pub mod raster {
     // area), give `slot` the value `value`. False, and nothing added, if
     // the line is past the picture, the slot is SCROLL_X or unknown, the
     // list is full, or the line is above the last entry's.
-    fn at(line: utinyint, slot: utinyint, value: utinyint) -> bool {
-        if line >= raster::LINES || slot == Slot::SCROLL_X || slot > Slot::CHARSET || entryCount >= raster::ENTRIES {
+    function at(line: utinyint, slot: utinyint, value: utinyint): bool {
+        if (line >= raster.LINES || slot == Slot.SCROLL_X || slot > Slot.CHARSET || entryCount >= raster.ENTRIES) {
             return false;
         }
         let offset: utinyint = entryCount * 3;
-        if entryCount > 0 && line < entries[offset - 3] {
+        if (entryCount > 0 && line < entries[offset - 3]) {
             return false;
         }
         entries[offset] = line;
         entries[offset + 1] = slot;
-        entries[offset + 2] = raster::bits(slot, value);
+        entries[offset + 2] = raster.bits(slot, value);
         entryCount = entryCount + 1;
         listDirty = true;
         return true;
@@ -335,12 +342,12 @@ pub mod raster {
     // In order: the same as `at`, at a line above the last entry's — the
     // entries below it slid down a place. False, and nothing added, if the
     // line is past the picture, the slot is refused, or the list is full.
-    fn insert(line: utinyint, slot: utinyint, value: utinyint) -> bool {
-        if line >= raster::LINES || slot == Slot::SCROLL_X || slot > Slot::CHARSET || entryCount >= raster::ENTRIES {
+    function insert(line: utinyint, slot: utinyint, value: utinyint): bool {
+        if (line >= raster.LINES || slot == Slot.SCROLL_X || slot > Slot.CHARSET || entryCount >= raster.ENTRIES) {
             return false;
         }
-        let mut offset: utinyint = entryCount * 3;
-        while offset > 0 && entries[offset - 3] > line {
+        let offset: utinyint = entryCount * 3;
+        while (offset > 0 && entries[offset - 3] > line) {
             entries[offset] = entries[offset - 3];
             entries[offset + 1] = entries[offset - 2];
             entries[offset + 2] = entries[offset - 1];
@@ -348,45 +355,45 @@ pub mod raster {
         }
         entries[offset] = line;
         entries[offset + 1] = slot;
-        entries[offset + 2] = raster::bits(slot, value);
+        entries[offset + 2] = raster.bits(slot, value);
         entryCount = entryCount + 1;
         listDirty = true;
         return true;
     }
 
     // How many entries the list holds.
-    fn count() -> utinyint {
+    function count(): utinyint {
         return entryCount;
     }
 
     // Hand the list to the frame runtime: live from the next waitFrame().
     // This is where the plan is worked out, so the hook does nothing but
     // wait and store (the header's "what is computed where").
-    fn commit() {
-        raster::probeRegion();
-        let top: utinyint = memory::read(0x9001);
-        let mut items: utinyint = 0;
-        let mut lastLine: utinyint = 0;
-        let mut planned: utinyint = 0;
-        let mut owned: utinyint = 0;
-        let mut charset: bool = false;
+    function commit(): void {
+        raster.probeRegion();
+        let top: utinyint = memory.read(0x9001);
+        let items: utinyint = 0;
+        let lastLine: utinyint = 0;
+        let planned: utinyint = 0;
+        let owned: utinyint = 0;
+        let charset: bool = false;
         plannedEntries = 0;
-        for i: utinyint in 0..entryCount {
+        for (let i: utinyint = 0; i < entryCount; i++) {
             let offset: utinyint = i * 3;
             let line: utinyint = entries[offset];
-            if items == 0 || line != lastLine {
+            if (items == 0 || line != lastLine) {
                 // A planned line keeps the hook about a line and a half,
                 // so the next can be no nearer than two lines: one nearer
                 // is planned two below the last, where it lands exactly,
                 // rather than wherever the hook next catches an edge.
-                let mut target: utinyint = line;
-                if items > 0 && target < planned + 2 {
+                let target: utinyint = line;
+                if (items > 0 && target < planned + 2) {
                     target = planned + 2;
                 }
                 // Pushed off the picture: this entry and every one after
                 // it is not planned (a line the frame may never reach
                 // would keep the hook into the next frame).
-                if target >= raster::LINES {
+                if (target >= raster.LINES) {
                     break;
                 }
                 planned = target;
@@ -394,7 +401,7 @@ pub mod raster {
                 // top * 2 + target - 1, whose pair's predecessor is the
                 // $9004 value to wait past — up to 38 * 2 + 213 - 2 on PAL
                 // (sixteen entries two lines apart from 183), so 16 bits.
-                let mut before: usmallint = top;
+                let before: usmallint = top;
                 before = before * 2 + target - 2;
                 planCoarse[items] = before >> 1;
                 planEven[items] = before & 1;
@@ -403,9 +410,9 @@ pub mod raster {
             }
             entryPlan[i] = items - 1;
             let slot: utinyint = entries[offset + 1];
-            if slot == Slot::BORDER {
+            if (slot == Slot.BORDER) {
                 owned = owned | 0x07;
-            } else if slot == Slot::BACKGROUND {
+            } else if (slot == Slot.BACKGROUND) {
                 owned = owned | 0xF0;
             } else {
                 charset = true;
@@ -414,10 +421,10 @@ pub mod raster {
         }
         keepMask = owned ^ 0xFF;
         charsetOwned = charset;
-        raster::recolor(items);
+        raster.recolor(items);
         // The hook only runs inside waitFrame(), never during this, so a
         // half-built plan is never read.
-        if enabled {
+        if (enabled) {
             planCount = items;
         } else {
             planCount = 0;
@@ -434,31 +441,31 @@ pub mod raster {
     // screen. Whole bytes, never read-modify-write: bits the list does not
     // set are 0 here — bit 3 included, whatever the cassette buffer held —
     // and come from $900F through the hook's base.
-    fn recolor(items: utinyint) {
-        let mut border: utinyint = 0;
-        let mut background: utinyint = 0;
-        let mut charset: utinyint = Video::MEMORY_POINTER_UPPERCASE;
-        for e: utinyint in 0..plannedEntries {
+    function recolor(items: utinyint): void {
+        let border: utinyint = 0;
+        let background: utinyint = 0;
+        let charset: utinyint = Video.MEMORY_POINTER_UPPERCASE;
+        for (let e: utinyint = 0; e < plannedEntries; e++) {
             let at: utinyint = e * 3;
             let slot: utinyint = entries[at + 1];
-            if slot == Slot::BORDER {
+            if (slot == Slot.BORDER) {
                 border = entries[at + 2];
-            } else if slot == Slot::BACKGROUND {
+            } else if (slot == Slot.BACKGROUND) {
                 background = entries[at + 2];
             } else {
                 charset = entries[at + 2];
             }
         }
         charsetTop = charset;
-        let mut entry: utinyint = 0;
-        for p: utinyint in 0..items {
+        let entry: utinyint = 0;
+        for (let p: utinyint = 0; p < items; p++) {
             let above: utinyint = background;
-            while entry < plannedEntries && entryPlan[entry] == p {
+            while (entry < plannedEntries && entryPlan[entry] == p) {
                 let at: utinyint = entry * 3;
                 let slot: utinyint = entries[at + 1];
-                if slot == Slot::BORDER {
+                if (slot == Slot.BORDER) {
                     border = entries[at + 2];
-                } else if slot == Slot::BACKGROUND {
+                } else if (slot == Slot.BACKGROUND) {
                     background = entries[at + 2];
                 } else {
                     charset = entries[at + 2];
@@ -474,15 +481,15 @@ pub mod raster {
     // A slot's value as the bits it stores: border $900F 0-2, background
     // $900F 4-7, CHARSET the whole $9005 byte — this build's screen base
     // (a geometry constant, folded) and character base 0 or 2.
-    fn bits(slot: utinyint, value: utinyint) -> utinyint {
-        if slot == Slot::BORDER {
+    function bits(slot: utinyint, value: utinyint): utinyint {
+        if (slot == Slot.BORDER) {
             return value & 7;
         }
-        if slot == Slot::CHARSET {
-            if (value & 1) == 0 {
-                return Video::MEMORY_POINTER_UPPERCASE;
+        if (slot == Slot.CHARSET) {
+            if ((value & 1) == 0) {
+                return Video.MEMORY_POINTER_UPPERCASE;
             }
-            return Video::MEMORY_POINTER_LOWERCASE;
+            return Video.MEMORY_POINTER_LOWERCASE;
         }
         return (value & 15) << 4;
     }
@@ -492,11 +499,11 @@ pub mod raster {
     // (FRAME_SYNC.vic20.palProbe), over more than a PAL frame. The
     // answer picks the hook's two delays; AGENTS.md has how they were
     // measured.
-    fn probeRegion() {
-        if region != 0 {
+    function probeRegion(): void {
+        if (region != 0) {
             return;
         }
-        let mut pal: utinyint = 0;
+        let pal: utinyint = 0;
         asm6502 {
             ldy #8
             ldx #0
@@ -514,7 +521,7 @@ pub mod raster {
             sta pal
         done:
         }
-        if pal == 0 {
+        if (pal == 0) {
             region = 1;
         } else {
             region = 2;
@@ -526,13 +533,13 @@ pub mod raster {
     // no commit, when the list has not been changed since the last one.
     // False, and nothing written, if the offset is not a multiple of 3 or
     // names no entry.
-    fn setValue(entry: utinyint, value: utinyint) -> bool {
-        if entry % 3 != 0 || entry >= entryCount * 3 {
+    function setValue(entry: utinyint, value: utinyint): bool {
+        if (entry % 3 != 0 || entry >= entryCount * 3) {
             return false;
         }
-        entries[entry + 2] = raster::bits(entries[entry + 1], value);
-        if !listDirty {
-            raster::recolor(committed);
+        entries[entry + 2] = raster.bits(entries[entry + 1], value);
+        if (!listDirty) {
+            raster.recolor(committed);
         }
         return true;
     }
@@ -541,18 +548,18 @@ pub mod raster {
     // No video-frame counter (the VIC-20 has no raster or vertical-blank interrupt here): a count of
     // waitFrame() returns would miss every frame a slow loop skips, so frame()
     // answers 0 and FRAME_COUNTER says so. Count your own waitFrame() calls.
-    fn frame() -> utinyint {
+    function frame(): utinyint {
         return 0;
     }
 
-    fn enable() {
+    function enable(): void {
         enabled = true;
-        raster::commit();
+        raster.commit();
     }
 
     // Stop applying; the list is kept. $900F keeps whatever the last
     // write left, as on every machine with a raster list.
-    fn disable() {
+    function disable(): void {
         enabled = false;
         planCount = 0;
     }
@@ -562,5 +569,5 @@ pub mod raster {
 // walks them while the hook may be reading planCount's copy — and how
 // many entries they hold: entries pushed off the picture by the
 // two-line rule are not planned, and nothing past this count is read.
-let mut committed: utinyint = 0;
-let mut plannedEntries: utinyint = 0;
+let committed: utinyint = 0;
+let plannedEntries: utinyint = 0;

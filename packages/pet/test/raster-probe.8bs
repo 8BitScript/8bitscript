@@ -11,24 +11,24 @@
 // counter (raw digit screen codes, $30-$39 — shared, unchanged between
 // the two character sets, so it proves the loop is live without itself
 // writing the PCR the way text.print would) cycles cell 0 every frame.
-use @8bitscript::raster::{raster, Slot};
+import { raster, Slot } from "@8bitscript/raster";
 
-let mut frames: utinyint = 0;
+let frames: utinyint = 0;
 
-pub fn main() {
-    for cell: usmallint in 0..1000 {
-        memory::write(0x8000 + cell, 1);
+export function main(): void {
+    for (let cell: usmallint = 0; cell < 1000; cell++) {
+        memory.write(0x8000 + cell, 1);
     }
-    raster::clear();
-    raster::at(30, Slot::CHARSET, 1);
-    raster::at(140, Slot::CHARSET, 0);
-    raster::enable();
-    loop {
+    raster.clear();
+    raster.at(30, Slot.CHARSET, 1);
+    raster.at(140, Slot.CHARSET, 0);
+    raster.enable();
+    while (true) {
         waitFrame();
         frames = frames + 1;
-        if frames >= 10 {
+        if (frames >= 10) {
             frames = 0;
         }
-        memory::write(0x8000, 0x30 + frames);
+        memory.write(0x8000, 0x30 + frames);
     }
 }

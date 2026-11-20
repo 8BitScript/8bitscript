@@ -2,11 +2,11 @@
 // A module owns the screen between the shell's two edges and draws its own
 // bars; today that is the menu bar and the status bar, and nothing between
 // them yet.
-use self::MenuBar::DawMenuBar;
-use self::StatusBar::DawStatusBar;
+import { DawMenuBar } from "./MenuBar.8bx";
+import { DawStatusBar } from "./StatusBar.8bx";
 
-pub mod daw {
-    fn draw() {
+export namespace daw {
+    function draw(): void {
         DawMenuBar();
         DawStatusBar();
     }

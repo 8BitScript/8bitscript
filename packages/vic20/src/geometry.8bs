@@ -26,7 +26,7 @@
 // to a VIC whose $9002 still says $1E00, and draw nowhere useful. `8bs run`
 // launches xvic with the matching `-memory`, so the emulator always agrees.
 
-pub mod Video {
+export namespace Video {
     const SCREEN: usmallint = 0x1E00; // screen matrix: one screen code per cell
     const COLOR: usmallint = 0x9600; // color RAM: one nybble per cell, same cell index
     const MEMORY_POINTER_UPPERCASE: utinyint = 0xF0; // $9005: this screen, upper-case ROM

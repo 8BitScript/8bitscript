@@ -20,108 +20,108 @@
 // checking for "no key" answers true for `Key.A` on an untouched machine —
 // which is a bug this package shipped for exactly as long as it took to
 // write this line, and which prints nothing unusual through `key()`.
-use super::src::screen::screen;
-use super::src::text::text;
-use super::src::joystick::{joystick, Joystick};
-use super::src::console::{console, ConsoleKey};
-use super::src::keyboard::keyboard;
-use super::src::keys::Key;
-use super::src::pokey::{pokey, Distortion, Note};
-use super::src::random::random;
-use super::src::index::skstat;
+import { screen } from "../src/screen.8bs";
+import { text } from "../src/text.8bs";
+import { joystick, Joystick } from "../src/joystick.8bs";
+import { console, ConsoleKey } from "../src/console.8bs";
+import { keyboard } from "../src/keyboard.8bs";
+import { Key } from "../src/keys.8bs";
+import { pokey, Distortion, Note } from "../src/pokey.8bs";
+import { random } from "../src/random.8bs";
+import { skstat } from "../src/index.8bs";
 
 // SKSTAT's two keyboard bits, which must both be set while nothing is down.
 const SK_IDLE: utinyint = 0x0C;
 
-fn digit(cell: usmallint, on: bool) {
-    if on {
-        text::printNumber(cell, 1, 1);
+function digit(cell: usmallint, on: bool): void {
+    if (on) {
+        text.printNumber(cell, 1, 1);
     } else {
-        text::printNumber(cell, 0, 1);
+        text.printNumber(cell, 0, 1);
     }
 }
 
-pub fn main() {
-    screen::blank();
-    pokey::reset();
-    pokey::detectRegion();
-    pokey::setDistortion(0, Distortion::TONE);
+export function main(): void {
+    screen.blank();
+    pokey.reset();
+    pokey.detectRegion();
+    pokey.setDistortion(0, Distortion.TONE);
 
     // Read the entropy once, at start-up, which is the only way this package
     // ever wants it read.
-    let seed: utinyint = random::byte();
-    text::print(0, "SEED");
-    text::printNumber(6, seed, 3);
+    let seed: utinyint = random.byte();
+    text.print(0, "SEED");
+    text.printNumber(6, seed, 3);
 
-    text::print(40, "STICK");
-    text::print(80, "CONSOL");
-    text::print(120, "KEY");
-    text::print(160, "HELD");
-    text::print(200, "SKSTAT");
-    text::print(240, "PORTS");
-    text::printNumber(246, Joystick::PORTS, 1);
-    text::print(280, "PRESSA");
+    text.print(40, "STICK");
+    text.print(80, "CONSOL");
+    text.print(120, "KEY");
+    text.print(160, "HELD");
+    text.print(200, "SKSTAT");
+    text.print(240, "PORTS");
+    text.printNumber(246, Joystick.PORTS, 1);
+    text.print(280, "PRESSA");
 
     // Latched once and never cleared: a single bad frame is a failure, so a
     // later stray reading cannot turn the border back to green.
-    let mut everBad: bool = false;
+    let everBad: bool = false;
 
-    loop {
+    while (true) {
         waitFrame();
-        keyboard::scan();
-        joystick::scan();
-        console::scan();
+        keyboard.scan();
+        joystick.scan();
+        console.scan();
 
-        digit(46, joystick::up(Joystick::PORT_1));
-        digit(47, joystick::down(Joystick::PORT_1));
-        digit(48, joystick::left(Joystick::PORT_1));
-        digit(49, joystick::right(Joystick::PORT_1));
-        digit(50, joystick::fire(Joystick::PORT_1));
+        digit(46, joystick.up(Joystick.PORT_1));
+        digit(47, joystick.down(Joystick.PORT_1));
+        digit(48, joystick.left(Joystick.PORT_1));
+        digit(49, joystick.right(Joystick.PORT_1));
+        digit(50, joystick.fire(Joystick.PORT_1));
 
-        digit(87, console::pressed(ConsoleKey::START));
-        digit(88, console::pressed(ConsoleKey::SELECT));
-        digit(89, console::pressed(ConsoleKey::OPTION));
+        digit(87, console.pressed(ConsoleKey.START));
+        digit(88, console.pressed(ConsoleKey.SELECT));
+        digit(89, console.pressed(ConsoleKey.OPTION));
 
-        text::printNumber(126, keyboard::key(), 3);
-        digit(165, keyboard::down());
+        text.printNumber(126, keyboard.key(), 3);
+        digit(165, keyboard.down());
         let status: utinyint = skstat;
-        text::printNumber(207, status, 3);
+        text.printNumber(207, status, 3);
 
         // The regression guard: false on an untouched machine.
-        let pressedA: bool = keyboard::pressed(Key::A);
+        let pressedA: bool = keyboard.pressed(Key.A);
         digit(287, pressedA);
 
-        if joystick::bits(Joystick::PORT_1) != 0 {
+        if (joystick.bits(Joystick.PORT_1) != 0) {
             everBad = true;
         }
-        if console::bits() != 0 {
+        if (console.bits() != 0) {
             everBad = true;
         }
-        if keyboard::key() != Key::NONE {
+        if (keyboard.key() != Key.NONE) {
             everBad = true;
         }
-        if pressedA {
+        if (pressedA) {
             everBad = true;
         }
-        if keyboard::down() {
+        if (keyboard.down()) {
             everBad = true;
         }
-        if (status & SK_IDLE) != SK_IDLE {
+        if ((status & SK_IDLE) != SK_IDLE) {
             everBad = true;
         }
 
-        if everBad {
-            screen::setBorder(52); // dark red: something read as pressed
+        if (everBad) {
+            screen.setBorder(52);   // dark red: something read as pressed
         } else {
-            screen::setBorder(196); // bright green: every input idle
+            screen.setBorder(196);  // bright green: every input idle
         }
 
         // A note while START is held: the one place this probe makes sound.
-        if console::pressed(ConsoleKey::START) {
-            pokey::setVolume(0, 8);
-            pokey::play(0, Note::A4);
+        if (console.pressed(ConsoleKey.START)) {
+            pokey.setVolume(0, 8);
+            pokey.play(0, Note.A4);
         } else {
-            pokey::silence(0);
+            pokey.silence(0);
         }
     }
 }

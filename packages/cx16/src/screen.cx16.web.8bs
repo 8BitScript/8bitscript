@@ -15,10 +15,10 @@ const CHAR_BASE: usmallint = 2;
 const COLOR_BASE: usmallint = 4258; // CHAR_BASE + CELL_COUNT (76 * 56) — must agree with text.cx16.web.8bs
 const CELL_COUNT: usmallint = 4256;
 
-pub mod screen {
-    fn setColors(border: u8, background: u8) {
-        memory::write(BORDER_OFFSET, border);
-        screen::setBackground(background);
+export namespace screen {
+    function setColors(border: u8, background: u8): void {
+        memory.write(BORDER_OFFSET, border);
+        screen.setBackground(background);
     }
 
     // `blank(border, background)`: every cell blank, and both colors set —
@@ -27,30 +27,30 @@ pub mod screen {
     // own blank() leaves attribute bytes alone (its own comment says so),
     // and the white-foreground reset is setBackground()'s documented side
     // effect below, not this function's.
-    fn blank(border: utinyint = BorderColor::BLACK, background: utinyint = BackgroundColor::BLACK) {
-        if border != BorderColor::KEEP {
-            screen::setBorder(border);
+    function blank(border: utinyint = BorderColor.BLACK, background: utinyint = BackgroundColor.BLACK): void {
+        if (border != BorderColor.KEEP) {
+            screen.setBorder(border);
         }
-        if background != BackgroundColor::KEEP {
-            screen::setBackground(background);
+        if (background != BackgroundColor.KEEP) {
+            screen.setBackground(background);
         }
-        for cell: usmallint in 0..CELL_COUNT {
-            memory::write(CHAR_BASE + cell, 32); // space
+        for (let cell: usmallint = 0; cell < CELL_COUNT; cell++) {
+            memory.write(CHAR_BASE + cell, 32); // space
         }
     }
 
     // Real screen.8bs's setBackground() repaints every cell's attribute
     // byte (background high, white low) the same way setColors() does —
     // any foreground text.putColor() set is reset to white here too.
-    fn setBackground(background: u8) {
-        memory::write(BACKGROUND_OFFSET, background);
-        for cell: usmallint in 0..CELL_COUNT {
-            memory::write(COLOR_BASE + cell, 1); // white, not reversed
+    function setBackground(background: u8): void {
+        memory.write(BACKGROUND_OFFSET, background);
+        for (let cell: usmallint = 0; cell < CELL_COUNT; cell++) {
+            memory.write(COLOR_BASE + cell, 1); // white, not reversed
         }
     }
 
-    fn setBorder(border: u8) {
-        memory::write(BORDER_OFFSET, border);
+    function setBorder(border: u8): void {
+        memory.write(BORDER_OFFSET, border);
     }
 
     // Whether this machine's grid can change under a running program. It
@@ -58,7 +58,7 @@ pub mod screen {
     // makes it — same as screen.8bs's own RESIZABLE.
     const RESIZABLE: bool = false;
 
-    fn resized() -> bool {
+    function resized(): bool {
         return false;
     }
 }
@@ -68,7 +68,7 @@ pub mod screen {
 // twin, since VERA's default palette is the C64's sixteen names in the
 // C64's own order (screen.8bs's own header). The page paints them with VERA's
 // own RGB (VERA_PALETTE in packages/cli/src/web-layout.mjs), not the C64's.
-pub mod BorderColor {
+export namespace BorderColor {
     const BLACK: utinyint = 0;
     const WHITE: utinyint = 1;
     const RED: utinyint = 2;
@@ -88,7 +88,7 @@ pub mod BorderColor {
     const KEEP: utinyint = 255;
 }
 
-pub mod BackgroundColor {
+export namespace BackgroundColor {
     const BLACK: utinyint = 0;
     const WHITE: utinyint = 1;
     const RED: utinyint = 2;

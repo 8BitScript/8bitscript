@@ -37,28 +37,28 @@
 //
 // Ghosting is the same hazard it is on every unshifted matrix: three keys
 // down can read as four. Two keys are always safe.
-use self::index::{via2PortA, via2PortB, via2DirectionA, via2DirectionB};
+import { via2PortA, via2PortB, via2DirectionA, via2DirectionB } from "./index.8bs";
 
 // The last scan, one byte per column, a 1 bit where a key is down (the
 // port's active-low rows inverted once, here, so nothing else has to
 // think about it). All zero until the first scan.
-let mut state: [utinyint; 8];
+let state: array<utinyint, 8>;
 
 // The column-select byte for each column, and the row masks — indexed
 // rather than shifted, as `1 << n` with a variable n is a loop on the 6502.
-const COLUMN_SELECT: [utinyint; 8] = [254, 253, 251, 247, 239, 223, 191, 127];
-const ROW_BIT: [utinyint; 8] = [1, 2, 4, 8, 16, 32, 64, 128];
+const COLUMN_SELECT: array<utinyint, 8> = [254, 253, 251, 247, 239, 223, 191, 127];
+const ROW_BIT: array<utinyint, 8> = [1, 2, 4, 8, 16, 32, 64, 128];
 
-pub mod keyboard {
+export namespace keyboard {
     const COLUMNS: utinyint = 8;
     const ROWS: utinyint = 8;
 
     // Read all eight columns into the snapshot. Once a frame, right after
     // waitFrame(), before reading the joystick's right line.
-    fn scan() {
+    function scan(): void {
         via2DirectionB = 0xFF;
         via2DirectionA = 0x00;
-        for select: utinyint in 0..8 {
+        for (let select: utinyint = 0; select < 8; select++) {
             via2PortB = COLUMN_SELECT[select];
             state[select] = via2PortA ^ 0xFF;
         }
@@ -67,14 +67,14 @@ pub mod keyboard {
 
     // Is this key down in the last scan? `key` is a `Key.*` value from
     // @8bitscript/vic20/keys — `select * 8 + row` in the matrix.
-    fn pressed(key: utinyint) -> bool {
+    function pressed(key: utinyint): bool {
         return (state[key >> 3] & ROW_BIT[key & 7]) != 0;
     }
 
     // The last scan's eight rows of one column, a 1 bit per key down:
     // for code that wants a whole column at once (an "any key" test over
     // all eight, a ghosting check).
-    fn column(index: utinyint) -> utinyint {
+    function column(index: utinyint): utinyint {
         return state[index];
     }
 }

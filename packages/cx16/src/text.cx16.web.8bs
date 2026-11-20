@@ -31,55 +31,55 @@
 // (web-loader.mjs's paint()) already reads that bit, and this twin has a
 // real per-cell color byte to carry it in (so does VERA's own attribute
 // byte), so there is nothing stopping it.
-let mut currentColor: utinyint = 1; // white, until text.setColor() says otherwise
-let mut currentReverse: bool = false; // until text.setReverse() says otherwise
+let currentColor: utinyint = 1; // white, until text.setColor() says otherwise
+let currentReverse: bool = false; // until text.setReverse() says otherwise
 
 const CHAR_BASE: usmallint = 2;
 const COLOR_BASE: usmallint = 4258; // CHAR_BASE + CELL_COUNT (76 * 56)
 
-fn colorByte() -> utinyint {
-    if currentReverse {
+function colorByte(): utinyint {
+    if (currentReverse) {
         return 128 | currentColor;
     }
     return currentColor;
 }
 
-fn putCell(cell: usmallint, code: utinyint) {
-    memory::write(CHAR_BASE + cell, code);
-    memory::write(COLOR_BASE + cell, colorByte());
+function putCell(cell: usmallint, code: utinyint): void {
+    memory.write(CHAR_BASE + cell, code);
+    memory.write(COLOR_BASE + cell, colorByte());
 }
 
 // A number is written one place at a time, high to low, by subtracting
 // the place value until it no longer fits — same as text.8bs's own
 // DIGIT_PLACES, declared before the namespace that uses it there too.
-const DIGIT_PLACES: [usmallint; 5] = [10000, 1000, 100, 10, 1];
+const DIGIT_PLACES: array<usmallint, 5> = [10000, 1000, 100, 10, 1];
 
-pub mod text {
+export namespace text {
     const CELL_COUNT: usmallint = 4256; // 76 columns x 56 rows — text.8bs's own inset grid
     const COLUMNS: utinyint = 76;
     const ROWS: utinyint = 56;
 
-    fn columns() -> utinyint {
-        return text::COLUMNS;
+    function columns(): utinyint {
+        return text.COLUMNS;
     }
 
-    fn rows() -> utinyint {
-        return text::ROWS;
+    function rows(): utinyint {
+        return text.ROWS;
     }
 
-    fn putChar(cell: usmallint, code: utinyint) {
+    function putChar(cell: usmallint, code: utinyint): void {
         putCell(cell, code);
     }
 
-    fn putColor(cell: usmallint, color: utinyint) {
-        memory::write(COLOR_BASE + cell, memory::read(COLOR_BASE + cell) & 128 | color & 0x0F);
+    function putColor(cell: usmallint, color: utinyint): void {
+        memory.write(COLOR_BASE + cell, (memory.read(COLOR_BASE + cell) & 128) | (color & 0x0F));
     }
 
-    fn setColor(color: utinyint) {
+    function setColor(color: utinyint): void {
         currentColor = color;
     }
 
-    fn setReverse(on: bool) {
+    function setReverse(on: bool): void {
         currentReverse = on;
     }
 
@@ -87,38 +87,38 @@ pub mod text {
     // never returns to a BASIC prompt, so there is no next PRINT for the
     // real releaseCursor() (itself empty for now — see text.8bs's own
     // header) to matter to here either.
-    fn releaseCursor() {
+    function releaseCursor(): void {
     }
 
-    fn print(cell: usmallint, s: string) {
-        for i: utinyint in 0..s.length {
+    function print(cell: usmallint, s: string): void {
+        for (let i: utinyint = 0; i < s.length; i++) {
             putCell(cell + i, s[i]);
         }
     }
 
-    fn fill(cell: usmallint, count: usmallint, code: utinyint) {
-        for i: usmallint in 0..count {
+    function fill(cell: usmallint, count: usmallint, code: utinyint): void {
+        for (let i: usmallint = 0; i < count; i++) {
             putCell(cell + i, code);
         }
     }
 
-    fn printNumber(cell: usmallint, value: usmallint, width: utinyint) {
-        let mut k: utinyint = width;
-        if k < DIGIT_PLACES.length {
+    function printNumber(cell: usmallint, value: usmallint, width: utinyint): void {
+        let k: utinyint = width;
+        if (k < DIGIT_PLACES.length) {
             k = DIGIT_PLACES.length;
         }
-        while k > 0 {
-            let mut digit: utinyint = 48; // '0'
-            if k <= DIGIT_PLACES.length {
-                while value >= DIGIT_PLACES[DIGIT_PLACES.length - k] {
+        while (k > 0) {
+            let digit: utinyint = 48; // '0'
+            if (k <= DIGIT_PLACES.length) {
+                while (value >= DIGIT_PLACES[DIGIT_PLACES.length - k]) {
                     value = value - DIGIT_PLACES[DIGIT_PLACES.length - k];
-                    digit += 1;
+                    digit++;
                 }
             }
-            if k <= width {
+            if (k <= width) {
                 putCell(cell + width - k, digit);
             }
-            k -= 1;
+            k--;
         }
     }
 }
@@ -126,7 +126,7 @@ pub mod text {
 // The colors `text.setColor()` takes: the eight names every machine
 // shares, with this machine's color-RAM values — same numbers as
 // text.8bs's own TextColor, unchanged by this twin.
-pub mod TextColor {
+export namespace TextColor {
     const BLACK: utinyint = 0;
     const WHITE: utinyint = 1;
     const RED: utinyint = 2;

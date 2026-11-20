@@ -27,7 +27,7 @@
 // numbering as this file); packages/compiler/test/c64-keys.test.mjs repeats
 // that check when the file is present.
 
-pub mod Key {
+export namespace Key {
     // column 0
     const DELETE: utinyint = 0; // INST/DEL
     const RETURN: utinyint = 1;

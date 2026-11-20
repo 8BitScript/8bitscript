@@ -26,10 +26,12 @@
 
 // $D020, the VIC-IIe border color register — same address, same meaning
 // as the C64's.
-#[address(0xD020)] pub let mut borderColor: volatile<u8>;
+@address(0xD020)
+export let borderColor: volatile<u8>;
 
 // $D021, the VIC-IIe background color register (background #0).
-#[address(0xD021)] pub let mut backgroundColor: volatile<u8>;
+@address(0xD021)
+export let backgroundColor: volatile<u8>;
 
 // ---- VIC-IIe sprites ($D000) ----------------------------------------------
 //
@@ -40,38 +42,48 @@
 
 // $D000-$D00F: sprite n's X at 2*n, Y at 2*n+1. X is nine bits; the
 // ninth of each is a bit of $D010.
-#[address(0xD000)] pub let mut spritePositions: [u8; 16];
+@address(0xD000)
+export let spritePositions: array<u8, 16>;
 
-#[address(0xD010)] pub let mut spriteXHigh: volatile<u8>;
+@address(0xD010)
+export let spriteXHigh: volatile<u8>;
 
 // $D015, one enable bit per sprite.
-#[address(0xD015)] pub let mut spriteEnable: volatile<u8>;
+@address(0xD015)
+export let spriteEnable: volatile<u8>;
 
 // $D017 / $D01D, one bit per sprite: twice as tall / twice as wide.
-#[address(0xD017)] pub let mut spriteExpandY: volatile<u8>;
-#[address(0xD01D)] pub let mut spriteExpandX: volatile<u8>;
+@address(0xD017)
+export let spriteExpandY: volatile<u8>;
+@address(0xD01D)
+export let spriteExpandX: volatile<u8>;
 
 // $D01B, 1 = drawn behind the background's foreground pixels.
-#[address(0xD01B)] pub let mut spritePriority: volatile<u8>;
+@address(0xD01B)
+export let spritePriority: volatile<u8>;
 
 // $D01C, one bit per sprite: multicolor.
-#[address(0xD01C)] pub let mut spriteMulticolor: volatile<u8>;
+@address(0xD01C)
+export let spriteMulticolor: volatile<u8>;
 
 // $D027-$D02E, each sprite's own color. Low four bits.
-#[address(0xD027)] pub let mut spriteColors: [u8; 8];
+@address(0xD027)
+export let spriteColors: array<u8, 8>;
 
 // $D018, the VIC-IIe's memory pointer, laid out as the C64's: $14 is
 // screen $0400 and the upper-case/graphics set at $1000 (the C128 KERNAL's
 // reset value — it leaves bit 0 clear where the C64's leaves it set; the
 // VIC ignores that bit either way), $16 the lower-case set at $1800.
-#[address(0xD018)] pub let mut memoryPointer: volatile<u8>;
+@address(0xD018)
+export let memoryPointer: volatile<u8>;
 
 // $0A2C, VM1: the C128 KERNAL's SHADOW of $D018, which the screen editor's
 // IRQ routine copies back over the register every interrupt while in text
 // mode — so writing the register alone lasts until the next IRQ, and a
 // caller writes the shadow first, the same class of problem
 // @8bitscript/atari8 documents for GTIA's color registers.
-#[address(0x0A2C)] pub let mut memoryPointerShadow: volatile<u8>;
+@address(0x0A2C)
+export let memoryPointerShadow: volatile<u8>;
 
 // ---- SID ($D400) -----------------------------------------------------------
 //
@@ -89,16 +101,21 @@
 // does not touch these registers — its work is the keyboard, the jiffy
 // clock and the VIC's shadows — so a program owns the SID without having
 // to take the interrupt over first.
-#[address(0xD400)] pub let mut sidRegisters: [u8; 25];
+@address(0xD400)
+export let sidRegisters: array<u8, 25>;
 
 // $D419 / $D41A, the two paddle A/D converters, which are also the lines a
 // 1351 mouse reports its movement on. $D41B / $D41C, voice 3's oscillator
 // and envelope — the only readable outputs the chip has, and the hardware
 // entropy the root AGENTS.md wants kept out of the deterministic PRNG.
-#[address(0xD419)] pub let mut paddleX: volatile<u8>;
-#[address(0xD41A)] pub let mut paddleY: volatile<u8>;
-#[address(0xD41B)] pub let mut voice3Oscillator: volatile<u8>;
-#[address(0xD41C)] pub let mut voice3Envelope: volatile<u8>;
+@address(0xD419)
+export let paddleX: volatile<u8>;
+@address(0xD41A)
+export let paddleY: volatile<u8>;
+@address(0xD41B)
+export let voice3Oscillator: volatile<u8>;
+@address(0xD41C)
+export let voice3Envelope: volatile<u8>;
 
 // ---- which machine this is -------------------------------------------------
 //
@@ -109,18 +126,19 @@
 // rather than shared. Anything whose units are the CPU clock needs it —
 // the SID's pitch above all, since a note's frequency register is
 // `f * 2^24 / clock` and the two clocks differ by 3.8 percent.
-#[address(0x0A03)] pub let mut palFlag: volatile<u8>;
+@address(0x0A03)
+export let palFlag: volatile<u8>;
 
-pub mod Region {
+export namespace Region {
     const PAL: utinyint = 0;
     const NTSC: utinyint = 1;
 }
 
-pub fn detectRegion() -> utinyint {
-    if palFlag != 0 {
-        return Region::PAL;
+export function detectRegion(): utinyint {
+    if (palFlag != 0) {
+        return Region.PAL;
     }
-    return Region::NTSC;
+    return Region.NTSC;
 }
 
 // ---- CIA1 ($DC00): the keyboard matrix and the two control ports ------------
@@ -135,12 +153,17 @@ pub fn detectRegion() -> utinyint {
 // through this same port B. `@8bitscript/c128/input` reads the C64-shaped
 // matrix and the dedicated cursor keys on K2; the rest of $D02F (keypad,
 // HELP, ALT, …) is still unread.
-#[address(0xDC00)] pub let mut cia1PortA: volatile<u8>;
-#[address(0xDC01)] pub let mut cia1PortB: volatile<u8>;
-#[address(0xDC02)] pub let mut cia1DirectionA: volatile<u8>;
-#[address(0xDC03)] pub let mut cia1DirectionB: volatile<u8>;
+@address(0xDC00)
+export let cia1PortA: volatile<u8>;
+@address(0xDC01)
+export let cia1PortB: volatile<u8>;
+@address(0xDC02)
+export let cia1DirectionA: volatile<u8>;
+@address(0xDC03)
+export let cia1DirectionB: volatile<u8>;
 
 // The VIC-IIe's extra keyboard column lines, K0-K2 in bits 0-2: drive one
 // low and port B above reads that extra column's keys. $FF selects none,
 // which is the state the C64-compatible scan needs.
-#[address(0xD02F)] pub let mut extraKeyboardLines: volatile<u8>;
+@address(0xD02F)
+export let extraKeyboardLines: volatile<u8>;

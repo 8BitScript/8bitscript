@@ -36,11 +36,11 @@ sprite player {
 and NTSC. The program imports the logical id:
 
 ```8bs
-use self::player::player;
-use @8bitscript::graphics::graphics;
+import { player } from "./player.8bg";
+import { graphics } from "@8bitscript/graphics";
 
-graphics::place(player, x, y);
-graphics::update();
+graphics.place(player, x, y);
+graphics.update();
 ```
 
 `graphics.update()` once a frame advances the animation and draws. Same
@@ -71,14 +71,14 @@ probe that reads every constant and calls every operation on all
 thirty-two targets to hold that.
 
 ```8bs
-use @8bitscript::graphics::graphics;
+import { graphics } from "@8bitscript/graphics";
 
-graphics::place(hero, 40, 80); // stage pixels, the same on every machine
-if graphics::RECOLORS { // folds away where false: costs that machine nothing
-    graphics::color(hero, 2);
+graphics.place(hero, 40, 80);            // stage pixels, the same on every machine
+if (graphics.RECOLORS) {                 // folds away where false: costs that machine nothing
+    graphics.color(hero, 2);
 }
-if graphics::FRAMES >= 4 {
-    graphics::setFrame(hero, 3);
+if (graphics.FRAMES >= 4) {
+    graphics.setFrame(hero, 3);
 }
 ```
 

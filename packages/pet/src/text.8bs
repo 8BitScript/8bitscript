@@ -10,8 +10,8 @@
 // namespace — the same names, the same shapes, ASCII codes, and a cell 0
 // at the top-left corner of the screen — so a program that imports it from
 // @8bitscript/text draws the same thing on every target.
-use self::index::viaPeripheralControl;
-use self::geometry::Video;
+import { viaPeripheralControl } from "./index.8bs";
+import { Video } from "./geometry.8bs";
 
 // PET screen memory is at $8000 on every model: 1000 cells for the 40x25
 // display of the 2001/3xxx/4xxx machines, 2000 for the 80x25 of the 8032 —
@@ -98,29 +98,29 @@ use self::geometry::Video;
 // model, the mapping below reads it: on a 2001 `"Hello World"` needs the
 // swapped halves, and encoding it the later ROM's way would draw the
 // mirror of what was asked for.
-mod CharacterSet {
+namespace CharacterSet {
     // $0E, the text set: both cases of the alphabet. $0C is the
     // graphics set, which is what most models power on into.
     const TEXT: utinyint = 0x0E;
 }
 
-fn asciiToScreenCode(code: utinyint) -> utinyint {
-    if #fact(video::characterSetSwapped) {
+function asciiToScreenCode(code: utinyint): utinyint {
+    if (#fact(video.characterSetSwapped)) {
         // The original 2001's text set: upper case stayed at 1-26 and
         // lower case moved to 65-90. Verified glyph by glyph against
         // characters-1.901447-08.bin — code 8 is 'H' on this ROM where it
         // is 'h' on every later one.
-        if code >= 65 && code < 91 {
+        if (code >= 65 && code < 91) {
             return code - 64; // 'A'-'Z': this ROM keeps upper case at 1-26
         }
-        if code >= 97 && code < 123 {
+        if (code >= 97 && code < 123) {
             return code - 32; // 'a'-'z': moved to 65-90 instead, on this ROM only
         }
         return code; // space, digits, punctuation: unchanged in either set
     }
     // Every later model's text set (901447-10): lower case at 1-26, upper
     // case already sitting at its own ASCII values, 65-90.
-    if code >= 97 && code < 123 {
+    if (code >= 97 && code < 123) {
         return code - 96; // 'a'-'z': the text set's lower case lives at 1-26
     }
     return code; // 'A'-'Z' already, plus space, digits and punctuation
@@ -132,11 +132,11 @@ fn asciiToScreenCode(code: utinyint) -> utinyint {
 // folds at build time), so on that machine this writes nothing — and with
 // no store to $E84C anywhere in the finished program, `usesCharacterSet`
 // stays false and the 8032 pays for neither the select nor the restore.
-fn prepare() {
-    if #fact(video::bootsInTextMode) {
+function prepare(): void {
+    if (#fact(video.bootsInTextMode)) {
         return;
     }
-    viaPeripheralControl = CharacterSet::TEXT;
+    viaPeripheralControl = CharacterSet.TEXT;
 }
 
 // ---- print: strings and number fields ------------------------------------
@@ -157,20 +157,20 @@ fn prepare() {
 // selecting the text character set once for the run.
 // `text.putChar` and `text.putColor` stay the one-cell pokes a caller can
 // build anything from.
-let mut currentReverse: bool = false; // until text.setReverse() says otherwise
+let currentReverse: bool = false; // until text.setReverse() says otherwise
 
 // Reverse video is bit 7 of the screen code: 128-255 are the ROM's
 // inverted copies of 0-127. A reverse space is a solid block.
-fn toScreen(code: utinyint) -> utinyint {
-    let mut screen: utinyint = asciiToScreenCode(code);
-    if currentReverse {
+function toScreen(code: utinyint): utinyint {
+    let screen: utinyint = asciiToScreenCode(code);
+    if (currentReverse) {
         screen = screen + 128;
     }
     return screen;
 }
 
-fn place(cell: usmallint, code: utinyint) {
-    memory::write(0x8000 + cell, toScreen(code));
+function place(cell: usmallint, code: utinyint): void {
+    memory.write(0x8000 + cell, toScreen(code));
 }
 
 // ---- digits -------------------------------------------------------------
@@ -180,40 +180,41 @@ fn place(cell: usmallint, code: utinyint) {
 // and `value / 10` would link a 250-byte routine to do it. Places above the
 // field are still taken off, so a field narrower than its number shows the
 // low digits; places the number does not reach print as zeros.
-const DIGIT_PLACES: [usmallint; 5] = [10000, 1000, 100, 10, 1];
+const DIGIT_PLACES: array<usmallint, 5> = [10000, 1000, 100, 10, 1];
 
-pub mod text {
-    const CELL_COUNT: usmallint = Video::CELL_COUNT; // 40 x 25, or 80 x 25 on the 8032 profile
-    const COLUMNS: utinyint = Video::COLUMNS; // cells per row, so cell = y * text.COLUMNS + x
-    const ROWS: utinyint = Video::ROWS;
+export namespace text {
+    const CELL_COUNT: usmallint = Video.CELL_COUNT; // 40 x 25, or 80 x 25 on the 8032 profile
+    const COLUMNS: utinyint = Video.COLUMNS; // cells per row, so cell = y * text.COLUMNS + x
+    const ROWS: utinyint = Video.ROWS;
 
     // The live grid. Fixed on this machine — its screen is the size its video
     // chip makes it — so both fold to the constants above and cost nothing.
     // Here so a program that lays itself out from the grid it is actually on
     // runs unchanged on every target; see the web target's Modern host, the
     // one grid that does change.
-    fn columns() -> utinyint {
-        return text::COLUMNS;
+    function columns(): utinyint {
+        return text.COLUMNS;
     }
 
-    fn rows() -> utinyint {
-        return text::ROWS;
+    function rows(): utinyint {
+        return text.ROWS;
     }
 
-    fn putChar(cell: usmallint, code: utinyint) {
+
+    function putChar(cell: usmallint, code: utinyint): void {
         prepare();
-        memory::write(0x8000 + cell, toScreen(code));
+        memory.write(0x8000 + cell, toScreen(code));
     }
 
-    fn putColor(cell: usmallint, color: utinyint) {
+    function putColor(cell: usmallint, color: utinyint): void {
         // Deliberately empty — the PET has no color RAM.
     }
 
-    fn setColor(color: utinyint) {
+    function setColor(color: utinyint): void {
         // Deliberately empty — the PET has no color RAM.
     }
 
-    fn setReverse(on: bool) {
+    function setReverse(on: bool): void {
         currentReverse = on;
     }
 
@@ -240,15 +241,15 @@ pub mod text {
     // included (packages/compiler/src/mos's PET_ZP_BUDGET). Left as a
     // no-op rather than shipping a fix that, measured, does not fix this
     // and would now be reverted on the way out besides.
-    fn releaseCursor() {
+    function releaseCursor(): void {
     }
 
     // Writes `s`'s characters into consecutive cells starting at `cell`, in
     // the current color — `text.setColor(...)` changes what gets printed
     // after it, not what is already on screen.
-    fn print(cell: usmallint, s: string) {
+    function print(cell: usmallint, s: string): void {
         prepare();
-        for i: utinyint in 0..s.length {
+        for (let i: utinyint = 0; i < s.length; i++) {
             place(cell + i, s[i]);
         }
     }
@@ -258,9 +259,9 @@ pub mod text {
     // built at run time — it cannot, so a layout whose width is only known
     // while the program runs (a responsive tile, a panel being cleared) needs
     // this instead of a string constant per possible width.
-    fn fill(cell: usmallint, count: usmallint, code: utinyint) {
+    function fill(cell: usmallint, count: usmallint, code: utinyint): void {
         prepare();
-        for i: usmallint in 0..count {
+        for (let i: usmallint = 0; i < count; i++) {
             place(cell + i, code);
         }
     }
@@ -268,24 +269,24 @@ pub mod text {
     // Writes `value` as exactly `width` decimal digits, zero-padded and
     // right-aligned, starting at `cell` — a field on a HUD never shifts
     // columns as the number changes.
-    fn printNumber(cell: usmallint, value: usmallint, width: utinyint) {
+    function printNumber(cell: usmallint, value: usmallint, width: utinyint): void {
         prepare();
-        let mut k: utinyint = width;
-        if k < DIGIT_PLACES.length {
+        let k: utinyint = width;
+        if (k < DIGIT_PLACES.length) {
             k = DIGIT_PLACES.length;
         }
-        while k > 0 {
-            let mut digit: utinyint = 48; // '0'
-            if k <= DIGIT_PLACES.length {
-                while value >= DIGIT_PLACES[DIGIT_PLACES.length - k] {
+        while (k > 0) {
+            let digit: utinyint = 48; // '0'
+            if (k <= DIGIT_PLACES.length) {
+                while (value >= DIGIT_PLACES[DIGIT_PLACES.length - k]) {
                     value = value - DIGIT_PLACES[DIGIT_PLACES.length - k];
-                    digit += 1;
+                    digit++;
                 }
             }
-            if k <= width {
+            if (k <= width) {
                 place(cell + width - k, digit);
             }
-            k -= 1;
+            k--;
         }
     }
 }
@@ -293,7 +294,7 @@ pub mod text {
 // The colors `text.setColor()` takes. The PET has no color RAM, so the
 // names are here for a program that compiles everywhere and their values
 // go nowhere.
-pub mod TextColor {
+export namespace TextColor {
     const BLACK: utinyint = 0;
     const WHITE: utinyint = 1;
     const RED: utinyint = 2;

@@ -35,24 +35,24 @@
 // every line whose low three bits equal YSCROLL, so a raster list's timing
 // (@8bitscript/c64/raster) shifts with it. Reads of the screen work
 // because the KERNAL is banked out (./index.8bs, setupVideo).
-use self::index::{control1, control2, setupVideo};
-use self::geometry::{Video, screenRam, colorRam};
+import { control1, control2, setupVideo } from "./index.8bs";
+import { Video, screenRam, colorRam } from "./geometry.8bs";
 
-pub mod scroll {
+export namespace scroll {
     // Horizontal fine scroll, 0-7 pixels right.
-    fn setX(pixels: utinyint) {
-        control2 = control2 & 0xF8 | pixels & 7;
+    function setX(pixels: utinyint): void {
+        control2 = (control2 & 0xF8) | (pixels & 7);
     }
 
     // Vertical fine scroll, 0-7 pixels down; 3 is the default position.
     // Bit 7 — the raster compare's ninth bit on a write — is kept clear.
-    fn setY(pixels: utinyint) {
-        control1 = control1 & 0x78 | pixels & 7;
+    function setY(pixels: utinyint): void {
+        control1 = (control1 & 0x78) | (pixels & 7);
     }
 
     // 38 columns (true) or 40: the border covers half a cell at each side.
-    fn setNarrow(on: bool) {
-        if on {
+    function setNarrow(on: bool): void {
+        if (on) {
             control2 = control2 & 0xF7;
         } else {
             control2 = control2 | 0x08;
@@ -60,20 +60,20 @@ pub mod scroll {
     }
 
     // 24 rows (true) or 25: the border covers half a cell top and bottom.
-    fn setShort(on: bool) {
-        if on {
+    function setShort(on: bool): void {
+        if (on) {
             control1 = control1 & 0x77;
         } else {
-            control1 = control1 & 0x7F | 0x08;
+            control1 = (control1 & 0x7F) | 0x08;
         }
     }
 
     // Every cell moves one column left; column 39 becomes `code` in `color`.
-    fn shiftLeft(code: utinyint, color: utinyint) {
+    function shiftLeft(code: utinyint, color: utinyint): void {
         setupVideo();
-        let mut cell: usmallint = 0;
-        for row: utinyint in 0..Video::ROWS {
-            for column: utinyint in 0..39 {
+        let cell: usmallint = 0;
+        for (let row: utinyint = 0; row < Video.ROWS; row++) {
+            for (let column: utinyint = 0; column < 39; column++) {
                 screenRam[cell] = screenRam[cell + 1];
                 colorRam[cell] = colorRam[cell + 1];
                 cell = cell + 1;
@@ -85,11 +85,11 @@ pub mod scroll {
     }
 
     // Every cell moves one column right; column 0 becomes `code` in `color`.
-    fn shiftRight(code: utinyint, color: utinyint) {
+    function shiftRight(code: utinyint, color: utinyint): void {
         setupVideo();
-        let mut cell: usmallint = Video::CELL_COUNT - 1;
-        for row: utinyint in 0..Video::ROWS {
-            for column: utinyint in 0..39 {
+        let cell: usmallint = Video.CELL_COUNT - 1;
+        for (let row: utinyint = 0; row < Video.ROWS; row++) {
+            for (let column: utinyint = 0; column < 39; column++) {
                 screenRam[cell] = screenRam[cell - 1];
                 colorRam[cell] = colorRam[cell - 1];
                 cell = cell - 1;
@@ -101,28 +101,28 @@ pub mod scroll {
     }
 
     // Every row moves up one; row 24 becomes `code` in `color`.
-    fn shiftUp(code: utinyint, color: utinyint) {
+    function shiftUp(code: utinyint, color: utinyint): void {
         setupVideo();
-        for cell: usmallint in 0..960 {
+        for (let cell: usmallint = 0; cell < 960; cell++) {
             screenRam[cell] = screenRam[cell + 40];
             colorRam[cell] = colorRam[cell + 40];
         }
-        for cell: usmallint in 960..Video::CELL_COUNT {
+        for (let cell: usmallint = 960; cell < Video.CELL_COUNT; cell++) {
             screenRam[cell] = code;
             colorRam[cell] = color;
         }
     }
 
     // Every row moves down one; row 0 becomes `code` in `color`.
-    fn shiftDown(code: utinyint, color: utinyint) {
+    function shiftDown(code: utinyint, color: utinyint): void {
         setupVideo();
-        let mut cell: usmallint = Video::CELL_COUNT - 1;
-        while cell >= 40 {
+        let cell: usmallint = Video.CELL_COUNT - 1;
+        while (cell >= 40) {
             screenRam[cell] = screenRam[cell - 40];
             colorRam[cell] = colorRam[cell - 40];
             cell = cell - 1;
         }
-        for first: utinyint in 0..40 {
+        for (let first: utinyint = 0; first < 40; first++) {
             screenRam[first] = code;
             colorRam[first] = color;
         }

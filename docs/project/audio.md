@@ -49,12 +49,12 @@ in-process (`@8bitscript/audio-tools`); FLAC goes through FFmpeg, which
 missing FFmpeg fails a FLAC source with `8BS2213` and leaves WAV working.
 
 ```8bs
-use self::theme::{blip, theme};
-use @8bitscript::audio::audio;
+import { blip, theme } from "./theme.8ba";
+import { audio } from "@8bitscript/audio";
 
-audio::play(blip);
-audio::music(theme);
-audio::update();
+audio.play(blip);
+audio.music(theme);
+audio.update();
 ```
 
 `audio.update()` once a frame steps the song.
@@ -78,14 +78,14 @@ speed in frames a row, and rows that start notes. The drivers play it a frame at
 `audio.update()`.
 
 ```8bs
-use self::sounds::{win, theme};
-use @8bitscript::audio::audio;
+import { win, theme } from "./sounds.8ba";
+import { audio } from "@8bitscript/audio";
 
-audio::play(win); // once, from its first row to its last, then silent
-audio::music(theme); // for ever, if its file says `loop true` (the default)
-audio::update(); // once a frame
-audio::busy(); // true while a song (its rests too) or a tone is sounding
-audio::silence(); // stop everything now
+audio.play(win);      // once, from its first row to its last, then silent
+audio.music(theme);   // for ever, if its file says `loop true` (the default)
+audio.update();       // once a frame
+audio.busy();         // true while a song (its rests too) or a tone is sounding
+audio.silence();      // stop everything now
 ```
 
 - **Rows and speed.** A song is `rows` rows of `speed` frames. A note starts on its row, sounds
@@ -118,11 +118,11 @@ A game's blips (a reel tick, a win jingle) do not need a `.8ba` file. The
 same package plays one tone, and a game strings tones into a jingle:
 
 ```8bs
-use @8bitscript::audio::audio;
+import { audio } from "@8bitscript/audio";
 
-audio::tone(57, 30); // A4 for thirty calls of update()
-audio::update(); // once a frame; counts the tone down, then silence
-audio::silence(); // stop now
+audio.tone(57, 30);   // A4 for thirty calls of update()
+audio.update();       // once a frame; counts the tone down, then silence
+audio.silence();      // stop now
 ```
 
 `note` is the `.8ba` index, `octave * 12 + semitone` with C0 = 0 and A4 = 57
@@ -172,9 +172,9 @@ A game that plays a sound many times a second wants it quiet and short, and a
 tone that is not told to stop must not drone. Two more calls and a constant:
 
 ```8bs
-audio::setLevel(6); // the volume every tone, blip and song plays at: 0 (silent) .. audio.LEVEL_MAX
-audio::blip(48, 3); // a plucked tone: starts at the level and dies away within 3 frames
-audio::tone(57, 30); // a plain tone holds its level for its frames
+audio.setLevel(6);      // the volume every tone, blip and song plays at: 0 (silent) .. audio.LEVEL_MAX
+audio.blip(48, 3);      // a plucked tone: starts at the level and dies away within 3 frames
+audio.tone(57, 30);     // a plain tone holds its level for its frames
 ```
 
 `audio.LEVEL_MAX` is the loudest level the machine takes: 15 on the C64, VIC-20,

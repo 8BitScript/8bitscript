@@ -1,19 +1,19 @@
 // Every call @8bitscript/random/table offers, plus the default generator
 // alongside it in the same file — proof the package's bare entry and its
 // "./table" subpath resolve together, not just each on its own.
-use super::src::index::random;
-use super::src::table::table;
+import { random } from "../src/index.8bs";
+import { table } from "../src/table.8bs";
 
-let mut picked: utinyint = 0;
+let picked: utinyint = 0;
 
-pub fn main() {
-    random::seed(1);
-    picked = random::range(6);
-    picked = random::bits(3);
+export function main(): void {
+    random.seed(1);
+    picked = random.range(6);
+    picked = random.bits(3);
 
-    table::seed(37);
-    picked = table::next();
-    picked = table::range(6);
-    picked = table::bits(3);
-    picked = table::at(0);
+    table.seed(37);
+    picked = table.next();
+    picked = table.range(6);
+    picked = table.bits(3);
+    picked = table.at(0);
 }

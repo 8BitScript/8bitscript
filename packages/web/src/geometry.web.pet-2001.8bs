@@ -2,7 +2,7 @@
 // hardware tag is `pet-2001`. Facts come from @8bitscript/pet (40×25, no
 // per-cell color); the host paints green-on-black. See geometry.8bs.
 
-pub mod Video {
+export namespace Video {
     const COLUMNS: utinyint = 40;
     const ROWS: utinyint = 25;
     const CELL_COUNT: usmallint = 1000;
@@ -39,15 +39,15 @@ pub mod Video {
     // not change. Both fold, so a program that asks costs nothing for asking.
     const RESIZABLE: bool = false;
 
-    fn columns() -> utinyint {
-        return Video::COLUMNS;
+    function columns(): utinyint {
+        return Video.COLUMNS;
     }
 
-    fn rows() -> utinyint {
-        return Video::ROWS;
+    function rows(): utinyint {
+        return Video.ROWS;
     }
 
-    fn cells() -> usmallint {
-        return Video::CELL_COUNT;
+    function cells(): usmallint {
+        return Video.CELL_COUNT;
     }
 }

@@ -7,36 +7,36 @@
 // walked — nothing of the mover left behind, no hole in the standers.
 // Row 13 carries the same text and nobody walks on it: the reference
 // rows 10 and 11 must match, pixel for pixel, outside the standers.
-use @8bitscript::screen::screen;
-use @8bitscript::text::text;
-use super::src::index::sprites;
+import { screen } from "@8bitscript/screen";
+import { text } from "@8bitscript/text";
+import { sprites } from "../src/index.8bs";
 
-let mut step: utinyint = 0;
+let step: utinyint = 0;
 
-pub fn main() {
-    screen::blank();
-    text::print(400, "ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMN");
-    text::print(440, "ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMN");
-    text::print(520, "ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMN"); // row 13: the reference
-    sprites::defineShape(1, 6, 9, 9, 6);
-    sprites::begin(3);
-    sprites::setShape(0, 1);
-    sprites::setShape(1, 1);
-    sprites::setShape(2, 0);
-    sprites::place(0, 80, 80); // cells 10-11, rows 10-11: over the text
-    sprites::place(2, 84, 84); // straddling: cells 10-12, rows 10-12
-    sprites::place(1, 0, 84);
-    sprites::update();
-    loop {
+export function main(): void {
+    screen.blank();
+    text.print(400, "ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMN");
+    text.print(440, "ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMN");
+    text.print(520, "ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMN"); // row 13: the reference
+    sprites.defineShape(1, 6, 9, 9, 6);
+    sprites.begin(3);
+    sprites.setShape(0, 1);
+    sprites.setShape(1, 1);
+    sprites.setShape(2, 0);
+    sprites.place(0, 80, 80);   // cells 10-11, rows 10-11: over the text
+    sprites.place(2, 84, 84);   // straddling: cells 10-12, rows 10-12
+    sprites.place(1, 0, 84);
+    sprites.update();
+    while (true) {
         waitFrame();
-        if step < 60 {
+        if (step < 60) {
             step = step + 1;
             let x: usmallint = step;
-            sprites::place(1, x * 4, 84);
-        } else if step == 60 {
+            sprites.place(1, x * 4, 84);
+        } else if (step == 60) {
             step = 61;
-            sprites::hide(1);
+            sprites.hide(1);
         }
-        sprites::update();
+        sprites.update();
     }
 }

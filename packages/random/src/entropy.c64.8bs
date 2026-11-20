@@ -18,22 +18,22 @@
 // back. It has to run before anything else touches the chip, which for a
 // program means the first statement of main(). A program that also plays
 // sound has to read that module's header, not just add notes.
-use @8bitscript::c64::random::random;
+import { random } from "@8bitscript/c64/random";
 
-pub mod entropy {
+export namespace entropy {
     // Fastest-clocked noise on voice 3, silenced. First thing main() does.
-    fn begin() {
-        random::begin();
+    function begin(): void {
+        random.begin();
     }
 
     // Nothing to step: the oscillator runs whether or not the program is
     // looking at it, which is the whole reason this twin is cheaper.
-    fn tick() {
+    function tick(): void {
     }
 
     // One byte from the oscillator, 0-255.
-    fn next() -> utinyint {
-        return random::byte();
+    function next(): utinyint {
+        return random.byte();
     }
 
     // Exactly uniform over the oscillator's bytes: the incomplete last
@@ -41,12 +41,12 @@ pub mod entropy {
     // why). Reads a few cycles apart are not independent samples of the
     // noise — this is entropy for a seed or a shuffle, not a source of
     // statistics — but no outcome is favoured by the arithmetic.
-    fn range(bound: utinyint) -> utinyint {
+    function range(bound: utinyint): utinyint {
         let limit: utinyint = 0 - bound;
-        let mut value: utinyint = random::byte();
-        let mut rest: utinyint = value % bound;
-        while value - rest > limit {
-            value = random::byte();
+        let value: utinyint = random.byte();
+        let rest: utinyint = value % bound;
+        while (value - rest > limit) {
+            value = random.byte();
             rest = value % bound;
         }
         return rest;
@@ -54,9 +54,9 @@ pub mod entropy {
 
     // The top `count` bits of one oscillator byte (1 to 8): a value from 0
     // up to 2^count, no rejection.
-    fn bits(count: utinyint) -> utinyint {
-        let mut value: utinyint = random::byte();
-        for i: utinyint in count..8 {
+    function bits(count: utinyint): utinyint {
+        let value: utinyint = random.byte();
+        for (let i: utinyint = count; i < 8; i++) {
             value = value >> 1;
         }
         return value;

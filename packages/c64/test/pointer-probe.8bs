@@ -19,69 +19,72 @@
 // frame the pointer layer drew it. Presence is now decided once in
 // `mouse.poll()` and kept, and these two columns are what says it stayed
 // that way. See packages/pointer/AGENTS.md.
-use super::src::screen::{screen, BorderColor, BackgroundColor};
-use super::src::text::{text, TextColor};
-use super::src::pointer::pointer;
-use super::src::mouse::mouse;
-use super::src::input::input;
-use super::src::index::{spriteEnable, spriteMulticolor, spriteExpandX, spriteExpandY, spritePriority, spriteXHigh, spriteColors, spritePositions};
-use super::src::geometry::spritePointers;
+import { screen, BorderColor, BackgroundColor } from "../src/screen.8bs";
+import { text, TextColor } from "../src/text.8bs";
+import { pointer } from "../src/pointer.8bs";
+import { mouse } from "../src/mouse.8bs";
+import { input } from "../src/input.8bs";
+import {
+    spriteEnable, spriteMulticolor, spriteExpandX, spriteExpandY,
+    spritePriority, spriteXHigh, spriteColors, spritePositions,
+} from "../src/index.8bs";
+import { spritePointers } from "../src/geometry.8bs";
 
-const ROW: usmallint = text::COLUMNS;
+const ROW: usmallint = text.COLUMNS;
 
-pub fn main() {
-    screen::blank(BorderColor::BLUE, BackgroundColor::BLACK);
-    text::setColor(TextColor::WHITE);
+export function main(): void {
+    screen.blank(BorderColor.BLUE, BackgroundColor.BLACK);
+    text.setColor(TextColor.WHITE);
 
     // The opening sequence a program using both packages writes, in that
     // order: the input layer claims the port, then the arrow.
-    input::begin();
-    pointer::begin();
+    input.begin();
+    pointer.begin();
 
-    text::print(0, "POINTER PROBE");
+    text.print(0, "POINTER PROBE");
 
-    loop {
+    while (true) {
         waitFrame();
 
         // The whole input layer, the way a program runs it — keyboard and
         // joystick scans included, because those drive the same CIA port
         // the pot lines are selected with.
-        input::poll();
+        input.poll();
 
         // What the input layer concluded during that poll.
-        let mut byInput: utinyint = 0;
-        if input::pointer() {
+        let byInput: utinyint = 0;
+        if (input.pointer()) {
             byInput = 1;
         }
 
         // And what the pointer layer sees when it asks the same question a
         // moment later in the same frame. These must match.
-        let mut byPointer: utinyint = 0;
-        if mouse::present() {
+        let byPointer: utinyint = 0;
+        if (mouse.present()) {
             byPointer = 1;
         }
 
-        pointer::update();
+        pointer.update();
 
-        let mut at: usmallint = ROW + ROW;
-        text::print(at, `INPUT ${byInput:1} POINTERSEES ${byPointer:1}`);
+        let at: usmallint = ROW + ROW;
+        text.print(at, `INPUT ${byInput:1} POINTERSEES ${byPointer:1}`);
         at = at + ROW;
-        text::print(at, `MOUSE X ${mouse::x():5} Y ${mouse::y():5}`);
+        text.print(at, `MOUSE X ${mouse.x():5} Y ${mouse.y():5}`);
         at = at + ROW;
-        text::print(at, `ENABLE  ${spriteEnable:3}`);
+        text.print(at, `ENABLE  ${spriteEnable:3}`);
         at = at + ROW;
-        text::print(at, `MULTI   ${spriteMulticolor:3}`);
+        text.print(at, `MULTI   ${spriteMulticolor:3}`);
         at = at + ROW;
-        text::print(at, `EXPANDX ${spriteExpandX:3} Y ${spriteExpandY:3}`);
+        text.print(at, `EXPANDX ${spriteExpandX:3} Y ${spriteExpandY:3}`);
         at = at + ROW;
-        text::print(at, `BEHIND  ${spritePriority:3}`);
+        text.print(at, `BEHIND  ${spritePriority:3}`);
         at = at + ROW;
-        text::print(at, `XHIGH   ${spriteXHigh:3}`);
+        text.print(at, `XHIGH   ${spriteXHigh:3}`);
         at = at + ROW;
-        text::print(at, `COLOR0  ${spriteColors[0]:3}`);
+        text.print(at, `COLOR0  ${spriteColors[0]:3}`);
         at = at + ROW;
-        text::print(at, `POINTER ${spritePointers[0]:3}`);
+        text.print(at, `POINTER ${spritePointers[0]:3}`);
         at = at + ROW;
-        text::print(at, `POS X ${spritePositions[0]:3} Y ${spritePositions[1]:3}`);
+        text.print(at, `POS X ${spritePositions[0]:3} Y ${spritePositions[1]:3}`);
     }
 }

@@ -19,40 +19,40 @@
 // address list is touched, and the probe converts that returned false into
 // the yellow band a passing capture shows.
 // See test/layers.test.mjs.
-use @8bitscript::raster::{raster, Slot};
-use super::src::screen::{screen, BorderColor, BackgroundColor};
-use super::src::scroll::scroll;
-use super::src::geometry::{screenRam, colorRam};
+import { raster, Slot } from "@8bitscript/raster";
+import { screen, BorderColor, BackgroundColor } from "../src/screen.8bs";
+import { scroll } from "../src/scroll.8bs";
+import { screenRam, colorRam } from "../src/geometry.8bs";
 
-pub fn main() {
-    screen::blank(BorderColor::BLACK, BackgroundColor::BLACK);
+export function main(): void {
+    screen.blank(BorderColor.BLACK, BackgroundColor.BLACK);
     // The left half of every row: reversed spaces (code 160) in white — a
     // solid block whose right edge at pixel 160 a SCROLL_X split moves.
-    let mut cell: usmallint = 0;
-    for row: u8 in 0..25 {
-        for column: u8 in 0..40 {
-            if column < 20 {
+    let cell: usmallint = 0;
+    for (let row: u8 = 0; row < 25; row++) {
+        for (let column: u8 = 0; column < 40; column++) {
+            if (column < 20) {
                 screenRam[cell] = 160;
                 colorRam[cell] = 1;
             }
             cell = cell + 1;
         }
     }
-    scroll::setNarrow(true); // 38 columns: the state a SCROLL_X split must not undo
-    raster::clear();
-    raster::at(0, Slot::BORDER, 2); // red border from the picture's first line (raster 50)
-    raster::at(0, Slot::BACKGROUND, 5); // a green playfield behind it
-    raster::at(100, Slot::SCROLL_X, 7); // the band: XSCROLL 7 from picture line 100 ...
-    raster::at(130, Slot::SCROLL_X, 0); // ... straight again from 130, CSEL kept both times
-    raster::at(150, Slot::BORDER, 6); // blue border from picture line 150 (raster 200)
-    if !raster::at(200, Slot::BORDER, 7) {
+    scroll.setNarrow(true); // 38 columns: the state a SCROLL_X split must not undo
+    raster.clear();
+    raster.at(0, Slot.BORDER, 2);      // red border from the picture's first line (raster 50)
+    raster.at(0, Slot.BACKGROUND, 5);  // a green playfield behind it
+    raster.at(100, Slot.SCROLL_X, 7);  // the band: XSCROLL 7 from picture line 100 ...
+    raster.at(130, Slot.SCROLL_X, 0);  // ... straight again from 130, CSEL kept both times
+    raster.at(150, Slot.BORDER, 6);    // blue border from picture line 150 (raster 200)
+    if (!raster.at(200, Slot.BORDER, 7)) {
         // Refused: line 200 is the first line past the picture. The
         // yellow band from picture line 180 (raster 230) exists only
         // because that refusal came back false.
-        raster::at(180, Slot::BACKGROUND, 7);
+        raster.at(180, Slot.BACKGROUND, 7);
     }
-    raster::enable();
-    loop {
+    raster.enable();
+    while (true) {
         waitFrame();
     }
 }

@@ -14,14 +14,14 @@
 // #fact(video.colorBlend) is false on this machine, so a program that
 // keeps its blend behind that fact folds the whole branch away and this
 // file costs it nothing; a call that reaches this file anyway is inert.
-pub mod color {
-    fn blend(slot: utinyint, a: utinyint, b: utinyint) -> bool {
+export namespace color {
+    function blend(slot: utinyint, a: utinyint, b: utinyint): bool {
         return false;
     }
 
-    fn stop(slot: utinyint) {
+    function stop(slot: utinyint): void {
     }
 
-    fn update() {
+    function update(): void {
     }
 }

@@ -6,22 +6,23 @@
 // folds away. The native file draws sprite 0 through the VIC-II; here that would be a second arrow on top of the browser's.
 // Keep the export list identical to pointer.8bs —
 // packages/compiler/test/c64-web-twin.test.mjs holds the two to the same names.
-pub mod pointer {
+export namespace pointer {
+
     const DRAWS: bool = false;
 
     // The native file's sprite and shape block; named here so a program that reads them still builds.
     const SPRITE: utinyint = 0;
     const BLOCK: utinyint = 254;
 
-    fn begin() {
+    function begin(): void {
     }
 
-    fn setColor(color: utinyint) {
+    function setColor(color: utinyint): void {
     }
 
-    fn update() {
+    function update(): void {
     }
 
-    fn hide() {
+    function hide(): void {
     }
 }

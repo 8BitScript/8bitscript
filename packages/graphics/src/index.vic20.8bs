@@ -56,7 +56,7 @@
 //    object a program has printed over comes back on the next update.
 //  * An object with more than one frame advances one frame every `every`
 //    updates and starts over after the last.
-use @8bitscript::vic20::geometry::Video;
+import { Video } from "@8bitscript/vic20/geometry";
 
 const SLOTS: utinyint = 8;
 const POOL: utinyint = 64;
@@ -64,52 +64,52 @@ const INK: utinyint = 1; // white, the color text.8bs also defaults to
 const SPACE: utinyint = 32;
 const OFF: utinyint = 40; // a cell number past either edge of the screen
 
-let mut pool: [u8; 64]; // the screen codes of every object's frames
-let mut base: [u8; 8]; // where in the pool the object's codes start
-let mut wide: [u8; 8]; // cells across, 1 or 2
-let mut high: [u8; 8]; // cells down, 1 or 2
-let mut stride: [u8; 8]; // cells in a frame: wide × high
-let mut frames: [u8; 8]; // how many frames; 0 for an object that did not fit
-let mut every: [u8; 8]; // updates per frame
-let mut tick: [u8; 8]; // updates since the frame last changed
-let mut frame: [u8; 8]; // the frame showing
-let mut col: [u8; 8]; // the cell the object is placed at; OFF past the screen
-let mut row: [u8; 8];
-let mut ink: [u8; 8]; // the color RAM value its cells are drawn with
-let mut paused: [u8; 8]; // 1: automatic stepping paused
-let mut seen: [u8; 8]; // 1 once placed and not hidden
-let mut drawn: [u8; 8]; // 1 while cells of it are on the screen
-let mut drawnCol: [u8; 8]; // where they are
-let mut drawnRow: [u8; 8];
-let mut moved: [u8; 8]; // 1 until the cells it was drawn in have been blanked
-let mut top: utinyint = 0; // the first free byte of the pool
+let pool: array<u8, 64>;     // the screen codes of every object's frames
+let base: array<u8, 8>;      // where in the pool the object's codes start
+let wide: array<u8, 8>;      // cells across, 1 or 2
+let high: array<u8, 8>;      // cells down, 1 or 2
+let stride: array<u8, 8>;    // cells in a frame: wide × high
+let frames: array<u8, 8>;    // how many frames; 0 for an object that did not fit
+let every: array<u8, 8>;     // updates per frame
+let tick: array<u8, 8>;      // updates since the frame last changed
+let frame: array<u8, 8>;     // the frame showing
+let col: array<u8, 8>;       // the cell the object is placed at; OFF past the screen
+let row: array<u8, 8>;
+let ink: array<u8, 8>;       // the color RAM value its cells are drawn with
+let paused: array<u8, 8>;    // 1: automatic stepping paused
+let seen: array<u8, 8>;      // 1 once placed and not hidden
+let drawn: array<u8, 8>;     // 1 while cells of it are on the screen
+let drawnCol: array<u8, 8>;  // where they are
+let drawnRow: array<u8, 8>;
+let moved: array<u8, 8>;     // 1 until the cells it was drawn in have been blanked
+let top: utinyint = 0;       // the first free byte of the pool
 
 // The object's cells, drawn or (with `blank`) blanked at the cell it was
 // drawn in. A cell past the screen's edge is skipped: `col` and `row` are
 // capped at OFF, so adding a cell or two to either cannot wrap a byte.
-fn paint(slot: utinyint, blank: bool) {
-    let mut c0: utinyint = col[slot];
-    let mut r0: utinyint = row[slot];
-    if blank {
+function paint(slot: utinyint, blank: bool): void {
+    let c0: utinyint = col[slot];
+    let r0: utinyint = row[slot];
+    if (blank) {
         c0 = drawnCol[slot];
         r0 = drawnRow[slot];
     }
-    let mut at: usmallint = base[slot] + frame[slot] * stride[slot];
-    let mut dy: utinyint = 0;
-    while dy < high[slot] {
+    let at: usmallint = base[slot] + frame[slot] * stride[slot];
+    let dy: utinyint = 0;
+    while (dy < high[slot]) {
         let r: usmallint = r0 + dy; // 16 bits: row 12 times 22 does not fit a byte
-        let line: usmallint = r * Video::COLUMNS;
-        let mut dx: utinyint = 0;
-        while dx < wide[slot] {
+        let line: usmallint = r * Video.COLUMNS;
+        let dx: utinyint = 0;
+        while (dx < wide[slot]) {
             let c: utinyint = c0 + dx;
-            if c < Video::COLUMNS && r < Video::ROWS {
+            if (c < Video.COLUMNS && r < Video.ROWS) {
                 let cell: usmallint = line + c;
-                if blank {
-                    memory::write(Video::SCREEN + cell, SPACE);
-                    memory::write(Video::COLOR + cell, INK); // not left in the ink it was drawn in
+                if (blank) {
+                    memory.write(Video.SCREEN + cell, SPACE);
+                    memory.write(Video.COLOR + cell, INK); // not left in the ink it was drawn in
                 } else {
-                    memory::write(Video::SCREEN + cell, pool[at]);
-                    memory::write(Video::COLOR + cell, ink[slot]);
+                    memory.write(Video.SCREEN + cell, pool[at]);
+                    memory.write(Video.COLOR + cell, ink[slot]);
                 }
             }
             at = at + 1;
@@ -119,17 +119,17 @@ fn paint(slot: utinyint, blank: bool) {
     }
 }
 
-fn flush() {
-    let mut slot: utinyint = SLOTS;
-    while slot > 0 {
+function flush(): void {
+    let slot: utinyint = SLOTS;
+    while (slot > 0) {
         slot = slot - 1;
-        if moved[slot] != 0 && drawn[slot] != 0 {
+        if (moved[slot] != 0 && drawn[slot] != 0) {
             paint(slot, true);
             drawn[slot] = 0;
         }
     }
-    while slot < SLOTS {
-        if seen[slot] != 0 {
+    while (slot < SLOTS) {
+        if (seen[slot] != 0) {
             paint(slot, false);
             drawn[slot] = 1;
             drawnCol[slot] = col[slot];
@@ -140,41 +140,41 @@ fn flush() {
     }
 }
 
-pub mod graphics {
+export namespace graphics {
     // The portable contract (index.8bs): what this machine answers.
     const MAX: utinyint = 8;
-    const FRAMES: utinyint = 8; // the lowering keeps the first eight; the 64-byte pool is shared
-    const WIDTH: utinyint = 16; // 2 × 2 cells
+    const FRAMES: utinyint = 8;               // the lowering keeps the first eight; the 64-byte pool is shared
+    const WIDTH: utinyint = 16;               // 2 × 2 cells
     const HEIGHT: utinyint = 16;
-    const COLORS: utinyint = 1; // one color RAM value a cell
-    const RECOLORS: bool = true; // color() sets what its cells are drawn with
-    const STEP_X: utinyint = 8; // a cell
+    const COLORS: utinyint = 1;               // one color RAM value a cell
+    const RECOLORS: bool = true;              // color() sets what its cells are drawn with
+    const STEP_X: utinyint = 8;               // a cell
     const STEP_Y: utinyint = 8;
-    const RESTORES: bool = false; // moving blanks the cells; what was under is not put back
-    const TRANSPARENT: bool = false; // a cell is drawn whole
+    const RESTORES: bool = false;             // moving blanks the cells; what was under is not put back
+    const TRANSPARENT: bool = false;          // a cell is drawn whole
 
-    fn bind(slot: utinyint, index: utinyint, value: utinyint) {
-        if slot >= SLOTS {
+    function bind(slot: utinyint, index: utinyint, value: utinyint): void {
+        if (slot >= SLOTS) {
             return;
         }
-        if index == 0 {
+        if (index == 0) {
             base[slot] = top;
         }
         let at: usmallint = base[slot] + index;
-        if at < POOL {
+        if (at < POOL) {
             pool[at] = value;
         }
     }
 
-    fn meta(slot: utinyint, count: utinyint, rate: utinyint, which: utinyint, width: utinyint, height: utinyint) {
-        if slot >= SLOTS {
+    function meta(slot: utinyint, count: utinyint, rate: utinyint, which: utinyint, width: utinyint, height: utinyint): void {
+        if (slot >= SLOTS) {
             return;
         }
         wide[slot] = width >> 3;
         high[slot] = height >> 3;
         stride[slot] = wide[slot] * high[slot];
         let end: usmallint = base[slot] + count * stride[slot];
-        if end > POOL {
+        if (end > POOL) {
             frames[slot] = 0;
             return;
         }
@@ -187,19 +187,19 @@ pub mod graphics {
         paused[slot] = 0;
     }
 
-    fn place(slot: utinyint, x: usmallint, y: usmallint) {
-        if slot >= SLOTS {
+    function place(slot: utinyint, x: usmallint, y: usmallint): void {
+        if (slot >= SLOTS) {
             return;
         }
-        if frames[slot] == 0 {
+        if (frames[slot] == 0) {
             return;
         }
         col[slot] = OFF;
-        if x < 320 {
+        if (x < 320) {
             col[slot] = x >> 3;
         }
         row[slot] = OFF;
-        if y < 320 {
+        if (y < 320) {
             row[slot] = y >> 3;
         }
         seen[slot] = 1;
@@ -207,8 +207,8 @@ pub mod graphics {
         flush();
     }
 
-    fn hide(slot: utinyint) {
-        if slot >= SLOTS {
+    function hide(slot: utinyint): void {
+        if (slot >= SLOTS) {
             return;
         }
         seen[slot] = 0;
@@ -217,26 +217,26 @@ pub mod graphics {
     }
 
     // The frame shows from the next update().
-    fn setFrame(slot: utinyint, n: utinyint) {
-        if slot >= SLOTS {
+    function setFrame(slot: utinyint, n: utinyint): void {
+        if (slot >= SLOTS) {
             return;
         }
-        if frames[slot] == 0 {
+        if (frames[slot] == 0) {
             return;
         }
-        if n >= frames[slot] {
+        if (n >= frames[slot]) {
             n = frames[slot] - 1;
         }
         frame[slot] = n;
         tick[slot] = 0;
     }
 
-    fn animate(slot: utinyint, on: bool) {
-        if slot >= SLOTS {
+    function animate(slot: utinyint, on: bool): void {
+        if (slot >= SLOTS) {
             return;
         }
         paused[slot] = 1;
-        if on {
+        if (on) {
             paused[slot] = 0;
         }
     }
@@ -244,22 +244,22 @@ pub mod graphics {
     // The color shows from the next update(). A character takes one of the
     // first eight colors; color RAM's bit 3 would make its cells multicolor,
     // so 8–15 wrap to 0–7 — text.putColor does the same.
-    fn color(slot: utinyint, c: utinyint) {
-        if slot >= SLOTS {
+    function color(slot: utinyint, c: utinyint): void {
+        if (slot >= SLOTS) {
             return;
         }
         ink[slot] = c & 0x07;
     }
 
-    fn update() {
-        let mut slot: utinyint = 0;
-        while slot < SLOTS {
-            if seen[slot] != 0 && frames[slot] > 1 && paused[slot] == 0 {
+    function update(): void {
+        let slot: utinyint = 0;
+        while (slot < SLOTS) {
+            if (seen[slot] != 0 && frames[slot] > 1 && paused[slot] == 0) {
                 tick[slot] = tick[slot] + 1;
-                if tick[slot] >= every[slot] {
+                if (tick[slot] >= every[slot]) {
                     tick[slot] = 0;
                     frame[slot] = frame[slot] + 1;
-                    if frame[slot] >= frames[slot] {
+                    if (frame[slot] >= frames[slot]) {
                         frame[slot] = 0;
                     }
                 }

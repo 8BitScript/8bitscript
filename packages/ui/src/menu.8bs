@@ -29,48 +29,49 @@
 // wider than the row minus its padding is not drawn and still takes its
 // index — which entry is selected must not depend on how wide the menu
 // was given — and `clipped()` says so afterwards.
-use @8bitscript::text::{text, TextColor};
+import { text, TextColor } from "@8bitscript/text";
 
 const SPACE: utinyint = 32;
 const NO_SELECTION: utinyint = 255;
 
 // Style, set before begin() and kept between runs.
-let mut itemColor: utinyint = TextColor::WHITE;
-let mut highlightColor: utinyint = TextColor::YELLOW;
-let mut padding: utinyint = 1;
+let itemColor: utinyint = TextColor.WHITE;
+let highlightColor: utinyint = TextColor.YELLOW;
+let padding: utinyint = 1;
 
 // The run in progress: the cell the next row starts at, the row width, and
 // how many entries this run has offered.
-let mut cursor: usmallint = 0;
-let mut width: utinyint = 0;
-let mut index: utinyint = 0;
-let mut overflowed: bool = false;
+let cursor: usmallint = 0;
+let width: utinyint = 0;
+let index: utinyint = 0;
+let overflowed: bool = false;
 
 // The highlight, kept across runs: an index into the entries a run
 // offers, or NO_SELECTION. A menu opens with nothing highlighted, the
 // way a bar does, and the program puts the highlight on the first entry
 // if that is the policy it wants.
-let mut highlighted: utinyint = NO_SELECTION;
+let highlighted: utinyint = NO_SELECTION;
 
 // Where a pointer is, as a flat cell, and which row it turned out to be
 // on. 65535 is "no pointer": every row's hit test is `at >= start` then
 // `at - start < width`, and 65535 fails the second on every machine.
-let mut pointerAt: usmallint = 65535;
-let mut pointedIndex: utinyint = NO_SELECTION;
+let pointerAt: usmallint = 65535;
+let pointedIndex: utinyint = NO_SELECTION;
 
 // Last run's row starts, so `point()` can answer `pointed()` without a
 // redraw. Eight rows is more than any menu this library draws; a ninth
 // entry still takes an index and is still hit-tested during its run.
 const HIT_SLOTS: utinyint = 8;
-let mut hitAt: [usmallint; 8];
+let hitAt: array<usmallint, 8>;
 
 // What the last run laid down — its top-left cell, its width and its row
 // count — so `clear()` can take it back off the screen.
-let mut laidAt: usmallint = 0;
-let mut laidWidth: utinyint = 0;
-let mut laidRows: utinyint = 0;
+let laidAt: usmallint = 0;
+let laidWidth: utinyint = 0;
+let laidRows: utinyint = 0;
 
-pub mod menu {
+export namespace menu {
+
     // ---- style, before begin() --------------------------------------------
 
     // The color every entry is drawn in; the highlighted one is inverted in
@@ -78,24 +79,24 @@ pub mod menu {
     // unused while reverse video does the job. Drawing a menu leaves the
     // text color set to the menu's and reverse off, for the reason the bar
     // gives: there is no `text.getColor` to put the caller's back.
-    fn setColors(item: utinyint, highlight: utinyint) {
+    function setColors(item: utinyint, highlight: utinyint): void {
         itemColor = item;
         highlightColor = highlight;
     }
 
     // Cells of space left of every label. 1 by default; 0 puts the label
     // on the row's first cell.
-    fn setPadding(cells: utinyint) {
+    function setPadding(cells: utinyint): void {
         padding = cells;
     }
 
     // ---- the highlight ------------------------------------------------------
 
-    fn select(entry: utinyint) {
+    function select(entry: utinyint): void {
         highlighted = entry;
     }
 
-    fn selected() -> utinyint {
+    function selected(): utinyint {
         return highlighted;
     }
 
@@ -103,7 +104,7 @@ pub mod menu {
     // without choosing means.
     const NONE: utinyint = NO_SELECTION;
 
-    fn deselect() {
+    function deselect(): void {
         highlighted = NO_SELECTION;
     }
 
@@ -112,25 +113,25 @@ pub mod menu {
     // last. Both count from the last run, so they are called after `end()`
     // and before the redraw; a menu never drawn offers nothing to step
     // through and is left alone.
-    fn next() {
-        if index == 0 {
+    function next(): void {
+        if (index == 0) {
             return;
         }
-        if highlighted == NO_SELECTION {
+        if (highlighted == NO_SELECTION) {
             highlighted = 0;
             return;
         }
         highlighted = highlighted + 1;
-        if highlighted >= index {
+        if (highlighted >= index) {
             highlighted = 0;
         }
     }
 
-    fn previous() {
-        if index == 0 {
+    function previous(): void {
+        if (index == 0) {
             return;
         }
-        if highlighted == NO_SELECTION || highlighted == 0 {
+        if (highlighted == NO_SELECTION || highlighted == 0) {
             highlighted = index - 1;
             return;
         }
@@ -145,15 +146,15 @@ pub mod menu {
     // a redraw. The component never moves the highlight itself — hover is
     // the program's policy: `if (menu.pointed() != menu.NONE) {
     // menu.select(menu.pointed()); }` is the one line that makes it so.
-    fn point(cell: usmallint) {
+    function point(cell: usmallint): void {
         pointerAt = cell;
         pointedIndex = NO_SELECTION;
-        let mut i: utinyint = 0;
-        while i < index {
-            if i < HIT_SLOTS {
+        let i: utinyint = 0;
+        while (i < index) {
+            if (i < HIT_SLOTS) {
                 let start: usmallint = hitAt[i];
-                if pointerAt >= start {
-                    if pointerAt - start < laidWidth {
+                if (pointerAt >= start) {
+                    if (pointerAt - start < laidWidth) {
                         pointedIndex = i;
                     }
                 }
@@ -163,7 +164,7 @@ pub mod menu {
     }
 
     // Which entry's row the pointer was on during the last run, or `NONE`.
-    fn pointed() -> utinyint {
+    function pointed(): utinyint {
         return pointedIndex;
     }
 
@@ -173,7 +174,7 @@ pub mod menu {
     // `cells` wide. Rows follow one screen row apart — `text.COLUMNS`
     // cells on — so `at` is the top-left corner. Nothing is blanked here:
     // every row is drawn edge to edge by `item()`, which is the bed.
-    fn begin(at: usmallint, cells: utinyint) {
+    function begin(at: usmallint, cells: utinyint): void {
         cursor = at;
         width = cells;
         index = 0;
@@ -188,72 +189,72 @@ pub mod menu {
     // to the row's right edge, all of it inverted when this is the
     // highlighted entry — and return whether it is. A label that does not
     // fit after the padding is not drawn and still takes its index.
-    fn item(name: string) -> bool {
+    function item(name: string): bool {
         let on: bool = index == highlighted;
         let n: utinyint = name.length;
         let start: usmallint = cursor;
-        if index < HIT_SLOTS {
+        if (index < HIT_SLOTS) {
             hitAt[index] = start;
         }
-        if pointerAt >= start {
-            if pointerAt - start < width {
+        if (pointerAt >= start) {
+            if (pointerAt - start < width) {
                 pointedIndex = index;
             }
         }
         index = index + 1;
         laidRows = laidRows + 1;
-        cursor = cursor + text::COLUMNS;
+        cursor = cursor + text.COLUMNS;
 
-        if padding > width {
+        if (padding > width) {
             overflowed = true;
             return on;
         }
         let room: utinyint = width - padding;
-        if n > room {
+        if (n > room) {
             overflowed = true;
             return on;
         }
         let after: utinyint = room - n;
 
-        text::setColor(itemColor);
-        text::setReverse(on);
-        if padding > 0 {
-            text::fill(start, padding, SPACE);
+        text.setColor(itemColor);
+        text.setReverse(on);
+        if (padding > 0) {
+            text.fill(start, padding, SPACE);
         }
-        text::print(start + padding, name);
-        if after > 0 {
-            text::fill(start + padding + n, after, SPACE);
+        text.print(start + padding, name);
+        if (after > 0) {
+            text.fill(start + padding + n, after, SPACE);
         }
-        text::setReverse(false);
+        text.setReverse(false);
         return on;
     }
 
     // Close the run. Nothing is left to blank: each row was drawn whole.
-    fn end() {
+    function end(): void {
         width = 0;
     }
 
     // Take the last run off the screen: blank every row it drew, edge to
     // edge. The program then redraws what was under the menu; the
     // component cannot, because it never knew.
-    fn clear() {
-        let mut at: usmallint = laidAt;
-        let mut i: utinyint = 0;
-        while i < laidRows {
-            text::fill(at, laidWidth, SPACE);
-            at = at + text::COLUMNS;
+    function clear(): void {
+        let at: usmallint = laidAt;
+        let i: utinyint = 0;
+        while (i < laidRows) {
+            text.fill(at, laidWidth, SPACE);
+            at = at + text.COLUMNS;
             i = i + 1;
         }
         laidRows = 0;
     }
 
     // How many entries the last run offered, drawn or not.
-    fn count() -> utinyint {
+    function count(): utinyint {
         return index;
     }
 
     // Whether an entry had to be left undrawn for want of width.
-    fn clipped() -> bool {
+    function clipped(): bool {
         return overflowed;
     }
 }

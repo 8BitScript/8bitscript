@@ -1,26 +1,26 @@
 // @8bitscript/audio on the CX16: VERA PSG voices via @8bitscript/cx16/psg. A song plays on PSG
 // voice 0; songs.8bs holds the bank and the sequencer.
-use @8bitscript::cx16::psg::psg;
-use self::songs::songs;
+import { psg } from "@8bitscript/cx16/psg";
+import { songs } from "./songs.8bs";
 
-let mut sfxLeft: utinyint = 0;
+let sfxLeft: utinyint = 0;
 // True once the program has asked for a song (audio.play or audio.music of one). Nothing but
 // those two calls assigns it, so in a program that never plays a song the linker's optimizer
 // inlines it as false, every `songsOn` test below folds away, and the sequencer and its 256-byte
 // bank are not linked at all: a program that only plays tones pays nothing for songs.
-let mut songsOn: bool = false;
+let songsOn: bool = false;
 // The frames a song note has left to sound (0: it holds for its rows).
-let mut decayLeft: utinyint = 0;
-let mut ready: bool = false;
+let decayLeft: utinyint = 0;
+let ready: bool = false;
 
-fn waveOf(code: utinyint) -> utinyint {
-    if code == 1 {
+function waveOf(code: utinyint): utinyint {
+    if (code == 1) {
         return 3;
     }
-    if code == 2 {
+    if (code == 2) {
         return 2;
     }
-    if code == 3 {
+    if (code == 3) {
         return 1;
     }
     return 0;
@@ -28,30 +28,30 @@ fn waveOf(code: utinyint) -> utinyint {
 
 // The volume the game asked for (0..15), the volume sounding now, and how much
 // a plucked tone loses a frame (0 for a plain tone).
-let mut level: utinyint = 15;
-let mut shown: utinyint = 15;
-let mut fade: utinyint = 0;
+let level: utinyint = 15;
+let shown: utinyint = 15;
+let fade: utinyint = 0;
 
-fn ensure() {
-    if !ready {
-        psg::reset();
+function ensure(): void {
+    if (!ready) {
+        psg.reset();
         ready = true;
     }
 }
 
 // The volume a note of `vol` (0..15) plays at under the game's level: level * vol / 16, rounded up.
-fn scaled(vol: utinyint) -> utinyint {
+function scaled(vol: utinyint): utinyint {
     let product: utinyint = level * vol;
-    return product + 15 >> 4;
+    return (product + 15) >> 4;
 }
 
 // How much a note of `volume` loses a frame to be gone in `frames`: volume / frames, rounded up.
-fn stepOf(volume: utinyint, frames: utinyint) -> utinyint {
-    let mut rest: utinyint = volume;
-    let mut step: utinyint = 0;
-    while rest > 0 {
+function stepOf(volume: utinyint, frames: utinyint): utinyint {
+    let rest: utinyint = volume;
+    let step: utinyint = 0;
+    while (rest > 0) {
         step = step + 1;
-        if rest > frames {
+        if (rest > frames) {
             rest = rest - frames;
         } else {
             rest = 0;
@@ -63,19 +63,19 @@ fn stepOf(volume: utinyint, frames: utinyint) -> utinyint {
 // Do what the sequencer says. A note that begins is started here, not in a function of its own: the
 // X16's zero page is spent by the depth of the deepest call chain, and this one ends in VERA's address
 // setter, so each hop saved is four bytes a game keeps. A note with a decay is walked down by update().
-fn apply(event: utinyint) {
-    if event == 1 {
+function apply(event: utinyint): void {
+    if (event == 1) {
         ensure();
-        let vol: utinyint = scaled(songs::volume());
+        let vol: utinyint = scaled(songs.volume());
         shown = vol;
-        psg::play(0, songs::note(), waveOf(songs::wave()), vol);
+        psg.play(0, songs.note(), waveOf(songs.wave()), vol);
         fade = 0;
-        decayLeft = songs::decay();
-        if decayLeft != 0 {
+        decayLeft = songs.decay();
+        if (decayLeft != 0) {
             fade = stepOf(vol, decayLeft);
         }
-    } else if event == 2 || event == 3 {
-        psg::silence(0);
+    } else if (event == 2 || event == 3) {
+        psg.silence(0);
         decayLeft = 0;
         fade = 0;
         shown = level;
@@ -83,66 +83,66 @@ fn apply(event: utinyint) {
 }
 
 // One frame of a song that is playing: a note's decay, then the sequencer's next step.
-fn songFrame() {
-    if !songs::active() {
+function songFrame(): void {
+    if (!songs.active()) {
         return;
     }
-    if decayLeft != 0 {
+    if (decayLeft != 0) {
         decayLeft = decayLeft - 1;
-        if decayLeft == 0 {
-            psg::silence(0);
+        if (decayLeft == 0) {
+            psg.silence(0);
             fade = 0;
-        } else if fade != 0 {
-            if shown > fade {
+        } else if (fade != 0) {
+            if (shown > fade) {
                 shown = shown - fade;
             } else {
                 shown = 0;
             }
-            psg::setVolume(0, shown);
+            psg.setVolume(0, shown);
         }
     }
-    apply(songs::step());
+    apply(songs.step());
 }
 
-pub mod audio {
+export namespace audio {
     // The playable notes (the .8ba index, C0 = 0, A4 = 57): VERA's PSG
     // table is C3..B7. A note outside moves by whole octaves into it.
     const NOTE_LOW: utinyint = 36;
     const NOTE_HIGH: utinyint = 95;
 
-    fn bind(kind: utinyint, slot: utinyint, index: utinyint, value: utinyint) {
-        songs::bind(kind, slot, index, value);
+    function bind(kind: utinyint, slot: utinyint, index: utinyint, value: utinyint): void {
+        songs.bind(kind, slot, index, value);
     }
 
-    fn meta(kind: utinyint, slot: utinyint, length: utinyint, a: utinyint, b: utinyint, c: utinyint) {
-        songs::meta(kind, slot, length);
+    function meta(kind: utinyint, slot: utinyint, length: utinyint, a: utinyint, b: utinyint, c: utinyint): void {
+        songs.meta(kind, slot, length);
         ensure();
     }
 
     // One square-wave tone on voice 0 for `frames` calls of update(), then
     // silence. Replaces whatever tone is sounding. Nothing blocks.
-    fn tone(note: utinyint, frames: utinyint) {
+    function tone(note: utinyint, frames: utinyint): void {
         ensure();
-        if songsOn {
-            songs::stop();
+        if (songsOn) {
+            songs.stop();
         }
         decayLeft = 0;
         fade = 0;
         shown = level;
-        psg::play(0, note, 0, level);
+        psg.play(0, note, 0, level);
         sfxLeft = frames;
-        if frames == 0 {
+        if (frames == 0) {
             sfxLeft = 1;
         }
     }
 
     // Stop now: the tone, the sample and the song.
-    fn silence() {
-        if songsOn {
-            songs::stop();
+    function silence(): void {
+        if (songsOn) {
+            songs.stop();
         }
-        if ready {
-            psg::silence(0);
+        if (ready) {
+            psg.silence(0);
         }
         sfxLeft = 0;
         fade = 0;
@@ -151,12 +151,12 @@ pub mod audio {
     }
 
     // True while a tone, a sample or a song is sounding (a song's rests count).
-    fn busy() -> bool {
-        if sfxLeft != 0 {
+    function busy(): bool {
+        if (sfxLeft != 0) {
             return true;
         }
-        if songsOn {
-            return songs::active();
+        if (songsOn) {
+            return songs.active();
         }
         return false;
     }
@@ -165,9 +165,9 @@ pub mod audio {
     // to 15. A level above the maximum is the maximum.
     const LEVEL_MAX: utinyint = 15;
 
-    fn setLevel(amount: utinyint) {
+    function setLevel(amount: utinyint): void {
         level = amount;
-        if level > 15 {
+        if (level > 15) {
             level = 15;
         }
         shown = level;
@@ -176,81 +176,81 @@ pub mod audio {
 
     // A plucked tone: the PSG has no envelope, so the voice's volume is walked
     // down a step a frame (in update) until it reaches 0 on the last frame.
-    fn blip(note: utinyint, frames: utinyint) {
+    function blip(note: utinyint, frames: utinyint): void {
         ensure();
-        if songsOn {
-            songs::stop();
+        if (songsOn) {
+            songs.stop();
         }
         decayLeft = 0;
-        let mut span: utinyint = frames;
-        if span == 0 {
+        let span: utinyint = frames;
+        if (span == 0) {
             span = 1;
         }
-        let mut rest: utinyint = level;
+        let rest: utinyint = level;
         fade = 0;
-        while rest > 0 {
+        while (rest > 0) {
             fade = fade + 1;
-            if rest > span {
+            if (rest > span) {
                 rest = rest - span;
             } else {
                 rest = 0;
             }
         }
         shown = level;
-        psg::play(0, note, 0, level);
+        psg.play(0, note, 0, level);
         sfxLeft = span;
     }
 
     // A sample plays its fallback note for eight frames; a song plays once, from its start to its
     // last row, and is silent after. A new sound replaces whatever is sounding.
-    fn play(slot: utinyint) {
-        if songs::isSong(slot) {
+    function play(slot: utinyint): void {
+        if (songs.isSong(slot)) {
             songsOn = true;
             ensure();
             sfxLeft = 0;
-            apply(songs::start(slot, false));
+            apply(songs.start(slot, false));
             return;
         }
-        if !songs::isSample(slot) {
+        if (!songs.isSample(slot)) {
             return;
         }
         ensure();
-        if songsOn {
-            songs::stop();
+        if (songsOn) {
+            songs.stop();
         }
         decayLeft = 0;
         fade = 0;
         shown = level;
-        psg::play(0, songs::sampleNote(slot), waveOf(songs::sampleWave(slot)), level);
+        psg.play(0, songs.sampleNote(slot), waveOf(songs.sampleWave(slot)), level);
         sfxLeft = 8;
     }
 
     // A song, repeated for ever if its file says `loop true` (the default), until the next sound
     // or audio.silence().
-    fn music(slot: utinyint) {
+    function music(slot: utinyint): void {
         songsOn = true;
         ensure();
         sfxLeft = 0;
-        apply(songs::start(slot, true));
+        apply(songs.start(slot, true));
     }
 
-    fn update() {
-        if sfxLeft != 0 {
+    function update(): void {
+        if (sfxLeft != 0) {
             sfxLeft = sfxLeft - 1;
-            if sfxLeft == 0 {
-                psg::silence(0);
+            if (sfxLeft == 0) {
+                psg.silence(0);
                 fade = 0;
-            } else if fade != 0 {
-                if shown > fade {
+            } else if (fade != 0) {
+                if (shown > fade) {
                     shown = shown - fade;
                 } else {
                     shown = 0;
                 }
-                psg::setVolume(0, shown);
+                psg.setVolume(0, shown);
             }
             return;
         }
-        if songsOn {
+        if (songsOn) {
             songFrame();
         }
     }

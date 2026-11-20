@@ -12,43 +12,50 @@
 // Each cue is `{timeline.at(N) && <Thing />}`: the conditional the
 // language already has, folded like any other, so a cue is one 16-bit
 // compare and a call — no table walked, no code run at a frame.
-use @8bitscript::text::text;
-use @8bitscript::sprites::sprites;
-use @8bitscript::timeline::timeline;
-use self::flock::flock;
-use self::counter::counter;
+import { text } from "@8bitscript/text";
+import { sprites } from "@8bitscript/sprites";
+import { timeline } from "@8bitscript/timeline";
+import { flock } from "./flock.8bs";
+import { counter } from "./counter.8bs";
 
-pub component Title() {
-    text::print(0, "SWARM");
-    text::print(text::COLUMNS, "SPRITES");
-    text::printNumber(text::COLUMNS + 8, flock::size(), 2);
-    text::print(text::COLUMNS + 11, "FRAME"); // the label once; the digits as they change
-    counter::begin(text::COLUMNS + 17);
+export component Title() {
+    text.print(0, "SWARM");
+    text.print(text.COLUMNS, "SPRITES");
+    text.printNumber(text.COLUMNS + 8, flock.size(), 2);
+    text.print(text.COLUMNS + 11, "FRAME"); // the label once; the digits as they change
+    counter.begin(text.COLUMNS + 17);
 }
 
 // The frame count, one character a frame (counter.8bs): the same number
 // as timeline.frame(), which a printNumber of every frame cost a sixth
 // of the C64's frame to show.
-pub component Counter() {
-    counter::advance();
+export component Counter() {
+    counter.advance();
 }
 
-pub component Release() {
-    flock::release();
+export component Release() {
+    flock.release();
 }
 
-pub component Open() {
-    sprites::extend(true);
+export component Open() {
+    sprites.extend(true);
 }
 
-pub component Close() {
-    sprites::extend(false);
+export component Close() {
+    sprites.extend(false);
 }
 
-pub component Recolor() {
-    flock::recolor();
+export component Recolor() {
+    flock.recolor();
 }
 
-pub component Scene() {
-    return <>{timeline::at(1) && <Title />} {timeline::at(60) && <Release />} {timeline::at(180) && <Open />} {timeline::at(420) && <Close />} {timeline::every(32) && <Recolor />} <Counter /></>;
+export component Scene() {
+    return (<>
+        {timeline.at(1) && <Title />}
+        {timeline.at(60) && <Release />}
+        {timeline.at(180) && <Open />}
+        {timeline.at(420) && <Close />}
+        {timeline.every(32) && <Recolor />}
+        <Counter />
+    </>);
 }

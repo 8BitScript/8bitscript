@@ -12,8 +12,8 @@
 // 0 at the top-left corner inside the border — so a program written against
 // it doesn't know or care that "screen memory" is a real 6502 address on
 // most targets and a wasm-memory offset on this one.
-use self::index::WebRegisters;
-use self::geometry::Video;
+import { WebRegisters } from "./index.8bs";
+import { Video } from "./geometry.8bs";
 
 // Codes are ASCII, as they are everywhere (space, '0'-'9', 'A'-'Z', 'a'-'z',
 // and a little punctuation — the checker's own portable character set,
@@ -44,55 +44,55 @@ use self::geometry::Video;
 // color, and is all a run of text costs per character.
 // `text.putChar` and `text.putColor` stay the one-cell pokes a caller can
 // build anything from.
-let mut currentColor: utinyint = 1; // white, until text.setColor() says otherwise
-let mut currentReverse: bool = false; // until text.setReverse() says otherwise
+let currentColor: utinyint = 1; // white, until text.setColor() says otherwise
+let currentReverse: bool = false; // until text.setReverse() says otherwise
 
 // Reverse rides in bit 7 of the color byte: the host fills the cell with
 // the foreground color and punches the glyph out in the screen background.
 // A reverse space is a solid block. The low four bits stay the color.
-fn colorByte() -> utinyint {
-    if currentReverse {
+function colorByte(): utinyint {
+    if (currentReverse) {
         return currentColor + 128;
     }
     return currentColor;
 }
 
-fn place(cell: usmallint, code: utinyint) {
-    memory::write(WebRegisters::CHAR_BASE + cell, code);
-    memory::write(WebRegisters::COLOR_BASE + cell, colorByte());
+function place(cell: usmallint, code: utinyint): void {
+    memory.write(WebRegisters.CHAR_BASE + cell, code);
+    memory.write(WebRegisters.COLOR_BASE + cell, colorByte());
 }
 
-pub mod text {
-    const CELL_COUNT: usmallint = Video::CELL_COUNT;
-    const COLUMNS: utinyint = Video::COLUMNS; // cells per row, so cell = y * text.COLUMNS + x
-    const ROWS: utinyint = Video::ROWS;
+export namespace text {
+    const CELL_COUNT: usmallint = Video.CELL_COUNT;
+    const COLUMNS: utinyint = Video.COLUMNS; // cells per row, so cell = y * text.COLUMNS + x
+    const ROWS: utinyint = Video.ROWS;
 
     // The live grid, for a layout that responds to the window it is in. On
     // this target's Modern host these read what the page last wrote; on a
     // machine skin — and on every other machine 8BitScript builds for — they
     // fold to the constants above, so a portable program can ask on all of
     // them and only pay where the answer can actually change.
-    fn columns() -> utinyint {
-        return Video::columns();
+    function columns(): utinyint {
+        return Video.columns();
     }
 
-    fn rows() -> utinyint {
-        return Video::rows();
+    function rows(): utinyint {
+        return Video.rows();
     }
 
-    fn putChar(cell: usmallint, code: utinyint) {
-        memory::write(WebRegisters::CHAR_BASE + cell, code);
+    function putChar(cell: usmallint, code: utinyint): void {
+        memory.write(WebRegisters.CHAR_BASE + cell, code);
     }
 
-    fn putColor(cell: usmallint, color: utinyint) {
-        memory::write(WebRegisters::COLOR_BASE + cell, color);
+    function putColor(cell: usmallint, color: utinyint): void {
+        memory.write(WebRegisters.COLOR_BASE + cell, color);
     }
 
-    fn setColor(color: utinyint) {
+    function setColor(color: utinyint): void {
         currentColor = color;
     }
 
-    fn setReverse(on: bool) {
+    function setReverse(on: bool): void {
         currentReverse = on;
     }
 
@@ -100,14 +100,14 @@ pub mod text {
     // falling off its end to return to (see
     // packages/vic20/src/text.8bs's own releaseCursor() for what this
     // closes there), so there is no cursor to hand back here.
-    fn releaseCursor() {
+    function releaseCursor(): void {
     }
 
     // Writes `s`'s characters into consecutive cells starting at `cell`, in
     // the current color — `text.setColor(...)` changes what gets printed
     // after it, not what is already on screen.
-    fn print(cell: usmallint, s: string) {
-        for i: utinyint in 0..s.length {
+    function print(cell: usmallint, s: string): void {
+        for (let i: utinyint = 0; i < s.length; i++) {
             place(cell + i, s[i]);
         }
     }
@@ -117,8 +117,8 @@ pub mod text {
     // built at run time — it cannot, so a layout whose width is only known
     // while the program runs (a responsive tile, a panel being cleared) needs
     // this instead of a string constant per possible width.
-    fn fill(cell: usmallint, count: usmallint, code: utinyint) {
-        for i: usmallint in 0..count {
+    function fill(cell: usmallint, count: usmallint, code: utinyint): void {
+        for (let i: usmallint = 0; i < count; i++) {
             place(cell + i, code);
         }
     }
@@ -130,8 +130,8 @@ pub mod text {
     // Least significant digit first, from the right-hand end of the field.
     // Division, unlike on the 6502 machines: wasm has a divide instruction,
     // and the subtraction they use to avoid one is more code here.
-    fn printNumber(cell: usmallint, value: usmallint, width: utinyint) {
-        for (let mut i: utinyint = width; i > 0; i -= 1) {
+    function printNumber(cell: usmallint, value: usmallint, width: utinyint): void {
+        for (let i: utinyint = width; i > 0; i--) {
             place(cell + i - 1, 48 + value % 10); // 48 = '0'
             value = value / 10;
         }
@@ -140,7 +140,7 @@ pub mod text {
 
 // The colors `text.setColor()` takes: the eight names every machine
 // shares, with this machine's color-RAM values.
-pub mod TextColor {
+export namespace TextColor {
     const BLACK: utinyint = 0;
     const WHITE: utinyint = 1;
     const RED: utinyint = 2;

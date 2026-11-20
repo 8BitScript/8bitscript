@@ -1,6 +1,6 @@
 // Studio's one entry: every release target runs the same shell.
-use self::studio::studio;
+import { studio } from "./studio.8bs";
 
-pub fn main() {
-    studio::start();
+export function main(): void {
+    studio.start();
 }

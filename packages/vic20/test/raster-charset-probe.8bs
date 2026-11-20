@@ -16,28 +16,28 @@
 //   charset: mixed-case above 21, then upper 21, mixed 43, upper 67,
 //            mixed 90, upper 117, mixed 138, upper 155, mixed 170 on
 //   border:  black above 100, red 100-169, black from 170
-use @8bitscript::raster::{raster, Slot};
-use @8bitscript::vic20::geometry::Video;
+import { raster, Slot } from "@8bitscript/raster";
+import { Video } from "@8bitscript/vic20/geometry";
 
-pub fn main() {
-    memory::write(0x900F, 0x08); // black background and border, normal video
-    for cell: usmallint in 0..506 {
-        memory::write(Video::SCREEN + cell, 66);
-        memory::write(Video::COLOR + cell, 1);
+export function main(): void {
+    memory.write(0x900F, 0x08); // black background and border, normal video
+    for (let cell: usmallint = 0; cell < 506; cell++) {
+        memory.write(Video.SCREEN + cell, 66);
+        memory.write(Video.COLOR + cell, 1);
     }
-    raster::clear();
-    raster::at(21, Slot::CHARSET, 0);
-    raster::at(43, Slot::CHARSET, 1);
-    raster::at(67, Slot::CHARSET, 0);
-    raster::at(90, Slot::CHARSET, 1);
-    raster::at(100, Slot::BORDER, 2);
-    raster::at(117, Slot::CHARSET, 0);
-    raster::at(138, Slot::CHARSET, 1);
-    raster::at(155, Slot::CHARSET, 0);
-    raster::at(170, Slot::CHARSET, 1);
-    raster::at(170, Slot::BORDER, 0);
-    raster::enable();
-    loop {
+    raster.clear();
+    raster.at(21, Slot.CHARSET, 0);
+    raster.at(43, Slot.CHARSET, 1);
+    raster.at(67, Slot.CHARSET, 0);
+    raster.at(90, Slot.CHARSET, 1);
+    raster.at(100, Slot.BORDER, 2);
+    raster.at(117, Slot.CHARSET, 0);
+    raster.at(138, Slot.CHARSET, 1);
+    raster.at(155, Slot.CHARSET, 0);
+    raster.at(170, Slot.CHARSET, 1);
+    raster.at(170, Slot.BORDER, 0);
+    raster.enable();
+    while (true) {
         waitFrame();
     }
 }

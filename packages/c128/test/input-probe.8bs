@@ -3,32 +3,32 @@
 // call resolves to a real function in the IR. Drawing one byte per answer
 // keeps every call reachable (an unread result would prune the function
 // before the test could see it).
-use super::src::input::input;
+import { input } from "../src/input.8bs";
 
-pub fn main() {
-    input::begin();
-    loop {
+export function main(): void {
+    input.begin();
+    while (true) {
         waitFrame();
-        input::poll();
-        let mut out: utinyint = 0;
-        if input::left() {
+        input.poll();
+        let out: utinyint = 0;
+        if (input.left()) {
             out = out | 1;
         }
-        if input::right() {
+        if (input.right()) {
             out = out | 2;
         }
-        if input::up() {
+        if (input.up()) {
             out = out | 4;
         }
-        if input::down() {
+        if (input.down()) {
             out = out | 8;
         }
-        if input::confirm() {
+        if (input.confirm()) {
             out = out | 16;
         }
-        if input::cancel() {
+        if (input.cancel()) {
             out = out | 32;
         }
-        memory::write(0x8000, out);
+        memory.write(0x8000, out);
     }
 }

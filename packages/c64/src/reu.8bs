@@ -83,28 +83,31 @@
 // `detect()` is safe to call on a C64 without a REU (question 1 stops it),
 // costs a few hundred DMA cycles at most, and is meant to run once at
 // start-up; keep the answer in a variable rather than asking again.
-use self::index::{reuStatus, reuCommand, reuC64AddressLow, reuC64AddressHigh, reuAddressLow, reuAddressHigh, reuBank, reuLengthLow, reuLengthHigh, reuAddressControl};
+import {
+    reuStatus, reuCommand, reuC64AddressLow, reuC64AddressHigh, reuAddressLow, reuAddressHigh,
+    reuBank, reuLengthLow, reuLengthHigh, reuAddressControl,
+} from "./index.8bs";
 
 // The one C64 byte the transfers touch. Its address goes into $DF02/$DF03.
-#[address(0x03FF)] let mut probe: volatile<u8>;
+@address(0x03FF) let probe: volatile<u8>;
 
-mod Reu {
-    const PROBE_LOW: utinyint = 0xFF; // low byte of `probe`'s address
-    const PROBE_HIGH: utinyint = 0x03; // high byte
-    const STASH: utinyint = 0xB0; // execute now, autoload, C64 → REU
-    const FETCH: utinyint = 0xB1; // execute now, autoload, REU → C64
-    const EXECUTE: utinyint = 0x90; // execute now, no autoload; OR the direction in
-    const TO_REU: utinyint = 0; // command bits 0-1
+namespace Reu {
+    const PROBE_LOW: utinyint = 0xFF;    // low byte of `probe`'s address
+    const PROBE_HIGH: utinyint = 0x03;   // high byte
+    const STASH: utinyint = 0xB0;        // execute now, autoload, C64 → REU
+    const FETCH: utinyint = 0xB1;        // execute now, autoload, REU → C64
+    const EXECUTE: utinyint = 0x90;      // execute now, no autoload; OR the direction in
+    const TO_REU: utinyint = 0;          // command bits 0-1
     const FROM_REU: utinyint = 1;
     const EXCHANGE: utinyint = 2;
     const COMPARE: utinyint = 3;
-    const FIX_C64: utinyint = 0x80; // address control: the C64 address does not advance
-    const FAULT: utinyint = 0x20; // status: a verify found a difference
+    const FIX_C64: utinyint = 0x80;      // address control: the C64 address does not advance
+    const FAULT: utinyint = 0x20;        // status: a verify found a difference
 }
 
 // One transfer: every register, then the command. `control` is the
 // address-control register (0, or Reu.FIX_C64).
-fn transfer(direction: utinyint, control: utinyint, c64Address: usmallint, bank: utinyint, address: usmallint, length: usmallint) {
+function transfer(direction: utinyint, control: utinyint, c64Address: usmallint, bank: utinyint, address: usmallint, length: usmallint): void {
     reuC64AddressLow = c64Address & 0xFF;
     reuC64AddressHigh = c64Address >> 8;
     reuAddressLow = address & 0xFF;
@@ -113,15 +116,15 @@ fn transfer(direction: utinyint, control: utinyint, c64Address: usmallint, bank:
     reuLengthLow = length & 0xFF;
     reuLengthHigh = length >> 8;
     reuAddressControl = control;
-    reuCommand = Reu::EXECUTE | direction;
+    reuCommand = Reu.EXECUTE | direction;
 }
 
-pub mod reu {
+export namespace reu {
     // Question 1: is a REU present? A register that stores what it is
     // given, twice, with different values.
-    fn present() -> bool {
+    function present(): bool {
         reuC64AddressLow = 0x55;
-        if reuC64AddressLow != 0x55 {
+        if (reuC64AddressLow != 0x55) {
             return false;
         }
         reuC64AddressLow = 0xAA;
@@ -131,9 +134,9 @@ pub mod reu {
     // Question 2, given a REU: how many 64 KiB banks it has, 1..255, or 0
     // meaning all 256 (16 MiB — the count does not fit the byte). Every
     // transfer is one byte between `probe` and the first byte of a bank.
-    fn banks() -> utinyint {
-        reuC64AddressLow = Reu::PROBE_LOW;
-        reuC64AddressHigh = Reu::PROBE_HIGH;
+    function banks(): utinyint {
+        reuC64AddressLow = Reu.PROBE_LOW;
+        reuC64AddressHigh = Reu.PROBE_HIGH;
         reuAddressLow = 0;
         reuAddressHigh = 0;
         reuLengthLow = 1;
@@ -141,23 +144,23 @@ pub mod reu {
         reuAddressControl = 0;
         probe = 0;
         reuBank = 0;
-        reuCommand = Reu::STASH;
-        let mut bank: utinyint = 1;
-        while bank != 0 {
+        reuCommand = Reu.STASH;
+        let bank: utinyint = 1;
+        while (bank != 0) {
             probe = bank;
             reuBank = bank;
-            reuCommand = Reu::STASH;
+            reuCommand = Reu.STASH;
             probe = 0xFF;
             reuBank = 0;
-            reuCommand = Reu::FETCH;
-            if probe == bank {
-                return bank; // wrapped: this bank is bank 0 again
+            reuCommand = Reu.FETCH;
+            if (probe == bank) {
+                return bank;        // wrapped: this bank is bank 0 again
             }
             probe = 0xFF;
             reuBank = bank;
-            reuCommand = Reu::FETCH;
-            if probe != bank {
-                return bank; // nothing there
+            reuCommand = Reu.FETCH;
+            if (probe != bank) {
+                return bank;        // nothing there
             }
             bank = bank + 1;
         }
@@ -166,12 +169,12 @@ pub mod reu {
 
     // KiB of REU RAM plugged in: 0 for none, 128 for a 1700, 512 for a
     // 1750, up to 16384. One call at start-up; keep the answer.
-    fn detect() -> usmallint {
-        if !reu::present() {
+    function detect(): usmallint {
+        if (!reu.present()) {
             return 0;
         }
-        let found: utinyint = reu::banks();
-        if found == 0 {
+        let found: utinyint = reu.banks();
+        if (found == 0) {
             return 16384;
         }
         let kib: usmallint = found;
@@ -179,31 +182,31 @@ pub mod reu {
     }
 
     // `length` bytes from C64 `c64Address` into the REU at `bank`:`address`.
-    fn stash(c64Address: usmallint, bank: utinyint, address: usmallint, length: usmallint) {
-        transfer(Reu::TO_REU, 0, c64Address, bank, address, length);
+    function stash(c64Address: usmallint, bank: utinyint, address: usmallint, length: usmallint): void {
+        transfer(Reu.TO_REU, 0, c64Address, bank, address, length);
     }
 
     // `length` bytes from the REU at `bank`:`address` into C64 `c64Address`.
-    fn fetch(c64Address: usmallint, bank: utinyint, address: usmallint, length: usmallint) {
-        transfer(Reu::FROM_REU, 0, c64Address, bank, address, length);
+    function fetch(c64Address: usmallint, bank: utinyint, address: usmallint, length: usmallint): void {
+        transfer(Reu.FROM_REU, 0, c64Address, bank, address, length);
     }
 
     // The two ranges exchanged.
-    fn swap(c64Address: usmallint, bank: utinyint, address: usmallint, length: usmallint) {
-        transfer(Reu::EXCHANGE, 0, c64Address, bank, address, length);
+    function swap(c64Address: usmallint, bank: utinyint, address: usmallint, length: usmallint): void {
+        transfer(Reu.EXCHANGE, 0, c64Address, bank, address, length);
     }
 
     // True if the two ranges hold the same bytes.
-    fn verify(c64Address: usmallint, bank: utinyint, address: usmallint, length: usmallint) -> bool {
+    function verify(c64Address: usmallint, bank: utinyint, address: usmallint, length: usmallint): bool {
         let cleared: utinyint = reuStatus; // reading clears the fault bit from before
-        transfer(Reu::COMPARE, 0, c64Address, bank, address, length);
-        return (reuStatus & Reu::FAULT) == 0;
+        transfer(Reu.COMPARE, 0, c64Address, bank, address, length);
+        return (reuStatus & Reu.FAULT) == 0;
     }
 
     // `length` bytes of the REU at `bank`:`address` all set to `value`: a
     // stash from one C64 byte that does not advance.
-    fn fillReu(bank: utinyint, address: usmallint, length: usmallint, value: utinyint) {
+    function fillReu(bank: utinyint, address: usmallint, length: usmallint, value: utinyint): void {
         probe = value;
-        transfer(Reu::TO_REU, Reu::FIX_C64, 0x03FF, bank, address, length);
+        transfer(Reu.TO_REU, Reu.FIX_C64, 0x03FF, bank, address, length);
     }
 }

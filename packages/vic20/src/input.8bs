@@ -49,9 +49,9 @@
 //
 // Every answer is edge-triggered: true on the one frame the press begins.
 // `poll()` once a frame, right after waitFrame().
-use self::index::{via1PortA, via2PortB, via2DirectionB};
-use self::keyboard::keyboard;
-use self::keys::Key;
+import { via1PortA, via2PortB, via2DirectionB } from "./index.8bs";
+import { keyboard } from "./keyboard.8bs";
+import { Key } from "./keys.8bs";
 
 // VIA1 port A's four switches, and the odd one out on VIA2.
 const JOY_UP: utinyint = 4;
@@ -60,7 +60,7 @@ const JOY_LEFT: utinyint = 16;
 const JOY_FIRE: utinyint = 32;
 const JOY_RIGHT: utinyint = 128; // VIA2 port B bit 7
 
-mod Edge {
+namespace Edge {
     const LEFT: utinyint = 1;
     const RIGHT: utinyint = 2;
     const UP: utinyint = 4;
@@ -69,13 +69,14 @@ mod Edge {
     const CANCEL: utinyint = 32;
 }
 
-let mut held: utinyint = 0;
-let mut before: utinyint = 0;
-let mut began: utinyint = 0;
+let held: utinyint = 0;
+let before: utinyint = 0;
+let began: utinyint = 0;
 
-pub mod input {
+export namespace input {
+
     // Nothing to set up: no pointer to give a ceiling to.
-    fn begin() {
+    function begin(): void {
         // One poll before the program's first, so the edge detector starts
         // from what is actually held rather than from nothing. `before` is
         // zero until something fills it, and an edge is "held now, not held
@@ -83,14 +84,14 @@ pub mod input {
         // starts reads as a fresh press on frame one. Measured on the
         // MEGA65, whose RETURN key is down at start-up: the joystick example
         // counted a confirm() nobody pressed until begin() primed this.
-        input::poll();
+        input.poll();
     }
 
-    fn poll() {
+    function poll(): void {
         // First, so the other seven keyboard columns are already driven
         // for this frame before the joystick-right read below borrows
         // bit 7 of the same port.
-        keyboard::scan();
+        keyboard.scan();
 
         // The four on VIA1, inverted once so a 1 bit means pushed.
         let stick: utinyint = via1PortA ^ 0xFF;
@@ -106,90 +107,90 @@ pub mod input {
         before = held;
         held = 0;
 
-        if (stick & JOY_LEFT) != 0 {
-            held = held | Edge::LEFT;
+        if ((stick & JOY_LEFT) != 0) {
+            held = held | Edge.LEFT;
         }
-        if rightPushed {
-            held = held | Edge::RIGHT;
+        if (rightPushed) {
+            held = held | Edge.RIGHT;
         }
-        if (stick & JOY_UP) != 0 {
-            held = held | Edge::UP;
+        if ((stick & JOY_UP) != 0) {
+            held = held | Edge.UP;
         }
-        if (stick & JOY_DOWN) != 0 {
-            held = held | Edge::DOWN;
+        if ((stick & JOY_DOWN) != 0) {
+            held = held | Edge.DOWN;
         }
-        if (stick & JOY_FIRE) != 0 {
-            held = held | Edge::CONFIRM;
+        if ((stick & JOY_FIRE) != 0) {
+            held = held | Edge.CONFIRM;
         }
 
         // The two cursor keys and SHIFT, which is what "four directions"
         // is on this keyboard — or'd on top of the joystick, same as the
         // C64: a program should not care which the user reached for.
-        let shifted: bool = keyboard::pressed(Key::SHIFT_LEFT) || keyboard::pressed(Key::SHIFT_RIGHT);
-        if keyboard::pressed(Key::CURSOR_LEFT_RIGHT) {
-            if shifted {
-                held = held | Edge::LEFT;
+        let shifted: bool = keyboard.pressed(Key.SHIFT_LEFT) || keyboard.pressed(Key.SHIFT_RIGHT);
+        if (keyboard.pressed(Key.CURSOR_LEFT_RIGHT)) {
+            if (shifted) {
+                held = held | Edge.LEFT;
             } else {
-                held = held | Edge::RIGHT;
+                held = held | Edge.RIGHT;
             }
         }
-        if keyboard::pressed(Key::CURSOR_UP_DOWN) {
-            if shifted {
-                held = held | Edge::UP;
+        if (keyboard.pressed(Key.CURSOR_UP_DOWN)) {
+            if (shifted) {
+                held = held | Edge.UP;
             } else {
-                held = held | Edge::DOWN;
+                held = held | Edge.DOWN;
             }
         }
-        if keyboard::pressed(Key::RETURN) {
-            held = held | Edge::CONFIRM;
+        if (keyboard.pressed(Key.RETURN)) {
+            held = held | Edge.CONFIRM;
         }
-        if keyboard::pressed(Key::RUN_STOP) {
-            held = held | Edge::CANCEL;
+        if (keyboard.pressed(Key.RUN_STOP)) {
+            held = held | Edge.CANCEL;
         }
 
         began = held & (before ^ 0xFF);
     }
 
-    fn left() -> bool {
-        return (began & Edge::LEFT) != 0;
+    function left(): bool {
+        return (began & Edge.LEFT) != 0;
     }
 
-    fn right() -> bool {
-        return (began & Edge::RIGHT) != 0;
+    function right(): bool {
+        return (began & Edge.RIGHT) != 0;
     }
 
-    fn up() -> bool {
-        return (began & Edge::UP) != 0;
+    function up(): bool {
+        return (began & Edge.UP) != 0;
     }
 
-    fn down() -> bool {
-        return (began & Edge::DOWN) != 0;
+    function down(): bool {
+        return (began & Edge.DOWN) != 0;
     }
 
-    fn confirm() -> bool {
-        return (began & Edge::CONFIRM) != 0;
+    function confirm(): bool {
+        return (began & Edge.CONFIRM) != 0;
     }
 
-    fn cancel() -> bool {
-        return (began & Edge::CANCEL) != 0;
+    function cancel(): bool {
+        return (began & Edge.CANCEL) != 0;
     }
 
-    fn pointer() -> bool {
+    function pointer(): bool {
         return false;
     }
 
-    fn pointerCell() -> usmallint {
+    function pointerCell(): usmallint {
         return 0;
     }
 
-    fn pointerButton() -> bool {
+    function pointerButton(): bool {
         return false;
     }
 }
 
 // Compile-time names for the confirm control, interpolated into catalogs
 // as {control} / {other}. OR / ODER lives in the catalog, not here.
-pub mod Input {
+export namespace Input {
     const CONFIRM_LABEL: string = "RETURN";
     const ALT_CONFIRM_LABEL: string = "FIRE";
     const CONFIRM_LABELS: string = "RETURN OR FIRE";

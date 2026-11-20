@@ -7,26 +7,27 @@
 // This directory is also the resolver's fixture: `@8bitscript/compiler`
 // lists `@8bitscript/text` and `@8bitscript/vic20` as devDependencies, so a
 // file under here resolves them through a real pnpm-linked node_modules.
-use @8bitscript::text::text;
-use @8bitscript::input::input;
+import { text } from "@8bitscript/text";
+import { input } from "@8bitscript/input";
 
-#[address(0x900F)] let vicColor: volatile<utinyint>;
+@address(0x900F)
+let vicColor: volatile<utinyint>;
 
-let buffer: [utinyint; 16];
-let mut cursor: ptr<utinyint>;
+let buffer: array<utinyint, 16>;
+let cursor: ptr<utinyint>;
 
-pub fn update() {
-    if input::left() {
-        cursor -= 1;
+export function update(): void {
+    if (input.left()) {
+        cursor--;
     } else {
-        cursor += 1;
+        cursor++;
     }
 
-    for i: utinyint in 0..16 {
-        text::putChar(i, 10, buffer[0]);
+    for (let i: utinyint = 0; i < 16; i++) {
+        text.putChar(i, 10, buffer[0]);
     }
 
-    loop {
+    while (true) {
         break;
     }
 

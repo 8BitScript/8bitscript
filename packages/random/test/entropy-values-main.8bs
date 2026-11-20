@@ -1,5 +1,5 @@
-use "./entropy-values.8bs"::run;
+import { run } from "./entropy-values.8bs";
 
-pub fn main() {
+export function main(): void {
     run();
 }

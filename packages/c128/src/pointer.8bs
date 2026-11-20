@@ -51,10 +51,13 @@
 // `#fact(input.mouse)` is false on a stock C128, so `HAS_MOUSE` is a const
 // and every register write below is neither reached nor linked. Fitting a
 // 1351 is what compiles them in.
-use self::input::mouse;
-use self::index::{spritePositions, spriteXHigh, spriteEnable, spriteExpandX, spriteExpandY, spritePriority, spriteMulticolor, spriteColors};
+import { mouse } from "./input.8bs";
+import {
+    spritePositions, spriteXHigh, spriteEnable, spriteExpandX, spriteExpandY,
+    spritePriority, spriteMulticolor, spriteColors,
+} from "./index.8bs";
 
-const HAS_MOUSE: bool = #fact(input::mouse);
+const HAS_MOUSE: bool = #fact(input.mouse);
 
 const WHITE: utinyint = 1;
 
@@ -66,13 +69,15 @@ const BYTES: utinyint = 63;
 
 // Sprite pointers sit at screen + $3F8. Screen is $0400 in native 40-column
 // mode, so $07F8. Shape block 56 is $0E00, the first of the KERNAL's eight.
-#[address(0x07F8)] let mut spritePointers: [u8; 8];
-#[address(0x0E00)] let mut arrowShape: [u8; 64];
+@address(0x07F8)
+let spritePointers: array<u8, 8>;
+@address(0x0E00)
+let arrowShape: array<u8, 64>;
 
 // The arrow: 21 rows of 3 bytes, one bit a pixel. Same picture as the
 // C64's, so a screenshot of the two can be compared. A const array is
 // data in the program image and never in RAM.
-const ARROW: [utinyint; 63] = [
+const ARROW: array<utinyint, 63> = [
     0x80, 0, 0,
     0xC0, 0, 0,
     0xE0, 0, 0,
@@ -96,23 +101,24 @@ const ARROW: [utinyint; 63] = [
     0, 0, 0,
 ];
 
-pub mod pointer {
+export namespace pointer {
+
     // Does this machine draw a pointer at all? A compile-time constant —
     // on the C128 it is "only if this build was fitted with a mouse".
-    const DRAWS: bool = #fact(input::mouse);
+    const DRAWS: bool = #fact(input.mouse);
 
     const SPRITE: utinyint = 0;
     const BLOCK: utinyint = 56; // $0E00 / 64, first KERNAL sprite block
 
-    fn begin() {
-        if HAS_MOUSE {
-            let mut i: utinyint = 0;
-            while i < BYTES {
+    function begin(): void {
+        if (HAS_MOUSE) {
+            let i: utinyint = 0;
+            while (i < BYTES) {
                 arrowShape[i] = ARROW[i];
                 i = i + 1;
             }
-            spritePointers[pointer::SPRITE] = pointer::BLOCK;
-            spriteColors[pointer::SPRITE] = WHITE;
+            spritePointers[pointer.SPRITE] = pointer.BLOCK;
+            spriteColors[pointer.SPRITE] = WHITE;
             // Known state: hires, unexpanded, in front of the background.
             spriteExpandX = spriteExpandX & 254;
             spriteExpandY = spriteExpandY & 254;
@@ -121,23 +127,23 @@ pub mod pointer {
         }
     }
 
-    fn setColor(color: utinyint) {
-        if HAS_MOUSE {
-            spriteColors[pointer::SPRITE] = color & 15;
+    function setColor(color: utinyint): void {
+        if (HAS_MOUSE) {
+            spriteColors[pointer.SPRITE] = color & 15;
         }
     }
 
-    fn update() {
-        if HAS_MOUSE {
-            if mouse::present() {
+    function update(): void {
+        if (HAS_MOUSE) {
+            if (mouse.present()) {
                 // The VIC's Y is 8 bits and the screen's 200 rows of pixels
                 // start at 50, so the sum is at most 249 and cannot carry
                 // out of a byte — which is why this needs no clamp of its
                 // own beyond the ceiling the mouse's step() already has.
-                let x: usmallint = LEFT + mouse::x();
+                let x: usmallint = LEFT + mouse.x();
                 spritePositions[0] = x;
-                spritePositions[1] = TOP + mouse::y();
-                if x >= 256 {
+                spritePositions[1] = TOP + mouse.y();
+                if (x >= 256) {
                     spriteXHigh = spriteXHigh | 1;
                 } else {
                     spriteXHigh = spriteXHigh & 254;
@@ -149,8 +155,8 @@ pub mod pointer {
         }
     }
 
-    fn hide() {
-        if HAS_MOUSE {
+    function hide(): void {
+        if (HAS_MOUSE) {
             spriteEnable = spriteEnable & 254;
         }
     }
