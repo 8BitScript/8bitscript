@@ -1,10 +1,11 @@
 // One-time generator for the in-repo `.8bx` pairs: copies each file to
-// `pairs/<n>-<name>.old.8bx` and writes its conversion to `<n>-<name>.8bx`.
+// `pairs/<n>-<name>.old.8bx` and writes its conversion to `<n>-<name>.8bx`, the
+// way `8bs migrate` writes it (same-stem imports keep the string path).
 // Run from the repo root: node crates/front-wasm/tests/gen-bx-pairs.mjs
 import { copyFileSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { convertSource } from '../../../packages/cli/src/migrate/print.mjs';
+import { migrateText, sameStemIn } from '../../../packages/cli/src/migrate/index.mjs';
 
 const dir = join(dirname(fileURLToPath(import.meta.url)), 'pairs');
 const sources = [
@@ -21,7 +22,7 @@ const sources = [
 sources.forEach((path, i) => {
   const stem = `${String(9 + i).padStart(2, '0')}-${basename(path, '.8bx').toLowerCase()}`;
   const text = readFileSync(path, 'utf8');
-  const { text: converted } = convertSource(text, { file: path, sourceKind: '.8bx' });
+  const { text: converted } = migrateText(text, { file: path, sourceKind: '.8bx', sameStem: sameStemIn(path) });
   copyFileSync(path, join(dir, `${stem}.old.8bx`));
   writeFileSync(join(dir, `${stem}.8bx`), converted);
 });

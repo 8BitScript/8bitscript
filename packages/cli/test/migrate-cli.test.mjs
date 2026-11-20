@@ -128,6 +128,18 @@ test('--alias lets a package import with an extension take the path form', async
   }
 });
 
+test('docs/spec/8bx.md is a design record: --fences skips it and leaves it as written', async () => {
+  const files = { 'docs/spec/8bx.md': `x\n\n\`\`\`8bx\nlet x = ;\n\`\`\`\n\n\`\`\`8bs\n${OLD}\`\`\`\n`, 'docs/other.md': `\`\`\`8bs\n${OLD}\`\`\`\n` };
+  const dir = project(files);
+  try {
+    const result = await run(dir, '--fences');
+    assert.deepEqual(result.lines, ['converted 1 fences in docs/other.md', '1 converted, 0 already new syntax, 0 differences, 0 failures']);
+    assert.equal(readFileSync(join(dir, 'docs/spec/8bx.md'), 'utf8'), files['docs/spec/8bx.md']);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('--embedded and --fences convert their own files, --all does all three', async () => {
   const files = {
     'a.8bs': OLD,
@@ -286,6 +298,19 @@ test('fences: a ```8bs block holding a component is converted as .8bx', () => {
   const out = convertFences('```8bs\nexport component Box() { <A />; }\n```\n', convert);
   assert.equal(out.converted, 1);
   assert.equal(out.text, '```8bs\npub component Box() {\n    <A />;\n}\n```\n');
+});
+
+test('fences: a ```8bx block is converted as .8bx', () => {
+  const out = convertFences('```8bx\nexport component Box() { <A />; }\n```\n', convert);
+  assert.equal(out.converted, 1);
+  assert.equal(out.text, '```8bx\npub component Box() {\n    <A />;\n}\n```\n');
+});
+
+test('fences: a ```8bx block is not retried as .8bs when it fails', () => {
+  const kinds = [];
+  const out = convertFences('```8bx\nlet x = ;\n```\n', (body, kind) => (kinds.push(kind), convert(body, kind)));
+  assert.deepEqual(kinds, ['.8bx']);
+  assert.equal(out.failures.length, 1);
 });
 
 test('fences: an indented fence keeps its indent', () => {
