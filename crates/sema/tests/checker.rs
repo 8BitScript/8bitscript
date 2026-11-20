@@ -51,3 +51,16 @@ fn root_that_is_not_a_program_is_empty() {
         assert!(check(Some(&ast), "x.8bs", None, CheckOptions::default()).is_empty());
     }
 }
+
+#[test]
+fn thrown_records_skip_only_for_a_non_program_root() {
+    let program = json!({"type": "Program", "start": 0, "length": 0, "body": []});
+    let block = json!({"type": "BlockStatement", "start": 0, "length": 2, "body": []});
+    let record = |ast: &Value| json!({"args": [ast, "x.8bs"], "throw": "TypeError"});
+    assert!(matches!(
+        check::replay(&record(&program)),
+        Replay::Mismatch(..)
+    ));
+    assert_eq!(check::replay(&record(&block)), Replay::Skip);
+    assert_eq!(check::replay(&record(&Value::Null)), Replay::Skip);
+}
