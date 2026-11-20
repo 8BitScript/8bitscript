@@ -163,6 +163,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "media"
+version = "0.0.0"
+dependencies = [
+ "diagnostics",
+ "indexmap",
+ "jsnum",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "media-tools"
 version = "0.0.0"
 dependencies = [
