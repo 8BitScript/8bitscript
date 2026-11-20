@@ -222,7 +222,7 @@ export async function describeProject({ cwd = process.cwd(), checkout = null, de
 /** One line per program, for the table form. */
 function printProject(info) {
   const stdout = process.stdout;
-  stdout.write(`${info.name}${info.hasConfig ? '' : '  (no 8bitscript.config.8bs here)'}\n`);
+  stdout.write(`${info.name}${info.hasConfig ? '' : '  (no 8bitscript.config.ts here)'}\n`);
   if (info.configError) stdout.write(`  ${info.configError}\n`);
   stdout.write(`  targets: ${info.targets.map((t) => t.id).join(', ')}${info.targetsListed ? '' : '  (every machine this release builds for)'}\n`);
   stdout.write('\nprograms:\n');

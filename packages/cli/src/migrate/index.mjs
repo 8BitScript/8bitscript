@@ -10,16 +10,18 @@
 //
 //   8bs migrate [paths] [--check]       .8bs/.8bx sources, in place
 //   8bs migrate --embedded <file>...    programs inside JS/TS sources (tests, generators, scripts)
-//   8bs migrate --fences <md>...        ```8bs fences in Markdown
+//   8bs migrate --fences <md>...        ```8bs and ```8bx fences in Markdown
 //   8bs migrate --all [paths]           all three over the same paths
 //   --alias @lib                        an import alias head from the config (repeatable)
 //
 // `--check` writes nothing and exits 1 on any difference or failure.
-import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import { basename, extname, join, relative, resolve, sep } from 'node:path';
-import { parse, tokenize } from '@8bitscript/compiler';
+import { existsSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { basename, dirname, extname, join, relative, resolve, sep } from 'node:path';
+import { SOURCE_EXTENSIONS, stripSourceExtension, variantsPresent } from '@8bitscript/compiler';
 import { check as proveEqual, parse as parseNew, tokenize as tokenizeNew } from '@8bitscript/compiler/front';
 import { convertEmbedded, convertFences } from './embedded.mjs';
+import { tokenize } from './legacy/lexer.mjs';
+import { parse } from './legacy/parser.mjs';
 import { UnsupportedError, printProgram } from './print.mjs';
 
 const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'target', '.changeset', '.fleet-out', 'coverage']);
@@ -27,15 +29,19 @@ const SOURCE_FILE = /\.8b[sx]$/;
 const SCRIPT_FILE = /\.(?:mjs|cjs|js|mts|cts|ts)$/;
 const MARKDOWN_FILE = /\.md$/;
 
+const OLD_CONFIG = '8bitscript.config.8bs';
+const NEW_CONFIG = '8bitscript.config.ts';
+
 /** Files that must keep their old syntax or are not converted at all. */
 function isExcluded(path) {
   const name = basename(path);
-  if (name.startsWith('8bitscript.config.')) return true; // renamed in the flip, not converted
+  if (name.startsWith('8bitscript.config.')) return true; // renamed by the config step, never parsed
   if (/\.old\.8b[sx]$/.test(name)) return true; // old-syntax pair fixtures
   const parts = path.split(sep).join('/');
   if (/(^|\/)crates\//.test(parts)) return true; // Rust crates' fixtures: new syntax and error corpora
   if (/(^|\/)packages\/cli\/src\/migrate\//.test(parts)) return true; // the converter's own sources
   if (/(^|\/)packages\/cli\/test\/migrate-[^/]*$/.test(parts)) return true; // its fixtures
+  if (/(^|\/)docs\/spec\/8bx\.md$/.test(parts)) return true; // a design record kept as the spec was written: fragments, proposals, rejected designs
   return false;
 }
 
@@ -92,10 +98,46 @@ function proves(oldAst, text, file, sourceKind) {
 }
 
 /**
+ * The predicate migrateText takes: true when a relative specifier's module stem
+ * exists under more than one source extension next to `file`. `use self::m::x`
+ * would then be ambiguous (8BS2217), so the printer keeps the string path.
+ * An extension counts as present when the plain file or a machine, tag or
+ * locale twin of it exists (the resolver's variantsPresent), as twins count there.
+ * Stems are compared case-folded.
+ *
+ * @param {string} file
+ * @returns {(specifier: string) => boolean}
+ */
+export function sameStemIn(file) {
+  return (specifier) => {
+    if (!specifier.startsWith('./') && !specifier.startsWith('../')) return false;
+    const target = stripSourceExtension(resolve(dirname(file), specifier));
+    const dir = dirname(target);
+    // Stems that differ only in case are one stem: on a case-insensitive file
+    // system (macOS, Windows) the compiler's probes find both, and 8BS2217 follows.
+    const folded = basename(target).toLowerCase();
+    let entries;
+    try {
+      entries = readdirSync(dir);
+    } catch {
+      return false;
+    }
+    const stems = new Set(
+      entries.filter((e) => e.toLowerCase().startsWith(`${folded}.`)).map((e) => e.slice(0, folded.length)),
+    );
+    const present = (ext) => [...stems].some((stem) => {
+      const path = join(dir, stem + ext);
+      return existsSync(path) || variantsPresent(path).length > 0;
+    });
+    return SOURCE_EXTENSIONS.filter(present).length > 1;
+  };
+}
+
+/**
  * Convert one old-syntax text and prove the result.
  *
  * @param {string} text
- * @param {{ file?: string, sourceKind?: '.8bs'|'.8bx', aliasHeads?: string[] }} [options]
+ * @param {{ file?: string, sourceKind?: '.8bs'|'.8bx', aliasHeads?: string[], sameStem?: (specifier: string) => boolean }} [options]
  * @returns {{ status: 'converted' | 'already-new' | 'failed' | 'different', text?: string, message?: string }}
  */
 export function migrateText(text, options = {}) {
@@ -116,7 +158,7 @@ export function migrateText(text, options = {}) {
   }
   let printed;
   try {
-    printed = printProgram(parsed.ast, lexed.tokens, text, { aliasHeads: options.aliasHeads ?? [] });
+    printed = printProgram(parsed.ast, lexed.tokens, text, { aliasHeads: options.aliasHeads ?? [], sameStem: options.sameStem });
   } catch (error) {
     if (error instanceof UnsupportedError) return { status: 'failed', message: error.message };
     throw error;
@@ -188,11 +230,27 @@ export async function migrate(args, io = {}) {
   };
 
   if (modes.sources) {
-    const files = roots.flatMap((r) => collect(r, SOURCE_FILE)).filter((f) => !isExcluded(f));
+    const all = roots.flatMap((r) => collect(r, SOURCE_FILE));
+    // The old config name: the file is plain type-stripped TypeScript, so
+    // the rename is the whole conversion.
+    for (const file of all.filter((f) => basename(f) === OLD_CONFIG)) {
+      const target = join(dirname(file), NEW_CONFIG);
+      if (existsSync(target)) {
+        record(show(file), 'failed', `${NEW_CONFIG} already exists beside it; delete one of them`);
+        continue;
+      }
+      totals.converted += 1;
+      out(`${opts.check ? 'would rename' : 'renamed'} ${show(file)} to ${NEW_CONFIG}`);
+      if (!opts.check) {
+        writeFileSync(target, readFileSync(file, 'utf8'));
+        rmSync(file);
+      }
+    }
+    const files = all.filter((f) => !isExcluded(f));
     for (const file of files) {
       const text = readFileSync(file, 'utf8');
       const sourceKind = extname(file);
-      const result = migrateText(text, { file, sourceKind, aliasHeads: opts.aliasHeads });
+      const result = migrateText(text, { file, sourceKind, aliasHeads: opts.aliasHeads, sameStem: sameStemIn(file) });
       if (result.status === 'already-new') {
         totals.alreadyNew += 1;
         out(`already new syntax ${show(file)}`);
@@ -211,7 +269,11 @@ export async function migrate(args, io = {}) {
     const files = roots.flatMap((r) => collect(r, wanted)).filter((f) => !isExcluded(f));
     for (const file of files) {
       const text = readFileSync(file, 'utf8');
-      const result = convertFile(text, (body, sourceKind) => migrateText(body, { file, sourceKind, aliasHeads: opts.aliasHeads }));
+      // Embedded programs and fences have no file of their own, so the same-stem predicate looks beside the host file.
+      // That is acceptable here: a doc or test snippet imports siblings of the file that shows it, and a wrong guess only
+      // keeps the string form, which resolves either way now that the resolver (#380) accepts a string path
+      // for a module whose stem exists under more than one extension.
+      const result = convertFile(text, (body, sourceKind) => migrateText(body, { file, sourceKind, aliasHeads: opts.aliasHeads, sameStem: sameStemIn(file) }));
       for (const failure of result.failures) record(`${show(file)}:${failure.line}`, failure.status, failure.message);
       if (result.converted > 0 || result.unchanged > 0) {
         totals.converted += result.converted;

@@ -231,12 +231,12 @@ timer 4 as the baud clock, up to 62500 baud, up to 8 units).
 ### Video: the frame is *built*, not *shown*
 
 - There is no text mode, no charset, no tile map, no color RAM. A
-  portable `text.print` on the Lynx is a Suzy sprite (or a run of them)
+  portable `text::print` on the Lynx is a Suzy sprite (or a run of them)
   per glyph from a font stored as sprite data, blitted into the back
   buffer — 20×12 cells at 8×8, 26×17 at 6×6, whatever the font is. The
-  X16-style "cell = address" model does not exist; `text.COLUMNS` is a
+  X16-style "cell = address" model does not exist; `text::COLUMNS` is a
   property of the font the package chose.
-- `screen.setBackground()` is the framebuffer fill (a full-screen
+- `screen::setBackground()` is the framebuffer fill (a full-screen
   BACKGROUND-type sprite is the fast way); there is no border and no
   border color — the LCD *is* the 160×102 area. `setBorder()` is inert,
   the PET's answer.
@@ -263,7 +263,7 @@ timer 4 as the baud clock, up to 62500 baud, up to 8 units).
   16 collision classes (`sprcoll` low nibble *to verify*) — and comes back
   after the chain finishes. Give a portable "did A touch B" primitive the
   Suzy answer; software AABB is the fallback, not the default.
-- Scaling/tilt are free: a portable `sprites.place()` can carry a scale
+- Scaling/tilt are free: a portable `sprites::place()` can carry a scale
   without a "not supported here" branch — the machine that *lacks*
   scaling (every other one) is the one that needs the branch.
 

@@ -203,20 +203,20 @@ test('a project with a catalog and a template records applyCatalogCharset and la
   const tapDir = scratch();
   try {
     mkdirSync(join(dir, 'src', 'i18n'), { recursive: true });
-    writeFileSync(join(dir, 'src', 'i18n', 'en.8bs'), 'export namespace Game { const NAME: string = "HELLO WORLD"; }\n');
+    writeFileSync(join(dir, 'src', 'i18n', 'en.8bs'), 'pub mod Game {\n    const NAME: string = "HELLO WORLD";\n}\n');
     writeFileSync(join(dir, 'src', 'main.8bs'), [
-      'import { screen } from "@8bitscript/screen";',
-      'import { text } from "@8bitscript/text";',
-      'import { Game } from "@8bitscript/i18n/catalog";',
-      'export function main(): void {',
+      'use @8bitscript::screen::screen;',
+      'use @8bitscript::text::text;',
+      'use @8bitscript::i18n::catalog::Game;',
+      'pub fn main() {',
       '    let ticks: usmallint = 3;',
-      '    screen.blank();',
-      '    text.print(0, Game.NAME);',
-      '    text.print(40, `TICK ${ticks:1}`);',
+      '    screen::blank();',
+      '    text::print(0, Game::NAME);',
+      '    text::print(40, `TICK ${ticks:1}`);',
       '}',
       '',
     ].join('\n'));
-    writeFileSync(join(dir, '8bitscript.config.8bs'), `export default ${JSON.stringify({
+    writeFileSync(join(dir, '8bitscript.config.ts'), `export default ${JSON.stringify({
       entry: 'src/main.8bs',
       targets: { c64: {} },
       i18n: { defaultLocale: 'en', fallbackLocale: 'en', locales: ['en'] },

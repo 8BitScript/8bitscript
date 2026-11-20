@@ -77,8 +77,8 @@ for (const machine of MACHINES) {
     // geometry from another file (the PET's text.CELL_COUNT is
     // `Video.CELL_COUNT`, pending until linked), so the values are read
     // the way a program reads them — inlined into a use.
-    const src = 'import { text } from "@8bitscript/text";\n'
-      + 'export function main(): void { memory.write(0, text.CELL_COUNT); memory.write(1, text.COLUMNS); }\n';
+    const src = 'use @8bitscript::text::text;\n'
+      + 'pub fn main() {\n    memory::write(0, text::CELL_COUNT);\n    memory::write(1, text::COLUMNS);\n}\n';
     const { ir, diagnostics } = link(src, CONSUMER, { machine, facts: stockFacts(machine) });
     assert.deepEqual(diagnostics, []);
     const main = ir.functions.find((f) => f.name === 'main');
@@ -98,7 +98,7 @@ for (const machine of MACHINES) {
 // set holds both cases at once, so 'T' (already inside its own upper-case
 // range there) needs no offset at all — see the dedicated PET test below.
 
-const T_CONSUMER = 'import { text } from "@8bitscript/text";\nexport function main(): void { text.putChar(0, 84); }';
+const T_CONSUMER = 'use @8bitscript::text::text;\npub fn main() {\n    text::putChar(0, 84);\n}';
 
 test('every Commodore selects a character set rather than inheriting one, and each that ships draws in the mixed-case one', () => {
   // Selecting is the shared decision: the ROM's boot state, whatever ran
@@ -262,7 +262,7 @@ test('the NES text grid is the 28x26 area inside the drawn frame', () => {
 // through their package's index, not through each other.
 
 test('a program that imports only @8bitscript/screen links for every machine', () => {
-  const src = 'import { screen, BorderColor, BackgroundColor } from "@8bitscript/screen";\nexport function main(): void { screen.setColors(BorderColor.BLUE, BackgroundColor.BLACK); }';
+  const src = 'use @8bitscript::screen::{screen, BorderColor, BackgroundColor};\npub fn main() {\n    screen::setColors(BorderColor::BLUE, BackgroundColor::BLACK);\n}';
   for (const machine of MACHINES) {
     const { ir, diagnostics } = link(src, CONSUMER, { machine, facts: stockFacts(machine) });
     assert.deepEqual(diagnostics, [], machine);

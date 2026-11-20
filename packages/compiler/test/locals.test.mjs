@@ -33,29 +33,29 @@ async function linkWith(files, entry = 'main.8bs') {
 // ---- locals -------------------------------------------------------------------
 
 test('a local lowers to a local statement; left uninitialized it starts at 0', () => {
-  const { ir, diagnostics } = lowered('export function main(): void { let n: utinyint = 5; let m: usmallint; m = n; }');
+  const { ir, diagnostics } = lowered('pub fn main() {\n    let n: utinyint = 5;\n    let mut m: usmallint;\n    m = n;\n}');
   assert.deepEqual(diagnostics, []);
   const [n, m, assign] = ir.functions[0].body;
-  assert.deepEqual(n, { kind: 'local', name: 'n', type: 'utinyint', init: { kind: 'const', value: 5, type: 'utinyint' }, start: 35, length: 1 });
+  assert.deepEqual(n, { kind: 'local', name: 'n', type: 'utinyint', init: { kind: 'const', value: 5, type: 'utinyint' }, start: 24, length: 1 });
   assert.deepEqual(m.init, { kind: 'const', value: 0, type: 'usmallint' });
   assert.equal(assign.kind, 'assign');
 });
 
 test('a local initializer is any expression, and its literal gets the range rule', () => {
-  clean('let g: utinyint = 1;\nexport function main(): void { let n: utinyint = g + 1; }');
-  assert.deepEqual(codes('export function main(): void { let n: utinyint = 300; }'), ['8BS1021']);
+  clean('let g: utinyint = 1;\npub fn main() {\n    let n: utinyint = g + 1;\n}');
+  assert.deepEqual(codes('pub fn main() {\n    let n: utinyint = 300;\n}'), ['8BS1021']);
 });
 
 test('a local is an integer or bool: no const, string, array, or @address inside a function', () => {
-  assert.match(diagnosticsOf('export function main(): void { const N: utinyint = 1; }')[0].message, /a const is a compile-time value declared at the top level/);
-  assert.match(diagnosticsOf('export function main(): void { let s: string; }')[0].message, /a local of type string is not compilable yet/);
-  assert.match(diagnosticsOf('export function main(): void { let a: array<utinyint, 4>; }')[0].message, /a local array is not compilable yet/);
-  assert.match(diagnosticsOf('export function main(): void { @address(0xD020) let b: utinyint; }')[0].message, /belongs on a top-level declaration/);
-  assert.match(diagnosticsOf('export function main(): void { let b = 1; }')[0].message, /needs an explicit type/);
+  assert.match(diagnosticsOf('pub fn main() {\n    const N: utinyint = 1;\n}')[0].message, /a const is a compile-time value declared at the top level/);
+  assert.match(diagnosticsOf('pub fn main() {\n    let s: string;\n}')[0].message, /a local of type string is not compilable yet/);
+  assert.match(diagnosticsOf('pub fn main() {\n    let a: [utinyint; 4];\n}')[0].message, /a local array is not compilable yet/);
+  assert.match(diagnosticsOf('pub fn main() {\n    #[address(0xD020)] let b: utinyint;\n}')[0].message, /belongs on a top-level declaration/);
+  assert.match(diagnosticsOf('pub fn main() {\n    let b = 1;\n}')[0].message, /needs an explicit type/);
 });
 
 test('a local shadows a const, an array, or a global of the same name, and only inside its block', () => {
-  const src = 'const MAX: utinyint = 4;\nlet hp: array<utinyint, 2>;\nlet g: utinyint = 0;\nexport function main(): void { { let MAX: utinyint = 9; MAX = MAX + 1; g = MAX; } g = MAX; { let hp: utinyint = 1; hp = 2; } hp[0] = 1; { let g: utinyint = 3; } g = 5; }';
+  const src = 'const MAX: utinyint = 4;\nlet mut hp: [utinyint; 2];\nlet mut g: utinyint = 0;\npub fn main() {\n    {\n        let mut MAX: utinyint = 9;\n        MAX = MAX + 1;\n        g = MAX;\n    }\n    g = MAX;\n    {\n        let mut hp: utinyint = 1;\n        hp = 2;\n    }\n    hp[0] = 1;\n    {\n        let g: utinyint = 3;\n    }\n    g = 5;\n}';
   const { ir, diagnostics } = lowered(src);
   assert.deepEqual(diagnostics, [], 'assigning to the local MAX is not assigning to the const');
   const body = ir.functions[0].body;
@@ -65,17 +65,17 @@ test('a local shadows a const, an array, or a global of the same name, and only 
 });
 
 test('the checker sees a local shadow too: no 8BS1031 for a local named after a const — only the case rule', () => {
-  assert.deepEqual(codes('const MAX: utinyint = 4;\nexport function main(): void { let MAX: utinyint = 1; MAX++; }'), ['8BS1034']);
+  assert.deepEqual(codes('const MAX: utinyint = 4;\npub fn main() {\n    let mut MAX: utinyint = 1;\n    MAX += 1;\n}'), ['8BS1034']);
 });
 
 test('a template field sizes itself from a local', () => {
-  clean('export namespace text {\n function print(cell: usmallint, s: string): void { }\n function printNumber(cell: usmallint, value: usmallint, width: utinyint): void { }\n}\nexport function main(): void { let n: usmallint = 7; text.print(0, `N ${n}`); }');
+  clean('pub mod text {\n    fn print(cell: usmallint, s: string) {\n    }\n    fn printNumber(cell: usmallint, value: usmallint, width: utinyint) {\n    }\n}\npub fn main() {\n    let n: usmallint = 7;\n    text::print(0, `N ${n}`);\n}');
 });
 
 // ---- for ------------------------------------------------------------------------
 
 test('for lowers to a for with an initializer, test, and update; each may be left off', () => {
-  const { ir, diagnostics } = lowered('let g: utinyint = 0;\nexport function main(): void { for (let i: utinyint = 0; i < 4; i++) { g = i; } for (g = 0; g < 2; g += 1) { } for (;;) { break; } }');
+  const { ir, diagnostics } = lowered('let mut g: utinyint = 0;\npub fn main() {\n    for i: utinyint in 0..4 {\n        g = i;\n    }\n    for (g = 0; g < 2; g += 1) {\n    }\n    for (; ; ) {\n        break;\n    }\n}');
   assert.deepEqual(diagnostics, []);
   const [a, b, c] = ir.functions[0].body;
   assert.equal(a.kind, 'for');
@@ -88,13 +88,13 @@ test('for lowers to a for with an initializer, test, and update; each may be lef
 });
 
 test('a for initializer or update is an assignment, ++/--, or a call', () => {
-  assert.match(diagnosticsOf('export function main(): void { for (1; ; ) { } }')[0].message, /a for initializer is an assignment, \+\+\/--, or a call/);
-  assert.match(diagnosticsOf('let g: utinyint = 0;\nexport function main(): void { for (; ; g) { } }')[0].message, /a for update is an assignment/);
+  assert.match(diagnosticsOf('pub fn main() {\n    for (1; ; ) {\n    }\n}')[0].message, /a for initializer is an assignment, \+\+\/--, or a call/);
+  assert.match(diagnosticsOf('let g: utinyint = 0;\npub fn main() {\n    for (; ; g) {\n    }\n}')[0].message, /a for update is an assignment/);
 });
 
 test("the loop variable is scoped to the loop: after it, the name is the outer one again", async () => {
   const { ir, diagnostics } = await linkWith({
-    'main.8bs': 'let i: utinyint = 7;\nlet g: utinyint = 0;\nexport function main(): void { for (let i: utinyint = 0; i < 2; i++) { g = i; } g = i; }\n',
+    'main.8bs': 'let i: utinyint = 7;\nlet mut g: utinyint = 0;\npub fn main() {\n    for i: utinyint in 0..2 {\n        g = i;\n    }\n    g = i;\n}\n',
   });
   assert.deepEqual(diagnostics, []);
   const [loop, after] = ir.functions.find((f) => f.name === 'main').body;
@@ -109,15 +109,15 @@ test("the loop variable is scoped to the loop: after it, the name is the outer o
 
 test('a name declared only inside a block is not visible after it — the linker reports it', async () => {
   const { diagnostics } = await linkWith({
-    'main.8bs': 'let g: utinyint = 0;\nexport function main(): void { if (g == 0) { let n: utinyint = 1; g = n; } g = n; }\n',
+    'main.8bs': 'let mut g: utinyint = 0;\npub fn main() {\n    if g == 0 {\n        let n: utinyint = 1;\n        g = n;\n    }\n    g = n;\n}\n',
   });
   assert.deepEqual(diagnostics.map((d) => `${d.code} ${d.message}`), ["8BS2007 cannot find name 'n'"]);
 });
 
 test('a local shadows an import of the same name inside its block', async () => {
   const { ir, diagnostics } = await linkWith({
-    'lib.8bs': 'export let hp: array<utinyint, 2>;\nexport const MAX: utinyint = 4;\n',
-    'main.8bs': 'import { hp, MAX } from "./lib.8bs";\nlet g: utinyint = 0;\nexport function main(): void { { let hp: utinyint = 1; g = hp; } hp[0] = 1; g = MAX; }\n',
+    'lib.8bs': 'pub let mut hp: [utinyint; 2];\npub const MAX: utinyint = 4;\n',
+    'main.8bs': 'use self::lib::{hp, MAX};\nlet mut g: utinyint = 0;\npub fn main() {\n    {\n        let hp: utinyint = 1;\n        g = hp;\n    }\n    hp[0] = 1;\n    g = MAX;\n}\n',
   });
   assert.deepEqual(diagnostics, []);
   const [block, store, assign] = ir.functions.find((f) => f.name === 'main').body;
@@ -131,7 +131,7 @@ test('a local shadows an import of the same name inside its block', async () => 
 
 test('a for over an array length folds the bound, keeps continue, and writes the local', async () => {
   const { ir } = await linkWith({
-    'main.8bs': 'let hp: array<usmallint, 4>;\nlet total: usmallint = 0;\nexport function main(): void { let sum: usmallint = 0; for (let i: utinyint = 0; i < hp.length; i++) { if (i == 2) { continue; } sum += hp[i]; } total = sum; }\n',
+    'main.8bs': 'let hp: [usmallint; 4];\nlet mut total: usmallint = 0;\npub fn main() {\n    let mut sum: usmallint = 0;\n    for i: utinyint in 0..hp.length {\n        if i == 2 {\n            continue;\n        }\n        sum += hp[i];\n    }\n    total = sum;\n}\n',
   });
   const [sum, loop, total] = ir.functions.find((f) => f.name === 'main').body;
   assert.equal(sum.kind, 'local');
@@ -146,7 +146,7 @@ test('a for over an array length folds the bound, keeps continue, and writes the
 
 test('a waitFrame() inside a for is still a waitFrame statement', async () => {
   const { ir } = await linkWith({
-    'main.8bs': 'export function main(): void { for (let i: utinyint = 0; i < 4; i++) { waitFrame(); } }\n',
+    'main.8bs': 'pub fn main() {\n    for i: utinyint in 0..4 {\n        waitFrame();\n    }\n}\n',
   });
   const loop = ir.functions.find((f) => f.name === 'main').body[0];
   assert.equal(loop.kind, 'for');
@@ -154,7 +154,7 @@ test('a waitFrame() inside a for is still a waitFrame statement', async () => {
 });
 
 test('one declaration per name per block: a second let, or a let over a parameter, is a diagnostic here, not from the C compiler', () => {
-  const d = analyze('export function main(): void { let y: utinyint = 1; let y: utinyint = 2; { let y: utinyint = 3; } }\nfunction f(x: utinyint): void { let x: utinyint = 1; }', 't.8bs');
+  const d = analyze('pub fn main() {\n    let y: utinyint = 1;\n    let y: utinyint = 2;\n    {\n        let y: utinyint = 3;\n    }\n}\nfn f(x: utinyint) {\n    let x: utinyint = 1;\n}', 't.8bs');
   assert.deepEqual(d.map((x) => `${x.code} ${x.message}`), [
     "8BS3001 'y' is already declared in this block",
     "8BS3001 'x' is already declared in this block",

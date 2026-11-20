@@ -37,12 +37,12 @@ test('a target with no native files resolves with an empty list, not a missing f
 
 test('a screen and text consumer links for nes with the font in ir.nativeSources', () => {
   const consumer = [
-    'import { screen } from "@8bitscript/screen";',
-    'import { text } from "@8bitscript/text";',
-    'export function main(): void {',
-    '    text.putChar(99, 84);',
-    '    screen.setColors(0x2C, 0x01);',
-    '    text.printNumber(104, 3, 1);',
+    'use @8bitscript::screen::screen;',
+    'use @8bitscript::text::text;',
+    'pub fn main() {',
+    '    text::putChar(99, 84);',
+    '    screen::setColors(0x2C, 0x01);',
+    '    text::printNumber(104, 3, 1);',
     '}',
   ].join('\n');
   // (The 99 and 104 are cells of the 28x26 grid inside the frame — the
@@ -97,7 +97,7 @@ test('a screen and text consumer links for nes with the font in ir.nativeSources
 
 test('the same graph linked for web carries no native sources', () => {
   const { ir, diagnostics } = link(
-    'import { text } from "@8bitscript/text";\nexport function main(): void { text.putChar(0, 65); }',
+    'use @8bitscript::text::text;\npub fn main() {\n    text::putChar(0, 65);\n}',
     ENTRY, { machine: 'web' },
   );
   assert.deepEqual(diagnostics, []);
@@ -113,7 +113,7 @@ const scratchPackage = (manifest8bitscript) => {
   const root = mkdtempSync(join(tmpdir(), '8bs-native-'));
   const pkg = join(root, 'node_modules', '@t', 'p');
   mkdirSync(join(pkg, 'src'), { recursive: true });
-  writeFileSync(join(pkg, 'src', 'index.8bs'), 'export let x: u8 = 1;\n');
+  writeFileSync(join(pkg, 'src', 'index.8bs'), 'pub let mut x: u8 = 1;\n');
   writeFileSync(join(pkg, 'package.json'), JSON.stringify({ name: '@t/p', '8bitscript': manifest8bitscript }));
   return { root, entry: join(root, 'main.8bs') };
 };
@@ -125,7 +125,7 @@ test('a native file the package does not ship is 8BS2008, at resolution time', (
     assert.equal(resolved.code, '8BS2008');
     assert.match(resolved.message, /native source '\.\/native\/missing\.s', which does not exist/);
     // And through the linker, on the import's span, so `8bs build` names it.
-    const { ir, diagnostics } = link('import { x } from "@t/p";\nexport function main(): void { x = 2; }', entry);
+    const { ir, diagnostics } = link('use @t::p::x;\npub fn main() {\n    x = 2;\n}', entry);
     assert.equal(ir, null);
     assert.deepEqual(diagnostics.map((d) => d.code), ['8BS2008']);
   } finally {

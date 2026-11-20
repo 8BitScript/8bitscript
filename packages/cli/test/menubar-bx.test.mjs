@@ -38,7 +38,7 @@ async function buildProject(files, target) {
   try {
     mkdirSync(join(dir, 'src'));
     for (const [name, text] of Object.entries(files)) writeFileSync(join(dir, 'src', name), text);
-    writeFileSync(join(dir, '8bitscript.config.8bs'), "export default { entry: 'src/main.8bs', targets: ['pet', 'c64', 'web'] };\n");
+    writeFileSync(join(dir, '8bitscript.config.ts'), "export default { entry: 'src/main.8bs', targets: ['pet', 'c64', 'web'] };\n");
     process.chdir(dir);
     const result = await silently(() => compile(target, undefined, { checkout: REPO }));
     assert.equal(result.ok, true, `builds for ${target}`);
@@ -56,52 +56,52 @@ async function buildProject(files, target) {
 // written yet"), so the real bar cannot be built for the PET by hand
 // either; when it can, swap this for the package and the assertion is the
 // same.
-const BAR = `export namespace bar {
-    function begin(row: utinyint, width: utinyint): void {
-        memory.write(0x8000, row);
-        memory.write(0x8001, width);
+const BAR = `pub mod bar {
+    fn begin(row: utinyint, width: utinyint) {
+        memory::write(0x8000, row);
+        memory::write(0x8001, width);
     }
-    function item(label: string): void {
-        memory.write(0x8002, label.length);
+    fn item(label: string) {
+        memory::write(0x8002, label.length);
     }
-    function end(): void {
-        memory.write(0x8003, 1);
+    fn end() {
+        memory::write(0x8003, 1);
     }
 }
 `;
 
 const HAND = {
   'bar.8bs': BAR,
-  'main.8bs': `import { bar } from "./bar.8bs";
-export function main(): void {
-    bar.begin(0, 40);
-    bar.item("FILE");
-    bar.item("EDIT");
-    bar.end();
+  'main.8bs': `use self::bar::bar;
+pub fn main() {
+    bar::begin(0, 40);
+    bar::item("FILE");
+    bar::item("EDIT");
+    bar::end();
 }
 `,
 };
 
 const BX = {
   'bar.8bs': BAR,
-  'Bar.8bx': `import { bar } from "./bar.8bs";
-export component MenuBar(row: utinyint, width: utinyint) {
-    bar.begin(row, width);
+  'Bar.8bx': `use self::bar::bar;
+pub component MenuBar(row: utinyint, width: utinyint) {
+    bar::begin(row, width);
     <slot />;
-    bar.end();
+    bar::end();
 }
-export component MenuItem(label: string) {
-    bar.item(label);
+pub component MenuItem(label: string) {
+    bar::item(label);
 }
-export function draw(): void {
+pub fn draw() {
     <MenuBar row={0} width={40}>
         <MenuItem label="FILE" />
         <MenuItem label="EDIT" />
     </MenuBar>;
 }
 `,
-  'main.8bs': `import { draw } from "./Bar.8bx";
-export function main(): void {
+  'main.8bs': `use self::Bar::draw;
+pub fn main() {
     draw();
 }
 `,
@@ -122,14 +122,28 @@ for (const target of ['pet', 'c64', 'web']) {
 // compile-time fact costs the machine that cannot run it nothing. Both
 // arms are written; the built program holds one.
 test('a component in the arm a compile-time fact rules out is not in the PET build', async () => {
-  const cost = async (main) => (await buildProject({ 'main.8bs': 'import { draw } from "./View.8bx";\nexport function main(): void { draw(); }\n', 'View.8bx': main }, 'pet')).length;
-  const both = `import { Video } from "@8bitscript/system";
-component Sprites() { memory.write(0x8000, 1); memory.write(0x8001, 2); memory.write(0x8002, 3); }
-component Text() { memory.write(0x8000, 9); }
-export function draw(): void { <>{Video.SPRITES > 0 ? <Sprites /> : <Text />}</>; }
+  const cost = async (main) => (await buildProject({ 'main.8bs': 'use self::View::draw;\npub fn main() { draw(); }\n', 'View.8bx': main }, 'pet')).length;
+  const both = `use @8bitscript::system::Video;
+component Sprites() {
+    memory::write(0x8000, 1);
+    memory::write(0x8001, 2);
+    memory::write(0x8002, 3);
+}
+component Text() {
+    memory::write(0x8000, 9);
+}
+pub fn draw() {
+    <>
+        {if Video::SPRITES > 0 { <Sprites /> } else { <Text /> }}
+    </>;
+}
 `;
-  const textOnly = `component Text() { memory.write(0x8000, 9); }
-export function draw(): void { <Text />; }
+  const textOnly = `component Text() {
+    memory::write(0x8000, 9);
+}
+pub fn draw() {
+    <Text />;
+}
 `;
   assert.equal(await cost(both), await cost(textOnly), 'the PET has no sprites: the sprite arm costs it nothing');
 });

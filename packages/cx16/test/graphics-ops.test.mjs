@@ -85,24 +85,24 @@ function writeArt(dir) {
 function writeProbe(dir, ops, { mouse = false } = {}) {
   writeArt(dir);
   writeFileSync(join(dir, 'probe.8bs'), [
-    'import { graphics } from "@8bitscript/graphics";',
-    'import { screen } from "@8bitscript/screen";',
-    ...(mouse ? ['import { mouse } from "@8bitscript/cx16/mouse";'] : []),
-    'import { flip, walk, pulse, gem } from "./art.8bg";',
+    'use @8bitscript::graphics::graphics;',
+    'use @8bitscript::screen::screen;',
+    ...(mouse ? ['use @8bitscript::cx16::mouse::mouse;'] : []),
+    'use self::art::{flip, walk, pulse, gem};',
     '',
-    'export function main(): void {',
-    '    screen.blank();',
-    ...(mouse ? ['    mouse.begin();'] : []),
-    `    graphics.place(flip, ${FLIP_AT.join(', ')});`,
-    `    graphics.place(walk, ${WALK_AT.join(', ')});`,
-    `    graphics.place(pulse, ${PULSE_AT.join(', ')});`,
-    `    graphics.place(gem, ${GEM_AT.join(', ')});`,
-    '    graphics.animate(walk, false);',
+    'pub fn main() {',
+    '    screen::blank();',
+    ...(mouse ? ['    mouse::begin();'] : []),
+    `    graphics::place(flip, ${FLIP_AT.join(', ')});`,
+    `    graphics::place(walk, ${WALK_AT.join(', ')});`,
+    `    graphics::place(pulse, ${PULSE_AT.join(', ')});`,
+    `    graphics::place(gem, ${GEM_AT.join(', ')});`,
+    '    graphics::animate(walk, false);',
     ...ops.map((line) => `    ${line}`),
-    '    while (true) {',
+    '    loop {',
     '        waitFrame();',
-    ...(mouse ? ['        mouse.poll();'] : []),
-    '        graphics.update();',
+    ...(mouse ? ['        mouse::poll();'] : []),
+    '        graphics::update();',
     '    }',
     '}',
     '',
@@ -162,7 +162,7 @@ test('under x16emu, the baseline shows all four objects whole, and walk holds fr
 });
 
 test('under x16emu, hide takes an object off the screen and leaves the others', { skip: SKIP }, async () => {
-  await scenario(['graphics.hide(walk);'], [300], async ([png]) => {
+  await scenario(['graphics::hide(walk);'], [300], async ([png]) => {
     assert.deepEqual(halves(png, WALK_AT), [BLACK, BLACK], 'walk is gone');
     assert.deepEqual(halves(png, GEM_AT), [RED, CYAN], 'gem is still there');
     assert.ok(halves(png, FLIP_AT).every((c) => same(c, RED) || same(c, BLUE) || same(c, GREEN) || same(c, YELLOW)), 'flip is still there');
@@ -170,70 +170,70 @@ test('under x16emu, hide takes an object off the screen and leaves the others', 
 });
 
 test('under x16emu, place after hide draws the object at its new place, and only there', { skip: SKIP }, async () => {
-  await scenario(['graphics.hide(walk);', 'graphics.place(walk, 100, 120);'], [300], async ([png]) => {
+  await scenario(['graphics::hide(walk);', 'graphics::place(walk, 100, 120);'], [300], async ([png]) => {
     assert.deepEqual(halves(png, WALK_AT), [BLACK, BLACK], 'not at the old place');
     assert.deepEqual(halves(png, [100, 120]), [RED, RED], 'at the new place');
   });
 });
 
 test('under x16emu, setFrame shows that frame, clamps past the last, and works while hidden', { skip: SKIP }, async () => {
-  await scenario(['graphics.setFrame(walk, 2);'], [300], async ([png]) => {
+  await scenario(['graphics::setFrame(walk, 2);'], [300], async ([png]) => {
     assert.deepEqual(halves(png, WALK_AT), [BLUE, BLUE], 'frame 2 is blue');
   });
-  await scenario(['graphics.setFrame(walk, 9);'], [300], async ([png]) => {
+  await scenario(['graphics::setFrame(walk, 9);'], [300], async ([png]) => {
     assert.deepEqual(halves(png, WALK_AT), [YELLOW, YELLOW], 'frame 9 clamps to the last, yellow');
   });
-  await scenario(['graphics.hide(walk);', 'graphics.setFrame(walk, 1);', 'graphics.place(walk, 100, 40);'], [300], async ([png]) => {
+  await scenario(['graphics::hide(walk);', 'graphics::setFrame(walk, 1);', 'graphics::place(walk, 100, 40);'], [300], async ([png]) => {
     assert.deepEqual(halves(png, WALK_AT), [GREEN, GREEN], 'a frame chosen while hidden shows when placed');
   });
 });
 
 test('under x16emu, animate(false) holds one object on its frame while another keeps stepping', { skip: SKIP }, async () => {
-  await scenario(['graphics.animate(pulse, false);'], [300, 304, 308, 312, 316], async (shots) => {
+  await scenario(['graphics::animate(pulse, false);'], [300, 304, 308, 312, 316], async (shots) => {
     const pulse = new Set(shots.map((png) => JSON.stringify(halves(png, PULSE_AT))));
     const flip = new Set(shots.map((png) => JSON.stringify(halves(png, FLIP_AT))));
     assert.equal(pulse.size, 1, `pulse held still: ${[...pulse]}`);
     assert.ok(flip.size >= 2, `flip kept stepping: ${[...flip]}`);
   });
-  await scenario(['graphics.animate(pulse, false);', 'graphics.animate(pulse, true);'], [300, 304, 308, 312, 316], async (shots) => {
+  await scenario(['graphics::animate(pulse, false);', 'graphics::animate(pulse, true);'], [300, 304, 308, 312, 316], async (shots) => {
     const pulse = new Set(shots.map((png) => JSON.stringify(halves(png, PULSE_AT))));
     assert.ok(pulse.size >= 2, `animate(true) resumed it: ${[...pulse]}`);
   });
 });
 
 test('under x16emu, color tints every pixel one machine color, and a value from 16 up gives the picture its own back', { skip: SKIP }, async () => {
-  await scenario(['graphics.color(gem, 1);'], [300], async ([png]) => {
+  await scenario(['graphics::color(gem, 1);'], [300], async ([png]) => {
     assert.deepEqual(halves(png, GEM_AT), [WHITE, WHITE], 'color 1 is white across the picture');
     assert.deepEqual(halves(png, WALK_AT), [RED, RED], 'another object keeps its colors');
   });
-  await scenario(['graphics.color(gem, 2);'], [300], async ([png]) => {
+  await scenario(['graphics::color(gem, 2);'], [300], async ([png]) => {
     const [l, r] = halves(png, GEM_AT);
     assert.ok(same(l, r), 'one color across the picture');
     assert.ok(!same(l, RED) && !same(l, CYAN) && !same(l, WHITE), 'and it is the palette\'s color 2, not a picture color');
   });
-  await scenario(['graphics.color(gem, 1);', 'graphics.color(gem, 255);'], [300], async ([png]) => {
+  await scenario(['graphics::color(gem, 1);', 'graphics::color(gem, 255);'], [300], async ([png]) => {
     assert.deepEqual(halves(png, GEM_AT), [RED, CYAN], 'the picture\'s own colors are back');
   });
 });
 
 test('under x16emu, a position off the screen draws nothing, and does not wrap to the other side', { skip: SKIP }, async () => {
-  await scenario(['graphics.place(walk, 1020, 40);', 'graphics.place(pulse, 700, 40);', 'graphics.place(gem, 220, 480);'], [300], async ([png]) => {
+  await scenario(['graphics::place(walk, 1020, 40);', 'graphics::place(pulse, 700, 40);', 'graphics::place(gem, 220, 480);'], [300], async ([png]) => {
     assert.deepEqual(halves(png, [0, 40]), [BLACK, BLACK], 'nothing at the left edge for x = 1020');
     assert.deepEqual(at(png, 2, 48), BLACK, 'left edge, a few pixels in');
     assert.deepEqual(halves(png, PULSE_AT), [BLACK, BLACK], 'x = 700 is off, and the old place is empty');
     assert.deepEqual(halves(png, GEM_AT), [BLACK, BLACK], 'y = 480 is off');
   });
-  await scenario(['graphics.place(walk, 1020, 40);', 'graphics.place(walk, 100, 40);'], [300], async ([png]) => {
+  await scenario(['graphics::place(walk, 1020, 40);', 'graphics::place(walk, 100, 40);'], [300], async ([png]) => {
     assert.deepEqual(halves(png, WALK_AT), [RED, RED], 'an object parked off the screen comes back with place()');
   });
 });
 
 test('under x16emu, an object at the right edge of the playfield is whole, and one past it is cut by the window', { skip: SKIP }, async () => {
-  await scenario(['graphics.place(walk, 592, 40);'], [300], async ([png]) => {
+  await scenario(['graphics::place(walk, 592, 40);'], [300], async ([png]) => {
     assert.deepEqual(at(png, 592, 48), RED, 'first column');
     assert.deepEqual(at(png, 607, 48), RED, 'last column, inside the playfield');
   });
-  await scenario(['graphics.place(walk, 600, 40);'], [300], async ([png]) => {
+  await scenario(['graphics::place(walk, 600, 40);'], [300], async ([png]) => {
     assert.deepEqual(at(png, 600, 48), RED, 'inside');
     assert.deepEqual(at(png, 607, 48), RED, 'inside, the last column');
     assert.notDeepEqual(at(png, 608, 48), RED, 'past the playfield, the window clips it');
@@ -241,7 +241,7 @@ test('under x16emu, an object at the right edge of the playfield is whole, and o
 });
 
 test('under x16emu, the KERNAL mouse cursor (sprite 0) and the four objects share VERA without disturbing each other', { skip: SKIP }, async () => {
-  await scenario(['graphics.setFrame(walk, 2);', 'graphics.color(gem, 1);'], [300], async ([png]) => {
+  await scenario(['graphics::setFrame(walk, 2);', 'graphics::color(gem, 1);'], [300], async ([png]) => {
     assert.deepEqual(halves(png, WALK_AT), [BLUE, BLUE], 'walk, frame 2, with the mouse on');
     assert.deepEqual(halves(png, GEM_AT), [WHITE, WHITE], 'gem, tinted, with the mouse on');
     assert.deepEqual(halves(png, FLIP_AT).length, 2);

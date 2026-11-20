@@ -10,10 +10,10 @@ const SRC = join(HERE, '..', 'src');
 test('every twin exports graphics.bind, meta, place, and update', () => {
   for (const name of ['index.8bs', 'index.c64.8bs', 'index.nes.8bs', 'index.pet.8bs', 'index.vic20.8bs']) {
     const src = readFileSync(join(SRC, name), 'utf8');
-    assert.match(src, /function bind\(/, name);
-    assert.match(src, /function meta\(/, name);
-    assert.match(src, /function place\(/, name);
-    assert.match(src, /function update\(/, name);
+    assert.match(src, /fn bind\(/, name);
+    assert.match(src, /fn meta\(/, name);
+    assert.match(src, /fn place\(/, name);
+    assert.match(src, /fn update\(/, name);
   }
 });
 
@@ -21,7 +21,7 @@ test('every twin, the web and X16 included, exports the contract calls and all t
   for (const name of ['index.8bs', 'index.c64.8bs', 'index.cx16.8bs', 'index.nes.8bs', 'index.pet.8bs', 'index.vic20.8bs', 'index.web.8bs']) {
     const src = readFileSync(join(SRC, name), 'utf8');
     for (const fn of ['hide', 'setFrame', 'animate', 'color']) {
-      assert.match(src, new RegExp(`function ${fn}\\(`), `${name}: ${fn}`);
+      assert.match(src, new RegExp(`fn ${fn}\\(`), `${name}: ${fn}`);
     }
     for (const constant of ['MAX', 'FRAMES', 'WIDTH', 'HEIGHT', 'COLORS', 'RECOLORS', 'STEP_X', 'STEP_Y', 'RESTORES', 'TRANSPARENT']) {
       assert.match(src, new RegExp(`^    const ${constant}: (?:utinyint|bool) = `, 'm'), `${name}: graphics.${constant}`);
@@ -34,7 +34,7 @@ test('every twin, the web and X16 included, exports the contract calls and all t
 test('the web twin exports graphics.bind, meta, place, and update', () => {
   const src = readFileSync(join(SRC, 'index.web.8bs'), 'utf8');
   for (const fn of ['bind', 'meta', 'place', 'update']) {
-    assert.match(src, new RegExp(`function ${fn}\\(`), fn);
+    assert.match(src, new RegExp(`fn ${fn}\\(`), fn);
   }
 });
 
@@ -60,12 +60,12 @@ test('the web twin holds exactly as many animation steps as the web lowering kee
 
 test('the C64 twin holds as many graphics sprites as the multiplexer has virtual ones, and colours each from its kind byte', () => {
   const src = readFileSync(join(SRC, 'index.c64.8bs'), 'utf8');
-  assert.match(src, /import \{ multiplex \} from "@8bitscript\/c64\/multiplex";/);
-  assert.match(src, /const SLOTS: utinyint = multiplex\.MAX;/);
+  assert.match(src, /use @8bitscript::c64::multiplex::multiplex;/);
+  assert.match(src, /const SLOTS: utinyint = multiplex::MAX;/);
   assert.match(src, /const MAX: utinyint = SLOTS;/);
-  assert.match(src, /let frameCount: array<u8, 24>;/);
-  assert.match(src, /sprites\.setColor\(slot, kind >> 4\);/);
-  assert.doesNotMatch(src, /sprites\.setColor\(slot, 1\);/, 'the colour is no longer white for every sprite');
+  assert.match(src, /let mut frameCount: \[u8; 24\];/);
+  assert.match(src, /sprites::setColor\(slot, kind >> 4\);/);
+  assert.doesNotMatch(src, /sprites::setColor\(slot, 1\);/, 'the colour is no longer white for every sprite');
 });
 
 // ---- Commander X16 (index.cx16.8bs) ----------------------------------------
@@ -75,8 +75,8 @@ test('the C64 twin holds as many graphics sprites as the multiplexer has virtual
 
 test('cx16 twin exports the four graphics members, with a 16-bit bind index', () => {
   const src = readFileSync(join(SRC, 'index.cx16.8bs'), 'utf8');
-  assert.match(src, /function bind\(slot: utinyint, index: usmallint, value: utinyint\)/);
-  for (const fn of ['meta', 'place', 'update']) assert.match(src, new RegExp(`function ${fn}\\(`));
+  assert.match(src, /fn bind\(slot: utinyint, index: usmallint, value: utinyint\)/);
+  for (const fn of ['meta', 'place', 'update']) assert.match(src, new RegExp(`fn ${fn}\\(`));
 });
 
 test('cx16 driver and media lowering agree on the palette header, the window, and the sprite kind', () => {

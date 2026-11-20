@@ -4,7 +4,7 @@ import test from 'node:test';
 import { TokenKind, tokenize } from '../index.mjs';
 
 test('in .8bx, comparison and shift operators keep their .8bs meaning', () => {
-  const src = 'let ok: bool = a < b;\nlet n: u8 = x << 2;\nlet t: array<u8, 4>;';
+  const src = 'let ok: bool = a < b;\nlet n: u8 = x << 2;\nlet t: [u8; 4];';
   const { tokens, diagnostics } = tokenize(src, 't.8bx', { sourceKind: '.8bx' });
   assert.deepEqual(diagnostics, []);
   const lt = tokens.find((t) => t.text === '<' && tokens[tokens.indexOf(t) + 1]?.text !== '<');
@@ -30,7 +30,7 @@ const kinds = (src) => tokenize(src, 't.8bx', { sourceKind: '.8bx' }).tokens.map
 test('a tag opens where a value could not be, and only there (§14, §17)', () => {
   assert.deepEqual(kinds('<Foo />'), ['bxTagOpen:<', 'identifier:Foo', 'bxSelfClose:/>']);
   assert.deepEqual(kinds('return <Foo />;').slice(0, 2), ['keyword:return', 'bxTagOpen:<']);
-  assert.deepEqual(kinds('if (x) <Foo />;')[4], 'bxTagOpen:<', 'a control header\'s `)` leaves no value');
+  assert.deepEqual(kinds('if x { <Foo /> }')[3], 'bxTagOpen:<', 'after a block\'s `{` an element');
   assert.deepEqual(kinds('f(x) < y')[4], 'operator:<', 'a call\'s `)` does');
   assert.deepEqual(kinds('a < b'), ['identifier:a', 'operator:<', 'identifier:b']);
   assert.deepEqual(kinds('a<b'), ['identifier:a', 'operator:<', 'identifier:b']);
@@ -39,8 +39,8 @@ test('a tag opens where a value could not be, and only there (§14, §17)', () =
   assert.deepEqual(kinds('let t: array<u8, 4>;')[4], 'operator:<');
   assert.deepEqual(kinds('let p: ptr<u8>;')[4], 'operator:<');
   assert.deepEqual(kinds('<Foo value={a < b} />')[6], 'operator:<', 'inside {} a `<` is a comparison');
-  assert.deepEqual(kinds('{c ? <A /> : <B />}')[3], 'bxTagOpen:<', 'after `?` an element');
-  assert.deepEqual(kinds('{c ? <A /> : <B />}')[7], 'bxTagOpen:<', 'after `:` an element');
+  assert.deepEqual(kinds('{if c { <A /> } else { <B /> }}')[4], 'bxTagOpen:<', 'after an arm\'s `{` an element');
+  assert.deepEqual(kinds('{if c { <A /> } else { <B /> }}')[10], 'bxTagOpen:<', 'after the else arm\'s `{` an element');
 });
 
 test('a tag holds names, `=`, strings and {expressions}; children hold raw text, `{` and nested tags (§15, §16)', () => {
@@ -69,7 +69,7 @@ test('a tag holds names, `=`, strings and {expressions}; children hold raw text,
   // A comment in braces is a comment token, and text after a tag is text.
   assert.deepEqual(kinds('<A>{/* c */}</A>')[4], 'comment:/* c */');
   // After the element the grammar is ordinary again.
-  assert.deepEqual(kinds('<A />; let x: u8 = 1;').slice(3), ['operator:;', 'keyword:let', 'identifier:x', 'operator::', 'type:u8', 'operator:=', 'number:1', 'operator:;']);
+  assert.deepEqual(kinds('<A />;\nlet x: u8 = 1;').slice(3), ['punctuation:;', 'keyword:let', 'identifier:x', 'punctuation::', 'type:u8', 'operator:=', 'number:1', 'punctuation:;']);
 });
 
 test('half-typed markup ends with one diagnostic per open frame, at the `<` that opened it, and the lexer stops (§90)', () => {

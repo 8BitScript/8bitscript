@@ -9,8 +9,8 @@
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { tokenize } from '../../../packages/compiler/src/lexer/index.mjs';
-import { parse } from '../../../packages/compiler/src/parser/index.mjs';
+import { tokenize } from '../../../packages/cli/src/migrate/legacy/lexer.mjs';
+import { parse } from '../../../packages/cli/src/migrate/legacy/parser.mjs';
 import { walk } from '../../../packages/compiler/src/ast/index.mjs';
 import { sourceKindOf } from '../../../packages/compiler/src/source/index.mjs';
 

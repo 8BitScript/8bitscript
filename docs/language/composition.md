@@ -12,8 +12,8 @@ Everything below elaborates to the core AST in [§1](core.md) before any backend
 An element is `<Name prop={expr} />` or, with children, `<Name>…</Name>`. A fragment (`<>…</>`) groups children with no wrapper of its own — 2048's `Screen` component returns one around a conditional ([§2.4](#24-compose-conditionally), [§7.2](examples.md#72-2048s-screen8bx-byte-for-byte)):
 
 ```8bx
-export component Screen() {
-    return (<>{started ? <Board /> : <Title />}</>);
+pub component Screen() {
+    return <>{if started { <Board /> } else { <Title /> }}</>;
 }
 ```
 
@@ -27,15 +27,21 @@ A component is declared like a function; its parameter list is its props, and a 
 
 ```8bx
 component Box(x: utinyint, y: utinyint, wide: bool = false, tall: bool = false) {
-    if (wide) { hits = hits + x; }
-    if (tall) { hits = hits + y; }
+    if wide {
+        hits = hits + x;
+    }
+    if tall {
+        hits = hits + y;
+    }
 }
 
-export function main(): void { <Box tall y={4} x={2} />; }
+pub fn main() {
+    <Box tall y={4} x={2} />;
+}
 // elaborates to: Box(2, 4, false, true)
 ```
 
-Props are matched by name at the call site, then passed in declaration order — attribute order in the tag doesn't matter. A component without `export` is only visible inside its own module.
+Props are matched by name at the call site, then passed in declaration order — attribute order in the tag doesn't matter. A component without `pub` is only visible inside its own module.
 
 ## §2.3 Accept children with <slot />
 
@@ -44,16 +50,16 @@ A component with `<slot />` in its body is elaborated as two functions, one on e
 *packages/ui/src/menubar.8bx*
 
 ```8bx
-import { menubar } from "./menubar.8bs";
+use self::menubar::menubar;
 
-export component MenuBar(row: utinyint, width: usmallint) {
-    menubar.begin(row, width);
+pub component MenuBar(row: utinyint, width: usmallint) {
+    menubar::begin(row, width);
     <slot />;
-    menubar.end();
+    menubar::end();
 }
 
-export component MenuItem(label: string) {
-    menubar.item(label);
+pub component MenuItem(label: string) {
+    menubar::item(label);
 }
 ```
 
@@ -63,7 +69,7 @@ Used as:
 <MenuBar row={0} width={40}>
     <MenuItem label="FILE" />
     <MenuItem label="EDIT" />
-</MenuBar>
+</MenuBar>;
 ```
 
 One slot per component today — see [§8.1](not-yet.md#81-what-doesnt-exist-yet-dont-reach-for-these) for named slots.
@@ -75,11 +81,14 @@ One slot per component today — see [§8.1](not-yet.md#81-what-doesnt-exist-yet
 *real compiler test — both forms, verified as one `if` each*
 
 ```8bx
-let paused: bool = false;
+let mut paused: bool = false;
 
-export function main(): void {
+pub fn main() {
     paused = true;
-    <Box>{paused ? <A /> : <B />}{paused && <A />}</Box>;
+    <Box>
+        {if paused { <A /> } else { <B /> }}
+        {paused && <A />}
+    </Box>;
 }
 ```
 
@@ -107,8 +116,13 @@ A function declared at the top of a component body is a method: instanced with t
 ```8bx
 component Player() {
     state health: utinyint = 100;
-    function damage(amount: utinyint): void { health = health - amount; }
-    function heal(): void { damage(0); health = health + 1; }
+    fn damage(amount: utinyint) {
+        health = health - amount;
+    }
+    fn heal() {
+        damage(0);
+        health = health + 1;
+    }
 }
 ```
 
@@ -123,4 +137,4 @@ A method whose own parameter or local shadows a same-named prop is fine; a metho
 | **Hard** | `asm6502` is refused inside a `.8bx` file. Machine code lives in `.8bs` and is imported. | 8BS2020 |
 | Lint (on by default) | A top-level function whose body composes nothing (no element expression), or a top-level `let`, in `.8bx` — move it to `.8bs` and import it. Component methods and `state` are exempt. | 8BS2021 |
 
-Turn the lint off per project with `bx: { strict: false }` in `8bitscript.config.8bs` ([§4.1](project.md#41-write-a-project-config)) — the hard rule stays either way. Expressions inside `{…}` are ordinary 8BitScript in both file kinds; it's top-level *declarations* the lint is about.
+Turn the lint off per project with `bx: { strict: false }` in `8bitscript.config.ts` ([§4.1](project.md#41-write-a-project-config)) — the hard rule stays either way. Expressions inside `{…}` are ordinary 8BitScript in both file kinds; it's top-level *declarations* the lint is about.

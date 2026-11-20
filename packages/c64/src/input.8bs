@@ -4,7 +4,7 @@
 // and by "8bitscript".entry.c64 in @8bitscript/input's, so a portable
 // program writes
 //
-//     import { input } from "@8bitscript/input";
+//     use @8bitscript::input::input;
 //
 // and gets this file on a C64. Nothing here is C64-specific to a program:
 // it is the same ten calls on all nine machines, answered from whatever
@@ -74,15 +74,15 @@
 // applying Y with the same sign as X moved the arrow up when the mouse
 // moved down; inverting the delta, not `LIMIT_Y - y`, kept the rest
 // position in the top-left corner.
-import { Video } from "./geometry.8bs";
-import { keyboard } from "./keyboard.8bs";
-import { Key } from "./keys.8bs";
-import { joystick, Joystick } from "./joystick.8bs";
-import { mouse, Mouse } from "./mouse.8bs";
+use self::geometry::Video;
+use self::keyboard::keyboard;
+use self::keys::Key;
+use self::joystick::{joystick, Joystick};
+use self::mouse::{mouse, Mouse};
 
 // Was this build fitted with a mouse? Folded while compiling, so the whole
 // pointer half of this file is either present or absent, never tested.
-const HAS_MOUSE: bool = #fact(input.mouse);
+const HAS_MOUSE: bool = #fact(input::mouse);
 
 // The pointer's travel, in mouse counts — a count is about a pixel, and a
 // cell is 8 of them on this machine. The shift is written as a shift
@@ -94,7 +94,7 @@ const LIMIT_Y: usmallint = 199; // Video.ROWS * 8 - 1
 
 // One bit per thing a program can ask about, so a frame's input is one
 // byte and an edge is one AND.
-namespace Edge {
+mod Edge {
     const LEFT: utinyint = 1;
     const RIGHT: utinyint = 2;
     const UP: utinyint = 4;
@@ -106,26 +106,25 @@ namespace Edge {
 
 // What is held now, what was held at the last poll, and what began this
 // frame — `now & ~last`, written with the XOR the language has.
-let held: utinyint = 0;
-let before: utinyint = 0;
-let began: utinyint = 0;
+let mut held: utinyint = 0;
+let mut before: utinyint = 0;
+let mut began: utinyint = 0;
 
 // Where the pointer is, in cells, and whether one is really there.
-let atCell: usmallint = 0;
-let havePointer: bool = false;
+let mut atCell: usmallint = 0;
+let mut havePointer: bool = false;
 
-export namespace input {
-
+pub mod input {
     // Once, at start-up, before the first poll() — the input equivalent of
     // screen.blank(). On this machine it gives the pointer its ceiling and
     // points the SID at the mouse's port so the first poll() has something
     // settled to read. On a build with no mouse it compiles to nothing at
     // all, and on a machine with no pointer it is an empty function that
     // costs a program one call it can write once and forget.
-    function begin(): void {
-        if (HAS_MOUSE) {
-            mouse.setLimits(LIMIT_X, LIMIT_Y);
-            mouse.select(Mouse.PORT_1);
+    fn begin() {
+        if HAS_MOUSE {
+            mouse::setLimits(LIMIT_X, LIMIT_Y);
+            mouse::select(Mouse::PORT_1);
         }
         // One poll before the program's first, so the edge detector starts
         // from what is actually held rather than from nothing. `before` is
@@ -134,7 +133,7 @@ export namespace input {
         // starts reads as a fresh press on frame one. Measured on the
         // MEGA65, whose RETURN key is down at start-up: the joystick example
         // counted a confirm() nobody pressed until begin() primed this.
-        input.poll();
+        input::poll();
     }
 
     // Everything this machine offers, gathered once. Call it once a frame,
@@ -154,131 +153,131 @@ export namespace input {
     //      joysticks — which is the state the keyboard scan just left.
     //   4. **Then point the SID back at the mouse's port**, for the read
     //      at the top of the next frame.
-    function poll(): void {
-        if (HAS_MOUSE) {
-            mouse.poll();
+    fn poll() {
+        if HAS_MOUSE {
+            mouse::poll();
         }
-        keyboard.scan();
-        joystick.scan();
+        keyboard::scan();
+        joystick::scan();
 
         before = held;
         held = 0;
 
         // The two cursor keys and SHIFT, which is what "four directions"
         // is on this keyboard.
-        let shifted: bool = keyboard.pressed(Key.SHIFT_LEFT) || keyboard.pressed(Key.SHIFT_RIGHT);
-        if (keyboard.pressed(Key.CURSOR_RIGHT)) {
-            if (shifted) {
-                held = held | Edge.LEFT;
+        let shifted: bool = keyboard::pressed(Key::SHIFT_LEFT) || keyboard::pressed(Key::SHIFT_RIGHT);
+        if keyboard::pressed(Key::CURSOR_RIGHT) {
+            if shifted {
+                held = held | Edge::LEFT;
             } else {
-                held = held | Edge.RIGHT;
+                held = held | Edge::RIGHT;
             }
         }
-        if (keyboard.pressed(Key.CURSOR_DOWN)) {
-            if (shifted) {
-                held = held | Edge.UP;
+        if keyboard::pressed(Key::CURSOR_DOWN) {
+            if shifted {
+                held = held | Edge::UP;
             } else {
-                held = held | Edge.DOWN;
+                held = held | Edge::DOWN;
             }
         }
-        if (keyboard.pressed(Key.RETURN)) {
-            held = held | Edge.CONFIRM;
+        if keyboard::pressed(Key::RETURN) {
+            held = held | Edge::CONFIRM;
         }
-        if (keyboard.pressed(Key.STOP)) {
-            held = held | Edge.CANCEL;
+        if keyboard::pressed(Key::STOP) {
+            held = held | Edge::CANCEL;
         }
 
         // The stick in port 2, or'd on top: same directions, same confirm.
-        let stick: utinyint = joystick.bits(Joystick.PORT_2);
-        if ((stick & Joystick.LEFT) != 0) {
-            held = held | Edge.LEFT;
+        let stick: utinyint = joystick::bits(Joystick::PORT_2);
+        if (stick & Joystick::LEFT) != 0 {
+            held = held | Edge::LEFT;
         }
-        if ((stick & Joystick.RIGHT) != 0) {
-            held = held | Edge.RIGHT;
+        if (stick & Joystick::RIGHT) != 0 {
+            held = held | Edge::RIGHT;
         }
-        if ((stick & Joystick.UP) != 0) {
-            held = held | Edge.UP;
+        if (stick & Joystick::UP) != 0 {
+            held = held | Edge::UP;
         }
-        if ((stick & Joystick.DOWN) != 0) {
-            held = held | Edge.DOWN;
+        if (stick & Joystick::DOWN) != 0 {
+            held = held | Edge::DOWN;
         }
-        if ((stick & Joystick.FIRE) != 0) {
-            held = held | Edge.CONFIRM;
+        if (stick & Joystick::FIRE) != 0 {
+            held = held | Edge::CONFIRM;
         }
 
-        if (HAS_MOUSE) {
-            havePointer = mouse.present();
-            if (havePointer) {
+        if HAS_MOUSE {
+            havePointer = mouse::present();
+            if havePointer {
                 // Counts to cells. Y is already screen-space: ./mouse.8bs
                 // inverts the 1351's counter so 0 is the top row.
-                let column: usmallint = mouse.x() >> CELL_SHIFT;
-                let row: usmallint = mouse.y() >> CELL_SHIFT;
-                atCell = row * Video.COLUMNS + column;
+                let column: usmallint = mouse::x() >> CELL_SHIFT;
+                let row: usmallint = mouse::y() >> CELL_SHIFT;
+                atCell = row * Video::COLUMNS + column;
             }
             // The mouse's buttons ride the port's ordinary joystick lines,
             // so they are already in the snapshot taken above — read from
             // there rather than from the live port, which by now has a
             // keyboard column driven on it.
-            if ((joystick.bits(Joystick.PORT_1) & Joystick.FIRE) != 0) {
-                held = held | Edge.BUTTON;
+            if (joystick::bits(Joystick::PORT_1) & Joystick::FIRE) != 0 {
+                held = held | Edge::BUTTON;
             }
             // Point the SID at the mouse's port for the next frame's read.
             // Last, because joystick.scan() puts port A back to $FF.
-            mouse.select(Mouse.PORT_1);
+            mouse::select(Mouse::PORT_1);
         }
 
         began = held & (before ^ 0xFF);
     }
 
     // The four directions, each true only on the frame its press began.
-    function left(): bool {
-        return (began & Edge.LEFT) != 0;
+    fn left() -> bool {
+        return (began & Edge::LEFT) != 0;
     }
 
-    function right(): bool {
-        return (began & Edge.RIGHT) != 0;
+    fn right() -> bool {
+        return (began & Edge::RIGHT) != 0;
     }
 
-    function up(): bool {
-        return (began & Edge.UP) != 0;
+    fn up() -> bool {
+        return (began & Edge::UP) != 0;
     }
 
-    function down(): bool {
-        return (began & Edge.DOWN) != 0;
+    fn down() -> bool {
+        return (began & Edge::DOWN) != 0;
     }
 
     // RETURN, or the stick's fire button.
-    function confirm(): bool {
-        return (began & Edge.CONFIRM) != 0;
+    fn confirm() -> bool {
+        return (began & Edge::CONFIRM) != 0;
     }
 
     // RUN/STOP.
-    function cancel(): bool {
-        return (began & Edge.CANCEL) != 0;
+    fn cancel() -> bool {
+        return (began & Edge::CANCEL) != 0;
     }
 
     // Is a pointer really there? False on every stock build, where the
     // question folds away entirely; on a build fitted with a mouse, this
     // is ./mouse.8bs's probe answering every frame.
-    function pointer(): bool {
+    fn pointer() -> bool {
         return havePointer;
     }
 
     // Where it is, as a flat cell index — the same unit text.print() takes.
     // Meaningless unless pointer() is true.
-    function pointerCell(): usmallint {
+    fn pointerCell() -> usmallint {
         return atCell;
     }
 
     // The pointer's main button, on the frame its press began.
-    function pointerButton(): bool {
-        return (began & Edge.BUTTON) != 0;
+    fn pointerButton() -> bool {
+        return (began & Edge::BUTTON) != 0;
     }
 }
 
 // Compile-time names for the confirm control, interpolated into catalogs
 // as {control} / {other}. OR / ODER lives in the catalog, not here.
-export namespace Input {
+pub mod Input {
     const CONFIRM_LABEL: string = "RETURN";
     const ALT_CONFIRM_LABEL: string = "FIRE";
     const CONFIRM_LABELS: string = "RETURN OR FIRE";

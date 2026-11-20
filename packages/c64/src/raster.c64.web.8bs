@@ -31,7 +31,7 @@
 //
 // Named by "8bitscript".exports["./raster"] in this package's package.json:
 //
-//     import { raster, Register } from "@8bitscript/c64/raster";
+//     use @8bitscript::c64::raster::{raster, Register};
 //
 //     raster.clear();
 //     raster.at(49, Register.BORDER, 0);         // black border over the picture
@@ -136,10 +136,8 @@
 //   the three-byte `jmp` at $FD, no register but $D011 (read), $D012 and
 //   $D019 besides the entries' own. About 100 cycles an interrupt plus
 //   25 per entry, out of a frame's 17000-19000.
-import {
-    setupVideo, interruptsOn, spritePositions, spriteXHigh, spriteEnable, spriteColors,
-} from "./index.8bs";
-import { spritePointers } from "./geometry.8bs";
+use self::index::{setupVideo, interruptsOn, spritePositions, spriteXHigh, spriteEnable, spriteColors};
+use self::geometry::spritePointers;
 
 // The two list pages and the state, where native/6502/raster.s reads
 // them. Four bytes an entry: line, address low, address high, value.
@@ -153,39 +151,26 @@ const COMMIT_END_ADDRESS: usmallint = 0x03FD;
 const FRAME_A_ADDRESS: usmallint = 0x0400; // page A's frame table (the KERNAL's dead screen)
 const FRAME_B_ADDRESS: usmallint = 0x0500; // page B's
 
-@address(LIST_A_ADDRESS)
-let rasterList: array<u8, 252>;
-@address(LIST_B_ADDRESS)
-let rasterListB: array<u8, 252>;
-@address(END_ADDRESS)
-let rasterEnd: volatile<u8>; // the live list's entries * 4
-@address(INDEX_ADDRESS)
-let rasterIndex: volatile<u8>; // the handler's next entry * 4
-@address(LIVE_PAGE_ADDRESS)
-let rasterLivePage: volatile<u8>; // 2 or 3, written by the handler's swap
-@address(COMMIT_PAGE_ADDRESS)
-let rasterCommitPage: volatile<u8>; // 2 or 3 while a commit waits, else 0
-@address(COMMIT_END_ADDRESS)
-let rasterCommitEnd: volatile<u8>;
-@address(FRAME_A_ADDRESS)
-let frameA: array<u8, 35>;
-@address(FRAME_B_ADDRESS)
-let frameB: array<u8, 35>;
+#[address(LIST_A_ADDRESS)] let mut rasterList: [u8; 252];
+#[address(LIST_B_ADDRESS)] let mut rasterListB: [u8; 252];
+#[address(END_ADDRESS)] let mut rasterEnd: volatile<u8>; // the live list's entries * 4
+#[address(INDEX_ADDRESS)] let rasterIndex: volatile<u8>; // the handler's next entry * 4
+#[address(LIVE_PAGE_ADDRESS)] let mut rasterLivePage: volatile<u8>; // 2 or 3, written by the handler's swap
+#[address(COMMIT_PAGE_ADDRESS)] let mut rasterCommitPage: volatile<u8>; // 2 or 3 while a commit waits, else 0
+#[address(COMMIT_END_ADDRESS)] let mut rasterCommitEnd: volatile<u8>;
+#[address(FRAME_A_ADDRESS)] let mut frameA: [u8; 35];
+#[address(FRAME_B_ADDRESS)] let mut frameB: [u8; 35];
 
-@address(0x06C0)
-let sharedPage: volatile<u8>; // the build state, shared with a native builder: multiplex.s
-@address(0x06C1)
-let sharedEnd: volatile<u8>;
-@address(0x06C2)
-let sharedLastLine: volatile<u8>;
-@address(0x06C3)
-let frameCounter: volatile<u8>; // video frames since enable(): native/6502/raster.s adds 1 at line 0 of every frame
+#[address(0x06C0)] let mut sharedPage: volatile<u8>; // the build state, shared with a native builder: multiplex.s
+#[address(0x06C1)] let mut sharedEnd: volatile<u8>;
+#[address(0x06C2)] let mut sharedLastLine: volatile<u8>;
+#[address(0x06C3)] let frameCounter: volatile<u8>; // video frames since enable(): native/6502/raster.s adds 1 at line 0 of every frame
 
-let buildPage: utinyint = 2; // where `at` writes: the page not live
-let buildEnd: utinyint = 0; // its entries * 4
-let lastLine: utinyint = 0;
-let armed: bool = false; // enable() has run: the live list is the handler's
-let framesCleared: bool = false; // both frame tables' flags zeroed once (RAM is not)
+let mut buildPage: utinyint = 2; // where `at` writes: the page not live
+let mut buildEnd: utinyint = 0; // its entries * 4
+let mut lastLine: utinyint = 0;
+let mut armed: bool = false; // enable() has run: the live list is the handler's
+let mut framesCleared: bool = false; // both frame tables' flags zeroed once (RAM is not)
 
 // The frame table's layout: what the handler writes to the sprite
 // registers at line 0 of every frame — vertical blanking, after the
@@ -194,47 +179,47 @@ let framesCleared: bool = false; // both frame tables' flags zeroed once (RAM is
 // is set. Offsets into the 35 bytes.
 // What the handler does at line 0 of a frame: the page's frame table, if its
 // flag is set, into the eight sprites' registers.
-function writeFrameTable(page: utinyint): void {
-    if (page == 3) {
-        if (frameB[Frame.FLAG] != 0) {
-            for (let i: utinyint = 0; i < 16; i++) {
+fn writeFrameTable(page: utinyint) {
+    if page == 3 {
+        if frameB[Frame::FLAG] != 0 {
+            for i: utinyint in 0..16 {
                 spritePositions[i] = frameB[i];
             }
-            spriteXHigh = frameB[Frame.X_HIGH];
-            spriteEnable = frameB[Frame.ENABLE];
-            for (let n: utinyint = 0; n < 8; n++) {
-                spritePointers[n] = frameB[Frame.POINTERS + n];
-                spriteColors[n] = frameB[Frame.COLORS + n];
+            spriteXHigh = frameB[Frame::X_HIGH];
+            spriteEnable = frameB[Frame::ENABLE];
+            for n: utinyint in 0..8 {
+                spritePointers[n] = frameB[Frame::POINTERS + n];
+                spriteColors[n] = frameB[Frame::COLORS + n];
             }
         }
     } else {
-        if (frameA[Frame.FLAG] != 0) {
-            for (let i: utinyint = 0; i < 16; i++) {
+        if frameA[Frame::FLAG] != 0 {
+            for i: utinyint in 0..16 {
                 spritePositions[i] = frameA[i];
             }
-            spriteXHigh = frameA[Frame.X_HIGH];
-            spriteEnable = frameA[Frame.ENABLE];
-            for (let n: utinyint = 0; n < 8; n++) {
-                spritePointers[n] = frameA[Frame.POINTERS + n];
-                spriteColors[n] = frameA[Frame.COLORS + n];
+            spriteXHigh = frameA[Frame::X_HIGH];
+            spriteEnable = frameA[Frame::ENABLE];
+            for n: utinyint in 0..8 {
+                spritePointers[n] = frameA[Frame::POINTERS + n];
+                spriteColors[n] = frameA[Frame::COLORS + n];
             }
         }
     }
 }
 
-export namespace Frame {
-    const POSITIONS: utinyint = 0;  // 16 bytes: $D000-$D00F, sprite n's X at 2n, Y at 2n + 1
-    const X_HIGH: utinyint = 16;    // $D010
-    const ENABLE: utinyint = 17;    // $D015
-    const POINTERS: utinyint = 18;  // 8 bytes: $E3F8-$E3FF (text mode's)
-    const COLORS: utinyint = 26;    // 8 bytes: $D027-$D02E
-    const FLAG: utinyint = 34;      // 0: the table is not written
+pub mod Frame {
+    const POSITIONS: utinyint = 0; // 16 bytes: $D000-$D00F, sprite n's X at 2n, Y at 2n + 1
+    const X_HIGH: utinyint = 16; // $D010
+    const ENABLE: utinyint = 17; // $D015
+    const POINTERS: utinyint = 18; // 8 bytes: $E3F8-$E3FF (text mode's)
+    const COLORS: utinyint = 26; // 8 bytes: $D027-$D02E
+    const FLAG: utinyint = 34; // 0: the table is not written
     const SIZE: utinyint = 35;
 }
 
 // Addresses for `at`: the registers a split usually writes. `spriteX(n)`
 // and friends below build the per-sprite ones.
-export namespace Register {
+pub mod Register {
     const BORDER: usmallint = 0xD020;
     const BACKGROUND: usmallint = 0xD021;
     const BACKGROUND_1: usmallint = 0xD022;
@@ -257,21 +242,21 @@ export namespace Register {
     const SID_VOLUME: usmallint = 0xD418;
 }
 
-export namespace raster {
+pub mod raster {
     const MAX: utinyint = 63; // entries, per list
 
     // Sprite n's registers, for `at`.
-    function spriteX(sprite: utinyint): usmallint {
-        return Register.SPRITE_POSITIONS + sprite * 2;
+    fn spriteX(sprite: utinyint) -> usmallint {
+        return Register::SPRITE_POSITIONS + sprite * 2;
     }
-    function spriteY(sprite: utinyint): usmallint {
-        return Register.SPRITE_POSITIONS + sprite * 2 + 1;
+    fn spriteY(sprite: utinyint) -> usmallint {
+        return Register::SPRITE_POSITIONS + sprite * 2 + 1;
     }
-    function spriteColor(sprite: utinyint): usmallint {
-        return Register.SPRITE_COLORS + sprite;
+    fn spriteColor(sprite: utinyint) -> usmallint {
+        return Register::SPRITE_COLORS + sprite;
     }
-    function spritePointer(sprite: utinyint): usmallint {
-        return Register.SPRITE_POINTERS + sprite;
+    fn spritePointer(sprite: utinyint) -> usmallint {
+        return Register::SPRITE_POINTERS + sprite;
     }
 
     // Start the next list, empty, in the page the handler is not reading.
@@ -279,26 +264,26 @@ export namespace raster {
     // a committed list at the end of its pass, once a frame) so the page
     // it then clears is really free; before `enable()` there is nothing
     // to wait for.
-    function clear(): void {
-        if (armed && interruptsOn) {
-            while (rasterCommitPage != 0) {
+    fn clear() {
+        if armed && interruptsOn {
+            while rasterCommitPage != 0 {
             }
         } else {
             rasterCommitPage = 0;
-            if (!armed) {
+            if !armed {
                 rasterLivePage = 0;
             }
         }
-        if (rasterLivePage == 2) {
+        if rasterLivePage == 2 {
             buildPage = 3;
-            frameB[Frame.FLAG] = 0;
+            frameB[Frame::FLAG] = 0;
         } else {
             buildPage = 2;
-            frameA[Frame.FLAG] = 0;
+            frameA[Frame::FLAG] = 0;
         }
-        if (!framesCleared) {
-            frameA[Frame.FLAG] = 0;
-            frameB[Frame.FLAG] = 0;
+        if !framesCleared {
+            frameA[Frame::FLAG] = 0;
+            frameB[Frame::FLAG] = 0;
             framesCleared = true;
         }
         buildEnd = 0;
@@ -309,8 +294,8 @@ export namespace raster {
     // registers the handler writes at the end of the pass, for the top of
     // the next frame. `clear()` leaves the table unflagged; setting
     // Frame.FLAG non-zero turns it on for this list. Committed with it.
-    function setFrameByte(offset: utinyint, value: utinyint): void {
-        if (buildPage == 3) {
+    fn setFrameByte(offset: utinyint, value: utinyint) {
+        if buildPage == 3 {
             frameB[offset] = value;
         } else {
             frameA[offset] = value;
@@ -322,18 +307,18 @@ export namespace raster {
     // ~190 cycles, mostly in passing its arguments, and a multiplexer
     // writing the eight sprites a byte at a time spent 6,700 cycles a
     // frame on the table alone (measured with a CIA timer, 2026-09-19).
-    function setFrameSprite(h: utinyint, xLo: utinyint, y: utinyint, pointer: utinyint, color: utinyint): void {
+    fn setFrameSprite(h: utinyint, xLo: utinyint, y: utinyint, pointer: utinyint, color: utinyint) {
         let at: utinyint = h << 1;
-        if (buildPage == 3) {
+        if buildPage == 3 {
             frameB[at] = xLo;
             frameB[at + 1] = y;
-            frameB[Frame.POINTERS + h] = pointer;
-            frameB[Frame.COLORS + h] = color;
+            frameB[Frame::POINTERS + h] = pointer;
+            frameB[Frame::COLORS + h] = color;
         } else {
             frameA[at] = xLo;
             frameA[at + 1] = y;
-            frameA[Frame.POINTERS + h] = pointer;
-            frameA[Frame.COLORS + h] = color;
+            frameA[Frame::POINTERS + h] = pointer;
+            frameA[Frame::COLORS + h] = color;
         }
     }
 
@@ -342,39 +327,39 @@ export namespace raster {
     // back: the builder appends entries and moves the end and the last
     // line as `at` would. Two calls around its `jsr`, and this file's own
     // variables stay where the compiler put them.
-    function shareBuild(): void {
+    fn shareBuild() {
         sharedPage = buildPage;
         sharedEnd = buildEnd;
         sharedLastLine = lastLine;
     }
 
-    function takeBuild(): void {
+    fn takeBuild() {
         buildEnd = sharedEnd;
         lastLine = sharedLastLine;
     }
 
     // The frame table's $D010 and $D015 bytes, and its flag on.
-    function setFrameHeader(xHigh: utinyint, enable: utinyint): void {
-        if (buildPage == 3) {
-            frameB[Frame.X_HIGH] = xHigh;
-            frameB[Frame.ENABLE] = enable;
-            frameB[Frame.FLAG] = 1;
+    fn setFrameHeader(xHigh: utinyint, enable: utinyint) {
+        if buildPage == 3 {
+            frameB[Frame::X_HIGH] = xHigh;
+            frameB[Frame::ENABLE] = enable;
+            frameB[Frame::FLAG] = 1;
         } else {
-            frameA[Frame.X_HIGH] = xHigh;
-            frameA[Frame.ENABLE] = enable;
-            frameA[Frame.FLAG] = 1;
+            frameA[Frame::X_HIGH] = xHigh;
+            frameA[Frame::ENABLE] = enable;
+            frameA[Frame::FLAG] = 1;
         }
     }
 
     // Append to the list being built: at `line`, write `value` to
     // `address`. False, and nothing added, if the list is full or `line`
     // is below the last entry's.
-    function at(line: utinyint, address: usmallint, value: utinyint): bool {
+    fn at(line: utinyint, address: usmallint, value: utinyint) -> bool {
         let offset: utinyint = buildEnd;
-        if (offset >= 252 || line < lastLine) {
+        if offset >= 252 || line < lastLine {
             return false;
         }
-        if (buildPage == 2) {
+        if buildPage == 2 {
             rasterList[offset] = line;
             rasterList[offset + 1] = address & 0xFF;
             rasterList[offset + 2] = address >> 8;
@@ -397,16 +382,16 @@ export namespace raster {
     // The slide costs about 50 cycles an entry moved; add such entries
     // before a long ascending run (a multiplexer's), or after it when
     // their lines are near its end. False, and nothing added, if full.
-    function insert(line: utinyint, address: usmallint, value: utinyint): bool {
-        if (line >= lastLine) {
-            return raster.at(line, address, value);
+    fn insert(line: utinyint, address: usmallint, value: utinyint) -> bool {
+        if line >= lastLine {
+            return raster::at(line, address, value);
         }
-        if (buildEnd >= 252) {
+        if buildEnd >= 252 {
             return false;
         }
-        let pos: utinyint = buildEnd;
-        if (buildPage == 2) {
-            while (pos > 0 && rasterList[pos - 4] > line) {
+        let mut pos: utinyint = buildEnd;
+        if buildPage == 2 {
+            while pos > 0 && rasterList[pos - 4] > line {
                 rasterList[pos] = rasterList[pos - 4];
                 rasterList[pos + 1] = rasterList[pos - 3];
                 rasterList[pos + 2] = rasterList[pos - 2];
@@ -418,7 +403,7 @@ export namespace raster {
             rasterList[pos + 2] = address >> 8;
             rasterList[pos + 3] = value;
         } else {
-            while (pos > 0 && rasterListB[pos - 4] > line) {
+            while pos > 0 && rasterListB[pos - 4] > line {
                 rasterListB[pos] = rasterListB[pos - 4];
                 rasterListB[pos + 1] = rasterListB[pos - 3];
                 rasterListB[pos + 2] = rasterListB[pos - 2];
@@ -443,53 +428,53 @@ export namespace raster {
     // is what the handler's timing table (multiplex.8bs, LANDING) counts.
     // False, and nothing added, if the group does not fit or `line` is
     // below the last entry's.
-    function spriteEntries(line: utinyint, h: utinyint, y: utinyint, pointer: utinyint, xLo: utinyint, xHigh: utinyint, color: utinyint, which: utinyint): bool {
-        let offset: utinyint = buildEnd;
-        let needed: utinyint = 4;
-        if ((which & 1) != 0) {
+    fn spriteEntries(line: utinyint, h: utinyint, y: utinyint, pointer: utinyint, xLo: utinyint, xHigh: utinyint, color: utinyint, which: utinyint) -> bool {
+        let mut offset: utinyint = buildEnd;
+        let mut needed: utinyint = 4;
+        if (which & 1) != 0 {
             needed = needed + 4;
         }
-        if ((which & 2) != 0) {
+        if (which & 2) != 0 {
             needed = needed + 4;
         }
-        if ((which & 4) != 0) {
+        if (which & 4) != 0 {
             needed = needed + 4;
         }
-        if ((which & 8) != 0) {
+        if (which & 8) != 0 {
             needed = needed + 4;
         }
-        if (offset > 252 - needed || line < lastLine) {
+        if offset > 252 - needed || line < lastLine {
             return false;
         }
         let low: utinyint = h << 1; // $D000 + 2h: X; + 1: Y
-        if (buildPage == 2) {
+        if buildPage == 2 {
             rasterList[offset] = line;
             rasterList[offset + 1] = low + 1;
             rasterList[offset + 2] = 0xD0;
             rasterList[offset + 3] = y;
             offset = offset + 4;
-            if ((which & 1) != 0) {
+            if (which & 1) != 0 {
                 rasterList[offset] = line;
                 rasterList[offset + 1] = 0xF8 + h; // $E3F8 + h
                 rasterList[offset + 2] = 0xE3;
                 rasterList[offset + 3] = pointer;
                 offset = offset + 4;
             }
-            if ((which & 2) != 0) {
+            if (which & 2) != 0 {
                 rasterList[offset] = line;
                 rasterList[offset + 1] = low;
                 rasterList[offset + 2] = 0xD0;
                 rasterList[offset + 3] = xLo;
                 offset = offset + 4;
             }
-            if ((which & 4) != 0) {
+            if (which & 4) != 0 {
                 rasterList[offset] = line;
                 rasterList[offset + 1] = 0x10; // $D010
                 rasterList[offset + 2] = 0xD0;
                 rasterList[offset + 3] = xHigh;
                 offset = offset + 4;
             }
-            if ((which & 8) != 0) {
+            if (which & 8) != 0 {
                 rasterList[offset] = line;
                 rasterList[offset + 1] = 0x27 + h; // $D027 + h
                 rasterList[offset + 2] = 0xD0;
@@ -502,28 +487,28 @@ export namespace raster {
             rasterListB[offset + 2] = 0xD0;
             rasterListB[offset + 3] = y;
             offset = offset + 4;
-            if ((which & 1) != 0) {
+            if (which & 1) != 0 {
                 rasterListB[offset] = line;
                 rasterListB[offset + 1] = 0xF8 + h; // $E3F8 + h
                 rasterListB[offset + 2] = 0xE3;
                 rasterListB[offset + 3] = pointer;
                 offset = offset + 4;
             }
-            if ((which & 2) != 0) {
+            if (which & 2) != 0 {
                 rasterListB[offset] = line;
                 rasterListB[offset + 1] = low;
                 rasterListB[offset + 2] = 0xD0;
                 rasterListB[offset + 3] = xLo;
                 offset = offset + 4;
             }
-            if ((which & 4) != 0) {
+            if (which & 4) != 0 {
                 rasterListB[offset] = line;
                 rasterListB[offset + 1] = 0x10; // $D010
                 rasterListB[offset + 2] = 0xD0;
                 rasterListB[offset + 3] = xHigh;
                 offset = offset + 4;
             }
-            if ((which & 8) != 0) {
+            if (which & 8) != 0 {
                 rasterListB[offset] = line;
                 rasterListB[offset + 1] = 0x27 + h; // $D027 + h
                 rasterListB[offset + 2] = 0xD0;
@@ -538,12 +523,12 @@ export namespace raster {
 
     // The line of the list being built's last entry (0 when empty): the
     // lowest line `at` will take next.
-    function lastEntryLine(): utinyint {
+    fn lastEntryLine() -> utinyint {
         return lastLine;
     }
 
     // How many entries the list being built holds.
-    function count(): utinyint {
+    fn count() -> utinyint {
         return buildEnd >> 2;
     }
 
@@ -551,12 +536,12 @@ export namespace raster {
     // current pass — the next frame. The end goes first, then the page,
     // which is the byte the handler tests, so it never sees one without
     // the other.
-    function commit(): void {
-        if (!framesCleared) {
+    fn commit() {
+        if !framesCleared {
             // A program that never called clear() commits a page whose
             // frame-table flag is whatever RAM held.
-            frameA[Frame.FLAG] = 0;
-            frameB[Frame.FLAG] = 0;
+            frameA[Frame::FLAG] = 0;
+            frameB[Frame::FLAG] = 0;
             framesCleared = true;
         }
         rasterCommitEnd = buildEnd;
@@ -568,14 +553,14 @@ export namespace raster {
 
     // The list `setValue` and `addressOf` work on: the live one once
     // enabled, the one being built before that.
-    function livePage(): utinyint {
-        if (armed) {
+    fn livePage() -> utinyint {
+        if armed {
             return rasterLivePage;
         }
         return buildPage;
     }
-    function liveEnd(): utinyint {
-        if (armed) {
+    fn liveEnd() -> utinyint {
+        if armed {
             return rasterEnd;
         }
         return buildEnd;
@@ -585,11 +570,11 @@ export namespace raster {
     // rules setValue applies below: 0 if `entry` is not the first byte of
     // an entry inside it. 0 is unambiguous — no entry writes address 0;
     // `at` is only ever handed a register.
-    function addressOf(entry: utinyint): usmallint {
-        if ((entry & 3) != 0 || entry + 3 >= raster.liveEnd()) {
+    fn addressOf(entry: utinyint) -> usmallint {
+        if (entry & 3) != 0 || entry + 3 >= raster::liveEnd() {
             return 0;
         }
-        if (raster.livePage() == 3) {
+        if raster::livePage() == 3 {
             return rasterListB[entry + 2] * 256 + rasterListB[entry + 1];
         }
         return rasterList[entry + 2] * 256 + rasterList[entry + 1];
@@ -602,11 +587,11 @@ export namespace raster {
     // offset inside the live list would pass an end check and still
     // smash a neighbor's line or address — or if the value byte it names
     // would land at or past the list's end.
-    function setValue(entry: utinyint, value: utinyint): bool {
-        if ((entry & 3) != 0 || entry + 3 >= raster.liveEnd()) {
+    fn setValue(entry: utinyint, value: utinyint) -> bool {
+        if (entry & 3) != 0 || entry + 3 >= raster::liveEnd() {
             return false;
         }
-        if (raster.livePage() == 3) {
+        if raster::livePage() == 3 {
             rasterListB[entry + 3] = value;
         } else {
             rasterList[entry + 3] = value;
@@ -616,21 +601,21 @@ export namespace raster {
 
     // The built list is committed and made live at once. (Natively this also
     // installs the interrupt handler; here the page applies the list.)
-    function enable(): void {
+    fn enable() {
         setupVideo();
-        raster.commit();
+        raster::commit();
         armed = true;
         interruptsOn = true;
     }
 
     // Video frames since enable(): nothing advances the counter byte on this
     // build, so 0 (the portable raster's FRAME_COUNTER is false here too).
-    function frame(): utinyint {
+    fn frame() -> utinyint {
         return frameCounter;
     }
 
     // The list is kept; the page keeps applying it.
-    function disable(): void {
+    fn disable() {
         interruptsOn = false;
     }
 }

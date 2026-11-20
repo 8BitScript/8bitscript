@@ -55,7 +55,7 @@ function projectJson(dir) {
     targetsDeclared: null, targets, requires: {}, definesRead: true, defines: [], problems: [], ...extra,
   });
   return {
-    version: 1, hasConfig: true, configPath: path.join(dir, '8bitscript.config.8bs'), configError: null,
+    version: 1, hasConfig: true, configPath: path.join(dir, '8bitscript.config.ts'), configError: null,
     dir, name: 'vegas', frameRate: 60, baseline: null, targetsListed: true,
     targets: all.map((id) => ({ id, hardware: {}, profiles: [], locale: null })),
     locales: null, locale: null, requires: {}, systems: [], problems: [],
@@ -76,8 +76,8 @@ function projectJson(dir) {
 
 function writeProject(dir, { cli = {} } = {}) {
   fs.mkdirSync(path.join(dir, 'src'), { recursive: true });
-  for (const name of ['main', 'slot5x5', 'tiny']) fs.writeFileSync(path.join(dir, 'src', `${name}.8bs`), 'export function main(): void {}\n');
-  fs.writeFileSync(path.join(dir, '8bitscript.config.8bs'), `export default {
+  for (const name of ['main', 'slot5x5', 'tiny']) fs.writeFileSync(path.join(dir, 'src', `${name}.8bs`), 'pub fn main() {}\n');
+  fs.writeFileSync(path.join(dir, '8bitscript.config.ts'), `export default {
   programs: {
     main: { entry: 'src/main.8bs' },
     slot5x5: { entry: 'src/slot5x5.8bs', targets: ['pet', 'c64', 'web'] },
@@ -145,7 +145,7 @@ async function inProject(options, fn) {
     vscode.__mock.reset();
     liveTasks();
     for (const [key, value] of Object.entries(options.settings ?? {})) vscode.__mock.configStore.set(key, typeof value === 'function' ? value(dir) : value);
-    vscode.workspace.findFiles = () => Promise.resolve([{ fsPath: path.join(dir, '8bitscript.config.8bs') }]);
+    vscode.workspace.findFiles = () => Promise.resolve([{ fsPath: path.join(dir, '8bitscript.config.ts') }]);
     const projects = registerRunner(context, { appendLine(line) { (options.log ?? []).push(line); } });
     await tick();
     await tick();
@@ -806,7 +806,7 @@ test('a host without workspace state just forgets: nothing throws', async () => 
     const cli = writeProject(dir);
     vscode.__mock.reset();
     liveTasks();
-    vscode.workspace.findFiles = () => Promise.resolve([{ fsPath: path.join(dir, '8bitscript.config.8bs') }]);
+    vscode.workspace.findFiles = () => Promise.resolve([{ fsPath: path.join(dir, '8bitscript.config.ts') }]);
     const context = { subscriptions: [], globalStorageUri: { fsPath: path.join(dir, '.storage') } };
     const projects = registerRunner(context, { appendLine() {} });
     await tick();

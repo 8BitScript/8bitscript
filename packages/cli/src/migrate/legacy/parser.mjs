@@ -12,9 +12,15 @@
 // `case` are lexed as keywords but have no parse rule, so writing one is an
 // honest syntax error rather than a silently accepted guess at syntax nobody
 // has decided on.
-import { Codes, diagnostic } from '../diagnostics/index.mjs';
-import { TokenKind, tokenize } from '../lexer/index.mjs';
-import { NodeType, node } from '../ast/index.mjs';
+import { NodeType } from '../../../../compiler/src/ast/index.mjs';
+import { Codes, diagnostic } from '../../../../compiler/src/diagnostics/index.mjs';
+
+import { TokenKind, tokenize } from './lexer.mjs';
+
+/** Build a node with its span (the compiler's `ast` helper, kept here so the legacy parser needs no deep import). */
+function node(type, start, end, props = {}) {
+  return { type, start, length: end - start, ...props };
+}
 
 /** Binary operator precedence, loosest first. Mirrors the C/TypeScript table. */
 const BINARY_PRECEDENCE = {

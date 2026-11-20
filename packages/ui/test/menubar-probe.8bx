@@ -3,9 +3,9 @@
 // every target proves an exported, slotted component crosses the module
 // boundary and lowers to the same menubar calls the .8bs probe makes by
 // hand.
-import { MenuBar, MenuItem } from "../src/menubar.8bx";
+use "../src/menubar.8bx"::{MenuBar, MenuItem};
 
-export function main(): void {
+pub fn main() {
     <MenuBar row={0} width={40}>
         <MenuItem label="FILE" />
         <MenuItem label="EDIT" />

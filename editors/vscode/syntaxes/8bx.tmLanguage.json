@@ -31,10 +31,10 @@
     },
     "component": {
       "comment": "`component Name(` — the one keyword 8BX adds; the name is the component's, PascalCase.",
-      "match": "\\b(export\\s+)?(component)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+      "match": "\\b(pub\\s+)?(component)\\s+([A-Za-z_][A-Za-z0-9_]*)",
       "captures": {
         "1": {
-          "name": "keyword.control.export.8bs"
+          "name": "storage.modifier.8bs"
         },
         "2": {
           "name": "storage.type.component.8bx"

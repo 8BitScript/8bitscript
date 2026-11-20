@@ -131,7 +131,10 @@ function stripSpans(value) {
 const irOf = (src) => lowered(src).ir;
 
 test('the utinyint milestone example lowers exactly like the u8 one', () => {
-  const src = (t) => `let x: ${t} = 10;\nexport function main(): void { x = x + 1; }`;
+  const src = (t) => `let mut x: ${t} = 10;
+pub fn main() {
+    x = x + 1;
+}`;
   const canonical = lowered(src('utinyint'));
   const legacy = lowered(src('u8'));
   assert.equal(canonical.diagnostics.length, 0);
@@ -139,8 +142,8 @@ test('the utinyint milestone example lowers exactly like the u8 one', () => {
 });
 
 test('@address + volatile<utinyint> is the same hardware register as volatile<u8>', () => {
-  const canonical = irOf('@address(0xD020)\nlet border: volatile<utinyint>;');
-  const legacy = irOf('@address(0xD020)\nlet border: volatile<u8>;');
+  const canonical = irOf('#[address(0xD020)]\nlet border: volatile<utinyint>;');
+  const legacy = irOf('#[address(0xD020)]\nlet border: volatile<u8>;');
   assert.deepEqual(stripSpans(canonical.globals[0]), stripSpans(legacy.globals[0]));
   assert.equal(canonical.globals[0].address, 0xD020);
   assert.equal(canonical.globals[0].volatile, true);
@@ -151,7 +154,7 @@ test('int and uint are 32-bit types, not 16-bit', () => {
   assert.equal(ir32.globals[0].type, 'int');
   assert.equal(ir32.globals[1].type, 'uint');
 
-  const irOut = irOf('let x: int = 0;\nexport function main(): void { x = x + 1; }');
+  const irOut = irOf('let mut x: int = 0;\npub fn main() {\n    x = x + 1;\n}');
   assert.equal(irOut.globals[0].type, 'int');
   assert.equal(irOut.functions[0].body[0].value.operator, '+');
 });

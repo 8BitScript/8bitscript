@@ -11,7 +11,7 @@ out at run time, when the answer was knowable while it was being
 compiled, is a byte this package wasted.
 
 Layer-specific rules live next to the layer. The lexer's are
-[`src/lexer/AGENTS.md`](src/lexer/AGENTS.md). If you are adding a
+[`../cli/src/migrate/legacy/AGENTS.md`](../cli/src/migrate/legacy/AGENTS.md). If you are adding a
 keyword, a literal form, a `#name`, or a diagnostic the scanner emits,
 start there. Message catalogs (`@8bitscript/i18n/catalog`) live in
 [`src/i18n/index.mjs`](src/i18n/index.mjs): schema/placeholder parity,
@@ -46,8 +46,8 @@ it was given (`App.8bx` on the PET is `App.pet.8bx`, never `.8bs`); an
 hardware twins. Media files can be imported; they cannot be a program
 entry. One lexer and one parser serve `.8bs` and `.8bx`; `.8bx` adds the
 `component` declaration and element syntax, which the lexer tokenizes in
-its own modes (`src/lexer/AGENTS.md`, "the 8BX modes") and the parser
-reads token by token (`parseBxElement` in `src/parser/index.mjs`) — only
+its own modes (`../cli/src/migrate/legacy/AGENTS.md`, "the 8BX modes") and the parser
+reads token by token (`parseBxElement` in `../cli/src/migrate/legacy/parser.mjs`) — only
 when the source kind says so. Spans are tokens' spans, everywhere.
 Resource names elaborated from `.8bg` / `.8ba` are asset ids;
 `8BS1034` does not apply to them.
@@ -78,7 +78,7 @@ four tallies; the halves of a slotted component share one tag; a plain
 call from `.8bs` is an instance per call site. `bx/check.mjs`
 `checkState` holds `state` to the top of a component body, typed, once
 per name, unshadowed (`8BS2022`). `--size` lists every instance's bytes
-(`ir.instances`, `stateReportLines`). **Methods** (§39) — `function` at
+(`ir.instances`, `stateReportLines`). **Methods** (§39) — `fn` at
 the top of a component body — are hoisted to `Name__method`, read the
 same template globals, and are instanced *with* the enclosing instance
 (the linker keeps the parent's id for a call to a method of the same
@@ -94,7 +94,7 @@ with a composition in each arm (`bx/elaborate.mjs` `compositionOf`);
 `cond` — `Video.SPRITES > 0` — is a constant `if`, and the optimizer drops
 the arm that cannot run, component and all: `menubar-bx.test.mjs` builds
 both arms for the PET and measures that the sprite arm costs it nothing.
-An element anywhere a value is expected (`let x = <A />`, `f(<A />)`, an
+An element anywhere a value is expected (`let x = <A />;`, `f(<A />)`, an
 attribute) is `8BS2024`; a `{…}` child that is not a composition
 (`{score}`) is `8BS2023` — a value between tags is a later milestone
 (§20).
@@ -196,12 +196,12 @@ right-aligns its version chooses a field width. A compile-time
 `.length`, or a literal's bytes as a `const array`, would let a PET skin
 that stamps screen codes take the version from the package at zero cost;
 today that skin pays for a byte-copy loop (measured +90 on 2048's 4K PET
-2001) or for `text.print` (+146). Neither is done here.
+2001) or for `text::print` (+146). Neither is done here.
 
 **IntelliSense shows the portable API, never one machine's.** A
 hardware package (`@8bitscript/screen`, `text`, `input`, `raster`,
 `pointer`) is one module per machine behind an entry map, and a hover on
-`screen.blank` used to read the PET's module and add "shown as
+`screen::blank` used to read the PET's module and add "shown as
 implemented for the pet target — another target's version may differ",
 which is the opposite of what the language is for. Now
 `resolvePortableModule` resolves every machine's branch, `scanModule`
@@ -212,11 +212,11 @@ warm), and `mergeNamespace` merges members by name. The rules, in
 - *Signature, value, kind*: the reading most machines share
   (`mostShared`), ties to the earlier machine in `8bs targets` order
   (`MACHINES`). A machine whose signature differs is named under the
-  heading — `On web: raster.at(line: usmallint, …)` — and
+  heading — `On web: raster::at(line: usmallint, …)` — and
   `test/portable-contract.test.mjs` fails the workspace when a member
   every machine has disagrees, unless the drift is recorded there with
   why (`KNOWN_DRIFT`, a to-do list for the packages, not an allowance;
-  today: `raster.at`'s `line` width).
+  today: `raster::at`'s `line` width).
 - *Doc*: the non-empty text most machines share is the contract and is
   shown alone. When no two machines share one — every module documents
   the member in its own words (`releaseCursor`: nine KERNAL notes) — the
@@ -227,11 +227,11 @@ warm), and `mergeNamespace` merges members by name. The rules, in
   the entry map can point at (`"8bitscript".api: "./src/api.8bs"`),
   read first by the hover and checked against every branch by the
   contract test. Until it exists, the merge is the contract.
-- *Availability*: a member fewer machines have than the namespace lists
+- *Availability*: a member fewer machines have than the module lists
   where it exists (`Available on …; not on …`), in `8bs targets` order.
   The machine the file is read *for* — its own twin's (`machineOfVariant`),
   else the project's single configured target (the language server reads
-  `8bitscript.config.8bs` and passes `machine`) — is called out first when
+  `8bitscript.config.ts` and passes `machine`) — is called out first when
   it lacks the member, because a dead arm naming it is a link error
   (2048 #54). Nothing is said when nothing differs.
 - *Go to Definition* opens the module for that machine when it has the
@@ -275,7 +275,7 @@ target's, the project's — and never a runtime one: a 4K PET has no room
 for a language switch, so it is one binary per locale, named with it
 (`2048-pet-de.prg`, `program-de.wasm`). What it does not do yet: convert
 a string literal to a machine's screen codes at compile time, so a
-machine that bakes its strings (the PET's `text.print` converts at run
+machine that bakes its strings (the PET's `text::print` converts at run
 time, and a size-fitted program pre-converts by hand) still carries a
 `strings.pet.8bs` per locale — see the locale PR's write-up for what
 that fold would take.
@@ -300,7 +300,7 @@ Each backend's `build()` then runs `optimizeReachable` (prune, fold
 constant `if`s and compile-time calls, prune — then fold and prune once
 more, so a helper whose other callers folded away is inlined into the
 one left) before lowering, so a `#fact` branch, a print of a string
-literal, and a call to an empty void function (`text.setColor` on the
+literal, and a call to an empty void function (`text::setColor` on the
 PET) cost the unused side / the conversion loop / the no-op nothing.
 The one root besides the entry is a machine's frame hook
 (`FRAME_SYNC.<machine>.frameHook`), which the backend `JSR`s from
@@ -319,7 +319,7 @@ arguments and all — the site's argument stores go to the callee's slots
 instead of the forwarder's, so nothing is duplicated and the wrapper's
 `jsr`/`rts` and copies are gone (`component Tile(r, c, e) { drawTile(r,
 c, e); }` was +36 bytes on the PET 2001 and VIC-20 before, 2048 #49; a
-`return random.range(bound);` delegate +8). A global passed through, a
+`return random::range(bound);` delegate +8). A global passed through, a
 parameter used twice, an expression around the call, or a second
 statement (2048's `f(); return;` idiom) is not a forwarder and keeps
 the function. `packages/compiler/test/forwarding-inline.test.mjs` is
@@ -391,16 +391,16 @@ them on every keystroke:
 
 ## The lexer, in brief
 
-The lexer is a hand-written scanner in `src/lexer/index.mjs`. That is
+The lexer is a hand-written scanner in `../cli/src/migrate/legacy/lexer.mjs`. That is
 the right approach for this language and this is not a candidate for a
 generator. It classifies keywords and type names, matches operators by
-maximal munch against a real list, treats `#name` and `@name` as single
+maximal munch against a real list, treats `#name`, `#[` and `@scope` (after `use`) as single
 tokens, swallows `asm6502` bodies whole, and splits a template into one
 token with field spans the parser re-lexes.
 
 The details — `%` vs binary, why a newline always ends a string, why
 comments have to be skipped when looking back, how `asm6502` counts
-braces — are in [`src/lexer/AGENTS.md`](src/lexer/AGENTS.md). Do not
+braces — are in [`../cli/src/migrate/legacy/AGENTS.md`](../cli/src/migrate/legacy/AGENTS.md). Do not
 duplicate them here; they go stale the first time the scanner changes.
 
 ## Names and `#`

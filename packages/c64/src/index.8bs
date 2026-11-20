@@ -3,9 +3,9 @@
 // The module entry point named by the "8bitscript".entry field in this
 // package's package.json, resolved and linked for:
 //
-//     import { borderColor, backgroundColor, memoryPointer } from "@8bitscript/c64";
-//     import { spriteEnable, spritePositions, cia1PortA } from "@8bitscript/c64";
-//     import { reuStatus, reuCommand } from "@8bitscript/c64"; // --profile reu*
+//     use @8bitscript::c64::{borderColor, backgroundColor, memoryPointer};
+//     use @8bitscript::c64::{spriteEnable, spritePositions, cia1PortA};
+//     use @8bitscript::c64::{reuStatus, reuCommand}; // --profile reu*
 //
 // The surface is the hardware, one register at a time — the VIC-II, the
 // SID, the two CIAs, the 6510's own port — under the names the chips'
@@ -26,7 +26,7 @@
 // checked. Where the VIC-20's VIC packs border, background, and video mode
 // into one register, the C64's VIC-II gives each its own; both take the low
 // four bits, and the VIC-II has sixteen colors everywhere.
-import { Video } from "./geometry.8bs";
+use self::geometry::Video;
 
 // ---- the 6510's port: what the CPU sees at $A000, $D000, $E000 -------------
 //
@@ -49,46 +49,37 @@ import { Video } from "./geometry.8bs";
 // HIRAM (bit 1) low hides the character ROM as well as the KERNAL: from
 // %101, clearing CHAREN gives RAM everywhere, not the ROM, so a copy of
 // the ROM sets %010 first and %101 after.
-@address(0x0001)
-export let processorPort: volatile<u8>;
+#[address(0x0001)] pub let mut processorPort: volatile<u8>;
 
 // ---- VIC-II ($D000-$D02E) ------------------------------------------------
 
 // $D000-$D00F: sprite 0's X, sprite 0's Y, sprite 1's X, ... — `2 * n` is
 // sprite n's X and `2 * n + 1` its Y (`spr_pos[n].x/.y` in _vic2.h). X is
 // nine bits wide: the ninth of each sprite is a bit of $D010.
-@address(0xD000)
-export let spritePositions: array<u8, 16>;
+#[address(0xD000)] pub let mut spritePositions: [u8; 16];
 
 // $D010, bit n = bit 8 of sprite n's X coordinate (`spr_hi_x`).
-@address(0xD010)
-export let spriteXHigh: volatile<u8>;
+#[address(0xD010)] pub let mut spriteXHigh: volatile<u8>;
 
 // $D011, control register 1 (`ctrl1`): bit 7 RST8 (bit 8 of the raster
 // line, read; of the raster compare, write), 6 ECM, 5 BMM, 4 DEN (display
 // enable), 3 RSEL (25 rows / 24), 0-2 YSCROLL. The frame runtime reads
 // bit 7 (FRAME_SYNC.c64 in packages/compiler/src/mos).
-@address(0xD011)
-export let control1: volatile<u8>;
+#[address(0xD011)] pub let mut control1: volatile<u8>;
 
 // $D012, the raster line's low eight bits (read) / raster compare (write).
-@address(0xD012)
-export let raster: volatile<u8>;
+#[address(0xD012)] pub let mut raster: volatile<u8>;
 
 // $D015, one enable bit per sprite (`spr_ena`).
-@address(0xD015)
-export let spriteEnable: volatile<u8>;
+#[address(0xD015)] pub let mut spriteEnable: volatile<u8>;
 
 // $D016, control register 2 (`ctrl2`): bit 4 MCM (multicolor text/bitmap),
 // 3 CSEL (40 columns / 38), 0-2 XSCROLL.
-@address(0xD016)
-export let control2: volatile<u8>;
+#[address(0xD016)] pub let mut control2: volatile<u8>;
 
 // $D017 / $D01D, one bit per sprite: drawn twice as tall / twice as wide.
-@address(0xD017)
-export let spriteExpandY: volatile<u8>;
-@address(0xD01D)
-export let spriteExpandX: volatile<u8>;
+#[address(0xD017)] pub let mut spriteExpandY: volatile<u8>;
+#[address(0xD01D)] pub let mut spriteExpandX: volatile<u8>;
 
 // $D018, the VIC-II's memory pointer (`addr` in _vic2.h): bits 4-7 the
 // screen matrix's position in the bank in 1K steps, bits 1-3 the character
@@ -97,8 +88,7 @@ export let spriteExpandX: volatile<u8>;
 // Programmer's Reference Guide); this package's screen is at $E000 with
 // its own copy of the ROM at $D000, which in bank 3 is $84 — see
 // Video.MEMORY_POINTER_UPPERCASE in ./geometry.8bs.
-@address(0xD018)
-export let memoryPointer: volatile<u8>;
+#[address(0xD018)] pub let mut memoryPointer: volatile<u8>;
 
 // $D019 / $D01A, interrupt status and mask (`irr`/`imr`): bit 0 raster,
 // 1 sprite-background collision, 2 sprite-sprite collision, 3 light pen;
@@ -106,50 +96,36 @@ export let memoryPointer: volatile<u8>;
 // program runs with interrupts off (see FRAME_SYNC.c64) and polls; the
 // one interrupt this package ever enables is the raster compare, for
 // @8bitscript/c64/raster's write list, whose handler acknowledges it.
-@address(0xD019)
-export let interruptStatus: volatile<u8>;
-@address(0xD01A)
-export let interruptMask: volatile<u8>;
+#[address(0xD019)] pub let mut interruptStatus: volatile<u8>;
+#[address(0xD01A)] pub let mut interruptMask: volatile<u8>;
 
 // $D01B, one bit per sprite: 1 = the sprite is drawn BEHIND the
 // background's foreground pixels (`spr_bg_prio`). Sprite-to-sprite order
 // is fixed: a lower-numbered sprite is always in front.
-@address(0xD01B)
-export let spritePriority: volatile<u8>;
+#[address(0xD01B)] pub let mut spritePriority: volatile<u8>;
 
 // $D01C, one bit per sprite: multicolor (12x21 double-width pixels, three
 // colors plus transparent: the sprite's own and the two shared ones).
-@address(0xD01C)
-export let spriteMulticolor: volatile<u8>;
+#[address(0xD01C)] pub let mut spriteMulticolor: volatile<u8>;
 
 // $D01E / $D01F: which sprites touched another sprite / the background's
 // foreground since last read. Both CLEAR WHEN READ (and cannot be
 // written), so read each once a frame and keep the value.
-@address(0xD01E)
-export let spriteCollision: volatile<u8>;
-@address(0xD01F)
-export let spriteBackgroundCollision: volatile<u8>;
+#[address(0xD01E)] pub let mut spriteCollision: volatile<u8>;
+#[address(0xD01F)] pub let mut spriteBackgroundCollision: volatile<u8>;
 
 // $D020, the border color; $D021-$D024, background colors 0-3 (only 0
 // shows in the standard text mode; 1-3 are for extended-color and
 // multicolor modes); $D025 / $D026, the two colors every multicolor
 // sprite shares; $D027-$D02E, each sprite's own color. Low four bits.
-@address(0xD020)
-export let borderColor: volatile<u8>;
-@address(0xD021)
-export let backgroundColor: volatile<u8>;
-@address(0xD022)
-export let backgroundColor1: volatile<u8>;
-@address(0xD023)
-export let backgroundColor2: volatile<u8>;
-@address(0xD024)
-export let backgroundColor3: volatile<u8>;
-@address(0xD025)
-export let spriteSharedColor0: volatile<u8>;
-@address(0xD026)
-export let spriteSharedColor1: volatile<u8>;
-@address(0xD027)
-export let spriteColors: array<u8, 8>;
+#[address(0xD020)] pub let mut borderColor: volatile<u8>;
+#[address(0xD021)] pub let mut backgroundColor: volatile<u8>;
+#[address(0xD022)] pub let mut backgroundColor1: volatile<u8>;
+#[address(0xD023)] pub let mut backgroundColor2: volatile<u8>;
+#[address(0xD024)] pub let mut backgroundColor3: volatile<u8>;
+#[address(0xD025)] pub let mut spriteSharedColor0: volatile<u8>;
+#[address(0xD026)] pub let mut spriteSharedColor1: volatile<u8>;
+#[address(0xD027)] pub let mut spriteColors: [u8; 8];
 
 // ---- SID ($D400-$D41C) ------------------------------------------------------
 //
@@ -162,22 +138,17 @@ export let spriteColors: array<u8, 8>;
 // nybbles, 6 sustain/release nybbles. 21-22 filter cutoff (low three bits,
 // high eight), 23 resonance nybble / which voices are filtered, 24 = $D418:
 // filter mode bits 4-6, voice 3 off bit 7, master volume in the low nybble.
-@address(0xD400)
-export let sidRegisters: array<u8, 25>;
+#[address(0xD400)] pub let mut sidRegisters: [u8; 25];
 
 // $D419 / $D41A, the two paddle A/D converters (`ad1`/`ad2`); which port's
 // paddles is CIA1 port A bits 6-7's choice. $D41B / $D41C, voice 3's
 // oscillator and envelope, readable — the oscillator with a noise waveform
 // is the hardware entropy the root AGENTS.md wants kept out of the
 // deterministic PRNG.
-@address(0xD419)
-export let paddleX: volatile<u8>;
-@address(0xD41A)
-export let paddleY: volatile<u8>;
-@address(0xD41B)
-export let voice3Oscillator: volatile<u8>;
-@address(0xD41C)
-export let voice3Envelope: volatile<u8>;
+#[address(0xD419)] pub let mut paddleX: volatile<u8>;
+#[address(0xD41A)] pub let mut paddleY: volatile<u8>;
+#[address(0xD41B)] pub let mut voice3Oscillator: volatile<u8>;
+#[address(0xD41C)] pub let mut voice3Envelope: volatile<u8>;
 
 // ---- CIA1 ($DC00): keyboard, joysticks, the KERNAL's IRQ timer ---------------
 //
@@ -191,16 +162,11 @@ export let voice3Envelope: volatile<u8>;
 // the directions (A out, B in) at boot; the packages set them again.
 // Timer A ($DC04-$DC05) is the KERNAL's 60 Hz IRQ source, silenced by the
 // `sei` the frame runtime starts with; $DC0D is its interrupt control.
-@address(0xDC00)
-export let cia1PortA: volatile<u8>;
-@address(0xDC01)
-export let cia1PortB: volatile<u8>;
-@address(0xDC02)
-export let cia1DirectionA: volatile<u8>;
-@address(0xDC03)
-export let cia1DirectionB: volatile<u8>;
-@address(0xDC0D)
-export let cia1InterruptControl: volatile<u8>;
+#[address(0xDC00)] pub let mut cia1PortA: volatile<u8>;
+#[address(0xDC01)] pub let mut cia1PortB: volatile<u8>;
+#[address(0xDC02)] pub let mut cia1DirectionA: volatile<u8>;
+#[address(0xDC03)] pub let mut cia1DirectionB: volatile<u8>;
+#[address(0xDC0D)] pub let mut cia1InterruptControl: volatile<u8>;
 
 // ---- CIA2 ($DD00): the VIC bank, the serial bus, the user port ---------------
 //
@@ -212,12 +178,9 @@ export let cia1InterruptControl: volatile<u8>;
 // bits 0-1 must be outputs (the KERNAL sets $3F). $DD0D is CIA2's
 // interrupt control: its interrupts are the NMI line (the RESTORE key is
 // the other NMI source), and @8bitscript/c64/raster masks them.
-@address(0xDD00)
-export let cia2PortA: volatile<u8>;
-@address(0xDD02)
-export let cia2DirectionA: volatile<u8>;
-@address(0xDD0D)
-export let cia2InterruptControl: volatile<u8>;
+#[address(0xDD00)] pub let mut cia2PortA: volatile<u8>;
+#[address(0xDD02)] pub let mut cia2DirectionA: volatile<u8>;
+#[address(0xDD0D)] pub let mut cia2InterruptControl: volatile<u8>;
 
 // ---- the screen's memory --------------------------------------------------
 //
@@ -233,18 +196,18 @@ export let cia2InterruptControl: volatile<u8>;
 // color matrix under the I/O area). The sprite layer reads it, because
 // the sprite pointers move with the screen matrix; text's prepare() reads
 // it, because its $D018 write is the text mode's.
-export namespace VideoMode {
+pub mod VideoMode {
     const TEXT: utinyint = 0;
     const BITMAP: utinyint = 1;
 }
-export let videoMode: utinyint = 0;
+pub let mut videoMode: utinyint = 0;
 
 // True once @8bitscript/c64/raster has enabled the raster interrupt. The
 // one thing it changes here: a window with the I/O area banked out
 // (bankIoOut/bankIoIn below) has to be an interrupt-free window, because
 // an interrupt handler that fires inside it acknowledges $D019 into RAM
 // and fires again forever — the hang the copy below documents.
-export let interruptsOn: bool = false;
+pub let mut interruptsOn: bool = false;
 
 // ---- video set-up: the bank, the character set, the pointer -----------------
 //
@@ -282,10 +245,10 @@ export let interruptsOn: bool = false;
 // both the NMI and the IRQ vector at a bare `rti`, so a RESTORE key press
 // with the ROM out does nothing at all. Nothing in an 8bitscript program
 // calls the KERNAL after this point — main() never returns to it either.
-let videoReady: bool = false;
+let mut videoReady: bool = false;
 
-export function setupVideo(): void {
-    if (videoReady) {
+pub fn setupVideo() {
+    if videoReady {
         return;
     }
     videoReady = true;
@@ -295,7 +258,7 @@ export function setupVideo(): void {
     copyCharacterRom();
     cia2DirectionA = cia2DirectionA | 0x03;
     cia2PortA = cia2PortA & 0xFC; // bank 3
-    memoryPointer = Video.MEMORY_POINTER_UPPERCASE;
+    memoryPointer = Video::MEMORY_POINTER_UPPERCASE;
     spriteEnable = 0; // no sprite until a program asks; the pointers are whatever RAM held
 }
 
@@ -304,16 +267,16 @@ export function setupVideo(): void {
 // again — @8bitscript/c64/charset's restore() is a second copy over a
 // program's own glyphs. Interrupts are off for the copy and back on after
 // it only if the raster interrupt had them on.
-export function copyCharacterRom(): void {
+pub fn copyCharacterRom() {
     asm6502 {
         sei
     }
-    processorPort = (processorPort & 0xF8) | 0x02; // %010: KERNAL in, character ROM at $D000, I/O out
-    for (let i: usmallint = 0; i < 4096; i++) {
-        memory.write(Video.CHARSET + i, memory.read(Video.CHARSET + i));
+    processorPort = processorPort & 0xF8 | 0x02; // %010: KERNAL in, character ROM at $D000, I/O out
+    for i: usmallint in 0..4096 {
+        memory::write(Video::CHARSET + i, memory::read(Video::CHARSET + i));
     }
-    processorPort = (processorPort & 0xF8) | 0x05; // %101: KERNAL out, I/O in
-    if (interruptsOn) {
+    processorPort = processorPort & 0xF8 | 0x05; // %101: KERNAL out, I/O in
+    if interruptsOn {
         asm6502 {
             cli
         }
@@ -332,30 +295,33 @@ export function copyCharacterRom(): void {
 // in $D011 with $D012 at 32 or more — where an NTSC frame stops at 262.
 // Two frames, once; keep the answer. A cross-machine builtin that
 // publishes the runtime's own answer is the design this waits for.
-export namespace Region {
+pub mod Region {
     const PAL: utinyint = 0;
     const NTSC: utinyint = 1;
 }
 
-function rasterInTopHalf(): bool {
+fn rasterInTopHalf() -> bool {
     // $D012 first, then $D011 bit 8 (FRAME_SYNC.c64 says why the order).
     return raster < 128 && (control1 & 0x80) == 0;
 }
 
-export function detectRegion(): utinyint {
-    let pal: bool = false;
-    while (rasterInTopHalf()) {}
-    while (!rasterInTopHalf()) {} // the wrap to line 0
-    while (rasterInTopHalf()) {}
-    while (!rasterInTopHalf()) {
-        if ((control1 & 0x80) != 0 && raster >= 32) {
+pub fn detectRegion() -> utinyint {
+    let mut pal: bool = false;
+    while rasterInTopHalf() {
+    }
+    while !rasterInTopHalf() {
+    } // the wrap to line 0
+    while rasterInTopHalf() {
+    }
+    while !rasterInTopHalf() {
+        if (control1 & 0x80) != 0 && raster >= 32 {
             pal = true;
         }
     }
-    if (pal) {
-        return Region.PAL;
+    if pal {
+        return Region::PAL;
     }
-    return Region.NTSC;
+    return Region::NTSC;
 }
 
 // ---- writes under the I/O area --------------------------------------------
@@ -372,16 +338,16 @@ export function detectRegion(): utinyint {
 // the RAM but its READS see the character ROM — so a read through that
 // window (charset `copy`, `readRow`) returned the ROM's glyph, not the
 // program's own.
-export function bankIoOut(): void {
+pub fn bankIoOut() {
     asm6502 {
         sei
     }
     processorPort = processorPort & 0xFE;
 }
 
-export function bankIoIn(): void {
+pub fn bankIoIn() {
     processorPort = processorPort | 0x01;
-    if (interruptsOn) {
+    if interruptsOn {
         asm6502 {
             cli
         }
@@ -389,16 +355,16 @@ export function bankIoIn(): void {
 }
 
 // One byte into the RAM under the I/O area, in its own window.
-export function writeUnderIo(address: usmallint, value: utinyint): void {
+pub fn writeUnderIo(address: usmallint, value: utinyint) {
     bankIoOut();
-    memory.write(address, value);
+    memory::write(address, value);
     bankIoIn();
 }
 
 // One byte from the RAM under the I/O area.
-export function readUnderIo(address: usmallint): utinyint {
+pub fn readUnderIo(address: usmallint) -> utinyint {
     bankIoOut();
-    let value: utinyint = memory.read(address);
+    let value: utinyint = memory::read(address);
     bankIoIn();
     return value;
 }
@@ -420,14 +386,14 @@ export function readUnderIo(address: usmallint): utinyint {
 // execute, bits 0-1 for the transfer direction: 00 stash C64→REU, 01 fetch
 // REU→C64, 10 swap, 11 verify), the same level @8bitscript/vic20's
 // `vicColor` and this package's own `borderColor` above operate at.
-@address(0xDF00) export let reuStatus: volatile<u8>;
-@address(0xDF01) export let reuCommand: volatile<u8>;
-@address(0xDF02) export let reuC64AddressLow: volatile<u8>;
-@address(0xDF03) export let reuC64AddressHigh: volatile<u8>;
-@address(0xDF04) export let reuAddressLow: volatile<u8>;
-@address(0xDF05) export let reuAddressHigh: volatile<u8>;
-@address(0xDF06) export let reuBank: volatile<u8>;
-@address(0xDF07) export let reuLengthLow: volatile<u8>;
-@address(0xDF08) export let reuLengthHigh: volatile<u8>;
-@address(0xDF09) export let reuInterruptMask: volatile<u8>;
-@address(0xDF0A) export let reuAddressControl: volatile<u8>;
+#[address(0xDF00)] pub let mut reuStatus: volatile<u8>;
+#[address(0xDF01)] pub let mut reuCommand: volatile<u8>;
+#[address(0xDF02)] pub let mut reuC64AddressLow: volatile<u8>;
+#[address(0xDF03)] pub let mut reuC64AddressHigh: volatile<u8>;
+#[address(0xDF04)] pub let mut reuAddressLow: volatile<u8>;
+#[address(0xDF05)] pub let mut reuAddressHigh: volatile<u8>;
+#[address(0xDF06)] pub let mut reuBank: volatile<u8>;
+#[address(0xDF07)] pub let mut reuLengthLow: volatile<u8>;
+#[address(0xDF08)] pub let mut reuLengthHigh: volatile<u8>;
+#[address(0xDF09)] pub let mut reuInterruptMask: volatile<u8>;
+#[address(0xDF0A)] pub let mut reuAddressControl: volatile<u8>;

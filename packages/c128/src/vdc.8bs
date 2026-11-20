@@ -2,7 +2,7 @@
 //
 // Named by "8bitscript".exports["./vdc"] in this package's package.json:
 //
-//     import { vdc } from "@8bitscript/c128/vdc";
+//     use @8bitscript::c128::vdc::vdc;
 //
 //     let kib: usmallint = vdc.ramKib();     // 16, or 64 on a C128DCR
 //     vdc.setAddress(0x0000);
@@ -55,25 +55,23 @@
 // light-pen latch, bit 5 is set while the display is *disabled* — the top
 // and bottom border — which is not the vertical retrace despite what most
 // documentation calls it, and bits 0-2 are the chip revision.
-@address(0xD600)
-let vdcPort: volatile<u8>;
+#[address(0xD600)] let mut vdcPort: volatile<u8>;
 
 // $D601 — the register selected by the last write to $D600.
-@address(0xD601)
-let vdcData: volatile<u8>;
+#[address(0xD601)] let mut vdcData: volatile<u8>;
 
-namespace Register {
+mod Register {
     const UPDATE_HIGH: utinyint = 18; // R18/R19: the address in VDC RAM that
-    const UPDATE_LOW: utinyint = 19;  // R31 reads or writes, and advances
+    const UPDATE_LOW: utinyint = 19; // R31 reads or writes, and advances
     const BLOCK_CONTROL: utinyint = 24; // bit 7: 0 = block fill, 1 = block copy
     const CHARACTER_BASE: utinyint = 28; // bits 5-7 the character set, bit 4 RAM type
-    const WORD_COUNT: utinyint = 30;  // R30: writing it runs the fill or copy
-    const DATA: utinyint = 31;        // R31: one byte of VDC RAM
+    const WORD_COUNT: utinyint = 30; // R30: writing it runs the fill or copy
+    const DATA: utinyint = 31; // R31: one byte of VDC RAM
 }
 
-namespace Block {
-    const FILL: utinyint = 0x7F;      // R24 bit 7 clear
-    const LONGEST: usmallint = 255;   // R30 is one byte
+mod Block {
+    const FILL: utinyint = 0x7F; // R24 bit 7 clear
+    const LONGEST: usmallint = 255; // R30 is one byte
 }
 
 // R28 bit 4 is not a report of how much RAM is fitted — it is the *control*
@@ -83,11 +81,11 @@ namespace Block {
 // So software that wants the upper 48 KiB sets it, and software that wants
 // to *find out* sets it before it looks (verified: with the bit left alone
 // the probe below reports 16 on a C128DCR, which has 64).
-namespace RamType {
+mod RamType {
     const SIXTY_FOUR_K: utinyint = 0x10;
 }
 
-namespace Status {
+mod Status {
     const READY: utinyint = 0x80;
     const LIGHT_PEN: utinyint = 0x40;
     const DISPLAY_OFF: utinyint = 0x20; // in the top or bottom border
@@ -119,42 +117,43 @@ namespace Status {
 // emulators and reports the wrong size on real hardware. A14 is not one
 // of the bits a 16 KiB chip loses in 64 KiB addressing. cc65's own VDC
 // driver probes pages `$02` and `$42`, which differ in A14.
-namespace Probe {
+mod Probe {
     const A8_LOW: usmallint = 0xA000;
     const A8_HIGH: usmallint = 0xA100;
     const MARK_A: utinyint = 0x5A;
     const MARK_B: utinyint = 0xC3;
 }
 
-export namespace vdc {
+pub mod vdc {
     // Select a register and wait for the chip. Every transfer starts here.
-    function select(index: utinyint): void {
+    fn select(index: utinyint) {
         vdcPort = index;
-        while ((vdcPort & Status.READY) == 0) {}
+        while (vdcPort & Status::READY) == 0 {
+        }
     }
 
     // One register, written.
-    function write(index: utinyint, value: utinyint): void {
-        vdc.select(index);
+    fn write(index: utinyint, value: utinyint) {
+        vdc::select(index);
         vdcData = value;
     }
 
     // One register, read.
-    function read(index: utinyint): utinyint {
-        vdc.select(index);
+    fn read(index: utinyint) -> utinyint {
+        vdc::select(index);
         return vdcData;
     }
 
     // The chip's status byte, unwaited — the one read that must not wait
     // for ready, since it is what ready is read from.
-    function status(): utinyint {
+    fn status() -> utinyint {
         return vdcPort;
     }
 
     // The chip revision the status byte reports: 0, 1 or 2. A flat C128 is
     // an 8563 and a C128DCR an 8568; VICE's -VDCRevision picks it.
-    function revision(): utinyint {
-        return vdcPort & Status.REVISION;
+    fn revision() -> utinyint {
+        return vdcPort & Status::REVISION;
     }
 
     // True while the display is in the top or bottom border. This is not
@@ -162,25 +161,25 @@ export namespace vdc {
     // the whole of both borders. A frame-exact effect on this chip needs a
     // different scheme (see AGENTS.md); this is for "the display is not
     // fetching, a burst of writes will not be seen tearing".
-    function displayOff(): utinyint {
-        return vdcPort & Status.DISPLAY_OFF;
+    fn displayOff() -> utinyint {
+        return vdcPort & Status::DISPLAY_OFF;
     }
 
     // Point the RAM window at an address. The next put() or get() is that
     // byte, and the address advances by one after each.
-    function setAddress(address: usmallint): void {
-        vdc.write(Register.UPDATE_HIGH, address >> 8);
-        vdc.write(Register.UPDATE_LOW, address & 0xFF);
+    fn setAddress(address: usmallint) {
+        vdc::write(Register::UPDATE_HIGH, address >> 8);
+        vdc::write(Register::UPDATE_LOW, address & 0xFF);
     }
 
     // Write one byte of VDC RAM at the current address, and advance.
-    function put(value: utinyint): void {
-        vdc.write(Register.DATA, value);
+    fn put(value: utinyint) {
+        vdc::write(Register::DATA, value);
     }
 
     // Read one byte of VDC RAM at the current address, and advance.
-    function get(): utinyint {
-        return vdc.read(Register.DATA);
+    fn get() -> utinyint {
+        return vdc::read(Register::DATA);
     }
 
     // Set a run of VDC RAM to one value, using the chip's own block fill
@@ -202,20 +201,20 @@ export namespace vdc {
     //
     // R30 is one byte, so a longer run is several fills. The order below
     // is the PRG's: address, data, R24, R30.
-    function fill(address: usmallint, value: utinyint, count: usmallint): void {
-        let control: utinyint = vdc.read(Register.BLOCK_CONTROL) & Block.FILL;
-        let at: usmallint = address;
-        let left: usmallint = count;
-        while (left > 0) {
-            let run: usmallint = left;
-            if (run > Block.LONGEST) {
-                run = Block.LONGEST;
+    fn fill(address: usmallint, value: utinyint, count: usmallint) {
+        let control: utinyint = vdc::read(Register::BLOCK_CONTROL) & Block::FILL;
+        let mut at: usmallint = address;
+        let mut left: usmallint = count;
+        while left > 0 {
+            let mut run: usmallint = left;
+            if run > Block::LONGEST {
+                run = Block::LONGEST;
             }
-            vdc.setAddress(at);
-            vdc.put(value);
-            vdc.write(Register.BLOCK_CONTROL, control);
-            if (run > 1) {
-                vdc.write(Register.WORD_COUNT, run - 1);
+            vdc::setAddress(at);
+            vdc::put(value);
+            vdc::write(Register::BLOCK_CONTROL, control);
+            if run > 1 {
+                vdc::write(Register::WORD_COUNT, run - 1);
             }
             at = at + run;
             left = left - run;
@@ -228,25 +227,25 @@ export namespace vdc {
     // 80-column display already set up. When the two *are* one byte the
     // two saved values are the same value, and putting both back leaves
     // it as it was.
-    function sameByte(a: usmallint, b: usmallint): utinyint {
-        vdc.setAddress(a);
-        let savedA: utinyint = vdc.get();
-        vdc.setAddress(b);
-        let savedB: utinyint = vdc.get();
+    fn sameByte(a: usmallint, b: usmallint) -> utinyint {
+        vdc::setAddress(a);
+        let savedA: utinyint = vdc::get();
+        vdc::setAddress(b);
+        let savedB: utinyint = vdc::get();
 
-        vdc.setAddress(a);
-        vdc.put(Probe.MARK_A);
-        vdc.setAddress(b);
-        vdc.put(Probe.MARK_B);
-        vdc.setAddress(a);
-        let kept: utinyint = vdc.get();
+        vdc::setAddress(a);
+        vdc::put(Probe::MARK_A);
+        vdc::setAddress(b);
+        vdc::put(Probe::MARK_B);
+        vdc::setAddress(a);
+        let kept: utinyint = vdc::get();
 
-        vdc.setAddress(a);
-        vdc.put(savedA);
-        vdc.setAddress(b);
-        vdc.put(savedB);
+        vdc::setAddress(a);
+        vdc::put(savedA);
+        vdc::setAddress(b);
+        vdc::put(savedB);
 
-        if (kept == Probe.MARK_A) {
+        if kept == Probe::MARK_A {
             return 0;
         }
         return 1;
@@ -266,15 +265,15 @@ export namespace vdc {
     // On a 16 KiB chip the bit also scrambles the chip's addressing while
     // it is set, so the 80-column picture is briefly wrong during the
     // probe; call this at start-up, before there is a picture to spoil.
-    function ramKib(): usmallint {
-        let savedType: utinyint = vdc.read(Register.CHARACTER_BASE);
-        vdc.write(Register.CHARACTER_BASE, savedType | RamType.SIXTY_FOUR_K);
+    fn ramKib() -> usmallint {
+        let savedType: utinyint = vdc::read(Register::CHARACTER_BASE);
+        vdc::write(Register::CHARACTER_BASE, savedType | RamType::SIXTY_FOUR_K);
 
-        let folded: utinyint = vdc.sameByte(Probe.A8_LOW, Probe.A8_HIGH);
+        let folded: utinyint = vdc::sameByte(Probe::A8_LOW, Probe::A8_HIGH);
 
-        vdc.write(Register.CHARACTER_BASE, savedType);
+        vdc::write(Register::CHARACTER_BASE, savedType);
 
-        if (folded != 0) {
+        if folded != 0 {
             return 16;
         }
         return 64;

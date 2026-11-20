@@ -1,7 +1,7 @@
 // F-01: `findImports` over `use` token runs equals the import sources the
 // parser makes, over every in-repo `.8bs` file converted by the migrate printer.
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
@@ -10,30 +10,15 @@ import { convertSource } from '../src/migrate/print.mjs';
 import { parse, tokenize } from '../../compiler/src/front/index.mjs';
 import { findImports } from '../../compiler/src/resolver/index.mjs';
 
-const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
-const skip = new Set(['node_modules', '.git', 'target', 'dist', '.fleet-out']);
+// The frozen old-syntax corpus: the repo's own sources are new syntax now.
+const pairs = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'crates', 'front-wasm', 'tests', 'pairs');
+const sources = readdirSync(pairs).filter((n) => /\.old\.8b[sx]$/.test(n)).map((n) => join(pairs, n));
 
-const sources = [];
-const scan = (dir) => {
-  for (const name of readdirSync(dir)) {
-    if (skip.has(name)) continue;
-    const path = join(dir, name);
-    if (statSync(path).isDirectory()) scan(path);
-    else if (name.endsWith('.8bs') && !name.startsWith('8bitscript.config')) sources.push(path);
-  }
-};
-for (const top of ['packages', 'editors']) scan(join(root, top));
-
-test('findImports equals the parsed import sources over the repo', () => {
-  assert.ok(sources.length > 300);
+test('findImports equals the parsed import sources over the frozen old-syntax corpus', () => {
+  assert.ok(sources.length >= 19);
   let imports = 0;
   for (const file of sources) {
-    let text;
-    try {
-      ({ text } = convertSource(readFileSync(file, 'utf8'), { file }));
-    } catch {
-      continue; // not old syntax any more, or not convertible: C-02's concern
-    }
+    const { text } = convertSource(readFileSync(file, 'utf8'), { file, sourceKind: file.endsWith('.8bx') ? '.8bx' : '.8bs' });
     const { tokens } = tokenize(text, file);
     const { ast } = parse(tokens, text, file);
     const expected = ast.body.filter((n) => n.type === 'ImportDeclaration').map((n) => n.source.value);
@@ -41,5 +26,5 @@ test('findImports equals the parsed import sources over the repo', () => {
     assert.deepEqual(found, expected, file);
     imports += expected.length;
   }
-  assert.ok(imports > 100);
+  assert.ok(imports >= 8);
 });

@@ -3,8 +3,8 @@
 //
 // Named by "8bitscript".exports["./keyboard"] in this package's package.json:
 //
-//     import { keyboard } from "@8bitscript/vic20/keyboard";
-//     import { Key } from "@8bitscript/vic20/keys";
+//     use @8bitscript::vic20::keyboard::keyboard;
+//     use @8bitscript::vic20::keys::Key;
 //
 // This is hardware-level, VIC-20-only surface — the layer the portable
 // input capability is built on: `@8bitscript/vic20/input` reads this file
@@ -37,28 +37,28 @@
 //
 // Ghosting is the same hazard it is on every unshifted matrix: three keys
 // down can read as four. Two keys are always safe.
-import { via2PortA, via2PortB, via2DirectionA, via2DirectionB } from "./index.8bs";
+use self::index::{via2PortA, via2PortB, via2DirectionA, via2DirectionB};
 
 // The last scan, one byte per column, a 1 bit where a key is down (the
 // port's active-low rows inverted once, here, so nothing else has to
 // think about it). All zero until the first scan.
-let state: array<utinyint, 8>;
+let mut state: [utinyint; 8];
 
 // The column-select byte for each column, and the row masks — indexed
 // rather than shifted, as `1 << n` with a variable n is a loop on the 6502.
-const COLUMN_SELECT: array<utinyint, 8> = [254, 253, 251, 247, 239, 223, 191, 127];
-const ROW_BIT: array<utinyint, 8> = [1, 2, 4, 8, 16, 32, 64, 128];
+const COLUMN_SELECT: [utinyint; 8] = [254, 253, 251, 247, 239, 223, 191, 127];
+const ROW_BIT: [utinyint; 8] = [1, 2, 4, 8, 16, 32, 64, 128];
 
-export namespace keyboard {
+pub mod keyboard {
     const COLUMNS: utinyint = 8;
     const ROWS: utinyint = 8;
 
     // Read all eight columns into the snapshot. Once a frame, right after
     // waitFrame(), before reading the joystick's right line.
-    function scan(): void {
+    fn scan() {
         via2DirectionB = 0xFF;
         via2DirectionA = 0x00;
-        for (let select: utinyint = 0; select < 8; select++) {
+        for select: utinyint in 0..8 {
             via2PortB = COLUMN_SELECT[select];
             state[select] = via2PortA ^ 0xFF;
         }
@@ -67,14 +67,14 @@ export namespace keyboard {
 
     // Is this key down in the last scan? `key` is a `Key.*` value from
     // @8bitscript/vic20/keys — `select * 8 + row` in the matrix.
-    function pressed(key: utinyint): bool {
+    fn pressed(key: utinyint) -> bool {
         return (state[key >> 3] & ROW_BIT[key & 7]) != 0;
     }
 
     // The last scan's eight rows of one column, a 1 bit per key down:
     // for code that wants a whole column at once (an "any key" test over
     // all eight, a ghosting check).
-    function column(index: utinyint): utinyint {
+    fn column(index: utinyint) -> utinyint {
         return state[index];
     }
 }

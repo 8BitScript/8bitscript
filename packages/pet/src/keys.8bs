@@ -2,8 +2,8 @@
 //
 // Named by "8bitscript".exports["./keys"] in this package's package.json, for
 //
-//     import { keyboard } from "@8bitscript/pet/keyboard";
-//     import { Key } from "@8bitscript/pet/keys";
+//     use @8bitscript::pet::keyboard::keyboard;
+//     use @8bitscript::pet::keys::Key;
 //
 //     if (keyboard.pressed(Key.SPACE)) { ... }
 //
@@ -33,7 +33,7 @@
 // repeats that check when the file is present. Row 0 is `$E810 = 0`,
 // column 0 is PB0. A row's missing columns (1,5 and so on) have no key.
 
-export namespace Key {
+pub mod Key {
     // row 0
     const EXCLAMATION: utinyint = 0;
     const HASH: utinyint = 1;

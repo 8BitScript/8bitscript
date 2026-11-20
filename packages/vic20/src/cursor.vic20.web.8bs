@@ -11,5 +11,5 @@
 // ever. A true no-op, not a workaround for one that failed — unlike
 // packages/pet/src/text.8bs's own releaseCursor(), which is empty because
 // a real fix was tried on real PET hardware and measured not to work.
-export function releaseCursor(): void {
+pub fn releaseCursor() {
 }

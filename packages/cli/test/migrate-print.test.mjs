@@ -3,10 +3,11 @@
 // inference, and a run over every in-repo `.8bs`/`.8bx` source.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parse, tokenize } from '@8bitscript/compiler';
+import { parse } from '../src/migrate/legacy/parser.mjs';
+import { tokenize } from '../src/migrate/legacy/lexer.mjs';
 import {
   OldSyntaxError, UnsupportedError, analyzeMutability, convertSource, printProgram, spellName, usePathOf,
 } from '../src/migrate/print.mjs';
@@ -300,22 +301,13 @@ test('an empty file prints as an empty file', () => {
 
 // ---- every in-repo source ---------------------------------------------------
 
-const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
-const SKIP = new Set(['node_modules', '.git', 'dist', '.changeset']);
+// The frozen old-syntax corpus: the repo's own sources are new syntax now.
+const PAIRS = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'crates', 'front-wasm', 'tests', 'pairs');
+const sources = () => readdirSync(PAIRS).filter((n) => /\.old\.8b[sx]$/.test(n)).map((n) => join(PAIRS, n));
 
-function sources(dir, found = []) {
-  for (const name of readdirSync(dir)) {
-    if (SKIP.has(name)) continue;
-    const path = join(dir, name);
-    if (statSync(path).isDirectory()) sources(path, found);
-    else if (/\.8b[sx]$/.test(name) && !name.startsWith('8bitscript.config.')) found.push(path);
-  }
-  return found;
-}
-
-test('every in-repo .8bs and .8bx source prints without an unsupported construct', () => {
-  const files = [...sources(join(REPO, 'packages')), ...sources(join(REPO, 'docs'))];
-  assert.ok(files.length > 300, `expected the whole corpus, found ${files.length}`);
+test('every frozen old-syntax .8bs and .8bx source prints without an unsupported construct', () => {
+  const files = sources();
+  assert.ok(files.length >= 19, `expected the frozen old-syntax corpus, found ${files.length}`);
   const old = /^\s*(?:export |import |function |namespace )|\bfunction\s+\w+\(|\bnamespace\s+\w+\s*\{|\)\s*:\s*(?:void|u8)\b/;
   for (const file of files) {
     const text = readFileSync(file, 'utf8');

@@ -43,18 +43,18 @@ test('every rasterline file names Slot.CHARSET and answers raster.COLORS/raster.
     // the same shape rasterline.test.mjs's own gate uses — because link()
     // folds #fact() but does not constant-fold a `&&` of two already-const
     // operands itself (optimizeReachable, a backend pass, does that).
-    const program = `import { raster, Slot } from "@8bitscript/raster";
-const HAS_RASTER: bool = #fact(video.raster);
-export function main(): void {
-    let slot: utinyint = Slot.CHARSET;
-    if (raster.CHARSET) {
-        raster.at(0, Slot.CHARSET, 1);
+    const program = `use @8bitscript::raster::{raster, Slot};
+const HAS_RASTER: bool = #fact(video::raster);
+pub fn main() {
+    let slot: utinyint = Slot::CHARSET;
+    if raster::CHARSET {
+        raster::at(0, Slot::CHARSET, 1);
     }
-    if (raster.COLORS) {
-        raster.at(0, Slot.BORDER, 0);
+    if raster::COLORS {
+        raster::at(0, Slot::BORDER, 0);
     }
-    if (HAS_RASTER) {
-        raster.clear();
+    if HAS_RASTER {
+        raster::clear();
     }
     return;
 }
@@ -74,7 +74,7 @@ export function main(): void {
 test('Slot.CHARSET is 3, the same arbitrary number in all thirty-two rasterline files, unused by anything that reads it', () => {
   for (const target of TARGETS) {
     const { ir, diagnostics } = link(
-      'import { Slot } from "@8bitscript/raster";\nconst C: utinyint = Slot.CHARSET;\nexport function main(): void { return; }\n',
+      'use @8bitscript::raster::Slot;\nconst C: utinyint = Slot::CHARSET;\npub fn main() {\n    return;\n}\n',
       join(HERE, 'rasterline-charset-value.8bs'),
       { machine: target, facts: stockFacts(target), checkout: CHECKOUT },
     );
@@ -83,10 +83,10 @@ test('Slot.CHARSET is 3, the same arbitrary number in all thirty-two rasterline 
 });
 
 test('the PET 3032 and 4032 model tags answer raster.CHARSET true, the two real implementations among the thirty-two stubs', () => {
-  const program = `import { raster } from "@8bitscript/raster";
-export function main(): void {
-    if (raster.CHARSET) {
-        raster.clear();
+  const program = `use @8bitscript::raster::raster;
+pub fn main() {
+    if raster::CHARSET {
+        raster::clear();
     }
     return;
 }

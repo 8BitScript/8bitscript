@@ -4,7 +4,8 @@
 // the same block-scope rule over the new front end's tree.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -100,7 +101,6 @@ test('a file that cannot be converted is a failure: exit 1, and the file is left
 
 test('configs, old-syntax pair fixtures, crates and the converter itself are skipped; node_modules too', async () => {
   const dir = project({
-    '8bitscript.config.8bs': 'export default {};\n',
     'crates/x/tests/p.8bs': 'let x = ;\n',
     'tests/pairs/1.old.8bs': OLD,
     'node_modules/m/a.8bs': OLD,
@@ -123,6 +123,18 @@ test('--alias lets a package import with an extension take the path form', async
     assert.equal(readFileSync(join(dir, 'a.8bs'), 'utf8'), 'use @lib::rules::a;\n');
     assert.equal((await run(dir, '--alias')).code, 2);
     assert.equal((await run(dir, '--nope')).code, 2);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('docs/spec/8bx.md is a design record: --fences skips it and leaves it as written', async () => {
+  const files = { 'docs/spec/8bx.md': `x\n\n\`\`\`8bx\nlet x = ;\n\`\`\`\n\n\`\`\`8bs\n${OLD}\`\`\`\n`, 'docs/other.md': `\`\`\`8bs\n${OLD}\`\`\`\n` };
+  const dir = project(files);
+  try {
+    const result = await run(dir, '--fences');
+    assert.deepEqual(result.lines, ['converted 1 fences in docs/other.md', '1 converted, 0 already new syntax, 0 differences, 0 failures']);
+    assert.equal(readFileSync(join(dir, 'docs/spec/8bx.md'), 'utf8'), files['docs/spec/8bx.md']);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -288,6 +300,26 @@ test('fences: a ```8bs block holding a component is converted as .8bx', () => {
   assert.equal(out.text, '```8bs\npub component Box() {\n    <A />;\n}\n```\n');
 });
 
+test('fences: a ```8bx block is converted as .8bx', () => {
+  const out = convertFences('```8bx\nexport component Box() { <A />; }\n```\n', convert);
+  assert.equal(out.converted, 1);
+  assert.equal(out.text, '```8bx\npub component Box() {\n    <A />;\n}\n```\n');
+});
+
+test('fences: ```8bs and ```8bx blocks in one file are both converted', () => {
+  const md = '```8bs\nfunction f(): void {}\n```\n\n```8bx\nexport component Box() { <A />; }\n```\n';
+  const out = convertFences(md, convert);
+  assert.equal(out.converted, 2);
+  assert.equal(out.text, '```8bs\nfn f() {\n}\n```\n\n```8bx\npub component Box() {\n    <A />;\n}\n```\n');
+});
+
+test('fences: a ```8bx block is not retried as .8bs when it fails', () => {
+  const kinds = [];
+  const out = convertFences('```8bx\nlet x = ;\n```\n', (body, kind) => (kinds.push(kind), convert(body, kind)));
+  assert.deepEqual(kinds, ['.8bx']);
+  assert.equal(out.failures.length, 1);
+});
+
 test('fences: an indented fence keeps its indent', () => {
   const out = convertFences('  ```8bs\n  function f(): void {}\n\n  ```\n', convert);
   assert.equal(out.text, '  ```8bs\n  fn f() {\n  }\n  ```\n');
@@ -412,4 +444,159 @@ test('E20 over the converted corpus: no immutable let is ever assigned', () => {
     for (const store of immutableLetStores(newAst(result.text, sourceKind))) violations.push(`${file} ${store}`);
   }
   assert.deepEqual(violations, []);
+});
+
+// ---- F-01b: the old front end lives only here, and the config name ---------------
+
+test('the legacy lexer and parser still read the old syntax for migrate', async () => {
+  const { tokenize } = await import('../src/migrate/legacy/lexer.mjs');
+  const { parse } = await import('../src/migrate/legacy/parser.mjs');
+  const src = 'import { a } from "./geo.8bs";\nexport namespace m { function f(): void {} }\n';
+  const { tokens } = tokenize(src, 't.8bs');
+  const { ast, diagnostics } = parse(tokens, src, 't.8bs');
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(ast.body.map((n) => n.type), ['ImportDeclaration', 'NamespaceDeclaration']);
+});
+
+test('CONFIG_FILENAMES names 8bitscript.config.ts and 8bs.config.ts only', async () => {
+  const { CONFIG_FILENAMES } = await import('../src/config.mjs');
+  assert.deepEqual(CONFIG_FILENAMES, ['8bitscript.config.ts', '8bs.config.ts']);
+});
+
+test('migrate renames the old 8bitscript.config.8bs and reports it; --check writes nothing', async () => {
+  const dir = project({ '8bitscript.config.8bs': "export default { entry: 'src/main.8bs' };\n" });
+  try {
+    const dry = await run(dir, '--check');
+    assert.ok(dry.lines.some((l) => /would rename 8bitscript\.config\.8bs to 8bitscript\.config\.ts/.test(l)), dry.lines.join('\n'));
+    assert.equal(existsSync(join(dir, '8bitscript.config.8bs')), true);
+    const real = await run(dir);
+    assert.equal(real.code, 0, real.lines.join('\n'));
+    assert.equal(existsSync(join(dir, '8bitscript.config.8bs')), false);
+    assert.equal(readFileSync(join(dir, '8bitscript.config.ts'), 'utf8'), "export default { entry: 'src/main.8bs' };\n");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('migrate refuses to overwrite an existing 8bitscript.config.ts', async () => {
+  const dir = project({ '8bitscript.config.8bs': 'export default {};\n', '8bitscript.config.ts': 'export default { a: 1 };\n' });
+  try {
+    const result = await run(dir);
+    assert.equal(result.code, 1);
+    assert.ok(result.lines.some((l) => /^FAILED .*already exists/.test(l)), result.lines.join('\n'));
+    assert.equal(existsSync(join(dir, '8bitscript.config.8bs')), true);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('a directory whose only config is the old .8bs name is an error, not an empty project', async () => {
+  const { loadConfig, staleConfigError } = await import('../src/config.mjs');
+  const dir = project({ '8bitscript.config.8bs': 'export default {};\n' });
+  try {
+    await assert.rejects(loadConfig(dir, '8bs build'), (error) => error.name === 'StaleConfigError'
+      && /8bitscript\.config\.8bs is no longer read; rename it to 8bitscript\.config\.ts/.test(error.message));
+    writeFileSync(join(dir, '8bitscript.config.ts'), 'export default { frameRate: 50 };\n');
+    assert.equal(staleConfigError(dir), null);
+    assert.deepEqual(await loadConfig(dir), { frameRate: 50 });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('8bs build prints the stale-config line and exits 1', () => {
+  const dir = project({ '8bitscript.config.8bs': 'export default {};\n' });
+  try {
+    const bin = join(REPO, 'packages', 'cli', 'bin', '8bs.mjs');
+    const result = spawnSync(process.execPath, [bin, 'targets'], { cwd: dir, encoding: 'utf8' });
+    assert.equal(result.status, 1, result.stderr);
+    assert.match(result.stderr, /no longer read; rename it to 8bitscript\.config\.ts/);
+    assert.doesNotMatch(result.stderr, /\n\s+at /);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// ---- same-stem modules ---------------------------------------------------------
+
+const IMPORT_MENUBAR = 'import { f } from "./menubar.8bs";\nexport function g(): void { f(); }\n';
+const LIB = 'export function f(): void {}\n';
+
+test('a stem that exists as .8bs and .8bx keeps the string path; a unique stem gets the :: path', async () => {
+  const dir = project({
+    'main.8bs': IMPORT_MENUBAR + 'import { h } from "./solo";\n',
+    'menubar.8bs': LIB,
+    'menubar.8bx': 'export function f(): void { <A />; }\n',
+    'solo.8bs': 'export function h(): void {}\n',
+  });
+  try {
+    const { code } = await run(dir);
+    assert.equal(code, 0);
+    const text = readFileSync(join(dir, 'main.8bs'), 'utf8');
+    assert.match(text, /^use "\.\/menubar\.8bs"::f;$/m);
+    assert.match(text, /^use self::solo::h;$/m);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('an .8bx file importing its same-stem .8bs by extension keeps the string path', async () => {
+  const dir = project({
+    'menubar.8bs': LIB,
+    'menubar.8bx': 'import { f } from "./menubar.8bs";\nexport function g(): void { <A />; f(); }\n',
+  });
+  try {
+    const { code } = await run(dir);
+    assert.equal(code, 0);
+    assert.match(readFileSync(join(dir, 'menubar.8bx'), 'utf8'), /^use "\.\/menubar\.8bs"::f;$/m);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('a machine twin of the other extension counts: m.8bs beside m.nes.8bx keeps the string path', async () => {
+  const dir = project({
+    'main.8bs': 'import { f } from "./m.8bs";\nexport function g(): void { f(); }\n',
+    'm.8bs': LIB,
+    'm.nes.8bx': LIB,
+  });
+  try {
+    const { code } = await run(dir);
+    assert.equal(code, 0);
+    assert.match(readFileSync(join(dir, 'main.8bs'), 'utf8'), /^use "\.\/m\.8bs"::f;$/m);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('stems that differ only in case count as one stem: Mark.8bx beside mark.8bg keeps the string path', async () => {
+  const dir = project({
+    'main.8bs': 'import { m } from "./mark.8bg";\nexport function g(): void { m(); }\n',
+    'Mark.8bx': LIB,
+    'mark.8bg': LIB,
+  });
+  try {
+    const { code } = await run(dir);
+    assert.equal(code, 0);
+    assert.match(readFileSync(join(dir, 'main.8bs'), 'utf8'), /^use "\.\/mark\.8bg"::m;$/m);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('--check reports a same-stem file as convertible without writing it', async () => {
+  const dir = project({ 'main.8bs': IMPORT_MENUBAR, 'menubar.8bs': LIB, 'menubar.8bx': LIB });
+  try {
+    const { code, lines } = await run(dir, '--check');
+    assert.equal(code, 0);
+    assert.ok(lines.some((l) => /would convert .*main\.8bs/.test(l)));
+    assert.equal(readFileSync(join(dir, 'main.8bs'), 'utf8'), IMPORT_MENUBAR);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('migrateText takes the predicate: true keeps the string, false gives the path', () => {
+  assert.match(migrateText(IMPORT_MENUBAR, { sameStem: () => true }).text, /^use "\.\/menubar\.8bs"::f;$/m);
+  assert.match(migrateText(IMPORT_MENUBAR, { sameStem: () => false }).text, /^use self::menubar::f;$/m);
 });

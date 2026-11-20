@@ -57,17 +57,17 @@ song theme {
 }
 `;
 
-const PROGRAM = `import { player } from "./player.8bg";
-import { blip, theme } from "./theme.8ba";
-import { graphics } from "@8bitscript/graphics";
-import { audio } from "@8bitscript/audio";
+const PROGRAM = `use self::player::player;
+use self::theme::{blip, theme};
+use @8bitscript::graphics::graphics;
+use @8bitscript::audio::audio;
 
-export function main(): void {
-    graphics.place(player, 40, 40);
-    audio.play(blip);
-    audio.music(theme);
-    graphics.update();
-    audio.update();
+pub fn main() {
+    graphics::place(player, 40, 40);
+    audio::play(blip);
+    audio::music(theme);
+    graphics::update();
+    audio::update();
 }
 `;
 
@@ -177,13 +177,13 @@ test('two .8bg files each hold one sprite: their slots are 0 and 1, not both 0',
     writeFileSync(join(dir, 'player.8bg'), SPRITE);
     writeFileSync(join(dir, 'enemy.png'), solidSheet());
     writeFileSync(join(dir, 'enemy.8bg'), SPRITE.replace('sprite player', 'sprite enemy').replace('./player.png', './enemy.png'));
-    const text = `import { player } from "./player.8bg";
-import { enemy } from "./enemy.8bg";
-import { graphics } from "@8bitscript/graphics";
+    const text = `use self::player::player;
+use self::enemy::enemy;
+use @8bitscript::graphics::graphics;
 
-export function main(): void {
-    graphics.place(player, 8, 8);
-    graphics.place(enemy, 40, 8);
+pub fn main() {
+    graphics::place(player, 8, 8);
+    graphics::place(enemy, 40, 8);
 }
 `;
     for (const machine of ['pet', 'c64']) {
@@ -245,9 +245,9 @@ test('a missing PNG is 8BS2104; a missing fallback was already a checker error',
   const dir = mkdtempSync(join(tmpdir(), '8bs-media-miss-'));
   try {
     writeFileSync(join(dir, 'player.8bg'), 'sprite player { source "./nope.png" size 16x16 }\n');
-    writeFileSync(join(dir, 'main.8bs'), 'import { player } from "./player.8bg";\nexport function main(): void { }\n');
+    writeFileSync(join(dir, 'main.8bs'), 'use self::player::player;\npub fn main() {\n}\n');
     const { diagnostics } = link(
-      'import { player } from "./player.8bg";\nexport function main(): void { }\n',
+      'use self::player::player;\npub fn main() {\n}\n',
       join(dir, 'main.8bs'),
       { machine: 'c64', facts: stockFacts('c64'), checkout: CHECKOUT },
     );
@@ -388,11 +388,11 @@ test('a .flac sample elaborates through FFmpeg, or 8BS2213 without it', () => {
   fallback { synth noise }
 }
 `);
-    writeFileSync(join(dir, 'main.8bs'), 'import { blip } from "./theme.8ba";\nexport function main(): void { }\n');
+    writeFileSync(join(dir, 'main.8bs'), 'use self::theme::blip;\npub fn main() {\n}\n');
     if (!ffmpegAvailable()) {
       writeFileSync(join(dir, 'blip.flac'), 'not flac');
       const { diagnostics } = link(
-        'import { blip } from "./theme.8ba";\nexport function main(): void { }\n',
+        'use self::theme::blip;\npub fn main() {\n}\n',
         join(dir, 'main.8bs'),
         { machine: 'c64', facts: stockFacts('c64'), checkout: CHECKOUT },
       );
@@ -405,7 +405,7 @@ test('a .flac sample elaborates through FFmpeg, or 8BS2213 without it', () => {
     const conv = spawnSync('ffmpeg', ['-nostdin', '-v', 'error', '-y', '-i', wavPath, flacPath], { encoding: 'utf8' });
     assert.equal(conv.status, 0, conv.stderr);
     const { diagnostics } = link(
-      'import { blip } from "./theme.8ba";\nexport function main(): void { }\n',
+      'use self::theme::blip;\npub fn main() {\n}\n',
       join(dir, 'main.8bs'),
       { machine: 'c64', facts: stockFacts('c64'), checkout: CHECKOUT },
     );
@@ -473,20 +473,20 @@ function petWriteProgram(dir, layout) {
   for (const [name, frames, x, y] of layout) {
     writeFileSync(join(dir, `${name}.png`), petSheet(frames));
     writeFileSync(join(dir, `${name}.8bg`), petEightBg(name, frames.length > 1));
-    imports.push(`import { ${name} } from "./${name}.8bg";`);
+    imports.push(`use self::${name}::${name};`);
     places.push(`    graphics.place(${name}, sprites.ORIGIN_X + ${x}, sprites.ORIGIN_Y + ${y});`);
   }
-  const text = `import { screen } from "@8bitscript/screen";
-import { graphics } from "@8bitscript/graphics";
-import { sprites } from "@8bitscript/sprites";
-${imports.join('\n')}
+  const text = `use @8bitscript::screen::screen;
+use @8bitscript::graphics::graphics;
+use @8bitscript::sprites::sprites;
+${imports.join('\n')};
 
-export function main(): void {
-    screen.blank();
-${places.join('\n')}
-    while (true) {
+pub fn main() {
+    screen::blank();
+    ${places.join('\n')};
+    loop {
         waitFrame();
-        graphics.update();
+        graphics::update();
     }
 }
 `;

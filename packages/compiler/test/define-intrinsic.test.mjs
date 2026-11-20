@@ -26,17 +26,17 @@ const petHardware = () => {
 };
 
 /** A program that prints a number made from a define and writes a flag. */
-const program = (seed, flag = 'false') => `import { screen } from "@8bitscript/screen";
-import { text } from "@8bitscript/text";
+const program = (seed, flag = 'false') => `use @8bitscript::screen::screen;
+use @8bitscript::text::text;
 const SEED: utinyint = ${seed};
 const BONUS: bool = ${flag};
-export function main(): void {
-    screen.blank();
-    text.printNumber(0, SEED, 3);
-    if (BONUS) {
-        text.print(40, "BONUS");
+pub fn main() {
+    screen::blank();
+    text::printNumber(0, SEED, 3);
+    if BONUS {
+        text::print(40, "BONUS");
     }
-    text.releaseCursor();
+    text::releaseCursor();
 }
 `;
 
@@ -73,13 +73,13 @@ test('a value handed in replaces the default: a different value is a different b
 });
 
 test('a string define folds to a string literal', () => {
-  const source = `import { screen } from "@8bitscript/screen";
-import { text } from "@8bitscript/text";
+  const source = `use @8bitscript::screen::screen;
+use @8bitscript::text::text;
 const THEME: string = #define("THEME", "classic");
-export function main(): void {
-    screen.blank();
-    text.print(0, THEME);
-    text.releaseCursor();
+pub fn main() {
+    screen::blank();
+    text::print(0, THEME);
+    text::releaseCursor();
 }
 `;
   const plain = linkWith({ 'main.8bs': source }, 'main.8bs');
@@ -109,15 +109,16 @@ test('a program that reads no define reports none and is untouched by --define v
 });
 
 test('the same name in two modules is one define; two defaults for it is 8BS1049', () => {
-  const lib = (value) => `export const SHARED: utinyint = #define("SEED", ${value});\n`;
-  const main = (value) => `import { SHARED } from "./lib.8bs";
-import { screen } from "@8bitscript/screen";
-import { text } from "@8bitscript/text";
+  const lib = (value) => `pub const SHARED: utinyint = #define("SEED", ${value});
+`;
+  const main = (value) => `use self::lib::SHARED;
+use @8bitscript::screen::screen;
+use @8bitscript::text::text;
 const LOCAL: utinyint = #define("SEED", ${value});
-export function main(): void {
-    screen.blank();
-    text.printNumber(0, LOCAL + SHARED, 3);
-    text.releaseCursor();
+pub fn main() {
+    screen::blank();
+    text::printNumber(0, LOCAL + SHARED, 3);
+    text::releaseCursor();
 }
 `;
   const same = linkWith({ 'lib.8bs': lib(10), 'main.8bs': main(10) }, 'main.8bs');
@@ -130,7 +131,11 @@ export function main(): void {
 
 test('#define refuses by name anything but an UPPER_SNAKE name and a default', () => {
   const file = join(tmpdir(), 'define-shapes.8bs');
-  const diag = (call) => analyze(`const V: utinyint = ${call};\nexport function main(): void { memory.write(0x8000, V); }\n`, file);
+  const diag = (call) => analyze(`const V: utinyint = ${call};
+pub fn main() {
+    memory::write(0x8000, V);
+}
+`, file);
   assert.deepEqual(codes(diag('#define("SEED", 10)')), []);
   assert.deepEqual(codes(diag('#define("START_CREDITS", 1000)')).filter((c) => c === '8BS1047'), []);
   assert.deepEqual(codes(diag('#define()')), ['8BS1047']);
@@ -141,7 +146,7 @@ test('#define refuses by name anything but an UPPER_SNAKE name and a default', (
   assert.match(diag('#define("seed", 10)')[0].message, /capital letters/);
   assert.deepEqual(codes(diag('#define("1ST", 10)')), ['8BS1047']);
   assert.deepEqual(codes(diag('#define("SEED", 10, 11)')), ['8BS1047']);
-  assert.deepEqual(codes(diag('#define("SEED", memory.read(1))')), ['8BS1047'], 'the default is a literal, not an expression');
+  assert.deepEqual(codes(diag('#define("SEED", memory::read(1))')), ['8BS1047'], 'the default is a literal, not an expression');
   assert.ok(DEFINE_NAME.test('A') && DEFINE_NAME.test('FORCE_BONUS_2') && !DEFINE_NAME.test('_X') && !DEFINE_NAME.test('Seed'));
 });
 
@@ -167,6 +172,6 @@ test('defineKind names the three kinds a define can hold', () => {
 });
 
 test('an unknown compile-time function lists #define among the ones the compiler evaluates', () => {
-  const diagnostics = analyze('const V: utinyint = #nope(1);\nexport function main(): void { memory.write(0x8000, V); }\n', join(tmpdir(), 'x.8bs'));
+  const diagnostics = analyze('const V: utinyint = #nope(1);\npub fn main() {\n    memory::write(0x8000, V);\n}\n', join(tmpdir(), 'x.8bs'));
   assert.match(diagnostics[0].message, /#define\(\.\.\.\)/);
 });

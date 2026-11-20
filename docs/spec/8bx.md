@@ -174,14 +174,14 @@ And this:
 Ordinary hardware calls remain possible inside an `.8bx` component — they are ordinary 8BitScript expressions:
 
 ```8bs
-memory.write(...);
+memory::write(...);
 ```
 
 Machine code does not live in `.8bx`. A component reaches it by importing the `.8bs` function that holds it (2.6):
 
 ```8bs
 // raster.8bs
-export function irq(): void {
+pub fn irq() {
     asm6502 {
         lda #$06
         sta $d020
@@ -191,9 +191,9 @@ export function irq(): void {
 
 ```8bx
 // RasterThing.8bx
-import { irq } from "./raster.8bs";
+use self::raster::irq;
 
-export component RasterThing() {
+pub component RasterThing() {
     return <RasterIRQ line={72} handler={irq} />;
 }
 ```
@@ -218,7 +218,7 @@ An `.8bx` file is a grammar-level superset of `.8bs` (§1, §3) — one lexer, o
 - A top-level `function` in `.8bx` whose body contains no element expression, or a top-level `let`, is a warning: *"this is ordinary 8BitScript; move it to an `.8bs` module and import it."*
 - Component methods (§39) and component `state` (§36) are exempt — they are what `.8bx` is for.
 - Expressions inside `{}` are never linted: they are ordinary 8BitScript by design (§20, §21).
-- A project may switch the lint off (`bx: { strict: false }` in `8bitscript.config.8bs`); it cannot switch the hard rules off.
+- A project may switch the lint off (`bx: { strict: false }` in `8bitscript.config.ts`); it cannot switch the hard rules off.
 
 Rejected: a restricted `.8bx` grammar (imports, components, consts and types only). It would get cleanliness for free and pay for it with a second parser table — the forked compiler §138 forbids.
 
@@ -272,10 +272,10 @@ src/video/RasterKernel.8bx
 `.8bx` must be able to import `.8bs`:
 
 ```8bs
-import { physics } from "./physics.8bs";
+use self::physics::physics;
 ```
 
-`.8bs` should also be able to import ordinary exported functions, constants, types, etc. from `.8bx`.
+`.8bs` should also be able to use ordinary `pub` functions, constants, types, etc. from `.8bx`.
 
 An `.8bs` file simply cannot contain 8BX element syntax itself.
 
@@ -337,12 +337,12 @@ Since the entry is `.8bs` and `.8bs` cannot contain element syntax (4.2), a prog
 
 ```8bs
 // src/main.8bs — the program; always .8bs
-import { App } from "./App.8bx";
-import { Player } from "./Player.8bx";
+use self::App::App;
+use self::Player::Player;
 
-export function main(): void {
-    App();            // elaborated here, exactly like <App />
-    Player(20, 40);   // props are the positional parameters
+pub fn main() {
+    App(); // elaborated here, exactly like <App />
+    Player(20, 40); // props are the positional parameters
 }
 ```
 
@@ -361,7 +361,7 @@ This costs nothing new in the compiler: it is the function-like declaration of �
 
 A project may build more than one program — a desktop plus the utilities beside it, the way GEOS ships a formatter and a copier as separate files on the same disk. Each program is its own link (the linker's one-entry-one-exported-function contract, per program), starting from its own `.8bs` entry (4.3).
 
-Decided 2026-09-16 — the config shape, in `8bitscript.config.8bs`:
+Decided 2026-09-16 — the config shape, in `8bitscript.config.ts`:
 
 ```ts
 import { defineConfig } from '@8bitscript/cli';
@@ -391,7 +391,7 @@ Rules:
 
 Two different things; decided 2026-09-16 that they stay apart.
 
-**A cartridge changes the build, so it is hardware.** The Atari catalog already models it: a `media` option (`xex` | `cart8` | `cart16`) whose values set `build.startup`, `build.output: "rom"`, link symbols, an emulator `-cart` load, and rewrite facts (`memory.ram`, `storage.save: false`). A C64 `.crt`, a VIC-20 cartridge, an NES mapper are the same shape: a `media` value on that machine's catalog, selected by `--profile`, `--hardware media=…`, or a `release` entry — `targets.c64.release: [{}, { hardware: { media: 'cart8k' } }]` ships both. A program built as a cartridge sees cartridge facts and folds on them like any other hardware. Nothing in `8bitscript.config.8bs` is added for cartridges.
+**A cartridge changes the build, so it is hardware.** The Atari catalog already models it: a `media` option (`xex` | `cart8` | `cart16`) whose values set `build.startup`, `build.output: "rom"`, link symbols, an emulator `-cart` load, and rewrite facts (`memory.ram`, `storage.save: false`). A C64 `.crt`, a VIC-20 cartridge, an NES mapper are the same shape: a `media` value on that machine's catalog, selected by `--profile`, `--hardware media=…`, or a `release` entry — `targets.c64.release: [{}, { hardware: { media: 'cart8k' } }]` ships both. A program built as a cartridge sees cartridge facts and folds on them like any other hardware. Nothing in `8bitscript.config.ts` is added for cartridges.
 
 **A disk image is a container, built after the programs are.** A `.d64`/`.d71`/`.d81`/`.atr` holds N files — programs, data, a boot program — and changes no program's bytes. It is a post-build step over named artifacts:
 
@@ -521,8 +521,8 @@ Never convert an `.8bx` file into an `.8bs` variant.
 Support explicit imports:
 
 ```8bs
-import { Foo } from "./Foo.8bx";
-import { math } from "./math.8bs";
+use self::Foo::Foo;
+use self::math::math;
 ```
 
 Package manifests may point directly to either:
@@ -552,7 +552,7 @@ and exports:
 Add TypeScript-like extensionless resolution:
 
 ```8bs
-import { Foo } from "./Foo";
+use self::Foo::Foo;
 ```
 
 Resolution order:
@@ -619,9 +619,9 @@ The current compiler can parse and lower individual modules and the linker later
 That model becomes insufficient once we write:
 
 ```8bx
-import { Player } from "./Player.8bx";
+use self::Player::Player;
 
-<Player x={20} y={40} />
+<Player x={20} y={40} />;
 ```
 
 Before lowering the element, the compiler must know:
@@ -750,10 +750,10 @@ should continue folding before expensive semantic/component work whenever possib
 That gives 8BX a powerful property:
 
 ```8bx
-if (Video.SPRITES > 0) {
-    <SpriteLogo />
+if Video::SPRITES > 0 {
+    <SpriteLogo />;
 } else {
-    <TextLogo />
+    <TextLogo />;
 }
 ```
 
@@ -787,7 +787,7 @@ BXExpression
 Normal 8BitScript:
 
 ```8bs
-a < b
+a < b;
 ```
 
 must continue tokenizing `<` as an operator.
@@ -873,7 +873,7 @@ Before anything lowers, tests must prove these remain distinct:
 ```8bs
 a < b
 a > b
-array<u8, 16>
+[u8; 16]
 ptr<u8>
 x << 2
 ```
@@ -991,10 +991,10 @@ Normal variables remain completely normal.
 let selected: utinyint = 0;
 const MAX_ITEMS: utinyint = 8;
 
-function draw(): void {
+fn draw() {
     let x: utinyint = 10;
 
-    <Menu selected={selected} x={x} />
+    <Menu selected={selected} x={x} />;
 }
 ```
 
@@ -1042,13 +1042,8 @@ Introduce a real first-class `component` declaration.
 Recommended first syntax:
 
 ```8bx
-export component Player(
-    x: utinyint,
-    y: utinyint
-) {
-    return (
-        <Sprite x={x} y={y} />
-    );
+pub component Player(x: utinyint, y: utinyint) {
+    return <Sprite x={x} y={y} />;
 }
 ```
 
@@ -1215,7 +1210,7 @@ Consider:
 The component elaborator may turn that into ordinary operations equivalent to:
 
 ```8bs
-button.draw("START", option == 0);
+button::draw("START", option == 0);
 ```
 
 Or a more complex component may expand to:
@@ -1490,11 +1485,11 @@ Components should eventually support methods:
 component Player {
     state health: utinyint = 100;
 
-    function damage(amount: utinyint): void {
+    fn damage(amount: utinyint) {
         health = health - amount;
     }
 
-    function update(): void {
+    fn update() {
         ...
     }
 }
@@ -1600,7 +1595,7 @@ For demoscene-quality work:
 
 ```8bs
 // raster.8bs — the exact cycle-counted routine
-export function irq(): void {
+pub fn irq() {
     asm6502 {
         ...
     }
@@ -1609,9 +1604,9 @@ export function irq(): void {
 
 ```8bx
 // CustomRasterThing.8bx — the composition around it
-import { irq } from "./raster.8bs";
+use self::raster::irq;
 
-export component CustomRasterThing() {
+pub component CustomRasterThing() {
     return <RasterIRQ line={72} handler={irq} />;
 }
 ```
@@ -1872,7 +1867,7 @@ struct Vec2 {
     x: int;
     y: int;
 
-    function move(dx: int, dy: int): void {
+    fn move(dx: int, dy: int) {
         x += dx;
         y += dy;
     }
@@ -1888,8 +1883,11 @@ No dynamic dispatch is necessary.
 Interfaces should be compile-time contracts:
 
 ```8bs
-interface Drawable {
-    function draw(): void;
+interface;
+Drawable;
+{
+    r#fn;
+    draw();
 }
 ```
 
@@ -1919,7 +1917,8 @@ but must preserve explicit memory semantics.
 Do not make:
 
 ```8bs
-new Foo()
+new;
+Foo();
 ```
 
 silently allocate from a heap that did not previously exist.
@@ -2124,10 +2123,10 @@ Do **not** rewrite it into an expensive retained structure.
 Instead create an 8BX wrapper whose elaboration is essentially:
 
 ```text
-menubar.begin(...)
-menubar.item(...)
-menubar.item(...)
-menubar.end()
+menubar::begin(...)
+menubar::item(...)
+menubar::item(...)
+menubar::end()
 ```
 
 A source usage could become:
@@ -2226,7 +2225,7 @@ A package should be able to export an 8BX component:
 Then:
 
 ```8bx
-import { Window } from "@8bitscript/ui/window";
+use @8bitscript::ui::window::Window;
 ```
 
 works like any other source module.
@@ -2467,7 +2466,7 @@ Add `<`/`>` behavior carefully.
 Do **not** blindly auto-close `<` to `>` in every context if it makes:
 
 ```8bs
-a < b
+a < b;
 ```
 
 annoying in `.8bx`.
@@ -2775,7 +2774,7 @@ unless some future explicit conversion defines a meaning for it.
 This should be valid in `.8bx`:
 
 ```8bx
-function draw(): void {
+fn draw() {
     <HUD score={score} />;
 }
 ```
@@ -2812,7 +2811,7 @@ Do not require this for the first version.
 Long term it may be useful:
 
 ```8bx
-export <Application>
+pub <Application>
     ...
 </Application>;
 ```
@@ -2823,9 +2822,9 @@ The root of a composition is reached from the program's `.8bs` entry as a call (
 
 ```8bs
 // src/main.8bs
-import { App } from "./App.8bx";
+use self::App::App;
 
-export function main(): void {
+pub fn main() {
     App();
 }
 ```
@@ -2975,10 +2974,10 @@ Ordinary functions should not need to know 8BX exists.
 Example:
 
 ```8bx
-import { drawWaveform } from "./waveform.8bs";
+use self::waveform::drawWaveform;
 
-component Waveform(samples: array<utinyint, 64>) {
-    function draw(): void {
+component Waveform(samples: [utinyint; 64]) {
+    fn draw() {
         drawWaveform(samples);
     }
 
@@ -3012,7 +3011,7 @@ Example:
 
 ```8bs
 // stable-raster.8bs
-export function irq(): void {
+pub fn irq() {
     asm6502 {
         ...
     }
@@ -3021,9 +3020,9 @@ export function irq(): void {
 
 ```8bx
 // StableRaster.8bx
-import { irq } from "./stable-raster.8bs";
+use "./stable-raster.8bs"::irq;
 
-export component StableRaster() {
+pub component StableRaster() {
     return <Raster.IRQ handler={irq} />;
 }
 ```
@@ -3316,7 +3315,7 @@ Test:
 .8bs → .8bs
 .8bx → .8bx
 .8bx importing .8bs
-.8bs importing ordinary export from .8bx
+.8bs using an ordinary pub item from .8bx
 package entry .8bx
 package subpath .8bx
 machine .8bx variant
@@ -4087,9 +4086,9 @@ The language should eventually feel like this. The program:
 
 ```8bs
 // src/main.8bs — the program entry, always .8bs (4.3)
-import { App } from "./App.8bx";
+use self::App::App;
 
-export function main(): void {
+pub fn main() {
     App();
 }
 ```
@@ -4098,45 +4097,27 @@ Its composition:
 
 ```8bx
 // src/App.8bx
-import { Video } from "@8bitscript/system";
-import { Game } from "./game.8bs";
-import { Tracker } from "./Tracker.8bx";
-import { DemoTitle } from "./DemoTitle.8bx";
+use @8bitscript::system::Video;
+use self::game::Game;
+use self::Tracker::Tracker;
+use self::DemoTitle::DemoTitle;
 
-export component App() {
+pub component App() {
     state mode: utinyint = 0;
 
-    function update(): void {
-        Game.update();
+    fn update() {
+        Game::update();
     }
 
-    return (
-        <Application>
-            {mode == 0
-                ? <DemoTitle />
-                : <GameView />
-            }
-
-            <AudioEngine />
-
-            {Video.SPRITES > 0
-                ? <SpriteEffects />
-                : <SoftwareEffects />
-            }
-
-            <DebugTools>
-                <Tracker />
-            </DebugTools>
-        </Application>
-    );
+    return <Application>{if mode == 0 { <DemoTitle /> } else { <GameView /> }} <AudioEngine /> {if Video::SPRITES > 0 { <SpriteEffects /> } else { <SoftwareEffects /> }} <DebugTools><Tracker /></DebugTools></Application>;
 }
 ```
 
 And `DemoTitle.c64.8bx` should be free to contain something like:
 
 ```8bx
-export component DemoTitle {
-    function rasterIRQ(): void {
+pub component DemoTitle {
+    fn rasterIRQ() {
         asm6502 {
             // exact cycle-sensitive C64 implementation
         }

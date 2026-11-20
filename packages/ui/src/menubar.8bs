@@ -1,6 +1,6 @@
 // @8bitscript/ui/menubar — a menu bar across one row of the character grid.
 //
-//     import { menubar } from "@8bitscript/ui/menubar";
+//     use @8bitscript::ui::menubar::menubar;
 //
 //     menubar.select(1);
 //     menubar.begin(0, text.COLUMNS);
@@ -63,7 +63,7 @@
 // to pretend otherwise: an item with no room is not drawn, `clipped()` says
 // so afterwards, and the program can decide — shorter labels, less padding,
 // a second row — rather than finding half a word overwritten.
-import { text, TextColor } from "@8bitscript/text";
+use @8bitscript::text::{text, TextColor};
 
 // The default marker: '-' in the portable character set. Invert is the
 // highlight on every machine, so the marker is unused while reverse does
@@ -77,18 +77,18 @@ const NO_SELECTION: utinyint = 255;
 
 // Style. Every one of these is a knob a program may turn before `begin()`,
 // and each has a default that draws a sensible bar with no call at all.
-let itemColor: utinyint = TextColor.WHITE;
-let highlightColor: utinyint = TextColor.YELLOW;
-let padding: utinyint = 1;
+let mut itemColor: utinyint = TextColor::WHITE;
+let mut highlightColor: utinyint = TextColor::YELLOW;
+let mut padding: utinyint = 1;
 // One cell wide by declaration: `string<1>` cannot hold more, so a marker
 // can never push a label out of the width the layout reserved for it, and
 // "" turns it off.
-let marker: string<1> = "-";
+let mut marker: string<1> = "-";
 
 // Where the bar is and how much of it is left, between `begin()` and
 // `end()`. `cursor` is the next free cell, `remaining` the cells after it.
-let cursor: usmallint = 0;
-let remaining: utinyint = 0;
+let mut cursor: usmallint = 0;
+let mut remaining: utinyint = 0;
 
 // Which item is highlighted, how many the last bar drew, and whether any of
 // them had to be dropped for want of room.
@@ -98,9 +98,9 @@ let remaining: utinyint = 0;
 // for every one of them — because that is what a menu bar looks like before
 // anyone has touched it. The first `next()` or `previous()` lands on an end
 // of the bar, and `deselect()` puts it back.
-let highlighted: utinyint = NO_SELECTION;
-let index: utinyint = 0;
-let overflowed: bool = false;
+let mut highlighted: utinyint = NO_SELECTION;
+let mut index: utinyint = 0;
+let mut overflowed: bool = false;
 
 // Where a pointer is, as a flat cell, and which item it turned out to be
 // over. 65535 is "no pointer", and it is not a special case anywhere: an
@@ -108,8 +108,8 @@ let overflowed: bool = false;
 // 65535 fails the second for every item on every machine. Both are reset
 // by `begin()`, so a bar drawn without `point()` costs nothing for the
 // pointer it does not have.
-let pointerAt: usmallint = 65535;
-let pointedIndex: utinyint = NO_SELECTION;
+let mut pointerAt: usmallint = 65535;
+let mut pointedIndex: utinyint = NO_SELECTION;
 
 // Last run's label cells, so `point()` can answer `pointed()` without
 // another draw. A bar is blanked at `begin()`, and redrawing it just to
@@ -117,19 +117,19 @@ let pointedIndex: utinyint = NO_SELECTION;
 // any bar this component currently draws; extras still take an index and
 // are still hit-tested during a run.
 const HIT_SLOTS: utinyint = 8;
-let hitAt: array<usmallint, 8>;
-let hitLen: array<utinyint, 8>;
+let mut hitAt: [usmallint; 8];
+let mut hitLen: [utinyint; 8];
 
 // Last span `begin()` blanked. A later run of the same span overwrites
 // items in place: blanking the row every time is visible flicker on a
 // C64, where `waitFrame()` returns in the top half while VIC-II is about
 // to scan that row (Studio, 2026-09-07). A different `at`/`cells` blanks
 // again, so a bar that moves or resizes still clears what it leaves.
-let laidAt: usmallint = 0;
-let laidCells: utinyint = 0;
+let mut laidAt: usmallint = 0;
+let mut laidCells: utinyint = 0;
 
 // The icon slot's label — see `icon()`. One cell wide by declaration.
-let iconLabel: string<1> = "8";
+let mut iconLabel: string<1> = "8";
 
 // Helpers stay at module level: a namespace function reaches a sibling only
 // through the namespace's name, and none of these is part of the surface.
@@ -140,14 +140,13 @@ let iconLabel: string<1> = "8";
 // shows the screen's background color whatever its color cell says, so
 // coloring a blank achieves nothing on any of the nine. Each item sets the
 // color it prints in.
-function blank(at: usmallint, count: utinyint): void {
-    for (let i: utinyint = 0; i < count; i++) {
-        text.putChar(at + i, SPACE);
+fn blank(at: usmallint, count: utinyint) {
+    for i: utinyint in 0..count {
+        text::putChar(at + i, SPACE);
     }
 }
 
-export namespace menubar {
-
+pub mod menubar {
     // Rows the bar occupies, so a program can lay out under it —
     // `text.print(menubar.HEIGHT * text.COLUMNS, ...)` is the line below.
     const HEIGHT: utinyint = 1;
@@ -168,14 +167,14 @@ export namespace menubar {
     // program that can pick its own color on the line after the bar. So:
     // draw the bar, then set your color. Reverse is turned off after
     // each item, so a later `text.setColor` cannot leave inverted glyphs.
-    function setColors(item: utinyint, highlight: utinyint): void {
+    fn setColors(item: utinyint, highlight: utinyint) {
         itemColor = item;
         highlightColor = highlight;
     }
 
     // Cells of space either side of every label. 1 by default; 0 runs the
     // labels together and leaves the marker nowhere to go.
-    function setPadding(cells: utinyint): void {
+    fn setPadding(cells: utinyint) {
         padding = cells;
     }
 
@@ -183,7 +182,7 @@ export namespace menubar {
     // highlight; this stays so a program written against the call still
     // compiles. `-` by default; "" is none. Anything longer than one
     // character is cut to one, because that is the room the layout keeps.
-    function setMarker(bracket: string): void {
+    fn setMarker(bracket: string) {
         marker = bracket;
     }
 
@@ -193,11 +192,11 @@ export namespace menubar {
     // bar redraws on the next begin()/item()/end() run; nothing moves on
     // its own: this component never reads input, so a program moves the
     // highlight with `select()`, `next()`, `previous()` or `deselect()`.
-    function select(item: utinyint): void {
+    fn select(item: utinyint) {
         highlighted = item;
     }
 
-    function selected(): utinyint {
+    fn selected() -> utinyint {
         return highlighted;
     }
 
@@ -205,7 +204,7 @@ export namespace menubar {
     // it — which is what closing a menu without choosing anything means.
     const NONE: utinyint = NO_SELECTION;
 
-    function deselect(): void {
+    fn deselect() {
         highlighted = NO_SELECTION;
     }
 
@@ -219,25 +218,25 @@ export namespace menubar {
     // redraw. A bar that has never been drawn offers nothing to step
     // through, and both leave it alone rather than selecting an item that
     // is not there.
-    function next(): void {
-        if (index == 0) {
+    fn next() {
+        if index == 0 {
             return;
         }
-        if (highlighted == NO_SELECTION) {
+        if highlighted == NO_SELECTION {
             highlighted = 0;
             return;
         }
         highlighted = highlighted + 1;
-        if (highlighted >= index) {
+        if highlighted >= index {
             highlighted = 0;
         }
     }
 
-    function previous(): void {
-        if (index == 0) {
+    fn previous() {
+        if index == 0 {
             return;
         }
-        if (highlighted == NO_SELECTION || highlighted == 0) {
+        if highlighted == NO_SELECTION || highlighted == 0 {
             highlighted = index - 1;
             return;
         }
@@ -267,17 +266,17 @@ export namespace menubar {
     //
     // A bar drawn without ever calling this is not paying for a pointer:
     // `begin()` leaves the cell at 65535, which no item can contain.
-    function point(cell: usmallint): void {
+    fn point(cell: usmallint) {
         pointerAt = cell;
         pointedIndex = NO_SELECTION;
-        let i: utinyint = 0;
-        while (i < index) {
-            if (i < HIT_SLOTS) {
+        let mut i: utinyint = 0;
+        while i < index {
+            if i < HIT_SLOTS {
                 let start: usmallint = hitAt[i];
                 let n: utinyint = hitLen[i];
-                if (n > 0) {
-                    if (pointerAt >= start) {
-                        if (pointerAt - start < n) {
+                if n > 0 {
+                    if pointerAt >= start {
+                        if pointerAt - start < n {
                             pointedIndex = i;
                         }
                     }
@@ -291,7 +290,7 @@ export namespace menubar {
     // pointer has to be on one of an item's *label* cells; the padding
     // either side belongs to the bar, not to the item, so a pointer in the
     // gap between two items is over neither.
-    function pointed(): utinyint {
+    fn pointed() -> utinyint {
         return pointedIndex;
     }
 
@@ -301,8 +300,8 @@ export namespace menubar {
     // item the run did not draw, or past the eighth: a menu opened there
     // lands at the row's start, which is wrong in a way the eye sees and
     // the program can check with `clipped()`.
-    function itemAt(item: utinyint): usmallint {
-        if (item < HIT_SLOTS) {
+    fn itemAt(item: utinyint) -> usmallint {
+        if item < HIT_SLOTS {
             return hitAt[item];
         }
         return 0;
@@ -330,13 +329,13 @@ export namespace menubar {
     //
     // It is an ordinary item in every other way: it takes an index, it can
     // be highlighted, and it answers whether it is.
-    function icon(): bool {
-        return menubar.item(iconLabel);
+    fn icon() -> bool {
+        return menubar::item(iconLabel);
     }
 
     // The character the icon slot draws, from the portable set. One cell
     // wide by declaration, so it can never widen the slot.
-    function setIcon(mark: string): void {
+    fn setIcon(mark: string) {
         iconLabel = mark;
     }
 
@@ -345,7 +344,7 @@ export namespace menubar {
     // Open a bar at `at`, using `cells` cells of that row and never one
     // more. A full-width bar on the top row is `begin(0, text.COLUMNS)`;
     // the two arguments are what let a bar sit inside something narrower.
-    function begin(at: usmallint, cells: utinyint): void {
+    fn begin(at: usmallint, cells: utinyint) {
         cursor = at;
         remaining = cells;
         index = 0;
@@ -362,7 +361,7 @@ export namespace menubar {
         // redraw overwrites the same cells; punching 40 spaces through
         // them while VIC-II is scanning the top of the screen is the
         // flash a C64 shows on click.
-        if (laidCells != cells || laidAt != at) {
+        if laidCells != cells || laidAt != at {
             blank(at, cells);
             laidAt = at;
             laidCells = cells;
@@ -374,7 +373,7 @@ export namespace menubar {
     // overrun — but it still takes its index and still answers for the
     // highlight, so which item is selected does not depend on how wide the
     // machine's screen is.
-    function item(name: string): bool {
+    fn item(name: string) -> bool {
         // Everything this function still needs after the first `text.print`
         // has to survive that call, and on a 6502 that means pushing it
         // to a soft stack on entry and popping it on exit. So
@@ -410,9 +409,9 @@ export namespace menubar {
         // each of the three ways out below advances it. Which item is
         // selected must not depend on how wide the machine's screen is.
         let n: utinyint = name.length;
-        if (n > remaining) {
+        if n > remaining {
             overflowed = true;
-            if (index < HIT_SLOTS) {
+            if index < HIT_SLOTS {
                 hitAt[index] = 0;
                 hitLen[index] = 0;
             }
@@ -420,18 +419,18 @@ export namespace menubar {
             return on;
         }
         let room: utinyint = remaining - n;
-        if (padding > room) {
+        if padding > room {
             overflowed = true;
-            if (index < HIT_SLOTS) {
+            if index < HIT_SLOTS {
                 hitAt[index] = 0;
                 hitLen[index] = 0;
             }
             index = index + 1;
             return on;
         }
-        if (padding > room - padding) {
+        if padding > room - padding {
             overflowed = true;
-            if (index < HIT_SLOTS) {
+            if index < HIT_SLOTS {
                 hitAt[index] = 0;
                 hitLen[index] = 0;
             }
@@ -442,7 +441,7 @@ export namespace menubar {
         // The item's own cells, and the bar's cursor moved past them, while
         // the numbers that say so are still in hand.
         let start: usmallint = cursor + padding;
-        if (index < HIT_SLOTS) {
+        if index < HIT_SLOTS {
             hitAt[index] = start;
             hitLen[index] = n;
         }
@@ -460,8 +459,8 @@ export namespace menubar {
         // is it at or after the start, and is its distance from the start
         // inside the label. That also makes "no pointer" free: 65535 is
         // past every start and its distance is past every length.
-        if (pointerAt >= start) {
-            if (pointerAt - start < n) {
+        if pointerAt >= start {
+            if pointerAt - start < n {
                 pointedIndex = index;
             }
         }
@@ -481,16 +480,16 @@ export namespace menubar {
         // bar's or the program's — is not inverted. Unselected items print
         // the same padding spaces with reverse off, which is what clears a
         // leftover filled cell when the selection moves.
-        text.setColor(itemColor);
-        text.setReverse(on);
-        if (padding > 0) {
-            text.print(start - 1, " ");
+        text::setColor(itemColor);
+        text::setReverse(on);
+        if padding > 0 {
+            text::print(start - 1, " ");
         }
-        text.print(start, name);
-        if (padding > 0) {
-            text.print(start + n, " ");
+        text::print(start, name);
+        if padding > 0 {
+            text::print(start + n, " ");
         }
-        text.setReverse(false);
+        text::setReverse(false);
         return on;
     }
 
@@ -499,7 +498,7 @@ export namespace menubar {
     // shorter labels showing any of the longer ones — so this just marks
     // the bar finished, and is here because a program should not have to
     // know that.
-    function end(): void {
+    fn end() {
         cursor = cursor + remaining;
         remaining = 0;
     }
@@ -507,14 +506,14 @@ export namespace menubar {
     // ---- what the last bar did ----------------------------------------------
 
     // How many items the last run offered, drawn or not.
-    function count(): utinyint {
+    fn count() -> utinyint {
         return index;
     }
 
     // Whether an item had to be dropped for want of room: true after a bar
     // that asked for more cells than it was given. A program that must fit
     // every machine can check it and lay out again.
-    function clipped(): bool {
+    fn clipped() -> bool {
         return overflowed;
     }
 }

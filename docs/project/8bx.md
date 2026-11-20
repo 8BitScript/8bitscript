@@ -6,8 +6,8 @@ nav_order: 85
 # 8BX: composition for 8BitScript
 
 `.8bx` is 8BitScript's declarative composition syntax — what TSX is to
-TypeScript, without a DOM, a framebuffer, or the idea that a "component"
-is a web widget. An `.8bx` file is an 8BitScript source file plus
+TypeScript, with Rust-style 8BitScript underneath, and without a DOM, a
+framebuffer, or the idea that a "component" is a web widget. An `.8bx` file is an 8BitScript source file plus
 JSX-like element expressions; a component may describe an interface, a
 game, a raster kernel, an audio system, a file system, or nothing visible
 at all.
@@ -65,7 +65,7 @@ Read against the source: `packages/compiler`, `packages/cli`,
   diagnostic inside `{…}` points into the file, and every half-typed tag
   recovers (§90). Text children are normalized the JSX way, once (§35).
 - **A component is a function; an element is a call to it.** That gives
-  hygiene, evaluate-once props (§104) and `export component` across
+  hygiene, evaluate-once props (§104) and `pub component` across
   modules (§9–§11) in one move; the linker's inliner makes a
   compile-time-prop element cost what the hand-written calls would (§64,
   §65). `component` is a keyword in `.8bx` only (§129). The pipeline is
@@ -141,15 +141,15 @@ ahead or a wording the spec should catch up to.
     global regardless); dropping eight was −4 on every 6502.
   - *A constant return does not fold at an argument site.* A function that
     returns a literal or a fact is inlined but the value only folds in a
-    condition, not as a call argument — why `text.columns()` costs 51
+    condition, not as a call argument — why `text::columns()` costs 51
     bytes on a machine where it is a fact.
-  - *A dead arm that names a namespace member the machine's package does
+  - *A dead arm that names a `mod` member the machine's package does
     not have* (`input.touch()` on the VIC-20) is a link error before
     folding removes it, so a capability one machine's API offers cannot be
     asked behind a fact without a `lib/` twin to shim it.
   - *A `const` cannot be initialized by an expression of facts*
     (`8BS3001`), so a predicate over several facts has no home but a
-    function; and *a `string` const inside an `export namespace` is
+    function; and *a `string` const inside an `pub mod` is
     refused* (`8BS3001`) where a top-level one is fine.
   - *The `return;` idiom cuts both ways*: the documented way to keep a
     helper a real function is also the undocumented way to stop an
