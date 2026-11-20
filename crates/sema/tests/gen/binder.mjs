@@ -31,42 +31,10 @@ function take(name) {
 const rows = [];
 const here = (p) => fileURLToPath(new URL(p, import.meta.url));
 
-// The front end's JSON has its keys sorted; the compiler's own trees list a node's children in
-// source order, and the tap numbers nodes by walking them in key order. Put the child keys back in
-// the order `syntax::children` visits them (crates/syntax/src/walk.rs), `decorators` last.
-const CHILD_KEYS = {
-  ImportDeclaration: ['specifiers', 'source'],
-  VariableDeclaration: ['name', 'typeAnnotation', 'initializer'],
-  StateDeclaration: ['name', 'typeAnnotation', 'initializer'],
-  FunctionDeclaration: ['name', 'params', 'returnType', 'body'],
-  ComponentDeclaration: ['name', 'params', 'body'],
-  NamespaceDeclaration: ['name', 'members'],
-  Parameter: ['name', 'typeAnnotation', 'defaultValue'],
-  BxElement: ['attributes', 'children'],
-  IfStatement: ['test', 'consequent', 'alternate'],
-  ConditionalExpression: ['test', 'consequent', 'alternate'],
-  WhileStatement: ['test', 'body'],
-  ForStatement: ['init', 'test', 'update', 'body'],
-  TemplateField: ['expression', 'width'],
-  AssignmentExpression: ['left', 'right'],
-  BinaryExpression: ['left', 'right'],
-  CallExpression: ['callee', 'args'],
-  MemberExpression: ['object', 'property'],
-  IndexExpression: ['object', 'index'],
-};
-function inSourceOrder(value) {
-  if (Array.isArray(value)) return value.map(inSourceOrder);
-  if (value === null || typeof value !== 'object') return value;
-  const order = CHILD_KEYS[value.type] ?? [];
-  const first = Object.keys(value).filter((k) => !order.includes(k) && k !== 'decorators');
-  const keys = [...first, ...order.filter((k) => k in value), ...('decorators' in value ? ['decorators'] : [])];
-  return Object.fromEntries(keys.map((k) => [k, inSourceOrder(value[k])]));
-}
-
 function astOf(text, file) {
   const kind = extname(file);
   const { tokens } = tokenize(text, file, { sourceKind: kind });
-  return inSourceOrder(parse(tokens, text, file, { sourceKind: kind }).ast);
+  return parse(tokens, text, file, { sourceKind: kind }).ast;
 }
 
 /** Bind `text` and record the `bind` call. */
