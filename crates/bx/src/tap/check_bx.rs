@@ -131,7 +131,8 @@ fn decode_symbol(v: &Value) -> Symbol {
 /// A text naming the argument that does not have the recorded shape.
 pub fn decode_args(args: &[Value]) -> Result<CheckArgs, String> {
     let ast = args.first().ok_or("missing ast")?;
-    let ast: Node = serde_json::from_value(ast.clone()).map_err(|e| format!("ast: {e}"))?;
+    let mut ast: Node = serde_json::from_value(ast.clone()).map_err(|e| format!("ast: {e}"))?;
+    syntax::number_nodes(&mut ast);
     let file = args
         .get(1)
         .and_then(Value::as_str)

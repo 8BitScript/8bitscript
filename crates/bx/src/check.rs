@@ -82,7 +82,7 @@ fn is_element(n: Option<&Node>) -> bool {
 }
 
 /// `componentOf` (`binder/index.mjs:227`): the component a symbol stands for. The binder port
-/// (P3-08) owns the shared one; this keeps `bx::check` independent of it until then.
+/// will own the shared one; this keeps `bx::check` independent of it until then.
 fn component_of<'a>(modules: &'a [Bound], named: Option<&'a Symbol>) -> Option<&'a Symbol> {
     let sym = named?;
     if sym.kind == SymbolKind::Component {
@@ -321,7 +321,8 @@ fn check_element(ctx: &Context, el: &Node, diagnostics: &mut Vec<Diagnostic>) {
     }
 }
 
-/// The node's children as `(key, child)` in `Object.entries` order (alphabetical by key, see below), for the one walk that needs the key (`checkComposition`).
+/// The node's children as `(key, child)` in the order of `syntax::children` (R1.9), for the one walk that needs the key
+/// (`checkComposition`). A test keeps the two the same.
 fn entries(n: &Node) -> Vec<(&'static str, &Node)> {
     fn one<'a>(
         out: &mut Vec<(&'static str, &'a Node)>,
@@ -493,11 +494,6 @@ fn entries(n: &Node) -> Vec<(&'static str, &Node)> {
     if let Some(decorators) = &n.decorators {
         many(&mut out, "decorators", decorators);
     }
-    // The front parser hands the AST over as JSON with its keys in alphabetical order, so a
-    // node's `Object.entries` run alphabetically (a conditional's `alternate` before its
-    // `consequent`), not in the old parser's prop order. The sort is stable, so a key holding
-    // a list keeps its items in order.
-    out.sort_by_key(|(key, _)| *key);
     out
 }
 
@@ -1043,4 +1039,37 @@ fn names_of<'a>(nodes: impl Iterator<Item = &'a Node>) -> HashSet<&'a str> {
         })
         .filter(|s| !s.is_empty())
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::tap::check_bx::decode_args;
+    use serde_json::Value;
+
+    /// The keyed table and `syntax::children` list the same nodes in the same order, for every
+    /// node of every AST in the fixture.
+    #[test]
+    fn entries_follow_syntax_children() {
+        let rows: Vec<Value> =
+            serde_json::from_str(include_str!("../tests/fixtures/bx-check.json")).unwrap();
+        let mut nodes = 0;
+        for row in &rows {
+            let args = row["args"].as_array().unwrap();
+            let decoded = decode_args(args).unwrap();
+            syntax::walk(&decoded.ast, &mut |node, _| {
+                let keyed: Vec<*const Node> = entries(node)
+                    .iter()
+                    .map(|(_, c)| *c as *const Node)
+                    .collect();
+                let listed: Vec<*const Node> = syntax::children(node)
+                    .into_iter()
+                    .map(|c| c as *const Node)
+                    .collect();
+                assert_eq!(keyed, listed, "children of the node at {}", node.start);
+                nodes += 1;
+            });
+        }
+        assert!(nodes > 1000, "{nodes} nodes");
+    }
 }
