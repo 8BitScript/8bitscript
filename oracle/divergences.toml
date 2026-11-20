@@ -16,7 +16,6 @@
 # fold: R7.3: package::nearest_package: the error text of a package.json that fails JSON.parse is approximate ("Unexpected token X in JSON at position N"); V8's wording differs by Node version. A file that cannot be read gives Node's text for ENOENT, EACCES and EISDIR.
 # fold: R7.8: facts::fact_const_name: an empty first word (key "" or ".x") makes JS throw on `group[0].toUpperCase()`; the port returns an empty namespace. Unreachable: the only caller passes FACTS keys.
 # fold: R7.2: package::nearest_package: a lone surrogate escape in package.json ("\ud800") becomes U+FFFD, not a lone code unit.
-# i18n: R7.9: compare_catalog_schemas: the diagnostic for a namespace the default locale lacks takes its file from the namespace's first member, else from other.file, which catalogSchema never sets; JS then leaves file undefined (the key is absent from JSON) and Rust writes "" (Diagnostic.file is a String). Reached by a non-default locale exporting an empty namespace (pub mod X {}) or one whose members are all invalid.
 # i18n: R7.10: fs (readFileSync of a catalog file, thrown out of prepare_catalog): a file that cannot be read gives Node's text for ENOENT, EACCES and EISDIR; other errno values get approximate text.
 # i18n: R7.2: string arguments (tap replay): a lone surrogate escape ("\ud800") becomes U+FFFD, not a lone code unit. Files read from disk cannot carry one (invalid UTF-8 becomes U+FFFD in Node too).
 # media-tools (P3-21) has no corpus stage, so it has no [[divergence]] table

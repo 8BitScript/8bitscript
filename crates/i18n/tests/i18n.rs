@@ -2,11 +2,6 @@
 //! catalog schema and charset checks, and `prepareCatalog` / `resolveCatalogSpecifier` over a
 //! temp tree built from the fixture. Rows name paths `<root>/...`; the test maps `<root>` to
 //! its own temp dir.
-//!
-//! One deliberate normalization: `catalogSchema` never sets `file` on the schema, so JS gives
-//! the diagnostic for an empty namespace missing from the baseline no `file` at all; Rust
-//! writes `""` there. A row whose expected result holds a diagnostic with no `file` is
-//! compared with the empty `file`s removed from ours.
 
 use std::fs;
 use std::path::PathBuf;
@@ -75,31 +70,6 @@ struct PrepareArgs {
     i18n: Option<I18nOptions>,
     locale: Option<String>,
     from_file: Option<String>,
-}
-
-/// Whether `value` holds a diagnostic (an object with a `code`) that has no `file`.
-fn lacks_file(value: &Value) -> bool {
-    match value {
-        Value::Object(map) => {
-            (map.contains_key("code") && !map.contains_key("file")) || map.values().any(lacks_file)
-        }
-        Value::Array(items) => items.iter().any(lacks_file),
-        _ => false,
-    }
-}
-
-/// Removes an empty `file` from every diagnostic in `value`.
-fn drop_empty_file(value: &mut Value) {
-    match value {
-        Value::Object(map) => {
-            if map.contains_key("code") && map.get("file").is_some_and(|f| f == "") {
-                map.remove("file");
-            }
-            map.values_mut().for_each(drop_empty_file);
-        }
-        Value::Array(items) => items.iter_mut().for_each(drop_empty_file),
-        _ => {}
-    }
 }
 
 fn run(fs: &RootedFs, name: &str, args: &[Value]) -> (Value, Option<Value>) {
@@ -194,15 +164,9 @@ fn i18n_matches_js() {
     for (i, row) in rows.iter().enumerate() {
         let name = s(&row["fn"]);
         let args = row["args"].as_array().unwrap();
-        let (mut got, after) = run(&fs, name, args);
-        if lacks_file(&row["result"]) {
-            drop_empty_file(&mut got);
-        }
+        let (got, after) = run(&fs, name, args);
         assert_eq!(got, row["result"], "row {i}: {name} {args:?}");
-        if let Some(mut after) = after {
-            if lacks_file(&row["after"]) {
-                drop_empty_file(&mut after);
-            }
+        if let Some(after) = after {
             assert_eq!(after, row["after"], "row {i}: {name} options after");
         }
     }

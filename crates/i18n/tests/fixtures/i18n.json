@@ -1268,7 +1268,8 @@
             }
           }
         },
-        "extras": []
+        "extras": [],
+        "file": "cat.8bs"
       }
     },
     {
@@ -1307,7 +1308,8 @@
             }
           }
         },
-        "extras": []
+        "extras": [],
+        "file": "cat.8bs"
       }
     },
     {
@@ -1361,7 +1363,8 @@
             "length": 26,
             "file": "cat.8bs"
           }
-        ]
+        ],
+        "file": "cat.8bs"
       }
     },
     {
@@ -1401,7 +1404,8 @@
             "length": 11,
             "file": "cat.8bs"
           }
-        ]
+        ],
+        "file": "cat.8bs"
       }
     },
     {
@@ -1422,7 +1426,8 @@
             }
           }
         },
-        "extras": []
+        "extras": [],
+        "file": "cat.8bs"
       }
     },
     {
@@ -1446,7 +1451,8 @@
             }
           }
         },
-        "extras": []
+        "extras": [],
+        "file": "cat.8bs"
       }
     },
     {
@@ -1464,7 +1470,8 @@
             "length": 38,
             "file": "cat.8bs"
           }
-        ]
+        ],
+        "file": "cat.8bs"
       }
     },
     {
@@ -1499,7 +1506,8 @@
             "length": 20,
             "file": "cat.8bs"
           }
-        ]
+        ],
+        "file": "cat.8bs"
       }
     },
     {
@@ -1510,7 +1518,8 @@
       ],
       "result": {
         "namespaces": {},
-        "extras": []
+        "extras": [],
+        "file": "cat.8bs"
       }
     },
     {
@@ -1538,7 +1547,8 @@
             }
           }
         },
-        "extras": []
+        "extras": [],
+        "file": "cat.8bs"
       }
     },
     {
@@ -1566,7 +1576,8 @@
             "length": 22,
             "file": "cat.8bs"
           }
-        ]
+        ],
+        "file": "cat.8bs"
       }
     },
     {
@@ -1587,7 +1598,8 @@
             }
           }
         },
-        "extras": []
+        "extras": [],
+        "file": "cat.8bs"
       }
     },
     {
@@ -1608,7 +1620,8 @@
             }
           }
         },
-        "extras": []
+        "extras": [],
+        "file": "cat.8bs"
       }
     },
     {
@@ -1663,6 +1676,7 @@
         {
           "code": "8BS1044",
           "message": "locale 'fr' has pub mod 'Empty', which the default locale does not",
+          "file": "fr.8bs",
           "start": 0,
           "length": 0,
           "severity": "error"
@@ -1775,6 +1789,7 @@
         {
           "code": "8BS1044",
           "message": "locale 'pt' has pub mod 'Nothing', which the default locale does not",
+          "file": "pt.8bs",
           "start": 0,
           "length": 0,
           "severity": "error"
@@ -2670,6 +2685,7 @@
           {
             "code": "8BS1044",
             "message": "locale 'fr' has pub mod 'Empty', which the default locale does not",
+            "file": "<root>/gap/src/i18n/fr.8bs",
             "start": 0,
             "length": 0,
             "severity": "error"
@@ -2743,6 +2759,7 @@
           {
             "code": "8BS1044",
             "message": "locale 'fr' has pub mod 'Empty', which the default locale does not",
+            "file": "<root>/gap/src/i18n/fr.8bs",
             "start": 0,
             "length": 0,
             "severity": "error"
@@ -2817,6 +2834,7 @@
           {
             "code": "8BS1044",
             "message": "locale 'fr' has pub mod 'Empty', which the default locale does not",
+            "file": "<root>/gap/src/i18n/fr.8bs",
             "start": 0,
             "length": 0,
             "severity": "error"
@@ -3624,6 +3642,7 @@
           {
             "code": "8BS1044",
             "message": "locale 'fr' has pub mod 'Empty', which the default locale does not",
+            "file": "<root>/gap/src/i18n/fr.8bs",
             "start": 0,
             "length": 0,
             "severity": "error"
@@ -3681,6 +3700,7 @@
               {
                 "code": "8BS1044",
                 "message": "locale 'fr' has pub mod 'Empty', which the default locale does not",
+                "file": "<root>/gap/src/i18n/fr.8bs",
                 "start": 0,
                 "length": 0,
                 "severity": "error"
@@ -3856,6 +3876,7 @@
           {
             "code": "8BS1044",
             "message": "locale 'fr' has pub mod 'Empty', which the default locale does not",
+            "file": "<root>/gap/src/i18n/fr.8bs",
             "start": 0,
             "length": 0,
             "severity": "error"
@@ -3913,6 +3934,7 @@
               {
                 "code": "8BS1044",
                 "message": "locale 'fr' has pub mod 'Empty', which the default locale does not",
+                "file": "<root>/gap/src/i18n/fr.8bs",
                 "start": 0,
                 "length": 0,
                 "severity": "error"

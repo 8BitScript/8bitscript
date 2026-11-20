@@ -381,11 +381,12 @@ pub struct Extra {
     pub file: String,
 }
 
-/// `{ namespaces: Map<string, Map<string, Member>>, extras }`.
+/// `{ namespaces: Map<string, Map<string, Member>>, extras, file }`.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
 pub struct Schema {
     pub namespaces: IndexMap<String, IndexMap<String, Member>>,
     pub extras: Vec<Extra>,
+    pub file: String,
 }
 
 /// `member.name?.name`: the text of the node's `name` child, when the node has one.
@@ -408,7 +409,10 @@ fn member_name(node: &Node) -> Option<&str> {
 /// Exported namespaces of string consts in a catalog AST.
 #[must_use]
 pub fn catalog_schema(ast: &Node, file: &str) -> Schema {
-    let mut schema = Schema::default();
+    let mut schema = Schema {
+        file: file.to_string(),
+        ..Schema::default()
+    };
     let NodeKind::Program { body } = &ast.kind else {
         return schema;
     };
@@ -521,8 +525,7 @@ fn parse_catalog_file(fs: &dyn CatalogFs, file: &str) -> Result<CatalogModule, S
 /// Compare `other` against `baseline` (the default locale). Extra keys and placeholder
 /// mismatches are errors; missing keys are filled later.
 ///
-/// A namespace with no members has no file in JS (`catalogSchema` sets no `file` on the schema)
-/// and the diagnostic's `file` is missing; here that is `""`.
+/// A namespace with no members takes the diagnostic's file from `other.file`.
 #[must_use]
 pub fn compare_catalog_schemas(baseline: &Schema, other: &Schema, locale: &str) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
@@ -542,7 +545,7 @@ pub fn compare_catalog_schemas(baseline: &Schema, other: &Schema, locale: &str) 
             diagnostics.push(diagnostic(
                 codes::CATALOG_SCHEMA,
                 format!("locale '{locale}' has pub mod '{ns}', which the default locale does not"),
-                first.map_or("", |m| m.file.as_str()),
+                first.map_or(other.file.as_str(), |m| m.file.as_str()),
                 first.map_or(0, |m| m.start),
                 first.map_or(0, |m| m.length),
                 Severity::Error,

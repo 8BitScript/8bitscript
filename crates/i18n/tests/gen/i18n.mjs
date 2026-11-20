@@ -51,7 +51,7 @@ const abs = (value) => (typeof value === 'string' ? value.replaceAll('<root>', r
 const tokenized = (value) => JSON.parse(JSON.stringify(value, (_k, v) => (typeof v === 'string' ? v.replaceAll(root, '<root>') : v)));
 const absDeep = (value) => JSON.parse(JSON.stringify(value, (_k, v) => (typeof v === 'string' ? abs(v) : v)));
 const mapToObject = (map) => Object.fromEntries([...map].map(([k, v]) => [k, v instanceof Map ? mapToObject(v) : v]));
-const schemaOut = (schema) => ({ namespaces: mapToObject(schema.namespaces), extras: schema.extras });
+const schemaOut = (schema) => ({ namespaces: mapToObject(schema.namespaces), extras: schema.extras, file: schema.file });
 const parseText = (text, file) => {
   const { tokens } = tokenize(text, file, { sourceKind: '.8bs' });
   return parse(tokens, text, file, { sourceKind: '.8bs' }).ast;
@@ -124,7 +124,7 @@ for (const [a, b, locale] of [
   [EN, 'pub mod Game {\n    const NAME: string = "2048 {x}";\n    const SCORE: string = "{a} {b}";\n}\n', 'es'],
   [EN, 'pub mod Prompt {\n    const START: string = "{z}";\n}\n', 'it'],
   [EN, '', 'nl'],
-  // `catalogSchema` sets no `file` on the schema, so an empty extra namespace has no file in JS.
+  // An empty extra namespace takes the diagnostic's file from the schema's own `file`.
   [EN, 'pub mod Nothing {\n}\n', 'pt'],
   ['pub mod A { const B: string = "{x} {y}"; }\n', 'pub mod A { const B: string = "{y} {x}"; }\n', 'sv'],
   ['pub mod A { const B: string = "{y} {x}"; }\n', 'pub mod A { const B: string = "{x} {y}"; }\n', 'sv'],
