@@ -16,8 +16,8 @@
 # fold: R7.3: package::nearest_package: the error text of a package.json that fails JSON.parse is approximate ("Unexpected token X in JSON at position N"); V8's wording differs by Node version. A file that cannot be read gives Node's text for ENOENT, EACCES and EISDIR.
 # fold: R7.8: facts::fact_const_name: an empty first word (key "" or ".x") makes JS throw on `group[0].toUpperCase()`; the port returns an empty namespace. Unreachable: the only caller passes FACTS keys.
 # fold: R7.2: package::nearest_package: a lone surrogate escape in package.json ("\ud800") becomes U+FFFD, not a lone code unit.
-
-```toml
+# lower: R7.8: Lowering::namespace_declaration: a namespace member VariableDeclaration whose name is null is reported by JS (let, or a type that is not compilable) or throws at member.name.name (a compilable const); Rust skips it with no diagnostic. Unreachable: the parser builds a namespace member's VariableDeclaration only with a name (parse_variable_named returns None without one).
+# lower: R2.1: module::int: a JS number becomes an IR integer with a saturating as i64 (NaN to 0); JS keeps the f64, so a value that is not whole or is outside the i64 range is written differently. Reachable with an out-of-range literal: the IR value saturates, and the VALUE_OUT_OF_RANGE message prints the JS number, so it matches the JS.
 # media-tools (P3-21) has no corpus stage, so it has no [[divergence]] table
 # (an entry that matches nothing is STALE). Its accepted differences are
 # listed in the crate docs, `crates/media-tools/src/lib.rs`:
