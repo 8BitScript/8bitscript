@@ -49,6 +49,14 @@ impl Node {
     }
 }
 
+/// One entry of a component function's `state` list (`bx/elaborate.mjs:311`): the field name and
+/// the module-level global that holds it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct StateField {
+    pub field: String,
+    pub global: String,
+}
+
 /// `NodeType` and the props each type carries.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all_fields = "camelCase")]
@@ -88,6 +96,19 @@ pub enum NodeKind {
         #[serde(default)]
         body: Option<Box<Node>>,
         exported: bool,
+        /// Set by `.8bx` elaboration (`bx/elaborate.mjs:351`) on the functions a component
+        /// becomes: always `true` when present.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        component: Option<bool>,
+        /// The component's name (`:352`).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        owner: Option<String>,
+        /// A method hoisted out of a component body (`:368`): `true` when present.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        method: Option<bool>,
+        /// The component's state fields, only when it has any (`:353`).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        state: Option<Vec<StateField>>,
     },
     ComponentDeclaration {
         #[serde(default)]
@@ -280,6 +301,10 @@ pub enum NodeKind {
     CallExpression {
         callee: Box<Node>,
         args: Vec<Node>,
+        /// The element's instance tag, `<file>#<n>`, on the call an element of a stateful
+        /// component becomes (`bx/elaborate.mjs:134`).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        instance: Option<String>,
     },
     MemberExpression {
         object: Box<Node>,
