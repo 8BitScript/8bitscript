@@ -377,6 +377,9 @@ async function buildModule(ir: IrProgram, options: BuildOptions): Promise<BuildR
   // placed may sit under it — two things that would otherwise alias without
   // a word (a string literal read back as a screen cell).
   const dataStart = dataBaseFor(options.reserved);
+  if (cursor > 0x10000) {
+    return { ok: false, error: `the program's own data (${dataStart}..${cursor}) runs past 64 KiB; the page keeps 0..${options.reserved ?? 0} for itself` };
+  }
   let pinnedEnd = 0;
   for (const p of pinnedArrays) {
     const end = p.address + p.length * p.elementWidth;

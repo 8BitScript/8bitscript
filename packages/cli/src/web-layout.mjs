@@ -426,6 +426,15 @@ export function agreementFor({
   };
 }
 
+// The sprite region is the last thing the page reserves, and the wasm page is
+// 64 KiB: a region that runs past that cannot be addressed, so the build says
+// so up front instead of producing a page that reads the wrong bytes. Returns
+// null when the layout fits (or has no sprites), else the message.
+export function spriteRegionProblem(layout) {
+  if (!(layout.spriteCount > 0) || layout.reservedEnd <= 0x10000) return null;
+  return `the sprite region needs ${layout.reservedEnd - layout.spriteTable} bytes (${layout.spriteCount} sprites, ${layout.spritePoolBytes / 1024} KiB pool) and runs to ${layout.reservedEnd}, past 64 KiB; ask for fewer with --hardware sprites=… or spriteMemory=…`;
+}
+
 export const DEFAULT_LAYOUT = agreementFor({ userGlyphs: true, audio: true });
 
 export const GRID_COLS = DEFAULT_LAYOUT.cols;
