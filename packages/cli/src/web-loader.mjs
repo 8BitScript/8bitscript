@@ -78,6 +78,7 @@
 // below, which says what both roads need.
 import { glyphTableLiteral } from './font8x8.mjs';
 import { vicSource } from './web-vic.mjs';
+import { webSpritesSource } from './web-sprites.mjs';
 import {
   BORDER_PX, CHAR_BASE, CHAR_H, CHAR_W, COLOR_BASE, COLORS, DEFAULT_LAYOUT,
   GRID_COLS, GRID_ROWS, HOST_OFFSET, HostStatus,
@@ -297,6 +298,11 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
   // row bytes at GLYPH_BASE in the program's memory, codes GLYPH_FIRST up.
   // GLYPH_BASE is negative on a host with none (a real machine's own build).
   var GLYPH_BASE = ${layout.glyphBase ?? -1};
+  // The pixel-sprite region (web-layout.mjs): negative on a host with none.
+  var SPRITE_TABLE = ${layout.spriteTable ?? -1};
+  var SPRITE_PALETTES = ${layout.spritePalettes ?? -1};
+  var SPRITE_POOL = ${layout.spritePool ?? -1};
+  var SPRITE_POOL_BYTES = ${layout.spritePoolBytes ?? 0};
   var GLYPH_FIRST = ${layout.glyphFirst ?? GLYPH_FIRST};
   var GLYPH_COUNT = ${layout.glyphCount ?? GLYPH_COUNT};
   // The tone registers (web-layout.mjs AudioRegister): gate, note, wave,
@@ -581,6 +587,9 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
   // runs for the screenshot (vicSource() embeds it), not a mirrored copy.
   ${vicSource()}
   var spriteLayer = null;
+  // The synthetic hosts' pixel sprites: packages/cli/src/web-sprites.mjs, embedded the same way.
+  ${webSpritesSource()}
+  var pixelSprites = null;
 
   // COLORS as [r, g, b] triples, re-parsed only when applyLayout swaps the
   // palette itself.
@@ -657,6 +666,16 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
       }
       spritesDrawn = vicSprites(mem, VIC, vicWrites, INNER_W, INNER_H, spriteLayer);
     }
+    var pixelSpritesDrawn = false;
+    if (!VIC && SPRITE_TABLE >= 0) {
+      if (!pixelSprites || pixelSprites.rgb.length !== INNER_W * INNER_H) {
+        pixelSprites = { rgb: new Int32Array(INNER_W * INNER_H) };
+      }
+      pixelSprites.rgb.fill(-1);
+      pixelSpritesDrawn = webSprites(mem, {
+        spriteTable: SPRITE_TABLE, spritePalettes: SPRITE_PALETTES, spritePool: SPRITE_POOL, spritePoolBytes: SPRITE_POOL_BYTES,
+      }, INNER_W, INNER_H, palette, pixelSprites);
+    }
     // A sprite pixel over the picture's own: the front-most sprite wins, and
     // one behind the background hides under a foreground (glyph) pixel.
     function spriteInk(x, row, foreground, picture) {
@@ -720,6 +739,11 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
           ink = reverse ? (on ? backgroundInk : fg) : (on ? fg : backgroundInk);
         }
         var i = offset + (border + x) * 4;
+        if (pixelSpritesDrawn && pixelSprites.rgb[row * INNER_W + x] !== -1) {
+          var sprite = pixelSprites.rgb[row * INNER_W + x];
+          rgba[i] = (sprite >> 16) & 255; rgba[i + 1] = (sprite >> 8) & 255; rgba[i + 2] = sprite & 255; rgba[i + 3] = 255;
+          continue;
+        }
         rgba[i] = ink[0]; rgba[i + 1] = ink[1]; rgba[i + 2] = ink[2]; rgba[i + 3] = 255;
       }
     }
@@ -803,6 +827,10 @@ export function renderLoader({ frameRate = 60, layout = DEFAULT_LAYOUT } = {}) {
     if (next.rasterCountOffset != null) RASTER_COUNT_OFFSET = next.rasterCountOffset;
     if (next.rasterBase != null) RASTER_BASE = next.rasterBase;
     if (next.glyphBase != null) GLYPH_BASE = next.glyphBase;
+    if (next.spriteTable != null) SPRITE_TABLE = next.spriteTable;
+    if (next.spritePalettes != null) SPRITE_PALETTES = next.spritePalettes;
+    if (next.spritePool != null) SPRITE_POOL = next.spritePool;
+    if (next.spritePoolBytes != null) SPRITE_POOL_BYTES = next.spritePoolBytes;
     if (next.glyphFirst != null) GLYPH_FIRST = next.glyphFirst;
     if (next.glyphCount != null) GLYPH_COUNT = next.glyphCount;
     if (next.audioBase != null) AUDIO_BASE = next.audioBase;

@@ -17,6 +17,7 @@
 // semantics, never fit.
 import { glyphRows } from './font8x8.mjs';
 import { userGlyph } from './web-layout.mjs';
+import { webSprites } from './web-sprites.mjs';
 import { vicReadWrites, vicRowBase, vicSprites } from './web-vic.mjs';
 
 // The same four slot numbers every rasterline file names.
@@ -167,6 +168,12 @@ export function renderFrame(mem, layout, palette) {
     ? { color: new Int8Array(innerW * innerH), behind: new Uint8Array(innerW * innerH) }
     : null;
   const spritesDrawn = spriteLayer ? vicSprites(mem, vic, vicWrites, innerW, innerH, spriteLayer) : false;
+  // The synthetic hosts' pixel sprites (web-sprites.mjs): over the whole inner
+  // picture, scroll and raster list not applied. Off (no region), nothing here runs.
+  const pixelSprites = !vic && layout.spriteTable >= 0
+    ? { rgb: new Int32Array(innerW * innerH).fill(-1) }
+    : null;
+  const pixelSpritesDrawn = pixelSprites ? webSprites(mem, layout, innerW, innerH, palette, pixelSprites) : false;
   const put = (x, y, ink) => {
     const i = (y * width + x) * 4;
     rgba[i] = ink[0];
@@ -182,6 +189,11 @@ export function renderFrame(mem, layout, palette) {
     const sprite = spriteLayer.color[at];
     if (sprite === -1 || (spriteLayer.behind[at] === 1 && foreground)) return picture;
     return palette[sprite];
+  };
+  const withPixelSprite = (x, row, picture) => {
+    if (!pixelSpritesDrawn) return picture;
+    const rgb = pixelSprites.rgb[row * innerW + x];
+    return rgb === -1 ? picture : [(rgb >> 16) & 255, (rgb >> 8) & 255, rgb & 255];
   };
   for (let y = 0; y < height; y += 1) {
     const row = y - border;
@@ -200,7 +212,7 @@ export function renderFrame(mem, layout, palette) {
     for (let x = 0; x < innerW; x += 1) {
       const srcX = x - state.scrollX;
       if (srcX < 0) {
-        put(border + x, y, spriteInk(x, row, false, backgroundInk));
+        put(border + x, y, withPixelSprite(x, row, spriteInk(x, row, false, backgroundInk)));
         continue;
       }
       const gx = srcX % cw;
@@ -230,7 +242,7 @@ export function renderFrame(mem, layout, palette) {
       const on = ((bits >> gx) & 1) !== 0;
       const fg = colorPerCell ? palette[colorByte & 15] : palette[1];
       const ink = reverse ? (on ? backgroundInk : fg) : (on ? fg : backgroundInk);
-      put(border + x, y, ink);
+      put(border + x, y, withPixelSprite(x, row, ink));
     }
   }
   return { width, height, rgba };

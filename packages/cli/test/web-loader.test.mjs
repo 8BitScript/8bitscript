@@ -862,6 +862,37 @@ test("the loader paints the C64's sprites and the list's writes to them, identic
   assert.deepEqual(framePixel(frame, BORDER_PX + 128, BORDER_PX + 50), rgb[3], 'past the patch it shows over the background');
 });
 
+// The synthetic hosts' pixel sprites are painted by web-sprites.mjs: the screenshot
+// renderer imports it, the loader embeds its source (webSpritesSource()). Both must
+// paint the same pixels, and with the region on but no sprite shown, the same as
+// a host with no region at all.
+test("the loader paints the pixel sprites identically to renderFrame, and a region with nothing shown changes nothing", () => {
+  const layout = agreementFor({ userGlyphs: true, audio: true, sprites: true });
+  const mem = new Uint8Array(65536);
+  mem[0] = 2;
+  mem[1] = 3;
+  for (let cell = 0; cell < 200; cell += 1) {
+    mem[layout.charBase + cell] = 65 + (cell % 26);
+    mem[layout.colorBase + cell] = 1 + (cell % 7);
+  }
+  const plain = renderFrame(mem, { ...agreementFor({ userGlyphs: true, audio: true }), border: BORDER_PX }, rgbPalette(layout.palette));
+  const idle = assertPaintParity(layout, mem);
+  assert.ok(Buffer.from(idle.rgba).equals(Buffer.from(plain.rgba)), 'no sprite shown: the picture is the one with no region');
+  // Two overlapping 16x16 sprites, one at the left edge (clipped), one tinted.
+  mem.fill(0x12, layout.spritePool, layout.spritePool + 128);
+  mem.fill(0x30, layout.spritePool + 128, layout.spritePool + 256);
+  for (let n = 0; n < 2; n += 1) {
+    const at = layout.spriteTable + n * 10;
+    mem.set([1, n === 0 ? 0xf8 : 40, n === 0 ? 0xff : 0, 30 + n * 6, 0, 16, 16, n * 128, 0, n === 0 ? 255 : 5], at);
+  }
+  mem[layout.spritePalettes + 2] = 0x0f;
+  mem[layout.spritePalettes + 3] = 0x0f;
+  mem[layout.spritePalettes + 4] = 0xf0;
+  const frame = assertPaintParity(layout, mem);
+  assert.deepEqual(framePixel(frame, BORDER_PX, BORDER_PX + 30), [255, 0, 255], 'the clipped sprite draws its visible columns, own colours');
+  assert.notDeepEqual(framePixel(frame, BORDER_PX + 40, BORDER_PX + 36), framePixel(plain, BORDER_PX + 40, BORDER_PX + 36), 'the tinted sprite draws');
+});
+
 // A CHARSET band switches the loader to its ALT_GLYPHS table at the same
 // line renderFrame switches glyphRows() to the alternate set.
 test('the loader applies a CHARSET band, identically to renderFrame, on the default and PET skins', () => {

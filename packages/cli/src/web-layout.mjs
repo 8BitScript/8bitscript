@@ -170,6 +170,29 @@ export const GLYPH_BYTES = GLYPH_COUNT * GLYPH_ROW_BYTES;
 export const AUDIO_BYTES = 4;
 export const AudioRegister = { GATE: 0, NOTE: 1, WAVE: 2, VOLUME: 3 };
 
+// ---- the sprites ----------------------------------------------------------
+//
+// With `sprites: true` the agreement ends with the sprite region, after the
+// pointer block (or after the frame counter), so every offset in front of it
+// stays put:
+//
+//   spriteTable     8 slots x SPRITE_ENTRY_BYTES: FLAGS (bit 0 shown), X lo/hi,
+//                   Y lo/hi, WIDTH, HEIGHT, FRAME lo/hi (the pool offset of the
+//                   frame on show), TINT (255: the sprite's own colours)
+//   spritePalettes  8 x 32 bytes: 16 entries a slot, two bytes each in VERA
+//                   order (GGGGBBBB, then 0000RRRR); entry 0 is unused
+//   spritePool      SPRITE_POOL_BYTES of linear 4bpp frames, every sprite's
+//                   back to back, the left pixel in the high nibble
+//
+// web-sprites.mjs reads it; the library twins write it. The pool size is this
+// one constant.
+export const SPRITE_SLOTS = 8;
+export const SPRITE_ENTRY_BYTES = 10;
+export const SPRITE_TABLE_BYTES = SPRITE_SLOTS * SPRITE_ENTRY_BYTES;
+export const SPRITE_PALETTE_BYTES = SPRITE_SLOTS * 32;
+export const SPRITE_POOL_BYTES = 16384;
+export const SpriteField = { FLAGS: 0, X: 1, Y: 3, WIDTH: 5, HEIGHT: 6, FRAME: 7, TINT: 9 };
+
 // ---- the pointer ----------------------------------------------------------
 //
 // POINTER_BYTES bytes at the very end of the agreement (after the frame
@@ -307,6 +330,8 @@ export function agreementFor({
   frameCounter = false,
   // The pointer block (POINTER_BYTES) after everything else, for a machine with a mouse.
   pointer = false,
+  // The sprite region (SPRITE_POOL_BYTES etc.) at the very end, the synthetic hosts'.
+  sprites = false,
 } = {}) {
   const cells = cols * rows;
   const charBase = resizable ? RESIZABLE_CHAR_BASE : CHAR_BASE;
@@ -329,7 +354,11 @@ export function agreementFor({
   const frameOffset = frameCounter ? beforeFrame : -1;
   const afterFrame = frameCounter ? beforeFrame + 1 : beforeFrame;
   const pointerOffset = pointer ? afterFrame : -1;
-  const reservedEnd = pointer ? afterFrame + POINTER_BYTES : afterFrame;
+  const beforeSprites = pointer ? afterFrame + POINTER_BYTES : afterFrame;
+  const spriteTable = sprites ? beforeSprites : -1;
+  const spritePalettes = sprites ? spriteTable + SPRITE_TABLE_BYTES : -1;
+  const spritePool = sprites ? spritePalettes + SPRITE_PALETTE_BYTES : -1;
+  const reservedEnd = sprites ? spritePool + SPRITE_POOL_BYTES : beforeSprites;
   return {
     cols,
     rows,
@@ -352,6 +381,10 @@ export function agreementFor({
     audioBase,
     frameOffset,
     pointerOffset,
+    spriteTable,
+    spritePalettes,
+    spritePool,
+    spritePoolBytes: sprites ? SPRITE_POOL_BYTES : 0,
     reservedEnd,
     rasterMaxEntries: RASTER_MAX_ENTRIES,
     columnsOffset: COLUMNS_OFFSET,
@@ -671,6 +704,7 @@ export function layoutForRealMachine(target, hardware = {}) {
     resizable: false,
     pixelAspect,
     userGlyphs: real?.userGlyphs === true,
+    sprites: real?.sprites === true,
     frameCounter: real?.frameCounter === true,
     // The build's own mouse fact: the X16's by default, the C64's with a 1351.
     pointer: facts['input.mouse'] === true,
@@ -715,6 +749,10 @@ export function sidecarJson(layout = DEFAULT_LAYOUT) {
     rasterCountOffset: layout.rasterCountOffset,
     rasterBase: layout.rasterBase,
     glyphBase: layout.glyphBase,
+    spriteTable: layout.spriteTable ?? -1,
+    spritePalettes: layout.spritePalettes ?? -1,
+    spritePool: layout.spritePool ?? -1,
+    spritePoolBytes: layout.spritePoolBytes ?? 0,
     glyphFirst: layout.glyphFirst,
     glyphCount: layout.glyphCount,
     audioBase: layout.audioBase,
