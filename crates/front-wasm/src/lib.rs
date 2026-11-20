@@ -49,10 +49,29 @@ fn text_of<'a>(req: &'a Request, key: &str) -> Result<&'a str, String> {
         .ok_or_else(|| format!("bad request: `{key}` must be a string"))
 }
 
-fn reply(result: Result<Value, String>) -> Vec<u8> {
-    let value = result.unwrap_or_else(|message| json!({ "error": message }));
-    serde_json::to_vec(&value)
+fn error_reply(message: &str) -> Vec<u8> {
+    serde_json::to_vec(&json!({ "error": message }))
         .unwrap_or_else(|_| br#"{"error":"could not serialize the reply"}"#.to_vec())
+}
+
+fn reply(result: Result<Value, String>) -> Vec<u8> {
+    match result {
+        Ok(value) => serde_json::to_vec(&value)
+            .unwrap_or_else(|_| br#"{"error":"could not serialize the reply"}"#.to_vec()),
+        Err(message) => error_reply(&message),
+    }
+}
+
+/// The `front_parse` reply. A derived struct is written in field order; a
+/// `Value` would write its keys sorted. The order of `ast` comes from
+/// `syntax::Node`, which matches the parser's property order.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ParseReply<'a, D> {
+    tokens: &'a [syntax::Token],
+    ast: &'a syntax::Node,
+    diagnostics: &'a [D],
+    lexer_diagnostics: &'a [D],
 }
 
 fn lex(req: &Request, text: &str) -> lexer::Lexed {
@@ -93,18 +112,20 @@ pub fn tokenize_json(input: &[u8]) -> Vec<u8> {
 /// are `lexerDiagnostics`, so one call can serve both `tokenize` and `parse`.
 #[must_use]
 pub fn parse_json(input: &[u8]) -> Vec<u8> {
-    reply((|| {
+    let bytes = (|| {
         let req = request(input)?;
         let text = text_of(&req, "text")?;
         let lexed = lex(&req, text);
         let parsed = parse(&lexed.tokens, text, &req.file, &parse_options(&req));
-        Ok(json!({
-            "tokens": to_value(&lexed.tokens)?,
-            "ast": to_value(&parsed.ast)?,
-            "diagnostics": to_value(&parsed.diagnostics)?,
-            "lexerDiagnostics": to_value(&lexed.diagnostics)?,
-        }))
-    })())
+        serde_json::to_vec(&ParseReply {
+            tokens: &lexed.tokens,
+            ast: &parsed.ast,
+            diagnostics: &parsed.diagnostics,
+            lexer_diagnostics: &lexed.diagnostics,
+        })
+        .map_err(|e| format!("could not serialize: {e}"))
+    })();
+    bytes.unwrap_or_else(|message| error_reply(&message))
 }
 
 fn depth(value: &Value) -> usize {
