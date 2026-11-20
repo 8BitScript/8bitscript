@@ -1,0 +1,184 @@
+{
+  "tree": {
+    "a/package.json": "{\"name\":\"outer\",\"version\":\"1.2.3\",\"extra\":{\"k\":[1,2.5,null,true]}}",
+    "a/b/c/deep.txt": "x",
+    "a/b/package.json": "{\"name\":\"@scope/inner\",\"version\":\"0.0.1\"}",
+    "a/b/c/d/e.txt": "x",
+    "a/empty/f/g.txt": "x",
+    "z/y/x.txt": "x"
+  },
+  "rows": [
+    {
+      "fn": "PACKAGE_FIELDS",
+      "args": [],
+      "result": [
+        "name",
+        "version"
+      ]
+    },
+    {
+      "fn": "nearestPackage",
+      "args": [
+        "a"
+      ],
+      "result": {
+        "path": "a/package.json",
+        "json": {
+          "name": "outer",
+          "version": "1.2.3",
+          "extra": {
+            "k": [
+              1,
+              2.5,
+              null,
+              true
+            ]
+          }
+        }
+      }
+    },
+    {
+      "fn": "nearestPackage",
+      "args": [
+        "a/b"
+      ],
+      "result": {
+        "path": "a/b/package.json",
+        "json": {
+          "name": "@scope/inner",
+          "version": "0.0.1"
+        }
+      }
+    },
+    {
+      "fn": "nearestPackage",
+      "args": [
+        "a/b/c"
+      ],
+      "result": {
+        "path": "a/b/package.json",
+        "json": {
+          "name": "@scope/inner",
+          "version": "0.0.1"
+        }
+      }
+    },
+    {
+      "fn": "nearestPackage",
+      "args": [
+        "a/b/c/d"
+      ],
+      "result": {
+        "path": "a/b/package.json",
+        "json": {
+          "name": "@scope/inner",
+          "version": "0.0.1"
+        }
+      }
+    },
+    {
+      "fn": "nearestPackage",
+      "args": [
+        "a/empty"
+      ],
+      "result": {
+        "path": "a/package.json",
+        "json": {
+          "name": "outer",
+          "version": "1.2.3",
+          "extra": {
+            "k": [
+              1,
+              2.5,
+              null,
+              true
+            ]
+          }
+        }
+      }
+    },
+    {
+      "fn": "nearestPackage",
+      "args": [
+        "a/empty/f"
+      ],
+      "result": {
+        "path": "a/package.json",
+        "json": {
+          "name": "outer",
+          "version": "1.2.3",
+          "extra": {
+            "k": [
+              1,
+              2.5,
+              null,
+              true
+            ]
+          }
+        }
+      }
+    },
+    {
+      "fn": "nearestPackage",
+      "args": [
+        "a/b/c/../.."
+      ],
+      "result": {
+        "path": "a/package.json",
+        "json": {
+          "name": "outer",
+          "version": "1.2.3",
+          "extra": {
+            "k": [
+              1,
+              2.5,
+              null,
+              true
+            ]
+          }
+        }
+      }
+    },
+    {
+      "fn": "nearestPackage",
+      "args": [
+        "a/./b/"
+      ],
+      "result": {
+        "path": "a/b/package.json",
+        "json": {
+          "name": "@scope/inner",
+          "version": "0.0.1"
+        }
+      }
+    },
+    {
+      "fn": "nearestPackage",
+      "args": [
+        "a/missing/dir"
+      ],
+      "result": {
+        "path": "a/package.json",
+        "json": {
+          "name": "outer",
+          "version": "1.2.3",
+          "extra": {
+            "k": [
+              1,
+              2.5,
+              null,
+              true
+            ]
+          }
+        }
+      }
+    },
+    {
+      "fn": "nearestPackage",
+      "args": [
+        "z/y"
+      ],
+      "result": null
+    }
+  ]
+}
