@@ -116,6 +116,7 @@ function facts(extra) {
     'video.spriteWidth': 0,
     'video.spriteHeight': 0,
     'video.spriteColors': 0,
+    'video.spriteKib': 0,
     'video.frameRate': 60,
     'audio.voices': 0,
     'audio.noise': false,
