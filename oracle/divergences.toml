@@ -16,6 +16,8 @@
 # fold: R7.3: package::nearest_package: the error text of a package.json that fails JSON.parse is approximate ("Unexpected token X in JSON at position N"); V8's wording differs by Node version. A file that cannot be read gives Node's text for ENOENT, EACCES and EISDIR.
 # fold: R7.8: facts::fact_const_name: an empty first word (key "" or ".x") makes JS throw on `group[0].toUpperCase()`; the port returns an empty namespace. Unreachable: the only caller passes FACTS keys.
 # fold: R7.2: package::nearest_package: a lone surrogate escape in package.json ("\ud800") becomes U+FFFD, not a lone code unit.
+# bx: R7.8: elaborate::transform_statement: an if/while/for body or else branch that elaborates to no statement leaves the JS key undefined (JSON.stringify drops it); Rust writes null (consequent, alternate and the loop bodies are R3.3 fields). Unreachable: the parser gives these bodies only as a BlockStatement (or null after an error), and a block always elaborates to one statement.
+# bx: R6.2: elaborate::component_function (hoisted methods): JS builds a hoisted method as { ...method, name, body, exported, component, owner, method, state }, so a decorated method's JSON has decorators before component, owner, method and state; Rust writes decorators last (syntax::Node). Key order only: the walk visits the same nodes in the same order (component, owner, method and state are not nodes), and no stage dumps the AST after elaboration.
 # media-tools (P3-21) has no corpus stage, so it has no [[divergence]] table
 # (an entry that matches nothing is STALE). Its accepted differences are
 # listed in the crate docs, `crates/media-tools/src/lib.rs`:
