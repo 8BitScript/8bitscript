@@ -101,33 +101,48 @@ jobs:
       # comment in publish-marketplace.mjs.
       # Preferred sign-in: Microsoft Entra through GitHub OIDC and a
       # user-assigned managed identity. Skipped until the owner sets the
-      # AZURE_CLIENT_ID variable on the `marketplace` environment; the PAT
-      # path below keeps working meanwhile.
+      # AZURE_CLIENT_ID variable on the `marketplace` environment. It must
+      # not stop the other stores: if it fails, the publish below falls back
+      # to VSCE_PAT when that is set, and Open VSX is unaffected.
       - name: Sign in to Azure
+        id: azlogin
         if: ${{ vars.AZURE_CLIENT_ID != '' }}
-        uses: azure/login@053f7285eb20bf5469ef084617b0b24d3cec53fc # v3.1.0
+        continue-on-error: true
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           allow-no-subscriptions: true
       # 499b84ac-1321-427f-aa17-267ca6975798 is the Azure DevOps resource.
-      # The token lives about an hour and the retry loop below spans about
-      # five minutes, so one token covers every attempt.
-      - name: Get Marketplace token
-        id: aad
-        if: ${{ vars.AZURE_CLIENT_ID != '' }}
-        run: |
-          token=$(az account get-access-token --resource 499b84ac-1321-427f-aa17-267ca6975798 --query accessToken -o tsv)
-          [ -n "$token" ] || { echo "No Entra token returned"; exit 1; }
-          echo "::add-mask::$token"
-          echo "VSCE_AAD_TOKEN=$token" >> "$GITHUB_ENV"
+      # An Entra token expires, and one attempt can wait many minutes on the
+      # gallery, so each attempt fetches a fresh token. If the fetch fails
+      # the attempt uses VSCE_PAT when set.
       - name: Publish to Visual Studio Marketplace
         id: vsce
-        if: ${{ env.VSCE_AAD_TOKEN != '' || env.VSCE_PAT != '' }}
+        if: ${{ env.VSCE_PAT != '' || steps.azlogin.outcome == 'success' }}
         continue-on-error: true
+        env:
+          AZURE_LOGIN_OUTCOME: ${{ steps.azlogin.outcome }}
         run: |
           for attempt in 1 2 3 4 5 6; do
-            node scripts/publish-marketplace.mjs /tmp/8bitscript.vsix && exit 0
+            token=""
+            if [ "$AZURE_LOGIN_OUTCOME" = success ]; then
+              token=$(az account get-access-token --resource 499b84ac-1321-427f-aa17-267ca6975798 --query accessToken -o tsv) || token=""
+              if [ -n "$token" ]; then
+                echo "::add-mask::$token"
+              elif [ -n "$VSCE_PAT" ]; then
+                echo "Could not get an Entra token; using VSCE_PAT for this attempt."
+              else
+                echo "Could not get an Entra token and VSCE_PAT is not set."
+              fi
+            else
+              echo "Azure sign-in unavailable; using VSCE_PAT."
+            fi
+            if [ -n "$token" ]; then
+              VSCE_AAD_TOKEN="$token" node scripts/publish-marketplace.mjs /tmp/8bitscript.vsix && exit 0
+            elif [ -n "$VSCE_PAT" ]; then
+              node scripts/publish-marketplace.mjs /tmp/8bitscript.vsix && exit 0
+            fi
             [ "$attempt" = 6 ] && exit 1
             echo "Marketplace publish failed (attempt $attempt/6), retrying in 60s..."
             sleep 60
@@ -148,10 +163,11 @@ jobs:
         if: always()
         env:
           VSCE_OUTCOME: ${{ steps.vsce.outcome }}
+          AZURE_CONFIGURED: ${{ vars.AZURE_CLIENT_ID != '' }}
           OVSX_OUTCOME: ${{ steps.ovsx.outcome }}
         run: |
           failed=0
-          if { [ -n "$VSCE_AAD_TOKEN" ] || [ -n "$VSCE_PAT" ]; } && [ "$VSCE_OUTCOME" != "success" ]; then
+          if { [ "$AZURE_CONFIGURED" = true ] || [ -n "$VSCE_PAT" ]; } && [ "$VSCE_OUTCOME" != "success" ]; then
             echo "Visual Studio Marketplace publish did not succeed ($VSCE_OUTCOME)"
             failed=1
           fi

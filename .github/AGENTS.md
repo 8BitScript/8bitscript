@@ -72,8 +72,10 @@ user-assigned managed identity (federated credential subject
 `repo:8BitScript/8bitscript:environment:marketplace`, publisher
 `8bitscript`), then `az account get-access-token --resource
 499b84ac-1321-427f-aa17-267ca6975798` yields a token that is masked and
-passed to `publish-marketplace.mjs` as `VSCE_AAD_TOKEN`. The token lasts
-about an hour; the six retries span about five minutes.
+passed to `publish-marketplace.mjs` as `VSCE_AAD_TOKEN`. Each of the six
+attempts fetches a fresh token. A failed Azure step does not stop the
+job: the attempt uses `VSCE_PAT` when it is set, and Open VSX is
+unaffected.
 
 Until `AZURE_CLIENT_ID` exists the job skips the Azure steps and uses
 `VSCE_PAT`. Once an Entra release has shipped, the owner deletes the
