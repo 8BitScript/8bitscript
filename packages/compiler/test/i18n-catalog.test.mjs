@@ -128,6 +128,18 @@ test('prepareCatalog reports extra keys and placeholder mismatches', async () =>
   }
 });
 
+test('prepareCatalog puts the catalog file on a namespace diagnostic with no members', async () => {
+  const dir = await catalogProject({ de: `${DE}export namespace Extra {}\n` });
+  try {
+    const prepared = prepareCatalog({ locale: 'de', i18n: catalogOptions(dir) });
+    const hit = prepared.diagnostics.find((d) => d.message.includes("namespace 'Extra'"));
+    assert.ok(hit, JSON.stringify(prepared.diagnostics));
+    assert.equal(hit.file, join(dir, 'src', 'i18n', 'de.8bs'));
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test('charset: strict refuses a non-portable catalog character', async () => {
   const dir = await catalogProject();
   try {
