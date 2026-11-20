@@ -2,3 +2,4 @@
 
 pub mod check;
 pub mod elaborate;
+pub mod tap;

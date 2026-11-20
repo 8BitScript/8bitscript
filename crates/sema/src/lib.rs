@@ -2,5 +2,6 @@
 
 pub mod binder;
 pub mod checker;
+pub mod tap;
 pub mod templates;
 pub mod types;

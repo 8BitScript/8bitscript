@@ -2,3 +2,4 @@
 
 pub mod facts;
 pub mod package;
+pub mod tap;

@@ -7,7 +7,7 @@ use mos::build::Counters;
 use mos::tap::Replay;
 use serde_json::Value;
 
-pub const USAGE: &str = "usage: cargo xtask tap <dir> [--fn <name>]";
+pub const USAGE: &str = "usage: cargo xtask tap <dir> [--front] [--fn <name>]";
 
 /// What a replay of a whole directory found.
 #[derive(Debug, Default, PartialEq, Eq)]
@@ -155,8 +155,14 @@ pub fn run(base: &Path, only: Option<&str>, replay: Replayer) -> Result<Report, 
 
 /// The command: replay with the real ports, print, return the exit code.
 pub fn command(args: &[String]) -> Result<u8, String> {
-    let (dir, only) = parse_args(args)?;
-    let report = run(&dir, only.as_deref(), &mos::tap::replay)?;
+    let front = args.iter().any(|a| a == "--front");
+    let rest: Vec<String> = args.iter().filter(|a| *a != "--front").cloned().collect();
+    let (dir, only) = parse_args(&rest)?;
+    let report = if front {
+        run(&dir, only.as_deref(), &crate::front::replay)?
+    } else {
+        run(&dir, only.as_deref(), &mos::tap::replay)?
+    };
     for line in &report.lines {
         println!("{line}");
     }
