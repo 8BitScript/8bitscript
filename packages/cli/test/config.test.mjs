@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync } from 'node:fs';
-import { mkdir, mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -144,4 +144,37 @@ test('loadConfig loads a typed .ts config from under node_modules, and cleans up
   } finally {
     await rm(root, { recursive: true, force: true });
   }
+});
+
+// A read-only directory cannot take the temp copy; root ignores the mode bits.
+const readOnlyTest = process.getuid?.() === 0 || process.platform === 'win32' ? test.skip : test;
+
+readOnlyTest('loadConfig falls back to importing the .ts itself when the directory is read-only', async () => {
+  const dir = await mkdtemp(join(tmpdir(), '8bs-config-ro-'));
+  try {
+    await writeFile(join(dir, '8bitscript.config.ts'), 'const frameRate: number = 50;\nexport default { frameRate };\n');
+    await chmod(dir, 0o555);
+    assert.deepEqual(await loadConfig(dir), { frameRate: 50 });
+    assert.deepEqual(readdirSync(dir), ['8bitscript.config.ts'], 'nothing was left behind');
+  } finally {
+    await chmod(dir, 0o755);
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+readOnlyTest('loadConfig names both failures when the read-only fallback cannot load either', async () => {
+  const dir = await mkdtemp(join(tmpdir(), '8bs-config-ro-'));
+  const stderr = [];
+  const original = process.stderr.write;
+  process.stderr.write = (chunk) => { stderr.push(String(chunk)); return true; };
+  try {
+    await writeFile(join(dir, '8bitscript.config.ts'), 'throw new Error("boom");\n');
+    await chmod(dir, 0o555);
+    assert.equal(await loadConfig(dir), null);
+  } finally {
+    process.stderr.write = original;
+    await chmod(dir, 0o755);
+    await rm(dir, { recursive: true, force: true });
+  }
+  assert.match(stderr.join(''), /cannot load 8bitscript\.config\.ts: boom \(could not write a temporary copy in .* either: EACCES\)/);
 });
