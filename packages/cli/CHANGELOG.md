@@ -1,5 +1,44 @@
 # @8bitscript/cli
 
+## 0.26.0
+
+### Minor Changes
+
+- 5910aec: Add `8bs migrate`: converts old-syntax `.8bs` and `.8bx` files to the new syntax in place, proving each result against the new front end first. `--check` reports without writing, and `--embedded` and `--fences` also convert programs inside JavaScript test files and Markdown fences. The compiler package now exports its front end as `@8bitscript/compiler/front`.
+- b71b2a5: Studio opens into the DAW module: a solid menu bar and status bar on every release target, built on a shell that later modules plug into.
+  
+  **The browser gets a high-resolution mode, `machine=hifi-hires`.** The Modern host at native text size: a font pixel is a whole number of device pixels (about 16 CSS pixels of text on any display) and the window decides how many cells fit, up to 160x100, instead of scaling a fixed ~48x27 grid to the window. Raster entries gain a tenth line bit to reach it. `hifi` is unchanged apart from now being drawn at whole device pixels.
+  
+  **Open Studio runs it** (`8bs run web`, with the high-resolution machine set in Studio's config) in the editor tab. **Open Studio on the X16 (WebAssembly)** is the new command for our Commander X16 model in the tab; the native emulator and x16emu commands are unchanged. The bars are sample text only: nothing opens or plays yet.
+
+### Patch Changes
+
+- 8cf8f99: Prepare the compiler for the new syntax: the checker reports assigning to a plain `let` (8BS1031) by block scope, `findImports` reads `use` paths, and a path-form import searches the source extensions (8BS2217 when two files match).
+  
+  The block-scope store scan now lives once in the compiler and `8bs migrate` imports it, so the converter and the checker cannot drift.
+- 316c638: Add the printer for the old-syntax converter: it turns an old-syntax program into new-syntax source, keeping comments, marking only reassigned bindings `mut`, and reporting constructs it cannot convert.
+- 3bd5246: Add `8bs build --dump-stages <dir>` (and the `EIGHTBS_DUMP_STAGES` environment variable), which writes each compiler stage's output as canonical text for comparing compiler implementations. A build without it is unchanged.
+- Updated dependencies [33f8179]
+- Updated dependencies [8cf8f99]
+- Updated dependencies [562eb57]
+- Updated dependencies [5910aec]
+- Updated dependencies [cd22c5f]
+- Updated dependencies [2b7edfe]
+- Updated dependencies [b71b2a5]
+  - @8bitscript/compiler@0.26.0
+  - @8bitscript/studio@0.26.0
+  - @8bitscript/web@0.26.0
+  - @8bitscript/language-server@0.26.0
+  - @8bitscript/examples@0.26.0
+  - @8bitscript/atari8@0.26.0
+  - @8bitscript/c128@0.26.0
+  - @8bitscript/c64@0.26.0
+  - @8bitscript/cx16@0.26.0
+  - @8bitscript/mega65@0.26.0
+  - @8bitscript/nes@0.26.0
+  - @8bitscript/pet@0.26.0
+  - @8bitscript/vic20@0.26.0
+
 ## 0.25.0
 
 ### Minor Changes
