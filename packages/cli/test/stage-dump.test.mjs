@@ -27,18 +27,20 @@ function capture(fn) {
 }
 
 const PROGRAM = [
-  'let score: utinyint = 0;',
-  'export function main(): void {',
+  'let mut score: utinyint = 0;',
+  'pub fn main() {',
   '    score += 1;',
-  '    memory.write(0x8000, score);',
+  '    memory::write(0x8000, score);',
   '}',
-  '',
 ].join('\n');
 
 const RECURSIVE = [
-  'function again(): void { again(); }',
-  'export function main(): void { again(); }',
-  '',
+  'fn again() {',
+  '    again();',
+  '}',
+  'pub fn main() {',
+  '    again();',
+  '}',
 ].join('\n');
 
 /** Every file under `root` as `relative path -> text`, sorted. */
@@ -314,7 +316,7 @@ test('--release gives each output its own directory under the dump directory', a
   try {
     const dir = join(base, 'p');
     await project(dir);
-    await writeFile(join(dir, '8bitscript.config.8bs'), 'export default { entry: "src/main.8bs", targets: { pet: { hardware: { model: "4032", ram: "32" }, release: ["2001", {}] }, web: {} } };\n');
+    await writeFile(join(dir, '8bitscript.config.ts'), 'export default { entry: "src/main.8bs", targets: { pet: { hardware: { model: "4032", ram: "32" }, release: ["2001", {}] }, web: {} } };\n');
     const out = join(base, 'out');
     const { result, text } = await inDir(dir, () => capture(() => build(['--release', '--dump-stages', out])));
     assert.equal(result, 0, text);

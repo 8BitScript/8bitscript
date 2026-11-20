@@ -8,7 +8,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 import { readFileSync } from 'node:fs';
-import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, rename, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -207,7 +207,7 @@ test('an .8bx buffer: a diagnostic inside an attribute expression reaches the ed
     // `nope` is line 1, characters 40..48 — the attribute, not the tag or
     // the file's start. An untitled buffer has no extension, so the
     // language id is what says this is 8BX.
-    const text = 'component A(v: utinyint) { }\nexport function main(): void { <A v={1} nope={2} />; }\n';
+    const text = 'component A(v: utinyint) { }\npub fn main() { <A v={1} nope={2} />; }\n';
     client.notify('textDocument/didOpen', {
       textDocument: { uri: 'untitled:Untitled-1', languageId: '8bitextensible', version: 1, text },
     });
@@ -250,7 +250,7 @@ test('textDocument/hover on port.write shows the port I/O docs', async () => {
     await client.request('initialize', { processId: null, rootUri: null, capabilities: {} });
     client.notify('initialized', {});
 
-    const text = 'export function main(): void { port.write(0xFE, 0); }\n';
+    const text = 'pub fn main() { port::write(0xFE, 0); }\n';
     client.notify('textDocument/didOpen', {
       textDocument: { uri: URI, languageId: '8bitscript', version: 1, text },
     });
@@ -262,7 +262,7 @@ test('textDocument/hover on port.write shows the port I/O docs', async () => {
     });
 
     assert.ok(response.result);
-    assert.match(response.result.contents.value, /port.write/);
+    assert.match(response.result.contents.value, /port::write/);
     assert.match(response.result.contents.value, /OUT/);
   });
 });
@@ -297,10 +297,10 @@ test('an .8bx buffer: hover on a tag names the component, completion after < off
   const projectDir = await mkdtemp(join(tmpdir(), '8bs-lsp-bx-'));
   try {
     const menuPath = join(projectDir, 'Menu.8bx');
-    const menu = '// A bar with items in it.\nexport component MenuBar(row: utinyint, width: usmallint) {\n    memory.write(0x8000, row);\n}\n';
+    const menu = '// A bar with items in it.\npub component MenuBar(row: utinyint, width: usmallint) {\n    memory::write(0x8000, row);\n}\n';
     await writeFile(menuPath, menu);
     const viewPath = join(projectDir, 'View.8bx');
-    const text = 'import { MenuBar } from "./Menu.8bx";\nexport function draw(): void {\n    <MenuBar row={0} />;\n    <\n}\n';
+    const text = 'use self::Menu::MenuBar;\npub fn draw() {\n    <MenuBar row={0} />;\n    <\n}\n';
     await writeFile(viewPath, text);
     const uri = pathToFileURL(viewPath).href;
 
@@ -367,17 +367,21 @@ const PORTABLE = {
     '8bitscript': { entry: { pet: './src/pet.8bs', web: './src/web.8bs' } },
   }),
   'node_modules/@t/hw/src/pet.8bs': [
-    'export namespace screen {',
+    'pub mod screen {',
     '    // Blanks the screen.',
-    '    function blank(): void {}',
+    '    fn blank() {',
+    '    }',
     '}',
   ].join('\n'),
   'node_modules/@t/hw/src/web.8bs': [
-    'export namespace screen {',
+    'pub mod screen {',
     '    // Blanks the screen.',
-    '    function blank(): void {}',
+    '    fn blank() {',
+    '    }',
     '    // True while the page has marked this host as a touchscreen.',
-    '    function touch(): bool { return false; }',
+    '    fn touch() -> bool {',
+    '        return false;',
+    '    }',
     '}',
   ].join('\n'),
 };
@@ -389,10 +393,10 @@ async function withPortableProject(config, fn) {
       await mkdir(dirname(join(projectDir, name)), { recursive: true });
       await writeFile(join(projectDir, name), text);
     }
-    if (config) await writeFile(join(projectDir, '8bitscript.config.8bs'), config);
+    if (config) await writeFile(join(projectDir, '8bitscript.config.ts'), config);
     await mkdir(join(projectDir, 'src'), { recursive: true });
     const mainPath = join(projectDir, 'src', 'main.8bs');
-    const text = 'import { screen } from "@t/hw";\nexport function main(): void {\n    screen.blank();\n    screen.touch();\n    screen.\n}\n';
+    const text = 'use @t::hw::screen;\npub fn main() {\n    screen::blank();\n    screen::touch();\n    screen::\n}\n';
     await writeFile(mainPath, text);
     await withServer(async (client) => {
       await client.request('initialize', { processId: null, rootUri: null, capabilities: {} });
@@ -413,7 +417,7 @@ test('hover on a portable member shows the API every machine agrees on, with no 
       textDocument: { uri },
       position: positionAt(text, text.indexOf('blank') + 2),
     });
-    assert.match(hover.result.contents.value, /\*\*screen\.blank\(\): void\*\*/);
+    assert.match(hover.result.contents.value, /\*\*screen::blank\(\)\*\*/);
     assert.match(hover.result.contents.value, /Blanks the screen\./);
     assert.ok(!hover.result.contents.value.includes('Shown as implemented'), 'the one-machine footer is gone');
     assert.ok(!hover.result.contents.value.includes('Available on'));
@@ -448,21 +452,21 @@ test('completion after object. lists the merged members and annotates the machin
   await withPortableProject(null, async (client, uri, text) => {
     const completion = await client.request('textDocument/completion', {
       textDocument: { uri },
-      position: positionAt(text, text.indexOf('screen.\n') + 7),
+      position: positionAt(text, text.indexOf('screen::\n') + 8),
     });
     assert.deepEqual(completion.result.map((i) => [i.label, i.detail]), [
-      ['blank', 'screen.blank(): void'],
-      ['touch', 'screen.touch(): bool — web only'],
+      ['blank', 'screen::blank()'],
+      ['touch', 'screen::touch() -> bool — web only'],
     ]);
   });
 });
 
-test('textDocument/hover explains memory.write', async () => {
+test('textDocument/hover explains memory::write', async () => {
   await withServer(async (client) => {
     await client.request('initialize', { processId: null, rootUri: null, capabilities: {} });
     client.notify('initialized', {});
 
-    const text = 'export function f(): void { memory.write(36879, 27); }';
+    const text = 'pub fn f() { memory::write(36879, 27); }';
     client.notify('textDocument/didOpen', {
       textDocument: { uri: URI, languageId: '8bitscript', version: 1, text },
     });
@@ -642,7 +646,7 @@ test('diagnostics: a string outside the portable character set reaches the edito
     // '~' is outside the portable set on every target; lower case ('tick'
     // unchanged) is not — packages/pet/src/text.8bs's own text character
     // set holds both cases at once.
-    const text = 'function f(s: string): void { }\nexport function main(): void { f("t~ck"); }\n';
+    const text = 'fn f(s: string) { }\npub fn main() { f("t~ck"); }\n';
     client.notify('textDocument/didOpen', {
       textDocument: { uri: URI, languageId: '8bitscript', version: 1, text },
     });
@@ -651,7 +655,7 @@ test('diagnostics: a string outside the portable character set reaches the edito
     const [d] = published.params.diagnostics;
     assert.equal(d.code, '8BS1026');
     assert.equal(d.range.start.line, 1);
-    assert.equal(d.range.start.character, 'export function main(): void { f('.length);
+    assert.equal(d.range.start.character, 'pub fn main() { f('.length);
     assert.match(d.message, /portable character set/);
   });
 });
@@ -661,7 +665,7 @@ test('diagnostics: a misplaced template and an unsizeable field reach the editor
     await client.request('initialize', { processId: null, rootUri: null, capabilities: {} });
     client.notify('initialized', {});
 
-    const text = 'export function main(): void {\n    text.putChar(0, `A`);\n    text.print(0, `${text.width()}`);\n}\n';
+    const text = 'pub fn main() {\n    text::putChar(0, `A`);\n    text::print(0, `${text::width()}`);\n}\n';
     client.notify('textDocument/didOpen', {
       textDocument: { uri: URI, languageId: '8bitscript', version: 1, text },
     });
@@ -669,9 +673,9 @@ test('diagnostics: a misplaced template and an unsizeable field reach the editor
     assert.deepEqual(published.params.diagnostics.map((d) => d.code), ['8BS1028', '8BS1029']);
     const [misplaced, field] = published.params.diagnostics;
     assert.equal(misplaced.range.start.line, 1);
-    assert.equal(misplaced.range.start.character, '    text.putChar(0, '.length);
+    assert.equal(misplaced.range.start.character, '    text::putChar(0, '.length);
     assert.equal(field.range.start.line, 2);
-    assert.match(field.message, /say it: \$\{text\.width\(\):3\}/);
+    assert.match(field.message, /say it: \$\{text::width\(\):3\}/);
   });
 });
 
@@ -680,7 +684,7 @@ test('diagnostics: assigning to a const reaches the editor at the name', async (
     await client.request('initialize', { processId: null, rootUri: null, capabilities: {} });
     client.notify('initialized', {});
 
-    const text = 'const LIMIT: utinyint = 4;\nexport function main(): void { LIMIT = 5; }\n';
+    const text = 'const LIMIT: utinyint = 4;\npub fn main() { LIMIT = 5; }\n';
     client.notify('textDocument/didOpen', {
       textDocument: { uri: URI, languageId: '8bitscript', version: 1, text },
     });
@@ -689,7 +693,7 @@ test('diagnostics: assigning to a const reaches the editor at the name', async (
     const [d] = published.params.diagnostics;
     assert.equal(d.code, '8BS1031');
     assert.equal(d.range.start.line, 1);
-    assert.equal(d.range.start.character, 'export function main(): void { '.length);
+    assert.equal(d.range.start.character, 'pub fn main() { '.length);
     assert.equal(d.range.end.character, d.range.start.character + 'LIMIT'.length);
   });
 });
@@ -699,7 +703,7 @@ test('diagnostics: a const spelt like a variable and a call with the wrong count
     await client.request('initialize', { processId: null, rootUri: null, capabilities: {} });
     client.notify('initialized', {});
 
-    const text = 'const Limit: utinyint = 4;\nfunction f(a: utinyint, b: utinyint = 2): void { }\nexport function main(): void { f(); }\n';
+    const text = 'const Limit: utinyint = 4;\nfn f(a: utinyint, b: utinyint = 2) { }\npub fn main() { f(); }\n';
     client.notify('textDocument/didOpen', {
       textDocument: { uri: URI, languageId: '8bitscript', version: 1, text },
     });
@@ -720,7 +724,7 @@ test('textDocument/hover works inside a template field, and on the #frames spell
     await client.request('initialize', { processId: null, rootUri: null, capabilities: {} });
     client.notify('initialized', {});
 
-    const text = 'export function main(): void { text.print(0, `T ${#frames(0.5, seconds):2}`); }\n';
+    const text = 'pub fn main() { text::print(0, `T ${#frames(0.5, seconds):2}`); }\n';
     client.notify('textDocument/didOpen', {
       textDocument: { uri: URI, languageId: '8bitscript', version: 1, text },
     });
@@ -751,7 +755,7 @@ test('diagnostics: a construct the compiler cannot lower yet reaches the editor 
     // Both parse and break no rule; both are 8BS3001. Seeing them here is
     // the point: `analyze()` lowers, so the editor answers "will this
     // build", not only "does this parse".
-    const text = 'const BIG: usmallint = 400;\nlet cursor: ptr<utinyint>;\nexport function main(): void {\n    let local: utinyint = 1;\n    memory.write(1024, BIG);\n}\n';
+    const text = 'const BIG: usmallint = 400;\nlet cursor: ptr<utinyint>;\npub fn main() {\n    let local: utinyint = 1;\n    memory::write(1024, BIG);\n}\n';
     client.notify('textDocument/didOpen', {
       textDocument: { uri: URI, languageId: '8bitscript', version: 1, text },
     });
@@ -770,16 +774,16 @@ test('diagnostics: a construct the compiler cannot lower yet reaches the editor 
 // `#frames(4.5, seconds)` in a utinyint (0..255) overflows at the default
 // frameRate (4.5 * 60 = 270) but fits at a configured 50 (4.5 * 50 = 225) —
 // a diagnostic that only differs between the two rates, so it proves whether
-// the server actually read 8bitscript.config.8bs rather than always assuming 60.
-const OVERFLOWS_AT_60_FITS_AT_50 = 'let x: utinyint = #frames(4.5, seconds);\nexport function main(): void {}\n';
+// the server actually read 8bitscript.config.ts rather than always assuming 60.
+const OVERFLOWS_AT_60_FITS_AT_50 = 'let x: utinyint = #frames(4.5, seconds);\npub fn main() {}\n';
 
-test('diagnostics assume frameRate 60 when no 8bitscript.config.8bs is found', async () => {
+test('diagnostics assume frameRate 60 when no 8bitscript.config.ts is found', async () => {
   await withServer(async (client) => {
     await client.request('initialize', { processId: null, rootUri: null, capabilities: {} });
     client.notify('initialized', {});
 
     // file:///t.8bs has no real project directory on disk, so the upward
-    // search for 8bitscript.config.8bs finds nothing and falls back to 60 — same as
+    // search for 8bitscript.config.ts finds nothing and falls back to 60 — same as
     // link()/analyze()'s own default.
     client.notify('textDocument/didOpen', {
       textDocument: { uri: URI, languageId: '8bitscript', version: 1, text: OVERFLOWS_AT_60_FITS_AT_50 },
@@ -791,11 +795,11 @@ test('diagnostics assume frameRate 60 when no 8bitscript.config.8bs is found', a
   });
 });
 
-test('diagnostics use the project\'s 8bitscript.config.8bs frameRate, walking up from the document', async () => {
+test('diagnostics use the project\'s 8bitscript.config.ts frameRate, walking up from the document', async () => {
   const projectDir = await mkdtemp(join(tmpdir(), '8bs-lsp-frameRate-'));
   try {
     await writeFile(
-      join(projectDir, '8bitscript.config.8bs'),
+      join(projectDir, '8bitscript.config.ts'),
       "export default { entry: 'src/main.8bs', targets: ['vic20'], frameRate: 50 };\n",
     );
     await mkdir(join(projectDir, 'src'));
@@ -881,7 +885,7 @@ test('diagnostics: @8bitscript/i18n/catalog with no catalog directory reaches th
   try {
     await mkdir(join(projectDir, 'src'));
     const filePath = join(projectDir, 'src', 'main.8bs');
-    const text = 'import { Game } from "@8bitscript/i18n/catalog";\nexport function main(): void {}\n';
+    const text = 'use @8bitscript::i18n::catalog::Game;\npub fn main() {}\n';
     await writeFile(filePath, text);
     const uri = pathToFileURL(filePath).href;
 
@@ -917,11 +921,11 @@ test('diagnostics: a package subpath the package does not export reaches the edi
       name: '@t/p',
       '8bitscript': { entry: './src/index.8bs', exports: { './screen': './src/screen.8bs' } },
     }));
-    await writeFile(join(pkgDir, 'src', 'index.8bs'), 'export let a: u8 = 1;\n');
-    await writeFile(join(pkgDir, 'src', 'screen.8bs'), 'export let b: u8 = 2;\n');
+    await writeFile(join(pkgDir, 'src', 'index.8bs'), 'pub let mut a: u8 = 1;\n');
+    await writeFile(join(pkgDir, 'src', 'screen.8bs'), 'pub let mut b: u8 = 2;\n');
     await mkdir(join(projectDir, 'src'));
     const filePath = join(projectDir, 'src', 'main.8bs');
-    const text = 'import { b } from "@t/p/screen";\nimport { s } from "@t/p/sprites";\nexport function main(): void {}\n';
+    const text = 'use @t::p::screen::b;\nuse @t::p::sprites::s;\npub fn main() {}\n';
     await writeFile(filePath, text);
     const uri = pathToFileURL(filePath).href;
 
@@ -959,14 +963,15 @@ test('textDocument/hover explains a named import\'s own namespace member', async
     await writeFile(
       join(projectDir, 'screen.8bs'),
       [
-        'export namespace screen {',
+        'pub mod screen {',
         '    // Every cell blank, both colors black.',
-        '    function blank(border: u8 = 0, background: u8 = 0): void { }',
+        '    fn blank(border: u8 = 0, background: u8 = 0) {',
+        '    }',
         '}',
       ].join('\n'),
     );
     const filePath = join(projectDir, 'main.8bs');
-    const text = 'import { screen } from "./screen.8bs";\nexport function main(): void {\n    screen.blank();\n}\n';
+    const text = 'use self::screen::screen;\npub fn main() {\n    screen::blank();\n}\n';
     await writeFile(filePath, text);
     const uri = pathToFileURL(filePath).href;
 
@@ -985,7 +990,7 @@ test('textDocument/hover explains a named import\'s own namespace member', async
       });
 
       assert.ok(response.result);
-      assert.match(response.result.contents.value, /\*\*screen\.blank\(border: u8 = 0, background: u8 = 0\): void\*\*/);
+      assert.match(response.result.contents.value, /\*\*screen::blank\(border: u8 = 0, background: u8 = 0\)\*\*/);
       assert.match(response.result.contents.value, /Every cell blank, both colors black\./);
     });
   } finally {
@@ -999,14 +1004,16 @@ test('textDocument/completion offers a named import\'s members after a dot', asy
     await writeFile(
       join(projectDir, 'screen.8bs'),
       [
-        'export namespace screen {',
-        '    function blank(): void { }',
-        '    function setBorder(border: u8): void { }',
+        'pub mod screen {',
+        '    fn blank() {',
+        '    }',
+        '    fn setBorder(border: u8) {',
+        '    }',
         '}',
       ].join('\n'),
     );
     const filePath = join(projectDir, 'main.8bs');
-    const text = 'import { screen } from "./screen.8bs";\nexport function main(): void {\n    screen.bl\n}\n';
+    const text = 'use self::screen::screen;\npub fn main() {\n    screen::bl\n}\n';
     await writeFile(filePath, text);
     const uri = pathToFileURL(filePath).href;
 
@@ -1021,7 +1028,7 @@ test('textDocument/completion offers a named import\'s members after a dot', asy
 
       const response = await client.request('textDocument/completion', {
         textDocument: { uri },
-        position: positionAt(text, text.indexOf('screen.bl') + 'screen.bl'.length),
+        position: positionAt(text, text.indexOf('screen::bl') + 'screen::bl'.length),
       });
 
       const labels = response.result.map((item) => item.label);
@@ -1029,7 +1036,7 @@ test('textDocument/completion offers a named import\'s members after a dot', asy
       const blank = response.result.find((item) => item.label === 'blank');
       assert.equal(blank.kind, LSP_COMPLETION_KIND.Function);
       assert.equal(blank.documentation.kind, 'markdown');
-      assert.match(blank.documentation.value, /\*\*screen\.blank\(\): void\*\*/);
+      assert.match(blank.documentation.value, /\*\*screen::blank\(\)\*\*/);
     });
   } finally {
     await rm(projectDir, { recursive: true, force: true });
@@ -1053,6 +1060,29 @@ test('staleConfigPath finds an old 8bitscript.config.8bs only when no current co
     assert.equal(staleConfigPath(join(dir, 'src')), join(dir, '8bitscript.config.8bs'));
     await writeFile(join(dir, '8bitscript.config.ts'), 'export default {};\n');
     assert.equal(staleConfigPath(join(dir, 'src')), null);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('forgetFixedStale drops a warned old-name config once it is renamed, so a regression warns again', async () => {
+  const { forgetFixedStale, staleConfigPath } = await import('../src/server.mjs');
+  const dir = await mkdtemp(join(tmpdir(), '8bs-ls-stale-'));
+  try {
+    const old = join(dir, '8bitscript.config.8bs');
+    await writeFile(old, 'export default {};\n');
+    const warned = new Set([staleConfigPath(dir)]);
+    forgetFixedStale(warned);
+    assert.deepEqual([...warned], [old], 'still stale: stays warned');
+    await rename(old, join(dir, '8bitscript.config.ts'));
+    forgetFixedStale(warned);
+    assert.equal(warned.size, 0, 'fixed: forgotten');
+    await rename(join(dir, '8bitscript.config.ts'), old);
+    assert.equal(staleConfigPath(dir), old, 'a regression is stale again');
+    warned.add(old);
+    await writeFile(join(dir, '8bitscript.config.ts'), 'export default {};\n');
+    forgetFixedStale(warned);
+    assert.equal(warned.size, 0, 'a current config beside it also clears it');
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

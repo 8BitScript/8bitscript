@@ -42,7 +42,7 @@ Do not describe more than this as working:
   (the linker's per-build `mediaSlots` tally) and warns where a picture
   is cut short or left with none. `packages/graphics/src/index.pet.8bs`
   defines every frame's shape up front and steps them in
-  `graphics::update()`; `test/graphics::test.mjs` is the proof, under xpet
+  `graphics::update()`; `test/graphics.test.mjs` is the proof, under xpet
   on the 2001, 3032, 4032 and 8032. A picture that changes frame near
   the top of the screen can be seen part-old, part-new for that frame —
   the sprite layer redraws against the beam (`packages/sprites`
@@ -275,7 +275,7 @@ under xpet, not recalled.
 | ROM sets: 3032 = kernal-2 + edit-2-**n** (graphics keyboard) + characters-2 (901447-10) + basic-2; 4032 = kernal-4 + edit-4-40-n-50Hz + characters-2 + basic-4; 8032 = kernal-4 + edit-4-80-**b**-50Hz + characters-2 + basic-4; 2001 = kernal-1 + edit-1-n + characters-1 (901447-**08**) + basic-1. | `/opt/homebrew/share/vice/PET/*.vrs` |
 | Measured frame period under VICE's 4032 (PAL): ~19992 cycles, 50.02 Hz. | `FRAME_SYNC.pet` comment (this project's earlier measurement) |
 | The catalog's stock fact sheet: grid 40×25 of 8×8 (80 on the 8032, its `model` value's fact), 2 colors, 2 per cell (normal and reverse), no redefinable glyphs, 2×2 PETSCII blocks, no bitmap, one layer, no scroll, no sprites; one CB2 voice with no volume, envelope, noise, samples or random source; keyboard, no joystick or pad ports; disk; RAM per model (`memory::ram` on each `model` value, from `__ram_size`), nothing banked, no mouse or paddles. | `src/geometry.8bs`, `src/geometry.pet.8032.8bs`; the `__ram_size` and sound rows above; `package.json` (read) |
-| The sixteen quadrant-block screen codes: eight ROM glyphs at 96-127 (blank, a half, one quadrant alone, or the TL+BR diagonal), byte-identical whether the ROM address's charset-select bit is 0 or 1, and their reverse-video complements at 224-255 cover the remaining eight patterns (top half, the TR+BL diagonal, and every three-quarter pattern). | a script reading `characters-2.901447-10.bin` 8 bytes/glyph, `packages/pet/src/blocks.8bs`, `packages/pet/test/blocks::test.mjs`'s xpet screenshot check |
+| The sixteen quadrant-block screen codes: eight ROM glyphs at 96-127 (blank, a half, one quadrant alone, or the TL+BR diagonal), byte-identical whether the ROM address's charset-select bit is 0 or 1, and their reverse-video complements at 224-255 cover the remaining eight patterns (top half, the TR+BL diagonal, and every three-quarter pattern). | a script reading `characters-2.901447-10.bin` 8 bytes/glyph, `packages/pet/src/blocks.8bs`, `packages/pet/test/blocks.test.mjs`'s xpet screenshot check |
 | `xpet -drive8type` (both #8 and #9) takes exactly nine values: `0` no drive, `2031` CBM 2031, `2040` CBM 2040, `3040` CBM 3040, `4040` CBM 4040, `1001` CBM 1001 (the SFD-1001), `8050` CBM 8050, `8250` CBM 8250, `9000` CBM D9090/60 — one flag, no image format in it. Units run `-8`/`-9`/`-10`/`-11`; a dual drive's second mechanism is `-8d1` etc. Two tape ports exist (`-1`, `-2`, both "Attach \<name\> as a tape image"), matching PIA1's cassette #1 pins (above) and VIA's cassette #2 pins (below). | `xpet -help`, VICE 3.10, this host |
 | Real capacity per drive, measured rather than recalled: `c1541 -format` an image of each type and read its own directory's free-block count back (a block holds 254 usable data bytes — 256 minus the 2-byte next-track/sector link). D64 (2031, 4040, and 1541 — 2031/4040 named alongside the 1541 as D64-compatible; DOS 2) 664 blocks = 164 KiB; D67 (2040, 3040 — DOS 1) 670 blocks = 166 KiB; D80 (8050) 2052 blocks = 508 KiB; D82 (8250, and the SFD-1001's own single-drive `1001` type — same double-sided 77-track geometry, cross-checked against its documented 1,066,496-byte raw image size) 4133 blocks = 1025 KiB; D90 (`9000`) 29162 blocks = 7233 KiB. The 2040 and 3040 are the same DOS 1 drive, NTSC vs PAL — the 4040 is a different, later DOS (2.0), not a third region. | `c1541 -format` (d64/d67/d80/d82/d90), VICE 3.10, this host; lib1541img/lemon64 (2031+4040 named as D64); Computing History UK (SFD-1001 image size) |
 | `c1541 -format t,01 d90` (the only image format VICE's tools offer for the `9000` drive type) produces a 152-track image, 29162 blocks free — the larger D9090's geometry (7.5 MB nominal), not the smaller D9060's (5 MB). VICE has one `-drive8type` for both real products; this only establishes what the D90 *image format* is sized for, not that `xpet` itself defaults every `9000` drive to D9090 internals. | measured here (`c1541`, not `xpet`); a community report independently gives the same 29162-block count for a D9090 |
@@ -809,7 +809,7 @@ shared constants and every existing fit against them, needs re-deriving.
 **Verified under xpet (VICE 3.10), 2026-09-30, `--hardware model=3032`.**
 `test/raster-probe.8bs` builds a list once (graphics above picture line
 30, text from 30–139, graphics again from 140) and holds it live across
-a running frame loop; `test/raster::test.mjs` checks it two ways:
+a running frame loop; `test/raster.test.mjs` checks it two ways:
 
 - Two whole-frame references (`$E84C` held at `$0C`, and at `$0E`, for
   the entire capture) give every row's true pixel pattern for code 1 —
@@ -844,7 +844,7 @@ a running frame loop; `test/raster::test.mjs` checks it two ways:
 `test/raster-probe.pet.4032.8bs` builds an eight-entry list (picture lines
 20/40/60/80/100/120/140/160, alternating text and graphics so the first
 entry's value differs from the last entry's — see why below) and holds it
-live across a running frame loop; `test/raster::test.mjs` checks it the
+live across a running frame loop; `test/raster.test.mjs` checks it the
 same two ways the 3032's own probe is checked, at `--frames` 300 and 350,
 sampling three lines inside each of the eight 20-line bands plus the band
 before the first entry — nine bands, twenty-seven points, both frame
@@ -914,7 +914,7 @@ all — confirmed with a plain `waitFrame()` loop and no raster list),
 renders blank where both references show real content. It does not
 appear at either intended split's own line, it does not move when the
 driver's own timing constants change, and it does not affect whether the
-split itself is correct — `test/raster::test.mjs`'s checks avoid the
+split itself is correct — `test/raster.test.mjs`'s checks avoid the
 handful of lines it has been seen at. Left as an open question rather
 than explained away: possibly a VICE 3.10 non-CRTC rendering quirk,
 unconfirmed against real hardware or against the VICE source.

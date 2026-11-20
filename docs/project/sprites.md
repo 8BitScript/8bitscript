@@ -186,7 +186,7 @@ the ~250–550 hand-written *(estimate)*.
    under xpet. The swarm's PET is the 3032 from here: the twin's tables
    (252 bytes of shape patterns, 72 of save-under) put the example past
    the 2001's 4K.
-3. Native `multiplex::update`: shipped as `native/6502/multiplex::s`, the
+3. Native `multiplex::update`: shipped as `native/6502/multiplex.s`, the
    tables in page $06, the same steps and drops as the 8BitScript body
    it replaced (the x64sc sprite and multiplex probes passed unchanged).
    ~9,500 cycles for sixteen where the compiled body was ~16,000 — with

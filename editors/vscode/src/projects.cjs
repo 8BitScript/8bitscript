@@ -1,7 +1,7 @@
 // Project discovery for the side bar.
 //
-// An 8BitScript project is a directory with an `8bitscript.config.8bs` (or
-// an older `.ts` name) in it. That file is the manifest: the CLI
+// An 8BitScript project is a directory with an `8bitscript.config.ts` (or
+// `8bs.config.ts`) in it. That file is the manifest: the CLI
 // already reads it for the entry file and the list of systems the program
 // builds for, so the editor uses the same marker rather than a second list
 // that would have to be kept in step with it. A package.json alone is not
@@ -55,6 +55,18 @@ function staleConfigMessage(configPath) {
 function staleConfigsOnly(found, stale) {
   const dirs = new Set(found.map((p) => path.dirname(p)));
   return stale.filter((p) => !dirs.has(path.dirname(p)));
+}
+
+/**
+ * Forget reported old-name configs that are no longer stale (renamed or
+ * removed), so one that comes back is reported again.
+ *
+ * @param {Set<string>} reported
+ * @param {string[]} stillStale
+ */
+function forgetFixedStale(reported, stillStale) {
+  const now = new Set(stillStale);
+  for (const p of reported) if (!now.has(p)) reported.delete(p);
 }
 
 // The canonical name, for messages that talk about the file in the abstract.
@@ -288,7 +300,7 @@ function quotedStrings(text) {
 }
 
 /**
- * Read `entry` and `targets` out of an 8bitscript.config.8bs.
+ * Read `entry` and `targets` out of an 8bitscript.config.ts.
  *
  * The config is a TypeScript module, which the editor host cannot import; but
  * its documented shape is two literal keys, so a textual read is enough and
@@ -936,7 +948,7 @@ function loadExamples(toolchain) {
 /**
  * The examples under one directory — the `8bitscript.examplesPath` setting,
  * for someone keeping their own set: each subdirectory with an
- * 8bitscript.config.8bs (or 8bs.config.ts) is one, marked as shipped so the
+ * 8bitscript.config.ts (or 8bs.config.ts) is one, marked as shipped so the
  * launcher groups it with the rest.
  *
  * @param {string} dir
@@ -1264,6 +1276,7 @@ module.exports = {
   STALE_CONFIG,
   staleConfigMessage,
   staleConfigsOnly,
+  forgetFixedStale,
   CONFIG_FILENAMES,
   DEFAULT_ENTRY,
   findConfig,

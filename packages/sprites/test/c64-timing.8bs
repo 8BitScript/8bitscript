@@ -11,77 +11,77 @@
 // cycles. Measured 2026-09-19 (`8bs run c64 --frames 400 --screenshot`):
 // COUNT 8: 2,143; 16: 9,575; 24 (nineteen on screen, the rest past Y
 // 254): ~11,800 — ~500 a reused sprite.
-import { screen } from "@8bitscript/screen";
-import { text } from "@8bitscript/text";
-import { raster } from "@8bitscript/c64/raster";
-import { multiplex } from "@8bitscript/c64/multiplex";
-import { sprites } from "../src/index.8bs";
-import { shapes } from "./shapes.8bs";
+use @8bitscript::screen::screen;
+use @8bitscript::text::text;
+use @8bitscript::c64::raster::raster;
+use @8bitscript::c64::multiplex::multiplex;
+use super::src::index::sprites;
+use self::shapes::shapes;
 
 // CIA 2 timer A from $FFFF: what it has counted since start().
-function start(): void {
-    memory.write(0xDD04, 0xFF);
-    memory.write(0xDD05, 0xFF);
-    memory.write(0xDD0E, 0x11);
+fn start() {
+    memory::write(0xDD04, 0xFF);
+    memory::write(0xDD05, 0xFF);
+    memory::write(0xDD0E, 0x11);
 }
 
-function elapsed(): usmallint {
-    let lo: utinyint = memory.read(0xDD04);
-    let hi: utinyint = memory.read(0xDD05);
-    let count: usmallint = hi;
-    count = (count << 8) | lo;
+fn elapsed() -> usmallint {
+    let lo: utinyint = memory::read(0xDD04);
+    let hi: utinyint = memory::read(0xDD05);
+    let mut count: usmallint = hi;
+    count = count << 8 | lo;
     return 0xFFFF - count;
 }
 
 const COUNT: utinyint = 16;
-let step: utinyint = 0;
+let mut step: utinyint = 0;
 
-function layout(): void {
-    for (let i: utinyint = 0; i < COUNT; i++) {
-        let x: usmallint = i;
+fn layout() {
+    for i: utinyint in 0..COUNT {
+        let mut x: usmallint = i;
         x = x * 17 + 30 + step;
-        let y: usmallint = i;
+        let mut y: usmallint = i;
         y = y * 11 + 52 + step;
-        sprites.place(i, x, y);
+        sprites::place(i, x, y);
     }
 }
 
-export function main(): void {
-    screen.blank();
-    shapes.begin();
-    sprites.begin(COUNT);
-    for (let i: utinyint = 0; i < COUNT; i++) {
-        sprites.setShape(i, shapes.BLOCK);
-        sprites.setColor(i, 1 + (i & 3));
+pub fn main() {
+    screen::blank();
+    shapes::begin();
+    sprites::begin(COUNT);
+    for i: utinyint in 0..COUNT {
+        sprites::setShape(i, shapes::BLOCK);
+        sprites::setColor(i, 1 + (i & 3));
     }
     layout();
-    raster.clear();
-    sprites.plan();
-    raster.enable();
-    while (true) {
+    raster::clear();
+    sprites::plan();
+    raster::enable();
+    loop {
         waitFrame();
-        step = (step + 1) & 15;
+        step = step + 1 & 15;
         layout();
         start();
-        raster.clear();
+        raster::clear();
         let clearCost: usmallint = elapsed();
-        raster.shareBuild();
+        raster::shareBuild();
         start();
         asm6502 {
             jsr __8bs_c64_multiplex_update
         }
         let planCost: usmallint = elapsed();
-        raster.takeBuild();
+        raster::takeBuild();
         start();
-        raster.commit();
+        raster::commit();
         let commitCost: usmallint = elapsed();
-        let dropped: utinyint = multiplex.dropped();
-        text.printNumber(920, dropped, 2);
-        text.print(960, "CLEAR");
-        text.printNumber(966, clearCost, 5);
-        text.print(972, "JSR ");
-        text.printNumber(977, planCost, 5);
-        text.print(983, "COMMIT");
-        text.printNumber(990, commitCost, 5);
+        let dropped: utinyint = multiplex::dropped();
+        text::printNumber(920, dropped, 2);
+        text::print(960, "CLEAR");
+        text::printNumber(966, clearCost, 5);
+        text::print(972, "JSR ");
+        text::printNumber(977, planCost, 5);
+        text::print(983, "COMMIT");
+        text::printNumber(990, commitCost, 5);
     }
 }

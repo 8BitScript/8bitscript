@@ -39,19 +39,19 @@ song win {
 }
 `;
 
-const PROGRAM = `import { win } from "./songs.8ba";
-import { audio } from "@8bitscript/audio";
-import { screen } from "@8bitscript/screen";
+const PROGRAM = `use self::songs::win;
+use @8bitscript::audio::audio;
+use @8bitscript::screen::screen;
 
-export function main(): void {
-    screen.blank();
-    let n: usmallint = 0;
-    while (true) {
+pub fn main() {
+    screen::blank();
+    let mut n: usmallint = 0;
+    loop {
         waitFrame();
-        audio.update();
+        audio::update();
         n = n + 1;
-        if (n == 30) {
-            audio.play(win);
+        if n == 30 {
+            audio::play(win);
         }
     }
 }

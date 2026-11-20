@@ -58,7 +58,7 @@ test('the literal the probe prints is what its predicates count over 300 frames'
   }
   const literal = `AT120 ${String(hits120).padStart(3, '0')} AFTER ${String(after200).padStart(3, '0')} EIGHTS ${String(eights).padStart(3, '0')} BAND ${String(inBand).padStart(3, '0')}`;
   assert.equal(literal, 'AT120 001 AFTER 100 EIGHTS 037 BAND 010');
-  assert.match(readFileSync(PROBE, 'utf8'), new RegExp(`text\\.print\\(80, "${literal}"\\)`), 'the probe prints this literal on row 2');
+  assert.match(readFileSync(PROBE, 'utf8'), new RegExp(`text::print\\(80, "${literal}"\\)`), 'the probe prints this literal on row 2');
 });
 
 function runCli(args, { timeoutMs = 120_000 } = {}) {

@@ -19,7 +19,7 @@ function projectJson(overrides = {}) {
   return {
     version: 1,
     hasConfig: true,
-    configPath: `${DIR}/8bitscript.config.8bs`,
+    configPath: `${DIR}/8bitscript.config.ts`,
     configError: null,
     dir: DIR,
     name: 'vegas-nights',
@@ -128,7 +128,7 @@ test('normalizeProject: a config that will not load is carried, not thrown', () 
 
 test('legacyProject: the regex reader\'s project, flagged, with no titles or inputs', () => {
   const found = {
-    name: 'old', dir: '/w/old', configPath: '/w/old/8bitscript.config.8bs', entry: '/w/old/src/main.8bs',
+    name: 'old', dir: '/w/old', configPath: '/w/old/8bitscript.config.ts', entry: '/w/old/src/main.8bs',
     targets: ['pet', 'c64'],
     programs: [
       { name: 'main', entry: '/w/old/src/main.8bs', targets: null },
@@ -353,7 +353,7 @@ test('formatCommand: what a person would type', () => {
 
 function fakeProject(overrides = {}) {
   return {
-    name: 'vegas-nights', dir: DIR, configPath: `${DIR}/8bitscript.config.8bs`, entry: `${DIR}/src/main.8bs`,
+    name: 'vegas-nights', dir: DIR, configPath: `${DIR}/8bitscript.config.ts`, entry: `${DIR}/src/main.8bs`,
     targets: ['c64'], programs: [], toolchain: { kind: 'local' },
     ...overrides,
   };
@@ -423,6 +423,6 @@ test('UnitLoader: a project with no toolchain cannot ask, and says why', async (
 
 test('UnitLoader: a missing config file has mtime 0, not an error', async () => {
   const loader = new UnitLoader({ exec: async () => ({ code: 0, stdout: JSON.stringify(projectJson()) }) });
-  const project = await loader.load(fakeProject({ configPath: '/definitely/not/here/8bitscript.config.8bs' }));
+  const project = await loader.load(fakeProject({ configPath: '/definitely/not/here/8bitscript.config.ts' }));
   assert.equal(project.source, 'cli');
 });

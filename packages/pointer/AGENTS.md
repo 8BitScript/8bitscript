@@ -89,7 +89,7 @@ Those are different statements and the headers make both:
 
 It costs those machines nothing. `DRAWS` is a const and every body is
 empty, so `if pointer::DRAWS` folds away and the fold removes the calls —
-`packages/pointer/test/pointer::test.mjs` asserts every layer's functions
+`packages/pointer/test/pointer.test.mjs` asserts every layer's functions
 are bodiless in the IR on a machine with no pointer.
 
 ## The bug this package was written against, and the rule it produced
@@ -127,7 +127,7 @@ still prove almost everything, and the way it does is worth copying:
 - A **1351** reads its zero on both axes until it is moved, so **a fitted
   C64 or C128 puts the arrow in the top-left corner of the screen and a
   build with the mouse taken out puts nothing there.** That is a difference
-  a headless run can see, and `pointer::test.mjs` asserts it by counting
+  a headless run can see, and `pointer.test.mjs` asserts it by counting
   white pixels in the two blank rows a probe program keeps clear for the
   purpose — 58 with a mouse, 0 without, under both x64sc and x128.
 - The **X16** parks at the *center*: mouse_config with a nonzero size
@@ -172,7 +172,7 @@ What a screenshot cannot answer, and what needs a human at the machine:
    `"8bitscript".exports`.
 3. Add the target to this package's `"8bitscript".entry` and its
    `dependencies`.
-4. Run `packages/pointer/test/pointer::test.mjs`: it links
+4. Run `packages/pointer/test/pointer.test.mjs`: it links
    a probe for all nine and checks the surface is the same
    everywhere. Add a pixel assertion for your machine's emulator if it
    draws anything.

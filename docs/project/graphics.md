@@ -400,7 +400,7 @@ followed by every animation frame as a linear 4 bpp bitmap (VERA's sprite
 renderer reads a bitmap row by row, left pixel in the high nibble, not
 8×8 tiles), and `packages/graphics/src/index.cx16.8bs` puts them in
 video memory. Measured under x16emu r50 (ROM `fbe32a60`), headless, with
-`packages/cx16/test/graphics::test.mjs`:
+`packages/cx16/test/graphics.test.mjs`:
 
 - **Colours.** Up to 15 plus transparent, quantized to VERA's 12 bits, the
   most-used first. Each sprite owns a 16-entry block of palette entries

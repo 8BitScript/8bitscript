@@ -2,7 +2,7 @@
 //
 // Named by "8bitscript".exports["./mouse"] in this package's package.json:
 //
-//     import { mouse } from "@8bitscript/cx16/mouse";
+//     use @8bitscript::cx16::mouse::mouse;
 //
 //     mouse.begin();                   // once, at start-up
 //     ...
@@ -58,40 +58,36 @@
 // pointer at half that range. Under x16emu that is pixel (319, 239) of
 // the 640×480 output. Movement is not exercised headlessly: nothing in a
 // `--screenshot` run moves the host pointer x16emu reads.
-const HAS_MOUSE: bool = #fact(input.mouse);
+const HAS_MOUSE: bool = #fact(input::mouse);
 
 // mouse_get's 4-byte position (X, then Y, 16-bit little-endian each) and
 // the button byte it returns in A. See the header for why these addresses.
-@address(0x80)
-let posX: volatile<usmallint>;
-@address(0x82)
-let posY: volatile<usmallint>;
-@address(0x84)
-let rawButtons: volatile<utinyint>;
+#[address(0x80)] let posX: volatile<usmallint>;
+#[address(0x82)] let posY: volatile<usmallint>;
+#[address(0x84)] let rawButtons: volatile<utinyint>;
 
 // Copied out of the buffer during poll(), so every caller in a frame
 // shares one reading — the same discipline @8bitscript/c64/mouse holds
 // to, even though these locations do not run on their own the way the
 // SID's converter does.
-let atX: usmallint = 0;
-let atY: usmallint = 0;
-let heldButtons: utinyint = 0;
-let started: bool = false;
+let mut atX: usmallint = 0;
+let mut atY: usmallint = 0;
+let mut heldButtons: utinyint = 0;
+let mut started: bool = false;
 
-export namespace Mouse {
+pub mod Mouse {
     const LEFT: utinyint = 1;
 }
 
-export namespace mouse {
-
+pub mod mouse {
     // Once, at start-up, before the first poll(). Turns the KERNAL mouse
     // on at the current screen's 8-pixel size, which also loads the default
     // pointer into sprite 0 and parks it at the center. Harmless to call
     // twice: the second call is skipped, so input.begin() and pointer.begin()
     // can both name it without re-centering.
-    function begin(): void {
-        if (HAS_MOUSE) {
-            if (started) {
+    fn begin() {
+        if HAS_MOUSE {
+            if started {
                 return;
             }
             started = true;
@@ -113,8 +109,8 @@ export namespace mouse {
     // Once a frame, after waitFrame(). Fetch from the SMC first (the IRQ
     // is off), then mouse_scan, then mouse_get into the buffer, then copy.
     // One reading, kept.
-    function poll(): void {
-        if (HAS_MOUSE) {
+    fn poll() {
+        if HAS_MOUSE {
             asm6502 {
                 php
                 sei
@@ -138,7 +134,7 @@ export namespace mouse {
     // can be kept in a register the call trashes. Measured: `there = true` in
     // begin() then mouse_get in poll() left present() false while the
     // pointer was drawing at (319, 239).
-    function present(): bool {
+    fn present() -> bool {
         return HAS_MOUSE;
     }
 
@@ -147,25 +143,25 @@ export namespace mouse {
     // KERNAL parks a freshly configured mouse at half the current
     // screen_mode range; under x16emu that is (319, 239), which is the
     // center of the 640×480 the mode names, not of the inset picture.
-    function x(): usmallint {
+    fn x() -> usmallint {
         return atX;
     }
 
-    function y(): usmallint {
+    fn y() -> usmallint {
         return atY;
     }
 
     // The left button, as of the last poll(). Bit 0 of mouse_get's A,
     // which ps2mouse.s documents as left (bit 1 right, bit 2 middle).
-    function left(): bool {
-        return (heldButtons & Mouse.LEFT) != 0;
+    fn left() -> bool {
+        return (heldButtons & Mouse::LEFT) != 0;
     }
 
     // Hide the pointer and stop tracking. pointer.hide() is the caller;
     // the next show() turns tracking back on without re-centering
     // (mouse_config $FF, size left as-is).
-    function hide(): void {
-        if (HAS_MOUSE) {
+    fn hide() {
+        if HAS_MOUSE {
             asm6502 {
                 lda #0
                 ldx #0
@@ -176,8 +172,8 @@ export namespace mouse {
     }
 
     // Undo hide(): mouse on, keep the current cursor and position.
-    function show(): void {
-        if (HAS_MOUSE) {
+    fn show() {
+        if HAS_MOUSE {
             asm6502 {
                 lda #$FF
                 ldx #0

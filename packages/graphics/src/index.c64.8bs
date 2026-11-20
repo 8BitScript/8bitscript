@@ -8,11 +8,11 @@
 // FIRST_BLOCK + 4n .. +3, so 24 slots take 96 of the 111 blocks. The sprite's
 // colour is the `kind` byte's high nibble, which the C64 media lowering
 // (packages/c64/media/index.cjs) sets to the VIC-II colour nearest the PNG's.
-import { sprites } from "@8bitscript/sprites";
-import { sprites as hardware } from "@8bitscript/c64/sprites";
-import { multiplex } from "@8bitscript/c64/multiplex";
+use @8bitscript::sprites::sprites;
+use @8bitscript::c64::sprites::{sprites as hardware};
+use @8bitscript::c64::multiplex::multiplex;
 
-const SLOTS: utinyint = multiplex.MAX;
+const SLOTS: utinyint = multiplex::MAX;
 const BYTES: utinyint = 63;
 // The stage x of the first pixel past the playfield (40 columns of 8). A
 // sprite that starts there or further right is wholly in the right border;
@@ -24,53 +24,53 @@ const PLAYFIELD_WIDTH: usmallint = 320;
 // a sprite starts below the picture, and the sum would also wrap a 16-bit y
 // near 65535 back to a small number and draw it at the top.
 const LAST_Y: usmallint = 204;
-let frameCount: array<u8, 24>;
-let interval: array<u8, 24>;
-let tick: array<u8, 24>;
-let frame: array<u8, 24>;
-let paused: array<u8, 24>;  // 1: automatic stepping paused
-let started: bool = false;
-let used: utinyint = 0;     // one past the highest slot a .8bg declared
+let mut frameCount: [u8; 24];
+let mut interval: [u8; 24];
+let mut tick: [u8; 24];
+let mut frame: [u8; 24];
+let mut paused: [u8; 24]; // 1: automatic stepping paused
+let mut started: bool = false;
+let mut used: utinyint = 0; // one past the highest slot a .8bg declared
 
-function baseBlock(slot: utinyint): utinyint {
-    return hardware.FIRST_BLOCK + slot * 4;
+fn baseBlock(slot: utinyint) -> utinyint {
+    return hardware::FIRST_BLOCK + slot * 4;
 }
 
-function ensure(): void {
-    if (!started) {
-        sprites.begin(SLOTS);
+fn ensure() {
+    if !started {
+        sprites::begin(SLOTS);
         started = true;
     }
 }
 
-export namespace graphics {
+pub mod graphics {
     // The portable contract (index.8bs): what this machine answers.
-    const MAX: utinyint = SLOTS;                // the multiplexer's virtual sprites, eight on any one line
-    const FRAMES: utinyint = 4;                 // shape blocks a slot owns
-    const WIDTH: utinyint = sprites.WIDTH;      // a hardware sprite, unexpanded
-    const HEIGHT: utinyint = sprites.HEIGHT;
-    const COLORS: utinyint = 1;                 // one colour a sprite (the PNG's nearest); multicolour is not used
-    const RECOLORS: bool = true;                // color() sets the sprite colour register
-    const STEP_X: utinyint = sprites.STEP_X;    // a pixel
-    const STEP_Y: utinyint = sprites.STEP_Y;
-    const RESTORES: bool = sprites.RESTORES;    // a sprite draws over the picture and leaves it whole
-    const TRANSPARENT: bool = true;             // unset sprite pixels show what is behind
+    const MAX: utinyint = SLOTS; // the multiplexer's virtual sprites, eight on any one line
+    const FRAMES: utinyint = 4; // shape blocks a slot owns
+    const WIDTH: utinyint = sprites::WIDTH; // a hardware sprite, unexpanded
+    const HEIGHT: utinyint = sprites::HEIGHT;
+    const COLORS: utinyint = 1; // one colour a sprite (the PNG's nearest); multicolour is not used
+    const RECOLORS: bool = true; // color() sets the sprite colour register
+    const STEP_X: utinyint = sprites::STEP_X; // a pixel
+    const STEP_Y: utinyint = sprites::STEP_Y;
+    const RESTORES: bool = sprites::RESTORES; // a sprite draws over the picture and leaves it whole
+    const TRANSPARENT: bool = true; // unset sprite pixels show what is behind
 
-    function bind(slot: utinyint, index: utinyint, value: utinyint): void {
-        if (slot >= SLOTS) {
+    fn bind(slot: utinyint, index: utinyint, value: utinyint) {
+        if slot >= SLOTS {
             return;
         }
-        let block: utinyint = baseBlock(slot);
-        let i: utinyint = index;
-        while (i >= BYTES) {
+        let mut block: utinyint = baseBlock(slot);
+        let mut i: utinyint = index;
+        while i >= BYTES {
             i = i - BYTES;
             block = block + 1;
         }
-        hardware.setShapeByte(block, i, value);
+        hardware::setShapeByte(block, i, value);
     }
 
-    function meta(slot: utinyint, frames: utinyint, every: utinyint, kind: utinyint, width: utinyint, height: utinyint): void {
-        if (slot >= SLOTS) {
+    fn meta(slot: utinyint, frames: utinyint, every: utinyint, kind: utinyint, width: utinyint, height: utinyint) {
+        if slot >= SLOTS {
             return;
         }
         frameCount[slot] = frames;
@@ -79,16 +79,16 @@ export namespace graphics {
         frame[slot] = 0;
         paused[slot] = 0;
         ensure();
-        sprites.setShape(slot, baseBlock(slot));
-        sprites.setColor(slot, kind >> 4);
-        if (slot >= used) {
+        sprites::setShape(slot, baseBlock(slot));
+        sprites::setColor(slot, kind >> 4);
+        if slot >= used {
             used = slot + 1;
-            multiplex.setCount(used);
+            multiplex::setCount(used);
         }
     }
 
-    function place(slot: utinyint, x: usmallint, y: usmallint): void {
-        if (slot >= SLOTS) {
+    fn place(slot: utinyint, x: usmallint, y: usmallint) {
+        if slot >= SLOTS {
             return;
         }
         ensure();
@@ -96,53 +96,53 @@ export namespace graphics {
         // is where the playfield's top-left corner sits in them. A y of 255
         // or more is the sprite layer's "not drawn" (sprites.place), so a
         // position past the playfield is sent there instead of to the chip.
-        let chipY: usmallint = y + sprites.ORIGIN_Y;
-        if (x >= PLAYFIELD_WIDTH || y > LAST_Y) {
+        let mut chipY: usmallint = y + sprites::ORIGIN_Y;
+        if x >= PLAYFIELD_WIDTH || y > LAST_Y {
             chipY = 255;
         }
-        sprites.place(slot, x + sprites.ORIGIN_X, chipY);
+        sprites::place(slot, x + sprites::ORIGIN_X, chipY);
     }
 
-    function hide(slot: utinyint): void {
-        if (slot >= SLOTS) {
+    fn hide(slot: utinyint) {
+        if slot >= SLOTS {
             return;
         }
         ensure();
-        sprites.hide(slot);
+        sprites::hide(slot);
     }
 
-    function setFrame(slot: utinyint, n: utinyint): void {
-        if (slot >= SLOTS) {
+    fn setFrame(slot: utinyint, n: utinyint) {
+        if slot >= SLOTS {
             return;
         }
-        if (frameCount[slot] == 0) {
+        if frameCount[slot] == 0 {
             return;
         }
         ensure();
-        if (n >= frameCount[slot]) {
+        if n >= frameCount[slot] {
             n = frameCount[slot] - 1;
         }
         frame[slot] = n;
         tick[slot] = 0;
-        sprites.setShape(slot, baseBlock(slot) + n);
+        sprites::setShape(slot, baseBlock(slot) + n);
     }
 
-    function animate(slot: utinyint, on: bool): void {
-        if (slot >= SLOTS) {
+    fn animate(slot: utinyint, on: bool) {
+        if slot >= SLOTS {
             return;
         }
         paused[slot] = 1;
-        if (on) {
+        if on {
             paused[slot] = 0;
         }
     }
 
-    function color(slot: utinyint, c: utinyint): void {
-        if (slot >= SLOTS) {
+    fn color(slot: utinyint, c: utinyint) {
+        if slot >= SLOTS {
             return;
         }
         ensure();
-        sprites.setColor(slot, c);
+        sprites::setColor(slot, c);
     }
 
     // C64 only, not part of the portable contract: advance every playing
@@ -158,31 +158,31 @@ export namespace graphics {
     //     raster.commit();
     //
     // — which is the one-commit order measured clean (docs/project/graphics.md).
-    function step(): void {
-        if (!started) {
+    fn step() {
+        if !started {
             return;
         }
-        for (let slot: utinyint = 0; slot < used; slot++) {
-            if (frameCount[slot] < 2 || paused[slot] != 0) {
+        for slot: utinyint in 0..used {
+            if frameCount[slot] < 2 || paused[slot] != 0 {
                 continue;
             }
             tick[slot] = tick[slot] + 1;
-            if (tick[slot] >= interval[slot]) {
+            if tick[slot] >= interval[slot] {
                 tick[slot] = 0;
                 frame[slot] = frame[slot] + 1;
-                if (frame[slot] >= frameCount[slot]) {
+                if frame[slot] >= frameCount[slot] {
                     frame[slot] = 0;
                 }
-                sprites.setShape(slot, baseBlock(slot) + frame[slot]);
+                sprites::setShape(slot, baseBlock(slot) + frame[slot]);
             }
         }
     }
 
-    function update(): void {
-        if (!started) {
+    fn update() {
+        if !started {
             return;
         }
-        graphics.step();
-        sprites.update();
+        graphics::step();
+        sprites::update();
     }
 }

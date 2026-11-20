@@ -1,6 +1,6 @@
 # Working on `@8bitscript/audio`
 
-[`docs/project/audio::md`](../../docs/project/audio.md) is the design and what
+[`docs/project/audio.md`](../../docs/project/audio.md) is the design and what
 each call does; this file is what the next person touching a twin must keep
 true, and how to listen without a speaker. Read the root
 [`AGENTS.md`](../../AGENTS.md) first.
@@ -42,8 +42,8 @@ a song that is not told to loop plays its rows once and then lets the voice go
 (`songs::stop()`); a note's `length` ends it even if its decay is longer; and the bank is
 indexed by a byte, so `AUDIO_BANK_BYTES` (255, in `media/elaborate.mjs`) is what the compiler
 refuses past (`8BS2216`). `media/audio/song.mjs` encodes `[flags, speed, rows, count]` and five
-bytes an event; the NES and Atari 8-bit keep their own older format. `test/songs::test.mjs` plays
-a song on every emulator; `packages/cli/test/web-audio::test.mjs` steps one frame by frame on
+bytes an event; the NES and Atari 8-bit keep their own older format. `test/songs.test.mjs` plays
+a song on every emulator; `packages/cli/test/web-audio.test.mjs` steps one frame by frame on
 the web host, which is the quickest way to test the sequencer.
 
 **`note` is the `.8ba` index** — `octave * 12 + semitone`, C0 = 0, A4 = 57,
@@ -103,8 +103,8 @@ check in `audio-tone.test.mjs`.
 ## Web
 
 Four bytes after the glyph table, read once a paint: see
-[`docs/project/audio::md`](../../docs/project/audio.md#a-single-tone-audiotone)
-and `packages/cli/src/web-audio::mjs`. The loader carries hand copies of
-`toneHz` and `voiceState`; `packages/cli/test/web-audio::test.mjs` holds them
+[`docs/project/audio.md`](../../docs/project/audio.md#a-single-tone-audiotone)
+and `packages/cli/src/web-audio.mjs`. The loader carries hand copies of
+`toneHz` and `voiceState`; `packages/cli/test/web-audio.test.mjs` holds them
 to the module for every note. A `.8ba` sample or song still has no web driver
 (`8BS2211`).

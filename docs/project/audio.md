@@ -153,7 +153,7 @@ device. The PET and X16 are measured on a recorded WAV.
 **The web.** The synthetic web host has no chip to be faithful to, so its
 voice is four bytes in the program's memory — gate, note, wave, volume —
 that the page reads at every paint and plays through one Web Audio
-oscillator (`packages/web/src/voice.8bs`, `packages/cli/src/web-audio::mjs`).
+oscillator (`packages/web/src/voice.8bs`, `packages/cli/src/web-audio.mjs`).
 What is tested is every step but the speaker: the program writes the right
 bytes, the bytes map to the right frequency, waveform and level, and the page
 drives an oscillator from them (with a stand-in `AudioContext`), and the

@@ -48,37 +48,48 @@ const SCREEN = LAYOUT.charBase;
 
 // Tallies each answer on its own row: two digits at the start of rows 0-5.
 const inputProgram = (columns) => [
-  'import { input } from "@8bitscript/input";',
-  'import { screen } from "@8bitscript/screen";',
-  'import { text } from "@8bitscript/text";',
+  'use @8bitscript::input::input;',
+  'use @8bitscript::screen::screen;',
+  'use @8bitscript::text::text;',
   '',
-  'export function main(): void {',
-  '    screen.blank();',
-  '    input.begin();',
-  '    let confirms: usmallint = 0;',
-  '    let cancels: usmallint = 0;',
-  '    let lefts: usmallint = 0;',
-  '    let rights: usmallint = 0;',
-  '    let ups: usmallint = 0;',
-  '    let downs: usmallint = 0;',
-  '    while (true) {',
+  'pub fn main() {',
+  '    screen::blank();',
+  '    input::begin();',
+  '    let mut confirms: usmallint = 0;',
+  '    let mut cancels: usmallint = 0;',
+  '    let mut lefts: usmallint = 0;',
+  '    let mut rights: usmallint = 0;',
+  '    let mut ups: usmallint = 0;',
+  '    let mut downs: usmallint = 0;',
+  '    loop {',
   '        waitFrame();',
-  '        input.poll();',
-  '        if (input.confirm()) { confirms++; }',
-  '        if (input.cancel()) { cancels++; }',
-  '        if (input.left()) { lefts++; }',
-  '        if (input.right()) { rights++; }',
-  '        if (input.up()) { ups++; }',
-  '        if (input.down()) { downs++; }',
-  '        text.printNumber(0, confirms, 2);',
-  `        text.printNumber(${columns}, cancels, 2);`,
-  `        text.printNumber(${columns * 2}, lefts, 2);`,
-  `        text.printNumber(${columns * 3}, rights, 2);`,
-  `        text.printNumber(${columns * 4}, ups, 2);`,
-  `        text.printNumber(${columns * 5}, downs, 2);`,
+  '        input::poll();',
+  '        if input::confirm() {',
+  '            confirms += 1;',
+  '        }',
+  '        if input::cancel() {',
+  '            cancels += 1;',
+  '        }',
+  '        if input::left() {',
+  '            lefts += 1;',
+  '        }',
+  '        if input::right() {',
+  '            rights += 1;',
+  '        }',
+  '        if input::up() {',
+  '            ups += 1;',
+  '        }',
+  '        if input::down() {',
+  '            downs += 1;',
+  '        }',
+  '        text::printNumber(0, confirms, 2);',
+  `        text::printNumber(${columns}, cancels, 2);`,
+  `        text::printNumber(${columns * 2}, lefts, 2);`,
+  `        text::printNumber(${columns * 3}, rights, 2);`,
+  `        text::printNumber(${columns * 4}, ups, 2);`,
+  `        text::printNumber(${columns * 5}, downs, 2);`,
   '    }',
   '}',
-  '',
 ].join('\n');
 
 /** Runs `source` on the X16's wasm build for `frames` frames: `setup(mem)` once before the program starts, then `onFrame(frame, mem)` as each waitFrame() is reached. */
@@ -155,7 +166,7 @@ test("the X16 input twin's key byte is the byte the page writes, behind text.cx1
   assert.equal(colorBase, LAYOUT.colorBase, 'the colour plane is where the page reads it');
   assert.equal(colorBase + cells, LAYOUT.inputOffset, 'the input byte is one plane past the colour plane');
   // The twin's own formula, text.CELL_COUNT * 2 + 2, with the 2 being the text twin's CHAR_BASE.
-  assert.match(INPUT_TWIN, /memory\.read\(text\.CELL_COUNT \* 2 \+ 2\)/);
+  assert.match(INPUT_TWIN, /memory::read\(text::CELL_COUNT \* 2 \+ 2\)/);
   assert.equal(cells * 2 + charBase, LAYOUT.inputOffset);
   assert.equal(LAYOUT.inputOffset, 8514, 'on the stock 76x56 grid');
 });
@@ -174,27 +185,30 @@ test("the X16 wasm build's pointer is the page's pointer block: a cell, and a pr
   const at = LAYOUT.pointerOffset;
   assert.ok(at > 0, 'the stock X16 has a mouse, so the layout carries the block');
   assert.equal(at, LAYOUT.inputOffset + 837, 'the offset the twin spells: input + 4 + 192 + 640 + 1');
-  assert.match(INPUT_TWIN, /text\.CELL_COUNT \* 2 \+ 839/);
+  assert.match(INPUT_TWIN, /text::CELL_COUNT \* 2 \+ 839/);
   const ROW = 11;
   const COL = 7;
   const mem = await runWithKeys([
-    'import { input } from "@8bitscript/input";',
-    'import { screen } from "@8bitscript/screen";',
-    'import { text } from "@8bitscript/text";',
+    'use @8bitscript::input::input;',
+    'use @8bitscript::screen::screen;',
+    'use @8bitscript::text::text;',
     '',
-    'export function main(): void {',
-    '    screen.blank();',
-    '    input.begin();',
-    '    let presses: usmallint = 0;',
-    '    while (true) {',
+    'pub fn main() {',
+    '    screen::blank();',
+    '    input::begin();',
+    '    let mut presses: usmallint = 0;',
+    '    loop {',
     '        waitFrame();',
-    '        input.poll();',
-    '        if (input.pointerButton()) { presses++; }',
-    '        if (input.pointer()) { text.printNumber(0, input.pointerCell(), 5); }',
-    '        text.printNumber(10, presses, 2);',
+    '        input::poll();',
+    '        if input::pointerButton() {',
+    '            presses += 1;',
+    '        }',
+    '        if input::pointer() {',
+    '            text::printNumber(0, input::pointerCell(), 5);',
+    '        }',
+    '        text::printNumber(10, presses, 2);',
     '    }',
     '}',
-    '',
   ].join('\n'), 12, (frame, memory) => {
     if (frame >= 2) {
       memory[at] = 1;
@@ -215,18 +229,17 @@ test("the X16 wasm build's pointer is the page's pointer block: a cell, and a pr
 // pad's START confirms here as it does natively: the twin names the same controls.
 test("the X16 wasm build names the confirm controls as the native build does: RETURN, and a pad's START", async () => {
   const mem = await runWithKeys([
-    'import { Input } from "@8bitscript/input";',
-    'import { screen } from "@8bitscript/screen";',
-    'import { text } from "@8bitscript/text";',
+    'use @8bitscript::input::Input;',
+    'use @8bitscript::screen::screen;',
+    'use @8bitscript::text::text;',
     '',
-    'export function main(): void {',
-    '    screen.blank();',
-    '    text.print(0, Input.CONFIRM_LABEL);',
-    `    text.print(${COLUMNS}, Input.ALT_CONFIRM_LABEL);`,
-    `    text.print(${COLUMNS * 2}, Input.CONFIRM_LABELS);`,
+    'pub fn main() {',
+    '    screen::blank();',
+    '    text::print(0, Input::CONFIRM_LABEL);',
+    `    text::print(${COLUMNS}, Input::ALT_CONFIRM_LABEL);`,
+    `    text::print(${COLUMNS * 2}, Input::CONFIRM_LABELS);`,
     '    waitFrame();',
     '}',
-    '',
   ].join('\n'), 2, () => {});
   const read = (cell, length) => String.fromCharCode(...mem.subarray(SCREEN + cell, SCREEN + cell + length));
   assert.equal(read(0, 6), 'RETURN');

@@ -16,13 +16,13 @@ const NATIVE_BACKEND_PENDING = 'Bare Metal: waiting on the native backend';
 
 test('a screen and text consumer links for cx16 and drives VERA by its port addresses', () => {
   const consumer = [
-    'import { screen } from "@8bitscript/screen";',
-    'import { text } from "@8bitscript/text";',
-    'export function main(): void {',
-    '    text.putChar(162, 84);',
-    '    text.putColor(162, 1);',
-    '    screen.setColors(6, 3);',
-    '    text.printNumber(167, 2, 1);',
+    'use @8bitscript::screen::screen;',
+    'use @8bitscript::text::text;',
+    'pub fn main() {',
+    '    text::putChar(162, 84);',
+    '    text::putColor(162, 1);',
+    '    screen::setColors(6, 3);',
+    '    text::printNumber(167, 2, 1);',
     '}',
   ].join('\n');
   const { ir, diagnostics } = link(consumer, ENTRY, { machine: 'cx16' });

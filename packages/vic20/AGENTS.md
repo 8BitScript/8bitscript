@@ -490,7 +490,7 @@ reduction of every object. The all-operations probe in
 draw's cost in cycles is not measured: update is one pass over the placed
 objects, a few dozen stores each.
 
-Verified two ways. Under xvic (`test/graphics::test.mjs` and
+Verified two ways. Under xvic (`test/graphics.test.mjs` and
 `test/graphics-ops.test.mjs`, NTSC, unexpanded and 8K): an 8×8 object takes
 one cell and leaves its neighbours' text intact; a faint picture is one
 glyph; objects from two `.8bg` files are both there; a moved object leaves
@@ -548,7 +548,7 @@ with it (`frameHookWanted`) — the hook reads `planCount`, and only
 `commit()` writes it. A program that imports `@8bitscript/raster` and
 never commits, or whose raster branch a `#fact` folded away, carries
 none of it: byte-identical to a program without the import
-(`packages/compiler/test/mos-vic20-raster::test.ts`). The build's
+(`packages/compiler/test/mos-vic20-raster.test.ts`). The build's
 "inlined away" guard (`mos/index.ts`) fires only for a hook the program
 calls or still feeds.
 
@@ -750,7 +750,7 @@ only see one in `$1000`–`$1FFF`, a reservation no package makes yet.
 - **A partial line above a split, moving between frames**: a store left
   its window. Re-measure the edge with one store (the NTSC 274–322 / PAL
   50–98 experiment above), redo the windows, and re-run the test.
-- **Tools**: `test/raster::test.mjs` is the gate; it reads rows and whole
+- **Tools**: `test/raster.test.mjs` is the gate; it reads rows and whole
   runs of pixels with `pixelAt` from `packages/cli/src/png.mjs`. The
   mutation that proved it bites: NTSC's second `jsr sled+6` changed to
   `sled+12` (12 cycles early) fails at picture line 59.

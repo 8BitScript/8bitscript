@@ -308,7 +308,7 @@ The one root besides the entry is a machine's frame hook
 reachable function shares a global with it
 (`linker/reachability.mjs`, `frameHookWanted`) — the VIC-20's raster
 hook is linked by a program that commits a list and costs every other
-program nothing (`test/mos-vic20-raster::test.ts`).
+program nothing (`test/mos-vic20-raster.test.ts`).
 The inliner's size measure counts a call's arguments as code, not as
 one node each — each is a load and a store at every copy — so a body
 that only passes values along stays the one function it was written

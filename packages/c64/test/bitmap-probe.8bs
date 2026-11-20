@@ -2,29 +2,29 @@
 // and a sprite drawn from a shape block under the I/O area. A screenshot
 // reads a pixel inside the rectangle, one outside, and one on the sprite.
 // See test/layers.test.mjs.
-import { screen, BorderColor, BackgroundColor } from "../src/screen.8bs";
-import { bitmap } from "../src/bitmap.8bs";
-import { sprites } from "../src/sprites.8bs";
-import { Bitmap } from "../src/geometry.8bs";
+use super::src::screen::{screen, BorderColor, BackgroundColor};
+use super::src::bitmap::bitmap;
+use super::src::sprites::sprites;
+use super::src::geometry::Bitmap;
 
-export function main(): void {
-    screen.blank(BorderColor.BLACK, BackgroundColor.BLACK);
-    bitmap.enter(false);
-    bitmap.clear();
-    bitmap.fillColors(1, 6); // white pixels on blue cells
-    for (let y: u8 = 40; y < 100; y++) {
-        for (let x: u16 = 40; x < 120; x++) {
-            bitmap.plot(x, y);
+pub fn main() {
+    screen::blank(BorderColor::BLACK, BackgroundColor::BLACK);
+    bitmap::enter(false);
+    bitmap::clear();
+    bitmap::fillColors(1, 6); // white pixels on blue cells
+    for y: u8 in 40..100 {
+        for x: u16 in 40..120 {
+            bitmap::plot(x, y);
         }
     }
-    for (let i: u8 = 0; i < 63; i++) {
-        sprites.setShapeByte(Bitmap.SHAPE_BLOCK_FIRST, i, 255);
+    for i: u8 in 0..63 {
+        sprites::setShapeByte(Bitmap::SHAPE_BLOCK_FIRST, i, 255);
     }
-    sprites.setShape(0, Bitmap.SHAPE_BLOCK_FIRST);
-    sprites.setColor(0, 7); // yellow
-    sprites.place(0, 250, 180);
-    sprites.show(0);
-    while (true) {
+    sprites::setShape(0, Bitmap::SHAPE_BLOCK_FIRST);
+    sprites::setColor(0, 7); // yellow
+    sprites::place(0, 250, 180);
+    sprites::show(0);
+    loop {
         waitFrame();
     }
 }

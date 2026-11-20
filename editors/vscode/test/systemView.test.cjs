@@ -52,7 +52,7 @@ function fakeProject(dir, overrides = {}) {
     kind: 'project',
     name: 'my-game',
     dir,
-    configPath: path.join(dir, '8bitscript.config.8bs'),
+    configPath: path.join(dir, '8bitscript.config.ts'),
     targets: ['c64', 'vic20'],
     ...overrides,
   };

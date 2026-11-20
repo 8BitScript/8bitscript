@@ -51,7 +51,7 @@ Implemented:
                                no region: its model is hardware. --profile
                                names the hardware fitted — a preset from
                                the machine's catalog (8032) or a profile the
-                               project composes in 8bitscript.config.8bs —
+                               project composes in 8bitscript.config.ts —
                                and --hardware sets single options on top
                                (model=4032). --system names a saved
                                arrangement (config, .8bitscript/systems.json,
@@ -66,7 +66,7 @@ Implemented:
                                lists every option, value and preset, and
                                which machines this release builds for.
                                --program names one of the project's
-                               programs (8bitscript.config.8bs's programs
+                               programs (8bitscript.config.ts's programs
                                block); without it, main, or the only one.
                                --define NAME=VALUE (repeatable) hands the
                                program a value that its #define("NAME", …)
@@ -201,7 +201,7 @@ Implemented:
                                generators, scripts)
                                (a template literal or a ['...'].join('\\n')
                                array; \${expr} is kept), --fences the
-                               \`\`\`8bs fences in Markdown, --all all three.
+                               \`\`\`8bs and \`\`\`8bx fences in Markdown, --all all three.
                                --check writes nothing and exits 1 on any
                                difference or failure. A literal it cannot
                                convert is listed and left alone. This

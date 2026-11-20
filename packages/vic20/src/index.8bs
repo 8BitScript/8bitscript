@@ -3,7 +3,7 @@
 // The module entry point named by the "8bitscript".entry field in this
 // package's package.json, resolved and linked for:
 //
-//     import { vicColor, memoryPointer } from "@8bitscript/vic20";
+//     use @8bitscript::vic20::{vicColor, memoryPointer};
 //
 // The surface is the hardware, one register at a time. What a program
 // usually wants sits one layer up, in this package's own implementations of
@@ -19,16 +19,14 @@
 //   bits 4-7  background color (16 values)
 //   bit  3    normal/inverted video (1 = normal)
 //   bits 0-2  border color (8 values — the VIC only gives border 3 bits)
-@address(0x900F)
-export let vicColor: volatile<u8>;
+#[address(0x900F)] pub let mut vicColor: volatile<u8>;
 
 // $9005, the VIC's memory pointer (the chip's `addr` register): bits
 // 4-7 the screen base, bits 0-3 the character set base. $F0 is screen $1E00
 // with the upper-case/graphics character ROM at $8000 — the power-on value
 // (POKE 36869,240 in the Programmer's Reference Guide), where $F2 is the
 // lower-case ROM at $8800.
-@address(0x9005)
-export let memoryPointer: volatile<u8>;
+#[address(0x9005)] pub let mut memoryPointer: volatile<u8>;
 
 // ---- the VIAs ($9110, $9120): the control port and the keyboard -------------
 //
@@ -45,13 +43,8 @@ export let memoryPointer: volatile<u8>;
 // Verified against VICE's `vic20via1.c` and `vic20via2.c` — see
 // ../AGENTS.md, which records the port bits and the boot-time direction
 // registers this package relies on.
-@address(0x9111)
-export let via1PortA: volatile<u8>;
-@address(0x9120)
-export let via2PortB: volatile<u8>;
-@address(0x9121)
-export let via2PortA: volatile<u8>;
-@address(0x9122)
-export let via2DirectionB: volatile<u8>;
-@address(0x9123)
-export let via2DirectionA: volatile<u8>;
+#[address(0x9111)] pub let mut via1PortA: volatile<u8>;
+#[address(0x9120)] pub let mut via2PortB: volatile<u8>;
+#[address(0x9121)] pub let mut via2PortA: volatile<u8>;
+#[address(0x9122)] pub let mut via2DirectionB: volatile<u8>;
+#[address(0x9123)] pub let mut via2DirectionA: volatile<u8>;

@@ -33,36 +33,36 @@
 
 // What the picture does at a line, named without an address. The numbers
 // are arbitrary and the same in all nine rasterline files.
-export namespace Slot {
-    const BORDER: utinyint = 0;     // the border's color
+pub mod Slot {
+    const BORDER: utinyint = 0; // the border's color
     const BACKGROUND: utinyint = 1; // the playfield's background color
-    const SCROLL_X: utinyint = 2;   // the horizontal fine scroll, 0-7
-    const CHARSET: utinyint = 3;    // 0 = upper case/graphics ($D018 $84), 1 = lower/upper case ($86)
+    const SCROLL_X: utinyint = 2; // the horizontal fine scroll, 0-7
+    const CHARSET: utinyint = 3; // 0 = upper case/graphics ($D018 $84), 1 = lower/upper case ($86)
 }
 
 const LIST_CONTROL: usmallint = 2004; // agreementFor(40x25).rasterControlOffset
-const LIST_COUNT: usmallint = 2005;   // .rasterCountOffset
-const LIST_BASE: usmallint = 2006;    // .rasterBase
+const LIST_COUNT: usmallint = 2005; // .rasterCountOffset
+const LIST_BASE: usmallint = 2006; // .rasterBase
 
 // The last line appended, to keep insertion ascending: nothing reads this
 // list live the way the native handler does, so the ordering rule is
 // enforced here, where the bytes are written.
-let lastLine: utinyint = 0;
+let mut lastLine: utinyint = 0;
 
-export namespace raster {
+pub mod raster {
     const ENTRIES: utinyint = 63; // the list's capacity: the native list's, whatever the page allows
-    const STRIDE: utinyint = 3;   // bytes per entry: line, slot, value
+    const STRIDE: utinyint = 3; // bytes per entry: line, slot, value
     const FINE_SCROLL: bool = true; // Slot.SCROLL_X entries are accepted: the page shifts the line
-    const COLORS: bool = true;     // Slot.BORDER/BACKGROUND entries are accepted
-    const CHARSET: bool = true;    // Slot.CHARSET entries are accepted: the page switches sets at the line
+    const COLORS: bool = true; // Slot.BORDER/BACKGROUND entries are accepted
+    const CHARSET: bool = true; // Slot.CHARSET entries are accepted: the page switches sets at the line
     const FRAME_COUNTER: bool = false; // no host counter: the C64 wasm build runs on the web host
-    const TOP: utinyint = 50;     // picture line 0 is raster line 50 (the native list's offset; the page needs none)
-    const LINES: utinyint = 200;  // visible picture lines, 0-199
-    const KEEP: utinyint = 0xF8;  // $D016 bits 3-7 — CSEL, MCM — kept in every SCROLL_X byte on the machine
+    const TOP: utinyint = 50; // picture line 0 is raster line 50 (the native list's offset; the page needs none)
+    const LINES: utinyint = 200; // visible picture lines, 0-199
+    const KEEP: utinyint = 0xF8; // $D016 bits 3-7 — CSEL, MCM — kept in every SCROLL_X byte on the machine
 
     // Empty the list. The control byte stands: enable()/disable() own it.
-    function clear(): void {
-        memory.write(LIST_COUNT, 0);
+    fn clear() {
+        memory::write(LIST_COUNT, 0);
         lastLine = 0;
     }
 
@@ -70,23 +70,23 @@ export namespace raster {
     // False, and nothing added, if the line is past the visible picture,
     // below the last entry's, the slot is not one of the four, or the list
     // is full.
-    function at(line: utinyint, slot: utinyint, value: utinyint): bool {
-        if (line >= raster.LINES || line < lastLine) {
+    fn at(line: utinyint, slot: utinyint, value: utinyint) -> bool {
+        if line >= raster::LINES || line < lastLine {
             return false;
         }
-        if (slot > Slot.CHARSET) {
+        if slot > Slot::CHARSET {
             return false;
         }
-        let held: utinyint = memory.read(LIST_COUNT);
-        if (held >= raster.ENTRIES) {
+        let held: utinyint = memory::read(LIST_COUNT);
+        if held >= raster::ENTRIES {
             return false;
         }
-        let entry: usmallint = held;
+        let mut entry: usmallint = held;
         entry = LIST_BASE + entry * 3;
-        memory.write(entry, line);
-        memory.write(entry + 1, slot);
-        memory.write(entry + 2, value);
-        memory.write(LIST_COUNT, held + 1);
+        memory::write(entry, line);
+        memory::write(entry + 1, slot);
+        memory::write(entry + 2, value);
+        memory::write(LIST_COUNT, held + 1);
         lastLine = line;
         return true;
     }
@@ -95,46 +95,46 @@ export namespace raster {
     // — the entries below it slid up three bytes each. False, and nothing
     // added, if the line is past the picture, the slot is not one of the
     // four, or the list is full.
-    function insert(line: utinyint, slot: utinyint, value: utinyint): bool {
-        if (line >= raster.LINES) {
+    fn insert(line: utinyint, slot: utinyint, value: utinyint) -> bool {
+        if line >= raster::LINES {
             return false;
         }
-        if (line >= lastLine) {
-            return raster.at(line, slot, value);
+        if line >= lastLine {
+            return raster::at(line, slot, value);
         }
-        if (slot > Slot.CHARSET) {
+        if slot > Slot::CHARSET {
             return false;
         }
-        let held: utinyint = memory.read(LIST_COUNT);
-        if (held >= raster.ENTRIES) {
+        let held: utinyint = memory::read(LIST_COUNT);
+        if held >= raster::ENTRIES {
             return false;
         }
-        let pos: usmallint = held;
+        let mut pos: usmallint = held;
         pos = LIST_BASE + pos * 3;
-        while (pos > LIST_BASE) {
-            if (memory.read(pos - 3) <= line) {
+        while pos > LIST_BASE {
+            if memory::read(pos - 3) <= line {
                 break;
             }
-            memory.write(pos, memory.read(pos - 3));
-            memory.write(pos + 1, memory.read(pos - 2));
-            memory.write(pos + 2, memory.read(pos - 1));
+            memory::write(pos, memory::read(pos - 3));
+            memory::write(pos + 1, memory::read(pos - 2));
+            memory::write(pos + 2, memory::read(pos - 1));
             pos = pos - 3;
         }
-        memory.write(pos, line);
-        memory.write(pos + 1, slot);
-        memory.write(pos + 2, value);
-        memory.write(LIST_COUNT, held + 1);
+        memory::write(pos, line);
+        memory::write(pos + 1, slot);
+        memory::write(pos + 2, value);
+        memory::write(LIST_COUNT, held + 1);
         return true;
     }
 
     // How many entries the list holds.
-    function count(): utinyint {
-        return memory.read(LIST_COUNT);
+    fn count() -> utinyint {
+        return memory::read(LIST_COUNT);
     }
 
     // Nothing to hand over: the page reads the list at paint time, between
     // two frames of the program, so a rebuilt list is whole by construction.
-    function commit(): void {
+    fn commit() {
     }
 
     // Rewrite one entry's value, leaving its line and slot: `entry` is the
@@ -142,17 +142,17 @@ export namespace raster {
     // written, if the offset is not a multiple of the stride or names an
     // entry at or past the count. A SCROLL_X entry takes the 0-7 amount and
     // a CHARSET entry 0 or 1, as `at` does; the page keeps only those bits.
-    function setValue(entry: utinyint, value: utinyint): bool {
-        if ((entry / 3) * 3 != entry) {
+    fn setValue(entry: utinyint, value: utinyint) -> bool {
+        if entry / 3 * 3 != entry {
             return false;
         }
-        let held: usmallint = memory.read(LIST_COUNT);
+        let mut held: usmallint = memory::read(LIST_COUNT);
         held = held * 3;
         let wide: usmallint = entry;
-        if (wide >= held) {
+        if wide >= held {
             return false;
         }
-        memory.write(LIST_BASE + wide + 2, value);
+        memory::write(LIST_BASE + wide + 2, value);
         return true;
     }
 
@@ -160,16 +160,16 @@ export namespace raster {
     // No video-frame counter: the C64 wasm build runs on the web host, which runs one logical frame per waitFrame() return and never skips one, so a loop that calls
     // waitFrame() once a pass already counts every frame itself. frame() answers 0
     // and FRAME_COUNTER says so; count your own waitFrame() calls.
-    function frame(): utinyint {
+    fn frame() -> utinyint {
         return 0;
     }
 
-    function enable(): void {
-        memory.write(LIST_CONTROL, 1);
+    fn enable() {
+        memory::write(LIST_CONTROL, 1);
     }
 
     // The plain, unsplit picture again; the list is kept.
-    function disable(): void {
-        memory.write(LIST_CONTROL, 0);
+    fn disable() {
+        memory::write(LIST_CONTROL, 0);
     }
 }

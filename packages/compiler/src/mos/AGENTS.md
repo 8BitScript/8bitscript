@@ -617,7 +617,7 @@ can't clobber a claimed byte before waitFrameSetup's own SEI would have
 run. A program with no waitFrame() keeps the polite budget and still
 lands back in READY. The C64's own budget (`C64_ZP_BUDGET`) is the same
 shape for both, $02-$FC: the last three bytes, $FD-$FF, hold the IRQ
-target that `@8bitscript/c64`'s `raster::s` writes there — because the
+target that `@8bitscript/c64`'s `raster.s` writes there — because the
 VIC-II in bank 3 draws its idle graphics from $FFFF, the IRQ vector's
 high byte, and the only way to make that byte 0 is an IRQ target in
 page zero (packages/c64/AGENTS.md, "Idle graphics, and the ghost byte").
@@ -716,7 +716,7 @@ group by value — one LDA #0 serves every zeroed global's STA.
 used to reach exactly one backend path: the NES's, where the bytes are
 the CHR-ROM and belong to the FILE (image-nes.ts/chr-nes.ts). On every
 other machine they were silently nothing — which left
-`packages/c64/native/6502/raster::s`'s vector stub and raster-interrupt
+`packages/c64/native/6502/raster.s`'s vector stub and raster-interrupt
 handler unlinkable, and `asm6502 { jsr __8bs_c64_raster_install }`
 an undefined label. `mos/native.ts` is the code half now; the NES keeps
 its own file half untouched, gated on the machine in `build()`.
@@ -772,7 +772,7 @@ the address bytes. `jsr`/`jmp`/`jmp ()`/a branch to a frame name is
 refused by name — a slot is data. Globals are deliberately not looked up:
 they reach the lowerer link-renamed, so the written name is not the
 bound one. This is what lets `packages/c64/src/text.8bs` hand a string
-parameter's pointer to `native/6502/text::s` with `lda s` / `ldx s+1`,
+parameter's pointer to `native/6502/text.s` with `lda s` / `ldx s+1`,
 and why `linker/optimize.mjs`'s `referencesNames` reads a block's text
 for names: a parameter only a block reads is not unused.
 

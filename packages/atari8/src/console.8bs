@@ -2,7 +2,7 @@
 //
 // Named by "8bitscript".exports["./console"] in this package's package.json:
 //
-//     import { console, ConsoleKey } from "@8bitscript/atari8/console";
+//     use @8bitscript::atari8::console::{console, ConsoleKey};
 //
 //     console.scan();
 //     if (console.pressed(ConsoleKey.START)) { ... }
@@ -31,33 +31,33 @@
 // Reading CONSOL returns the keys; writing it drives the speaker. They are
 // the same address and genuinely different registers, which is why this file
 // declares it twice.
-import { consolRead, consolWrite } from "./index.8bs";
+use self::index::{consolRead, consolWrite};
 
 // The last scan: `ConsoleKey.*` bits, 1 = pressed, the hardware's active-low
 // sense inverted once here. Zero until the first scan.
-let state: utinyint = 0;
+let mut state: utinyint = 0;
 
-export namespace ConsoleKey {
+pub mod ConsoleKey {
     const START: utinyint = 1;
     const SELECT: utinyint = 2;
     const OPTION: utinyint = 4;
 }
 
-export namespace console {
+pub mod console {
     // Read the three keys into the snapshot. Once a frame, beside
     // joystick.scan(); unlike the joystick this reads the hardware and so
     // is live whether or not the OS VBI is running.
-    function scan(): void {
+    fn scan() {
         state = (consolRead ^ 0x07) & 0x07;
     }
 
     // One key, from the snapshot: `console.pressed(ConsoleKey.START)`.
-    function pressed(key: utinyint): bool {
+    fn pressed(key: utinyint) -> bool {
         return (state & key) != 0;
     }
 
     // All three at once, as `ConsoleKey.*` bits.
-    function bits(): utinyint {
+    fn bits() -> utinyint {
         return state;
     }
 
@@ -68,15 +68,15 @@ export namespace console {
     // event is a click. A tone means toggling `speaker()` on a timed loop
     // instead, which costs the CPU the whole time it sounds — POKEY is the
     // answer for anything longer than a click.
-    function click(): void {
+    fn click() {
         consolWrite = 0x00;
         consolWrite = 0x08;
     }
 
     // The speaker bit on its own, for a program timing its own tone:
     // `out` true pushes the cone, false lets it rest.
-    function speaker(out: bool): void {
-        if (out) {
+    fn speaker(out: bool) {
+        if out {
             consolWrite = 0x00;
         } else {
             consolWrite = 0x08;

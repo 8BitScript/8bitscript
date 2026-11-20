@@ -165,12 +165,12 @@ test('under xpet, the character-set split lands on its picture lines and holds f
     // ($0E) for the entire capture, code 1 in every cell — the same
     // reference-capture technique the research behind this driver used.
     const refGraphics = await (async () => {
-      const src = `export function main(): void {
-    for (let cell: usmallint = 0; cell < 1000; cell++) {
-        memory.write(0x8000 + cell, 1);
+      const src = `pub fn main() {
+    for cell: usmallint in 0..1000 {
+        memory::write(0x8000 + cell, 1);
     }
-    memory.write(0xE84C, 0x0C);
-    while (true) {
+    memory::write(0xE84C, 0x0C);
+    loop {
         waitFrame();
     }
 }
@@ -183,12 +183,12 @@ test('under xpet, the character-set split lands on its picture lines and holds f
       return decodePng(readFileSync(shotPath));
     })();
     const refText = await (async () => {
-      const src = `export function main(): void {
-    for (let cell: usmallint = 0; cell < 1000; cell++) {
-        memory.write(0x8000 + cell, 1);
+      const src = `pub fn main() {
+    for cell: usmallint in 0..1000 {
+        memory::write(0x8000 + cell, 1);
     }
-    memory.write(0xE84C, 0x0E);
-    while (true) {
+    memory::write(0xE84C, 0x0E);
+    loop {
         waitFrame();
     }
 }
@@ -249,12 +249,12 @@ test('under xpet, the 4032 eight-entry split lands on every picture line and hol
   const scratch = await mkdtemp(join(tmpdir(), '8bs-pet-raster-4032-'));
   try {
     const refGraphics = await (async () => {
-      const src = `export function main(): void {
-    for (let cell: usmallint = 0; cell < 1000; cell++) {
-        memory.write(0x8000 + cell, 1);
+      const src = `pub fn main() {
+    for cell: usmallint in 0..1000 {
+        memory::write(0x8000 + cell, 1);
     }
-    memory.write(0xE84C, 0x0C);
-    while (true) {
+    memory::write(0xE84C, 0x0C);
+    loop {
         waitFrame();
     }
 }
@@ -267,12 +267,12 @@ test('under xpet, the 4032 eight-entry split lands on every picture line and hol
       return decodePng(readFileSync(shotPath));
     })();
     const refText = await (async () => {
-      const src = `export function main(): void {
-    for (let cell: usmallint = 0; cell < 1000; cell++) {
-        memory.write(0x8000 + cell, 1);
+      const src = `pub fn main() {
+    for cell: usmallint in 0..1000 {
+        memory::write(0x8000 + cell, 1);
     }
-    memory.write(0xE84C, 0x0E);
-    while (true) {
+    memory::write(0xE84C, 0x0E);
+    loop {
         waitFrame();
     }
 }

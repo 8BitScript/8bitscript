@@ -81,8 +81,8 @@ Same list as before — nothing behind the shell is built:
 - **Storage** — load/save and host mount routes for Launch in Studio.
 
 Assets on disk should be **media source**: `.8bg` for pictures, `.8ba` for
-audio — see [`docs/project/graphics::md`](../../docs/project/graphics.md) and
-[`docs/project/audio::md`](../../docs/project/audio.md).
+audio — see [`docs/project/graphics.md`](../../docs/project/graphics.md) and
+[`docs/project/audio.md`](../../docs/project/audio.md).
 
 ## Launching
 

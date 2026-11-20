@@ -144,15 +144,15 @@ test('8bs targets --json carries the runtime object on every machine', async () 
 test('the declared wasm claim is the truth: each release machine builds through the wasm backend if and only if it says so', async () => {
   const dir = mkdtempSync(join(tmpdir(), '8bs-wasm-truth-'));
   mkdirSync(join(dir, 'src'));
-  writeFileSync(join(dir, 'src', 'main.8bs'), `import { screen } from "@8bitscript/screen";
-import { text } from "@8bitscript/text";
-export function main(): void {
-    screen.blank();
-    text.print(0, "HELLO");
-    text.releaseCursor();
+  writeFileSync(join(dir, 'src', 'main.8bs'), `use @8bitscript::screen::screen;
+use @8bitscript::text::text;
+pub fn main() {
+    screen::blank();
+    text::print(0, "HELLO");
+    text::releaseCursor();
 }
 `);
-  writeFileSync(join(dir, '8bitscript.config.8bs'), "export default { entry: 'src/main.8bs' };\n");
+  writeFileSync(join(dir, '8bitscript.config.ts'), "export default { entry: 'src/main.8bs' };\n");
   const runtime = byId();
   for (const id of RELEASE_MACHINES) {
     let built = true;

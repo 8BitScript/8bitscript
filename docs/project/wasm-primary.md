@@ -398,7 +398,7 @@ What is done and verified, headless, no emulator (`pnpm run test:ci` plus the fi
   over at once and writes the frame table into the sprite registers) and
   `multiplex::c64.web.8bs` (the native routine's three steps in plain loops). Held to
   the native signatures by `packages/compiler/test/c64-web-twin.test.mjs`.
-- **End to end**, `packages/cli/test/web-c64-sprites::test.mjs`: hardware sprites at
+- **End to end**, `packages/cli/test/web-c64-sprites.test.mjs`: hardware sprites at
   exact pixels; the native multiplexer probe (`packages/c64/test/multiplex-probe.8bs`,
   20 virtual sprites from 8, the same expectations `layers.test.mjs` reads under
   x64sc) passes on wasm; `swarm` shows 16 rings; `fancy`, `joystick`, `media-walk`, Studio
@@ -444,7 +444,7 @@ Branch `wasm/x16-input-raster`, rebased on #333. What is done and verified, head
 - The page reads a gamepad (`padEdges`, standard layout: D-pad or left stick, A/START
   confirm, B/SELECT cancel) into the same input byte on every wasm target, so the X16
   twin's `Input.CONFIRM_LABELS` is the native file's `RETURN OR START`.
-- Tests: `packages/cli/test/web-cx16-raster::test.mjs` (the raster, the frame byte, the
+- Tests: `packages/cli/test/web-cx16-raster.test.mjs` (the raster, the frame byte, the
   pointer), additions to `web-loader.test.mjs` (the pad), and `web-glyphs.test.mjs` updated
   for the frame byte; the input itself stays pinned by #333's `web-cx16-input.test.mjs`
   and `packages/compiler/test/cx16-web-twin.test.mjs`.
@@ -469,7 +469,7 @@ What is **not** done:
 - **Cancel on the keyboard** is Escape; the real keyboard-joystick's SELECT is left Shift.
 
 To resume: `pnpm install`, then
-`node --test packages/cli/test/web-cx16-raster::test.mjs packages/cli/test/web-cx16-input.test.mjs`.
+`node --test packages/cli/test/web-cx16-raster.test.mjs packages/cli/test/web-cx16-input.test.mjs`.
 To look at it:
 `cd packages/examples/fancy && node ../../cli/bin/8bs.mjs run cx16 --web --screenshot out.png --frames 120`.
 Risk: the frame byte moves the X16's program data base by one byte; no other machine's

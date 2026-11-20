@@ -28,11 +28,11 @@ const KIND_WEB_GLYPH = 0;
 const KIND_CX16_VERA = 5;
 
 const SPRITE = 'sprite dot {\n  source "./dot.png"\n  size 8x8\n  transparent auto\n}\n';
-const PROGRAM = `import { dot } from "./dot.8bg";
-import { graphics } from "@8bitscript/graphics";
+const PROGRAM = `use self::dot::dot;
+use @8bitscript::graphics::graphics;
 
-export function main(): void {
-    graphics.place(dot, 0, 0);
+pub fn main() {
+    graphics::place(dot, 0, 0);
 }
 `;
 

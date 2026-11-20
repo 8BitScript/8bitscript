@@ -79,6 +79,18 @@ export function staleConfigPath(dir) {
 }
 
 /**
+ * Drop warned old-name configs that no longer apply (renamed, deleted, or a
+ * current config now beside them), so a later regression warns again.
+ *
+ * @param {Set<string>} warned
+ */
+export function forgetFixedStale(warned) {
+  for (const path of warned) {
+    if (!existsSync(path) || findConfigPath(dirname(path))) warned.delete(path);
+  }
+}
+
+/**
  * Walk upward from `dir` looking for 8bitscript.config.ts (or the older
  * 8bs.config.ts), so a document opened from src/ (or deeper) still finds its
  * project's config. Stops at the filesystem root.
@@ -97,7 +109,7 @@ function findConfigPath(dir) {
 }
 
 /**
- * The project's `frameRate` (8bitscript.config.8bs, default 60) for the document at
+ * The project's `frameRate` (8bitscript.config.ts, default 60) for the document at
  * `filePath` — so `#frames(...)` diagnostics in the editor agree with what
  * `8bs build`/`8bs check` would actually report, the same invariant this
  * file's header comment already promises for every other diagnostic.
@@ -108,7 +120,7 @@ function findConfigPath(dir) {
  *
  * The `?t=<mtime>` on the dynamic import is a cache-buster: Node's ESM
  * loader otherwise caches a resolved file URL for the life of the process,
- * so an edited 8bitscript.config.8bs would need a server restart to take effect
+ * so an edited 8bitscript.config.ts would need a server restart to take effect
  * without it.
  */
 async function frameRateFor(filePath) {
@@ -232,6 +244,7 @@ export function start({ checkout } = {}) {
     const text = document.getText();
     const { version } = document;
     const path = filePathOf(document.uri);
+    forgetFixedStale(warnedStale);
     const stale = path ? staleConfigPath(dirname(path)) : null;
     if (stale && !warnedStale.has(stale)) {
       warnedStale.add(stale);

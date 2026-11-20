@@ -149,7 +149,7 @@ let cell: utinyint = entropy::range(16);
 One import; the compiler picks the file. `src/entropy.8bs` is the portable
 generator, and `entropy.c64.8bs` and `entropy.atari8.8bs` beside it are
 the machine twins the resolver takes for those two builds on its own — the
-same rule that makes `screen::nes.8bs` the NES's `screen.8bs`. A program
+same rule that makes `screen.nes.8bs` the NES's `screen.8bs`. A program
 never names them.
 
 **What it is for.** A game that wants every spawn, every shuffle, to be

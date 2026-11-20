@@ -27,7 +27,7 @@ machine answers it, and a written degradation for machines that cannot.
 - **`@8bitscript/raster`** — *what the picture does at a picture line*:
   `Slot.BORDER`, `BACKGROUND`, `SCROLL_X`; `at(line, slot, value)`,
   `setValue(entry, value)`, `enable()`. Real on the C64 (an IRQ-driven
-  write list in `native/6502/raster::s`; `Slot.CHARSET` too, `$D018`
+  write list in `native/6502/raster.s`; `Slot.CHARSET` too, `$D018`
   between the two ROM sets), the web, and the VIC-20 (border,
   background and character set, `raster::FINE_SCROLL` false: `waitFrame()`'s frame
   hook busy-waits down the frame and writes `$900F` and `$9005` at each line —
@@ -40,7 +40,7 @@ machine answers it, and a written degradation for machines that cannot.
   pass stalls, then jumps, whenever a pass is not exactly one frame — the
   Vegas Nights bonus stripes did exactly that). It counts where a handler
   already runs once a frame: the C64 (`inc $06C3` in the line-0 pass of
-  `native/6502/raster::s`) and the X16 (`inc $0408` when a pass over the
+  `native/6502/raster.s`) and the X16 (`inc $0408` when a pass over the
   planned lines ends). Everywhere else `FRAME_COUNTER` is a folded `false`
   and `frame()` answers 0: the VIC-20 and the PET run no interrupt (a count
   of `waitFrame()` returns would miss every frame a slow loop skips), and the
@@ -433,7 +433,7 @@ that still needs its own fine-swept constants). Cells; still no colour.
 the web has no ROM, so its alternate set is the runtime's own decision —
 the boot set with lower case drawn as capitals, the mixed-case/upper-case
 pair every Commodore machine has — verified by a compiled program's
-headless screenshot (`packages/cli/test/web-charset-raster::test.mjs`).
+headless screenshot (`packages/cli/test/web-charset-raster.test.mjs`).
 Sprites are cells until the web target has a sprite table.
 
 ## Degradation ladders
@@ -592,7 +592,7 @@ iteration. The handler is cheap; the plan-building is not. This is the
 same class of finding as `text::print` (~4,000 cycles for nine
 characters) and it decided the next step: the multiplexer's update in
 native assembly with its tables at fixed addresses — rule 1 above,
-taken to its conclusion — done the same day (`native/6502/multiplex::s`,
+taken to its conclusion — done the same day (`native/6502/multiplex.s`,
 page $06; ~9,500 cycles for sixteen with the VIC's own steal inside,
 and the swarm at one hardware frame an iteration on the C64,
 [sprites.md](sprites.md) has the numbers). The cell layers' redraws are

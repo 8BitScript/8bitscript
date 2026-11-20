@@ -4,7 +4,7 @@
 //
 // Named by "8bitscript".exports["./banks"] in this package's package.json:
 //
-//     import { banks } from "@8bitscript/c128/banks";
+//     use @8bitscript::c128::banks::banks;
 //
 //     let kib: usmallint = banks.kib();   // 64, or 192 with the mod
 //
@@ -48,33 +48,33 @@
 // `$D500`: the mirror is visible in every configuration, which is exactly
 // what a register that changes the configuration has to be.
 
-@address(0xFF00) let mmuConfig: volatile<u8>;      // CR mirror: bits 6-7 the RAM bank
-@address(0xD506) let mmuRamControl: volatile<u8>;  // RCR: common RAM size and where
+#[address(0xFF00)] let mut mmuConfig: volatile<u8>; // CR mirror: bits 6-7 the RAM bank
+#[address(0xD506)] let mut mmuRamControl: volatile<u8>; // RCR: common RAM size and where
 
-namespace Mmu {
-    const KEEP: utinyint = 0x3F;         // everything but the bank bits
-    const BANK_2: utinyint = 0x80;       // %10 in the top bits
-    const COMMON_16K: utinyint = 0x07;   // 16 KiB of common RAM, at the bottom
-    const PROBE: usmallint = 0x8000;     // a byte above the common area
+mod Mmu {
+    const KEEP: utinyint = 0x3F; // everything but the bank bits
+    const BANK_2: utinyint = 0x80; // %10 in the top bits
+    const COMMON_16K: utinyint = 0x07; // 16 KiB of common RAM, at the bottom
+    const PROBE: usmallint = 0x8000; // a byte above the common area
     const BANK0_MARK: utinyint = 0x5A;
     const BANK2_MARK: utinyint = 0xC3;
 }
 
-export namespace banks {
+pub mod banks {
     // KiB of banked RAM this machine has beyond the bank the program runs
     // in: 64 on every C128, 192 with the 256 KiB modification. One call at
     // start-up; keep the answer.
-    function kib(): usmallint {
+    fn kib() -> usmallint {
         let savedCommon: utinyint = mmuRamControl;
         let savedConfig: utinyint = mmuConfig;
-        mmuRamControl = Mmu.COMMON_16K;
-        memory.write(Mmu.PROBE, Mmu.BANK0_MARK);
-        mmuConfig = (savedConfig & Mmu.KEEP) | Mmu.BANK_2;
-        memory.write(Mmu.PROBE, Mmu.BANK2_MARK);
+        mmuRamControl = Mmu::COMMON_16K;
+        memory::write(Mmu::PROBE, Mmu::BANK0_MARK);
+        mmuConfig = savedConfig & Mmu::KEEP | Mmu::BANK_2;
+        memory::write(Mmu::PROBE, Mmu::BANK2_MARK);
         mmuConfig = savedConfig;
-        let kept: utinyint = memory.read(Mmu.PROBE);
+        let kept: utinyint = memory::read(Mmu::PROBE);
         mmuRamControl = savedCommon;
-        if (kept == Mmu.BANK0_MARK) {
+        if kept == Mmu::BANK0_MARK {
             return 192;
         }
         return 64;

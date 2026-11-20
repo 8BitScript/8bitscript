@@ -61,11 +61,11 @@ const chime8ba = `sample chime {
 }
 `;
 
-const mark8bx = `import { mark } from "./mark.8bg";
-import { graphics } from "@8bitscript/graphics";
+const mark8bx = `use "./mark.8bg"::mark;
+use @8bitscript::graphics::graphics;
 
-export component Mark() {
-    graphics.place(mark, 120, 0);
+pub component Mark() {
+    graphics::place(mark, 120, 0);
 }
 `;
 

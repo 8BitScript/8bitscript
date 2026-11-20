@@ -59,16 +59,16 @@ const GENERIC = { file: 'index.8bs', MAX: 8, FRAMES: 4, WIDTH: 8, HEIGHT: 8, COL
 // Reading a constant into a local keeps its folded value in the linked
 // program; a bool is read by the `if` it guards, which link() folds the same
 // way rasterline-charset.test.mjs relies on.
-const PROBE = `import { graphics } from "@8bitscript/graphics";
-export function main(): void {
-${NUMBERS.map((name) => `    let n_${name}: usmallint = graphics.${name};`).join('\n')}
-${BOOLEANS.map((name) => `    if (graphics.${name}) { graphics.hide(0); }`).join('\n')}
-    graphics.place(0, 0, 0);
-    graphics.hide(0);
-    graphics.setFrame(0, 1);
-    graphics.animate(0, false);
-    graphics.color(0, 1);
-    graphics.update();
+const PROBE = `use @8bitscript::graphics::graphics;
+pub fn main() {
+    ${NUMBERS.map((name) => `    let n_${name}: usmallint = graphics.${name};`).join('\n')};
+    ${BOOLEANS.map((name) => `    if (graphics.${name}) { graphics.hide(0); }`).join('\n')};
+    graphics::place(0, 0, 0);
+    graphics::hide(0);
+    graphics::setFrame(0, 1);
+    graphics::animate(0, false);
+    graphics::color(0, 1);
+    graphics::update();
     return;
 }
 `;
@@ -141,8 +141,8 @@ test('a constant a twin states as a literal says in its source what the linker f
 test('every twin source declares all eight calls, and none of them is a stub that fails to link', () => {
   for (const file of new Set([GENERIC.file, ...Object.values(TWINS).map((t) => t.file)])) {
     const source = readFileSync(join(SRC, file), 'utf8');
-    assert.match(source, /export namespace graphics \{/, file);
-    for (const call of CALLS) assert.match(source, new RegExp(`function ${call}\\(`), `${file}: graphics.${call}`);
+    assert.match(source, /pub mod graphics \{/, file);
+    for (const call of CALLS) assert.match(source, new RegExp(`fn ${call}\\(`), `${file}: graphics.${call}`);
   }
 });
 
@@ -157,8 +157,8 @@ test('place() takes playfield pixels: the C64 twin adds the sprite layer\'s orig
   // The y goes in as the chip's (origin added) unless the position is past the
   // playfield, when it is the sprite layer's "not drawn" (graphics-ops.test.mjs
   // under packages/c64/test measures both).
-  assert.match(c64, /let chipY: usmallint = y \+ sprites\.ORIGIN_Y;/);
-  assert.match(c64, /sprites\.place\(slot, x \+ sprites\.ORIGIN_X, chipY\);/);
+  assert.match(c64, /let mut chipY: usmallint = y \+ sprites::ORIGIN_Y;/);
+  assert.match(c64, /sprites::place\(slot, x \+ sprites::ORIGIN_X, chipY\);/);
   for (const file of ['index.8bs', 'index.pet.8bs', 'index.web.8bs']) {
     const code = readFileSync(join(SRC, file), 'utf8').split('\n').filter((line) => !line.trim().startsWith('//')).join('\n');
     assert.doesNotMatch(code, /ORIGIN_[XY]/, `${file}: the origin is 0 on a cell machine, nothing to add`);

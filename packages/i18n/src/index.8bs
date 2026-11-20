@@ -23,17 +23,17 @@
 // Sources: CLDR's number symbols for each locale (unicode.org/cldr);
 // each twin cites the entry it was read from.
 
-export namespace Locale {
+pub mod Locale {
     const DECIMAL: utinyint = 46; // '.' — 3.5
-    const GROUP: utinyint = 44;   // ',' — 65,535
+    const GROUP: utinyint = 44; // ',' — 65,535
 }
 
 // Folded by the compiler at every call site (`i18n.format(Prompt.START,
 // { control: Input.CONFIRM_LABEL })` becomes the interpolated literal).
 // The body is never linked on a retro build.
-export namespace i18n {
+pub mod i18n {
     // Interpolate {name} slots in a catalog string. Folded at every
     // call site; the body is never linked on a retro build.
-    function format(template: string): void {
+    fn format(template: string) {
     }
 }

@@ -33,12 +33,12 @@ function namesIn(node, out = new Set()) {
 const COUNTER = `component Counter(step: utinyint) {
     state count: utinyint = 0;
     count = count + step;
-    memory.write(0x8000, count);
+    memory::write(0x8000, count);
 }
 `;
 
 test('two elements are two instances: two functions, two globals, nothing shared', () => {
-  const main = `${COUNTER}export function main(): void {
+  const main = `${COUNTER}pub fn main() {
     <Counter step={1} />;
     <Counter step={2} />;
 }
@@ -74,8 +74,17 @@ test('the two halves of a slotted component share one instance\'s state', () => 
     <slot />;
     depth = depth - 1;
 }
-component Dot() { memory.write(0x8000, 1); }
-export function main(): void { <Frame><Dot /></Frame>; <Frame><Dot /></Frame>; }
+component Dot() {
+    memory::write(0x8000, 1);
+}
+pub fn main() {
+    <Frame>
+        <Dot />
+    </Frame>;
+    <Frame>
+        <Dot />
+    </Frame>;
+}
 `;
   const { ir, diagnostics } = linkFiles({ 'main.8bx': main }, 'main.8bx');
   assert.deepEqual(diagnostics, []);
@@ -89,9 +98,12 @@ export function main(): void { <Frame><Dot /></Frame>; <Frame><Dot /></Frame>; }
 
 test('a stateful component imported from another module gets its instances in the importer', () => {
   const files = {
-    'Counter.8bx': `export ${COUNTER}`,
-    'main.8bx': `import { Counter } from "./Counter.8bx";
-export function main(): void { <Counter step={1} />; <Counter step={1} />; }
+    'Counter.8bx': `pub ${COUNTER}`,
+    'main.8bx': `use self::Counter::Counter;
+pub fn main() {
+    <Counter step={1} />;
+    <Counter step={1} />;
+}
 `,
   };
   const { ir, diagnostics } = linkFiles(files, 'main.8bx');
@@ -105,10 +117,16 @@ test('an instance inside a component instantiated twice is two instances (§103)
   const main = `component Tally() {
     state n: utinyint = 0;
     n = n + 1;
-    memory.write(0x8000, n);
+    memory::write(0x8000, n);
 }
-component Pair() { <Tally />; <Tally />; }
-export function main(): void { <Pair />; <Pair />; }
+component Pair() {
+    <Tally />;
+    <Tally />;
+}
+pub fn main() {
+    <Pair />;
+    <Pair />;
+}
 `;
   const { ir, diagnostics } = linkFiles({ 'main.8bx': main }, 'main.8bx');
   assert.deepEqual(diagnostics, []);
@@ -122,10 +140,15 @@ test('an ordinary function holding instances is one piece of code: its instances
   const main = `component Tally() {
     state n: utinyint = 0;
     n = n + 1;
-    memory.write(0x8000, n);
+    memory::write(0x8000, n);
 }
-function step(): void { <Tally />; }
-export function main(): void { step(); step(); }
+fn step() {
+    <Tally />;
+}
+pub fn main() {
+    step();
+    step();
+}
 `;
   const { ir, diagnostics } = linkFiles({ 'main.8bx': main }, 'main.8bx');
   assert.deepEqual(diagnostics, []);
@@ -135,9 +158,12 @@ export function main(): void { step(); step(); }
 
 test('a call from .8bs is an instance per call site (§4.5, §62)', () => {
   const files = {
-    'Counter.8bx': `export ${COUNTER}`,
-    'main.8bs': `import { Counter } from "./Counter.8bx";
-export function main(): void { Counter(1); Counter(2); }
+    'Counter.8bx': `pub ${COUNTER}`,
+    'main.8bs': `use self::Counter::Counter;
+pub fn main() {
+    Counter(1);
+    Counter(2);
+}
 `,
   };
   const { ir, diagnostics } = linkFiles(files, 'main.8bs');
@@ -149,19 +175,26 @@ export function main(): void { Counter(1); Counter(2); }
 
 test('state out of place, untyped, doubled, or shadowed is 8BS2022; `state` in .8bs is just a name', () => {
   const codes = (src) => analyze(src, 't.8bx', { sourceKind: '.8bx' }).filter((d) => d.code === Codes.BX_INVALID_STATE).map((d) => d.message);
-  assert.match(codes('state x: utinyint = 0;\nexport function main(): void { }\n')[0], /top level of a component/);
-  assert.match(codes('component A() { if (true) { state x: utinyint = 0; } }\nexport function main(): void { }\n')[0], /top level of a component/);
-  assert.match(codes('component A() { state x = 0; }\nexport function main(): void { }\n')[0], /needs a type/);
-  assert.match(codes('component A() { state x: utinyint = 0; state x: utinyint = 1; }\nexport function main(): void { }\n')[0], /declared twice/);
-  assert.match(codes('component A(x: utinyint) { state x: utinyint = 0; }\nexport function main(): void { }\n')[0], /same name as a prop/);
-  assert.match(codes('component A() { state x: utinyint = 0; let x: utinyint = 1; }\nexport function main(): void { }\n')[0], /a local cannot take its name/);
-  assert.deepEqual(analyze('let state: utinyint = 1;\nexport function main(): void { state = 2; }\n', 't.8bs'), []);
+  assert.match(codes('state x: utinyint = 0;\npub fn main() {\n}\n')[0], /top level of a component/);
+  assert.match(codes('component A() {\n    if true {\n        state x: utinyint = 0;\n    }\n}\npub fn main() {\n}\n')[0], /top level of a component/);
+  assert.match(codes('component A() {\n    state x = 0;\n}\npub fn main() {\n}\n')[0], /needs a type/);
+  assert.match(codes('component A() {\n    state x: utinyint = 0;\n    state x: utinyint = 1;\n}\npub fn main() {\n}\n')[0], /declared twice/);
+  assert.match(codes('component A(x: utinyint) {\n    state x: utinyint = 0;\n}\npub fn main() {\n}\n')[0], /same name as a prop/);
+  assert.match(codes('component A() {\n    state x: utinyint = 0;\n    let x: utinyint = 1;\n}\npub fn main() {\n}\n')[0], /a local cannot take its name/);
+  assert.deepEqual(analyze('let mut state: utinyint = 1;\npub fn main() {\n    state = 2;\n}\n', 't.8bs'), []);
 });
 
 test('a state initializer must be a literal or a const, like any global\'s', () => {
-  const main = `function seed(): utinyint { return 3; }
-component A() { state x: utinyint = seed(); memory.write(0x8000, x); }
-export function main(): void { <A />; }
+  const main = `fn seed() -> utinyint {
+    return 3;
+}
+component A() {
+    state x: utinyint = seed();
+    memory::write(0x8000, x);
+}
+pub fn main() {
+    <A />;
+}
 `;
   const { ir, diagnostics } = linkFiles({ 'main.8bx': main }, 'main.8bx');
   assert.equal(ir, null);

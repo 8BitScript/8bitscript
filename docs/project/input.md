@@ -143,7 +143,7 @@ controller work:
   `waitFrame()` holds `sei` and acks VSYNC itself, so the default IRQ never
   scans. `packages/cx16/src/input.8bs` calls `joystick_scan` `$FF53`,
   `kbd_scan` `$FF9F` and `joystick_get` `$FF56` from `poll()`: joy0 is the
-  keyboard joystick (Enter is START, arrows are the D-pad — `joystick::s`
+  keyboard joystick (Enter is START, arrows are the D-pad — `joystick.s`
   intab0), joy1 and joy2 the two SNES ports. GETIN (`$FFE4`) is still
   unread; the portable surface wants levels, which that API already is.
 

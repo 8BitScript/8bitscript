@@ -75,7 +75,7 @@ test('resolveLocale: nearest wins — the override, the target\'s, the project\'
   assert.deepEqual(resolveLocale({ locale: 'de', targets: { pet: { locale: 'fr' } } }, { target: 'pet', override: 'es' }), { ok: true, locale: 'es' });
   const bad = resolveLocale({ locale: 'pet' }, { target: 'pet' });
   assert.equal(bad.ok, false);
-  assert.match(bad.error, /8bitscript\.config\.8bs's locale: 'pet' is a machine's name/);
+  assert.match(bad.error, /8bitscript\.config\.ts's locale: 'pet' is a machine's name/);
   const badTarget = resolveLocale({ targets: { pet: { locale: 8 } } }, { target: 'pet' });
   assert.match(badTarget.error, /targets\.pet\.locale: a locale is a name in quotes, got 8/);
   const tag = resolveLocale({}, { target: 'atari8', override: 'on', tags: ['on'] });
@@ -83,18 +83,22 @@ test('resolveLocale: nearest wins — the override, the target\'s, the project\'
   assert.deepEqual(resolveLocale({ i18n: { defaultLocale: 'de' } }, { target: 'pet' }), { ok: true, locale: 'de' });
 });
 
-const STRINGS = (word) => `export const HELLO: string = "${word}";\n`;
+const STRINGS = (word) => `pub const HELLO: string = "${word}";
+`;
 const MAIN = [
-  'import { screen } from "@8bitscript/screen";',
-  'import { text } from "@8bitscript/text";',
-  'import { HELLO } from "./strings.8bs";',
-  'export function main(): void {',
-  '    screen.blank();',
-  '    text.print(0, HELLO);',
-  '    if (#locale("de")) { text.print(40, "DE"); } else { text.print(40, "--"); }',
-  '    text.releaseCursor();',
+  'use @8bitscript::screen::screen;',
+  'use @8bitscript::text::text;',
+  'use self::strings::HELLO;',
+  'pub fn main() {',
+  '    screen::blank();',
+  '    text::print(0, HELLO);',
+  '    if #locale("de") {',
+  '        text::print(40, "DE");',
+  '    } else {',
+  '        text::print(40, "--");',
+  '    }',
+  '    text::releaseCursor();',
   '}',
-  '',
 ].join('\n');
 
 async function project(config) {
@@ -103,7 +107,7 @@ async function project(config) {
   await writeFile(join(dir, 'src', 'main.8bs'), MAIN);
   await writeFile(join(dir, 'src', 'strings.8bs'), STRINGS('HELLO WORLD'));
   await writeFile(join(dir, 'src', 'strings.de.8bs'), STRINGS('HALLO WELT'));
-  await writeFile(join(dir, '8bitscript.config.8bs'), `export default ${JSON.stringify(config)};\n`);
+  await writeFile(join(dir, '8bitscript.config.ts'), `export default ${JSON.stringify(config)};\n`);
   return dir;
 }
 
@@ -174,8 +178,8 @@ test('resolveI18n: no block and no catalog directory is undefined; a catalog dir
   try {
     assert.deepEqual(resolveI18n(null, { projectDir: dir }), { ok: true, i18n: undefined });
     await mkdir(join(dir, 'src', 'i18n'), { recursive: true });
-    await writeFile(join(dir, 'src', 'i18n', 'en.8bs'), 'export namespace Game { const NAME: string = "2048"; }\n');
-    await writeFile(join(dir, 'src', 'i18n', 'de.8bs'), 'export namespace Game { const NAME: string = "2048"; }\n');
+    await writeFile(join(dir, 'src', 'i18n', 'en.8bs'), 'pub mod Game { const NAME: string = "2048"; }\n');
+    await writeFile(join(dir, 'src', 'i18n', 'de.8bs'), 'pub mod Game { const NAME: string = "2048"; }\n');
     const discovered = resolveI18n({}, { projectDir: dir });
     assert.equal(discovered.ok, true);
     assert.equal(discovered.i18n.defaultLocale, 'en');
@@ -198,30 +202,35 @@ test('--locale de with src/i18n catalogs folds the German catalog and leaves Eng
   const dir = await mkdtemp(join(tmpdir(), '8bs-i18n-build-'));
   await mkdir(join(dir, 'src', 'i18n'), { recursive: true });
   await writeFile(join(dir, 'src', 'i18n', 'en.8bs'), [
-    'export namespace Game { const NAME: string = "HELLO WORLD"; }',
-    'export namespace Prompt { const START: string = "PRESS {control}"; }',
-    '',
+    'pub mod Game {',
+    '    const NAME: string = "HELLO WORLD";',
+    '}',
+    'pub mod Prompt {',
+    '    const START: string = "PRESS {control}";',
+    '}',
   ].join('\n'));
   await writeFile(join(dir, 'src', 'i18n', 'de.8bs'), [
-    'export namespace Game { const NAME: string = "HALLO WELT"; }',
-    'export namespace Prompt { const START: string = "{control} DRUECKEN"; }',
-    '',
+    'pub mod Game {',
+    '    const NAME: string = "HALLO WELT";',
+    '}',
+    'pub mod Prompt {',
+    '    const START: string = "{control} DRUECKEN";',
+    '}',
   ].join('\n'));
   await writeFile(join(dir, 'src', 'main.8bs'), [
-    'import { screen } from "@8bitscript/screen";',
-    'import { text } from "@8bitscript/text";',
-    'import { Game, Prompt } from "@8bitscript/i18n/catalog";',
-    'import { i18n } from "@8bitscript/i18n";',
-    'import { Input } from "@8bitscript/input";',
-    'export function main(): void {',
-    '    screen.blank();',
-    '    text.print(0, Game.NAME);',
-    '    text.print(40, i18n.format(Prompt.START, { control: Input.CONFIRM_LABEL }));',
-    '    text.releaseCursor();',
+    'use @8bitscript::screen::screen;',
+    'use @8bitscript::text::text;',
+    'use @8bitscript::i18n::catalog::{Game, Prompt};',
+    'use @8bitscript::i18n::i18n;',
+    'use @8bitscript::input::Input;',
+    'pub fn main() {',
+    '    screen::blank();',
+    '    text::print(0, Game::NAME);',
+    '    text::print(40, i18n::format(Prompt::START, { control: Input::CONFIRM_LABEL }));',
+    '    text::releaseCursor();',
     '}',
-    '',
   ].join('\n'));
-  await writeFile(join(dir, '8bitscript.config.8bs'), `export default ${JSON.stringify({
+  await writeFile(join(dir, '8bitscript.config.ts'), `export default ${JSON.stringify({
     entry: 'src/main.8bs',
     targets: { pet: {} },
     i18n: { defaultLocale: 'en', fallbackLocale: 'en', locales: ['en', 'de'] },

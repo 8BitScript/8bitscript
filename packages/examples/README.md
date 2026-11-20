@@ -180,7 +180,7 @@ Five files, each one kind of thing:
 - `src/counter.8bs` — *the count on screen*: five digits kept in place,
   one `text::putChar` a frame (a five-digit `printNumber` every frame was
   ~2,800 cycles on the C64 under the compiler's code, a sixth of the
-  frame; ~1,265 through `native/6502/text::s`, still more than one poke).
+  frame; ~1,265 through `native/6502/text.s`, still more than one poke).
 - `src/shapes.8bs`, `src/shapes.c64.8bs` and `src/shapes.pet.8bs` — *what
   a sprite looks like*: an `O` on seven machines, a 24 × 21 ring drawn
   into a sprite block on the C64, a 4 × 4 pseudo-pixel ring defined
@@ -225,7 +225,7 @@ inside — a frame lost on about half the frames that recolour all
 sixteen (FRAME 776 at `--frames 1000`, 789 being every frame). It was
 two the same morning: `multiplex::update()` alone was ~16,000 cycles in
 the compiler's generic code, and is native assembly now
-(`packages/c64/native/6502/multiplex::s`); the counter and the recolour
+(`packages/c64/native/6502/multiplex.s`); the counter and the recolour
 each gave back a call a sprite, as the header records. The program's own
 habits are the budget's: X in half pixels, half the flock moved a frame,
 digits kept as digits.
@@ -259,5 +259,5 @@ One PNG sprite, one WAV blip, one two-note song. From inside `media-walk/`:
 hero assets; shared `mark.8bg` / `chime.8ba` match the other examples.
 PET is **4032** 32K with speaker attached. `memory::program`: **4485** (C64),
 **3579** (PET), measured 2026-09-24. See [`media-walk/README.md`](media-walk/README.md)
-and `docs/project/graphics::md` / `docs/project/audio::md`.
+and `docs/project/graphics.md` / `docs/project/audio.md`.
 

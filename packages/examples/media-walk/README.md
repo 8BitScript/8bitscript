@@ -21,4 +21,4 @@ Regenerate `player.png` / `blip.wav` with `node generate-assets.mjs`; shared mar
 | C64 | 4485 |
 | PET (4032 32K, speaker) | 3579 |
 
-See `docs/project/graphics::md` and `docs/project/audio::md` for adaptations and diagnostics.
+See `docs/project/graphics.md` and `docs/project/audio.md` for adaptations and diagnostics.

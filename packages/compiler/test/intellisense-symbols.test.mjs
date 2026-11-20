@@ -26,36 +26,42 @@ const withFiles = (files, fn) => {
 };
 
 const BAR = `// The bar's calls.
-export namespace bar {
+pub mod bar {
     // Opens a bar \`cells\` wide at \`row\`.
-    function begin(row: utinyint, cells: utinyint): void { memory.write(0x8000, row); }
-    function end(): void { memory.write(0x8001, 1); }
+    fn begin(row: utinyint, cells: utinyint) {
+        memory::write(0x8000, row);
+    }
+    fn end() {
+        memory::write(0x8001, 1);
+    }
 }
-export let opened: utinyint = 0; // how many bars have been opened
+pub let mut opened: utinyint = 0; // how many bars have been opened
 let hidden: utinyint = 0;
 `;
 
-const MENU = `import { bar, opened } from "./bar.8bs";
+const MENU = `use self::bar::{bar, opened};
 
 // A bar with items in it.
-export component MenuBar(row: utinyint, width: usmallint, title: string = "") {
+pub component MenuBar(row: utinyint, width: usmallint, title: string = "") {
     state depth: utinyint = 0;
-    bar.begin(row, width);
+    bar::begin(row, width);
     <slot />;
-    bar.end();
+    bar::end();
 }
-export component MenuItem(label: string) {
-    memory.write(0x8002, label.length);
+pub component MenuItem(label: string) {
+    memory::write(0x8002, label.length);
 }
-component Hidden() { memory.write(0x8003, 1); }
+component Hidden() {
+    memory::write(0x8003, 1);
+}
 `;
 
-const MAIN = `import { MenuBar, MenuItem } from "./Menu.8bx";
-import { opened } from "./bar.8bs";
+const MAIN = `use self::Menu::{MenuBar, MenuItem};
+use self::bar::opened;
 
 // The program.
-export function main(): void {
-    let count: utinyint = opened;
+pub fn main() {
+    let mut count: utinyint = opened;
     MenuBar(0, 40);
     count = count + 1;
 }
@@ -66,10 +72,15 @@ export function main(): void {
 test('hover on a component, in its declaration and in a tag, shows its signature and doc', () => {
   withFiles({ 'bar.8bs': BAR, 'Menu.8bx': MENU }, (dir) => {
     const path = join(dir, 'Menu.8bx');
-    const text = `${MENU}export function draw(): void {\n    <MenuBar row={0} width={40}><MenuItem label="A" /></MenuBar>;\n}\n`;
+    const text = `${MENU}pub fn draw() {
+    <MenuBar row={0} width={40}>
+        <MenuItem label="A" />
+    </MenuBar>;
+}
+`;
     const declaration = getHoverInfo(text, at(text, 'component MenuBar', 12), { path });
     assert.match(declaration.markdown, /\*\*MenuBar\*\* — component/);
-    assert.match(declaration.markdown, /export component MenuBar\(row: utinyint, width: usmallint, title: string = ""\)/);
+    assert.match(declaration.markdown, /pub component MenuBar\(row: utinyint, width: usmallint, title: string = ""\)/);
     assert.match(declaration.markdown, /A bar with items in it\./);
     const tag = getHoverInfo(text, at(text, '<MenuBar row', 3), { path });
     assert.equal(tag.markdown, declaration.markdown);
@@ -100,14 +111,18 @@ test('hover follows an import to its declaration in the other file, and says whe
     const call = getHoverInfo(MAIN, at(MAIN, 'MenuBar(0', 3), { path });
     assert.match(call.markdown, /\*\*MenuBar\*\* — component/);
     assert.match(call.markdown, /A bar with items in it\./);
-    assert.match(call.markdown, /Imported from `\.\/Menu\.8bx`\./);
+    assert.match(call.markdown, /Imported from `\.\/Menu`\./);
     // A variable with its doc on its own line, after it.
     const variable = getHoverInfo(MAIN, at(MAIN, '= opened', 4), { path });
     assert.match(variable.markdown, /\*\*opened\*\* — variable/);
-    assert.match(variable.markdown, /export let opened: utinyint = 0/);
+    assert.match(variable.markdown, /pub let mut opened: utinyint = 0/);
     assert.match(variable.markdown, /how many bars have been opened/);
-    // The import specifier itself.
-    const specifier = getHoverInfo(MAIN, at(MAIN, 'import { opened', 12), { path });
+  });
+});
+
+test('hover on the last segment of a `use` path is the imported variable', () => {
+  withFiles({ 'bar.8bs': BAR, 'Menu.8bx': MENU, 'main.8bs': MAIN }, (dir) => {
+    const specifier = getHoverInfo(MAIN, at(MAIN, 'bar::opened', 6), { path: join(dir, 'main.8bs') });
     assert.match(specifier.markdown, /\*\*opened\*\* — variable/);
   });
 });
@@ -115,9 +130,9 @@ test('hover follows an import to its declaration in the other file, and says whe
 test('hover on a namespace member reached through an import reads the member, with its own doc', () => {
   withFiles({ 'bar.8bs': BAR, 'Menu.8bx': MENU }, (dir) => {
     const path = join(dir, 'Menu.8bx');
-    const member = getHoverInfo(MENU, at(MENU, 'bar.begin', 6), { path });
+    const member = getHoverInfo(MENU, at(MENU, 'bar::begin', 6), { path });
     // The token-level member hover answers first, in its own format.
-    assert.match(member.markdown, /bar\.begin\(row: utinyint, cells: utinyint\): void/);
+    assert.match(member.markdown, /bar::begin\(row: utinyint, cells: utinyint\)/);
     assert.match(member.markdown, /Opens a bar `cells` wide at `row`\./);
   });
 });
@@ -125,24 +140,26 @@ test('hover on a namespace member reached through an import reads the member, wi
 test('hover on an import that does not resolve, or names a non-export, says so and has no definition', () => {
   withFiles({ 'bar.8bs': BAR }, (dir) => {
     const path = join(dir, 'main.8bs');
-    const missing = 'import { gone } from "./nowhere.8bs";\nlet x: utinyint = gone;\n';
-    assert.match(getHoverInfo(missing, at(missing, '= gone', 3), { path }).markdown, /Imported from `\.\/nowhere\.8bs`\./);
+    const missing = 'use self::nowhere::gone;\nlet x: utinyint = gone;\n';
+    assert.match(getHoverInfo(missing, at(missing, '= gone', 3), { path }).markdown, /Imported from `\.\/nowhere`\./);
     assert.equal(getDefinition(missing, at(missing, '= gone', 3), { path }), null);
-    const unexported = 'import { hidden } from "./bar.8bs";\nlet x: utinyint = hidden;\n';
+    const unexported = 'use self::bar::hidden;\nlet x: utinyint = hidden;\n';
     assert.match(getHoverInfo(unexported, at(unexported, '= hidden', 3), { path }).markdown, /not exported there, or not found/);
     assert.equal(getDefinition(unexported, at(unexported, '= hidden', 3), { path }), null);
   });
 });
 
 test('hover on a namespace shows its header; a member not in it is nothing', () => {
-  const text = `${BAR}let y: utinyint = bar.nope;\n`;
-  assert.match(getHoverInfo(text, at(text, 'bar.nope', 1)).markdown, /\*\*bar\*\* — namespace/);
-  assert.match(getHoverInfo(text, at(text, 'bar.nope', 1)).markdown, /export namespace bar/);
-  assert.equal(getHoverInfo(text, at(text, 'bar.nope', 5)), null);
+  const text = `${BAR}let y: utinyint = bar::nope;\n`;
+  assert.match(getHoverInfo(text, at(text, 'bar::nope', 1)).markdown, /\*\*bar\*\* — namespace/);
+  assert.match(getHoverInfo(text, at(text, 'bar::nope', 1)).markdown, /pub mod bar/);
+  assert.equal(getHoverInfo(text, at(text, 'bar::nope', 5)), null);
 });
 
 test('a long declaration is cut in the hover', () => {
-  const text = `const TABLE: array<utinyint, 40> = [${Array.from({ length: 40 }, (_, i) => i).join(', ')}];\nlet x: utinyint = TABLE[0];\n`;
+  const text = `const TABLE: [utinyint; 40] = [${Array.from({ length: 40 }, (_, i) => i).join(', ')}];
+let x: utinyint = TABLE[0];
+`;
   const info = getHoverInfo(text, at(text, 'TABLE[0]', 2));
   assert.match(info.markdown, /…\n```/);
   assert.ok(info.markdown.length < text.length);
@@ -153,7 +170,7 @@ test('a long declaration is cut in the hover', () => {
 test('after < the components visible from here complete, then slot; a < in .8bs still means a type argument', () => {
   withFiles({ 'bar.8bs': BAR, 'Menu.8bx': MENU }, (dir) => {
     const path = join(dir, 'Menu.8bx');
-    const text = `${MENU}export function draw(): void {\n    <`;
+    const text = `${MENU}pub fn draw() {\n    <`;
     const items = getCompletions(text, text.length, { path });
     assert.deepEqual(items.map((i) => i.label), ['MenuBar', 'MenuItem', 'Hidden', 'slot']);
     assert.equal(items[0].kind, 'component');
@@ -162,8 +179,8 @@ test('after < the components visible from here complete, then slot; a < in .8bs 
     const typing = `${text}Menu`;
     assert.deepEqual(getCompletions(typing, typing.length, { path }).map((i) => i.label), ['MenuBar', 'MenuItem', 'Hidden', 'slot']);
     // An imported component is offered from the file that imports it.
-    const main = `${MAIN.replace('.8bs', '.8bx')}`;
-    const other = `${main}export function draw(): void { <`;
+    const main = MAIN;
+    const other = `${main}pub fn draw() { <`;
     assert.deepEqual(getCompletions(other, other.length, { path: join(dir, 'main.8bx') }).map((i) => i.label), ['MenuBar', 'MenuItem', 'slot']);
   });
   const bs = 'let a: array<';
@@ -173,7 +190,7 @@ test('after < the components visible from here complete, then slot; a < in .8bs 
 test('inside a tag after its name, the component\'s props complete — as snippets, minus the ones given', () => {
   withFiles({ 'bar.8bs': BAR, 'Menu.8bx': MENU }, (dir) => {
     const path = join(dir, 'Menu.8bx');
-    const text = `${MENU}export function draw(): void {\n    <MenuBar row={0} `;
+    const text = `${MENU}pub fn draw() {\n    <MenuBar row={0} `;
     const items = getCompletions(text, text.length, { path });
     assert.deepEqual(items.map((i) => i.label), ['width', 'title']);
     assert.deepEqual(items.map((i) => i.insertText), ['width={$1}', 'title="$1"']);
@@ -185,7 +202,7 @@ test('inside a tag after its name, the component\'s props complete — as snippe
     const inValue = `${text}width={`;
     assert.ok(getCompletions(inValue, inValue.length, { path }).some((i) => i.label === 'opened'));
     // A tag naming nothing known offers nothing.
-    const unknown = `${MENU}export function draw(): void {\n    <Nope `;
+    const unknown = `${MENU}pub fn draw() {\n    <Nope `;
     assert.deepEqual(getCompletions(unknown, unknown.length, { path }), []);
   });
 });
@@ -193,7 +210,7 @@ test('inside a tag after its name, the component\'s props complete — as snippe
 test('after </ the innermost open element completes, closing it', () => {
   withFiles({ 'bar.8bs': BAR, 'Menu.8bx': MENU }, (dir) => {
     const path = join(dir, 'Menu.8bx');
-    const text = `${MENU}export function draw(): void {\n    <MenuBar row={0} width={40}>\n        <MenuItem label="A" />\n        <>{opened && <MenuItem label="B" />}</>\n    </`;
+    const text = `${MENU}pub fn draw() {\n    <MenuBar row={0} width={40}>\n        <MenuItem label="A" />\n        <>{opened && <MenuItem label="B" />}</>\n    </`;
     const items = getCompletions(text, text.length, { path });
     assert.deepEqual(items.map((i) => [i.label, i.insertText]), [['</MenuBar>', 'MenuBar>']]);
     // Nothing open: nothing to close.
@@ -203,13 +220,13 @@ test('after </ the innermost open element completes, closing it', () => {
 });
 
 test('anywhere an expression goes, the names visible from there — innermost scope first, shadowing once', () => {
-  const text = 'const LIMIT: utinyint = 4;\nfunction f(n: utinyint): void {\n    let LIMIT: utinyint = n;\n    if (n > 0) {\n        let inner: utinyint = 1;\n        inner = \n    }\n}\n';
+  const text = 'const LIMIT: utinyint = 4;\nfn f(n: utinyint) {\n    let LIMIT: utinyint = n;\n    if n > 0 {\n        let mut inner: utinyint = 1;\n        inner = \n    }\n}\n';
   const items = getCompletions(text, at(text, 'inner = ', 8));
   assert.deepEqual(items.map((i) => i.label), ['inner', 'LIMIT', 'n', 'f']);
   assert.deepEqual(items.map((i) => i.kind), ['variable', 'variable', 'variable', 'function']);
   assert.equal(items[1].detail, 'variable', 'the local LIMIT shadows the const');
   // Not inside a comment or a string.
-  const comment = 'let x: utinyint = 1; // x is ';
+  const comment = 'let x: utinyint = 1; // x is';
   assert.deepEqual(getCompletions(comment, comment.length), []);
   const string = 'let s: string = "x';
   assert.deepEqual(getCompletions(string, string.length), []);
@@ -222,16 +239,19 @@ test('definition of a tag, a call from .8bs, an import, a local and a member lan
     const menu = join(dir, 'Menu.8bx');
     const main = join(dir, 'main.8bs');
     const bar = join(dir, 'bar.8bs');
-    const draw = `${MENU}export function draw(): void { <MenuItem label="A" />; }\n`;
+    const draw = `${MENU}pub fn draw() {
+    <MenuItem label="A" />;
+}
+`;
     assert.deepEqual(getDefinition(draw, at(draw, '<MenuItem label', 3), { path: menu }),
       { path: menu, start: MENU.indexOf('MenuItem'), length: 'MenuItem'.length });
     assert.deepEqual(getDefinition(MAIN, at(MAIN, 'MenuBar(0', 3), { path: main }),
       { path: menu, start: MENU.indexOf('MenuBar'), length: 'MenuBar'.length });
     assert.deepEqual(getDefinition(MAIN, at(MAIN, 'count + 1', 2), { path: main }),
       { path: main, start: MAIN.indexOf('count'), length: 'count'.length });
-    assert.deepEqual(getDefinition(MENU, at(MENU, 'bar.end', 5), { path: menu }),
+    assert.deepEqual(getDefinition(MENU, at(MENU, 'bar::end', 6), { path: menu }),
       { path: bar, start: BAR.indexOf('end('), length: 'end'.length });
-    assert.equal(getDefinition(MAIN, at(MAIN, 'void {', 2), { path: main }), null, 'not a name');
+    assert.equal(getDefinition(MAIN, at(MAIN, 'fn main', 1), { path: main }), null, 'not a name');
     assert.equal(getDefinition(MAIN, at(MAIN, 'count + 1', 2)), null, 'no path, no file to point at');
   });
 });
@@ -259,7 +279,7 @@ test('bxPosition reads a tag, its name, a { } inside it, and the elements still 
 });
 
 test('scopeAt finds the innermost scope, and the module\'s outside any', () => {
-  const src = 'let g: utinyint = 0;\nfunction f(p: utinyint): void {\n    let l: utinyint = 0;\n    { let b: utinyint = 0; }\n}\n';
+  const src = 'let g: utinyint = 0;\nfn f(p: utinyint) {\n    let l: utinyint = 0;\n    {\n        let b: utinyint = 0;\n    }\n}\n';
   const module = bindModule(src, 'x.8bs');
   const names = (offset) => visibleSymbols(scopeAt(module, offset)).map((s) => s.name);
   assert.deepEqual(names(0), ['g', 'f']);
@@ -269,9 +289,9 @@ test('scopeAt finds the innermost scope, and the module\'s outside any', () => {
 
 test('bindModule reads an import\'s module once per specifier and survives one it cannot read', () => {
   withFiles({ 'bar.8bs': BAR }, (dir) => {
-    const text = 'import { bar } from "./bar.8bs";\nimport { opened } from "./bar.8bs";\nimport { x } from "./missing.8bs";\n';
+    const text = 'use self::bar::bar;\nuse self::bar::opened;\nuse self::missing::x;\n';
     const module = bindModule(text, join(dir, 'main.8bs'));
-    assert.deepEqual([...module.modules.keys()], ['./bar.8bs']);
+    assert.deepEqual([...module.modules.keys()], ['./bar']);
     assert.equal(module.bound.symbols.get('x').resolved, undefined);
   });
 });

@@ -46,7 +46,7 @@ test('the probe links clean for the C128, and the surface is real functions in t
 test('every note in both tables is the frequency register for its pitch at that machine\'s clock', () => {
   const source = readFileSync(SOURCE, 'utf8');
   const table = (name) => {
-    const match = new RegExp(`const ${name}: array<usmallint, 84> = \\[([^\\]]*)\\]`).exec(source);
+    const match = new RegExp(`const ${name}: \\[usmallint; 84\\] = \\[([^\\]]*)\\]`).exec(source);
     assert.ok(match, `${name} is in the source`);
     const values = match[1].replace(/\/\/[^\n]*/g, '').split(',').map((s) => s.trim()).filter(Boolean).map(Number);
     assert.equal(values.length, 84, `${name} has 84 entries`);

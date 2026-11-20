@@ -4,7 +4,7 @@
 // Named by "8bitscript".exports["./screen"] in this package's package.json,
 // and what
 //
-//     import { screen, BorderColor, BackgroundColor } from "@8bitscript/screen";
+//     use @8bitscript::screen::{screen, BorderColor, BackgroundColor};
 //
 // resolves to when the build is for the X16: @8bitscript/screen's entry is
 // keyed by machine and delegates here. Built on the VERA port protocol
@@ -12,7 +12,7 @@
 // leaves on screen and how VRAM is reached. Every machine's screen.8bs
 // exports this same surface, which is what lets a program import it from
 // @8bitscript/screen and never name the hardware.
-import { mapBank, mapLow, locateTextMap, setVramAddress } from "./index.8bs";
+use self::index::{mapBank, mapLow, locateTextMap, setVramAddress};
 
 // ---- where a border comes from --------------------------------------------
 //
@@ -84,35 +84,35 @@ import { mapBank, mapLow, locateTextMap, setVramAddress } from "./index.8bs";
 // The border exists once the active area is inset — 16 pixels in on
 // every side — and layer 1 is scrolled so cell (0,0) lands at its corner.
 // Done by whichever screen call comes first, once.
-let insetDone: utinyint = 0;
+let mut insetDone: utinyint = 0;
 
-function insetPicture(): void {
-    if (insetDone == 1) {
+fn insetPicture() {
+    if insetDone == 1 {
         return;
     }
     insetDone = 1;
     // DCSEL=1: the active-area edges.
-    memory.write(0x9F25, 0x02);
-    memory.write(0x9F29, 4);    // HSTART: 16px
-    memory.write(0x9F2A, 156);  // HSTOP: 624px
-    memory.write(0x9F2B, 8);    // VSTART: 16px
-    memory.write(0x9F2C, 232);  // VSTOP: 464px
-    memory.write(0x9F25, 0x00); // back to DCSEL=0
+    memory::write(0x9F25, 0x02);
+    memory::write(0x9F29, 4); // HSTART: 16px
+    memory::write(0x9F2A, 156); // HSTOP: 624px
+    memory::write(0x9F2B, 8); // VSTART: 16px
+    memory::write(0x9F2C, 232); // VSTOP: 464px
+    memory::write(0x9F25, 0x00); // back to DCSEL=0
     // Layer 1's scroll: horizontal 0, vertical 510 = -2 mod the map's
     // 512 lines — the two-line correction the header explains, so that
     // cell (0,0) lands exactly at the active area's top-left corner.
-    memory.write(0x9F37, 0x00); // L1_HSCROLL_L
-    memory.write(0x9F38, 0x00); // L1_HSCROLL_H
-    memory.write(0x9F39, 0xFE); // L1_VSCROLL_L: 510 & 0xFF
-    memory.write(0x9F3A, 0x01); // L1_VSCROLL_H: 510 >> 8
+    memory::write(0x9F37, 0x00); // L1_HSCROLL_L
+    memory::write(0x9F38, 0x00); // L1_HSCROLL_H
+    memory::write(0x9F39, 0xFE); // L1_VSCROLL_L: 510 & 0xFF
+    memory::write(0x9F3A, 0x01); // L1_VSCROLL_H: 510 >> 8
 }
 
-export namespace screen {
-    function setColors(border: u8, background: u8): void {
+pub mod screen {
+    fn setColors(border: u8, background: u8) {
         insetPicture();
         // DCSEL=0 (and ADDRSEL=0): the border color itself.
-        memory.write(0x9F25, 0x00);
-        memory.write(0x9F2C, border);
+        memory::write(0x9F25, 0x00);
+        memory::write(0x9F2C, border);
 
         // Every cell's attribute byte: background high, white low. All 64
         // map rows, not just the 60 on screen — row 63 is what the
@@ -120,15 +120,15 @@ export namespace screen {
         // lacks the offset it corrects (see the header), so it gets the
         // same colors and, below, blank characters.
         locateTextMap();
-        for (let row: usmallint = 0; row < 64; row++) {
+        for row: usmallint in 0..64 {
             setVramAddress(mapBank, mapLow + 1 + row * 256, 2);
-            for (let col: utinyint = 0; col < 80; col++) {
-                memory.write(0x9F23, background * 16 + 1);
+            for col: utinyint in 0..80 {
+                memory::write(0x9F23, background * 16 + 1);
             }
         }
         setVramAddress(mapBank, mapLow + 63 * 256, 2);
-        for (let col: utinyint = 0; col < 80; col++) {
-            memory.write(0x9F23, 32);
+        for col: utinyint in 0..80 {
+            memory::write(0x9F23, 32);
         }
     }
 
@@ -137,41 +137,41 @@ export namespace screen {
     // to leave one as it is. `setBorder` and `setBackground` are one
     // color each, `setColors` the pair; `text.setColor` owns what the
     // next print looks like.
-    function blank(border: utinyint = BorderColor.BLACK, background: utinyint = BackgroundColor.BLACK): void {
-        if (border != BorderColor.KEEP) {
-            screen.setBorder(border);
+    fn blank(border: utinyint = BorderColor::BLACK, background: utinyint = BackgroundColor::BLACK) {
+        if border != BorderColor::KEEP {
+            screen::setBorder(border);
         }
-        if (background != BackgroundColor.KEEP) {
-            screen.setBackground(background);
+        if background != BackgroundColor::KEEP {
+            screen::setBackground(background);
         }
         // Every character of all 64 map rows (see setColors above for why
         // 64) blank; the attribute bytes between them are left alone.
         locateTextMap();
-        for (let row: usmallint = 0; row < 64; row++) {
+        for row: usmallint in 0..64 {
             setVramAddress(mapBank, mapLow + row * 256, 2);
-            for (let col: utinyint = 0; col < 80; col++) {
-                memory.write(0x9F23, 32);
+            for col: utinyint in 0..80 {
+                memory::write(0x9F23, 32);
             }
         }
     }
 
-    function setBackground(background: u8): void {
+    fn setBackground(background: u8) {
         insetPicture();
         // The background lives in every cell's attribute byte, so this is
         // the same repaint setColors() does: background high, white low.
         locateTextMap();
-        for (let row: usmallint = 0; row < 64; row++) {
+        for row: usmallint in 0..64 {
             setVramAddress(mapBank, mapLow + 1 + row * 256, 2);
-            for (let col: utinyint = 0; col < 80; col++) {
-                memory.write(0x9F23, background * 16 + 1);
+            for col: utinyint in 0..80 {
+                memory::write(0x9F23, background * 16 + 1);
             }
         }
     }
 
-    function setBorder(border: u8): void {
+    fn setBorder(border: u8) {
         insetPicture();
-        memory.write(0x9F25, 0x00); // DCSEL=0: the border color register
-        memory.write(0x9F2C, border);
+        memory::write(0x9F25, 0x00); // DCSEL=0: the border color register
+        memory::write(0x9F2C, border);
     }
 
     // Whether this machine's grid can change under a running program. It
@@ -182,7 +182,7 @@ export namespace screen {
     // disappears with them.
     const RESIZABLE: bool = false;
 
-    function resized(): bool {
+    fn resized() -> bool {
         return false;
     }
 }
@@ -198,7 +198,7 @@ export namespace screen {
 // sixteen. The colours themselves are VERA's own twelve-bit values (blue is
 // $00A), not the C64's.
 
-export namespace BorderColor {
+pub mod BorderColor {
     const BLACK: utinyint = 0;
     const WHITE: utinyint = 1;
     const RED: utinyint = 2;
@@ -220,7 +220,7 @@ export namespace BorderColor {
     const KEEP: utinyint = 255;
 }
 
-export namespace BackgroundColor {
+pub mod BackgroundColor {
     const BLACK: utinyint = 0;
     const WHITE: utinyint = 1;
     const RED: utinyint = 2;

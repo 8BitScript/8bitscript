@@ -45,8 +45,9 @@ test('isVariantPath knows a locale\'s file only when handed the locale; without 
 
 // Every file exports one const the entry prints; which file was read is
 // which value main() ends up storing.
-const strings = (value) => `export const WHICH: utinyint = ${value};\n`;
-const MAIN = 'import { WHICH } from "./strings.8bs";\nexport function main(): void { memory.write(0x8000, WHICH); }\n';
+const strings = (value) => `pub const WHICH: utinyint = ${value};
+`;
+const MAIN = 'use self::strings::WHICH;\npub fn main() {\n    memory::write(0x8000, WHICH);\n}\n';
 const whichOf = (ir) => ir.functions.find((f) => f.name === 'main').body[0].value.value;
 
 async function project(files) {
@@ -149,9 +150,9 @@ test('an explicit import of the locale\'s file is taken literally, and .8bx twin
     const plain = resolveSpecifier('./strings.8bs', join(dir, 'main.8bs'), { machine: 'pet', locale: 'de' });
     assert.equal(plain.path, join(dir, 'strings.de.8bs'));
 
-    await writeFile(join(dir, 'Hello.8bx'), 'export component Hello() { memory.write(0x8000, 1); }\n');
-    await writeFile(join(dir, 'Hello.de.8bx'), 'export component Hello() { memory.write(0x8000, 2); }\n');
-    await writeFile(join(dir, 'Hello.pet.de.8bx'), 'export component Hello() { memory.write(0x8000, 3); }\n');
+    await writeFile(join(dir, 'Hello.8bx'), 'pub component Hello() {\n    memory::write(0x8000, 1);\n}\n');
+    await writeFile(join(dir, 'Hello.de.8bx'), 'pub component Hello() {\n    memory::write(0x8000, 2);\n}\n');
+    await writeFile(join(dir, 'Hello.pet.de.8bx'), 'pub component Hello() {\n    memory::write(0x8000, 3);\n}\n');
     const bx = resolveSpecifier('./Hello.8bx', join(dir, 'main.8bs'), { machine: 'c64', locale: 'de' });
     assert.equal(bx.path, join(dir, 'Hello.de.8bx'), 'an .8bx locale twin is an .8bx');
     const bxPet = resolveSpecifier('./Hello.8bx', join(dir, 'main.8bs'), { machine: 'pet', locale: 'de' });
@@ -195,7 +196,7 @@ test('the old ambiguity rule still counts a tag that has only a locale file', as
 
 // ---- #locale("de") -------------------------------------------------------
 
-const BRANCH = 'let v: utinyint = 0;\nexport function main(): void {\n    if (#locale("de")) { v = 1; } else { v = 2; }\n    memory.write(0x8000, v);\n}\n';
+const BRANCH = 'let mut v: utinyint = 0;\npub fn main() {\n    if #locale("de") {\n        v = 1;\n    } else {\n        v = 2;\n    }\n    memory::write(0x8000, v);\n}\n';
 // The `if` reaches the linked IR with its test already a literal — the
 // backends drop the dead arm — so what the fold decided is that literal.
 const branchTest = (ir) => ir.functions.find((f) => f.name === 'main').body[0].test;
@@ -224,7 +225,12 @@ test('#locale("de") folds to true in the de build, false in every other and in a
 
 test('#locale(...) refuses by name anything but one locale name in quotes', () => {
   const diag = (text, options = {}) => analyze(text, '/p/main.8bs', options);
-  const wrap = (call) => `export function main(): void { if (${call}) { memory.write(0x8000, 1); } }\n`;
+  const wrap = (call) => `pub fn main() {
+    if ${call} {
+        memory::write(0x8000, 1);
+    }
+}
+`;
   assert.deepEqual(codes(diag(wrap('#locale("de")'))), []);
   assert.deepEqual(codes(diag(wrap('#locale()'))), ['8BS1040']);
   assert.match(diag(wrap('#locale()'))[0].message, /one locale name in quotes/);
@@ -233,7 +239,7 @@ test('#locale(...) refuses by name anything but one locale name in quotes', () =
   assert.deepEqual(codes(diag(wrap('#locale("DE")'))), ['8BS1040']);
   assert.match(diag(wrap('#locale("DE")'))[0].message, /not a locale name/);
   assert.deepEqual(codes(diag(wrap('#locale("pet")'))), ['8BS1040'], 'a machine is not a locale');
-  const bare = diag('export function main(): void { let x: bool = #locale; }\n');
+  const bare = diag('pub fn main() {\n    let x: bool = #locale;\n}\n');
   assert.deepEqual(codes(bare), ['8BS1030']);
   assert.match(bare[0].message, /#locale\("de"\)/, 'the bare form names how to call it');
   assert.equal(diag(wrap('#locale("de")'), { machine: 'pet', locale: 'de' }).length, 0);

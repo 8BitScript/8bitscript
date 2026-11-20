@@ -113,7 +113,7 @@
     return h('div', { class: 'empty' },
       h('img', { src: root.dataset.logo || '', alt: '' }),
       h('h2', null, 'No 8BitScript project here'),
-      h('p', null, 'Open a folder that has an ', h('span', { class: 'mono' }, '8bitscript.config.8bs'), ', or start from an example.'),
+      h('p', null, 'Open a folder that has an ', h('span', { class: 'mono' }, '8bitscript.config.ts'), ', or start from an example.'),
       h('button', { class: 'btn primary', 'data-action': 'openFolder', 'data-key': 'empty:open' }, icon('folder-opened'), 'Open Folder…'),
       h('button', { class: 'btn', 'data-action': 'tryExample', 'data-key': 'empty:example' }, icon('rocket'), 'Try an example…'),
       h('button', { class: 'link small', 'data-action': 'learn', 'data-key': 'empty:learn' }, 'What is 8BitScript?'));

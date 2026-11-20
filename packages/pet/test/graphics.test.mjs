@@ -26,20 +26,20 @@ function writeProgram(dir, layout) {
   for (const [name, frames, x, y] of layout) {
     writeFileSync(join(dir, `${name}.png`), sheet(frames));
     writeFileSync(join(dir, `${name}.8bg`), eightBg(name, frames.length > 1));
-    imports.push(`import { ${name} } from "./${name}.8bg";`);
-    places.push(`    graphics.place(${name}, sprites.ORIGIN_X + ${x}, sprites.ORIGIN_Y + ${y});`);
+    imports.push(`use self::${name}::${name};`);
+    places.push(`    graphics::place(${name}, sprites::ORIGIN_X + ${x}, sprites::ORIGIN_Y + ${y});`);
   }
-  const text = `import { screen } from "@8bitscript/screen";
-import { graphics } from "@8bitscript/graphics";
-import { sprites } from "@8bitscript/sprites";
-${imports.join('\n')}
+  const text = `use @8bitscript::screen::screen;
+use @8bitscript::graphics::graphics;
+use @8bitscript::sprites::sprites;
+${imports.join('\n')};
 
-export function main(): void {
-    screen.blank();
-${places.join('\n')}
-    while (true) {
+pub fn main() {
+    screen::blank();
+    ${places.join('\n')};
+    loop {
         waitFrame();
-        graphics.update();
+        graphics::update();
     }
 }
 `;
