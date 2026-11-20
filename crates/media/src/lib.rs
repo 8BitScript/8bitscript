@@ -7,14 +7,18 @@ pub mod cursor;
 pub mod graphics;
 pub mod kinds;
 pub mod lexer;
+pub mod machine;
+pub mod machines;
 pub mod tap;
 
-use audio::{Air, Unported};
+use audio::Air;
 use diagnostics::Diagnostic;
 use graphics::Gir;
 use lexer::MediaToken;
 use serde::Serialize;
 
+pub use audio::check::check_audio;
+pub use audio::parse::parse_audio;
 pub use graphics::check::check_graphics;
 pub use graphics::parse::parse_graphics;
 pub use kinds::is_media_kind;
@@ -48,19 +52,15 @@ pub struct MediaAnalysis {
 }
 
 /// `parseMediaModule(file, text, diagnostics, sourceKind)`.
-///
-/// # Errors
-/// `Unported` for `.8ba` until the audio unit lands; `diagnostics` is left
-/// untouched then.
 pub fn parse_media_module(
     file: &str,
     text: &str,
     diagnostics: &mut Vec<Diagnostic>,
     source_kind: &str,
-) -> Result<MediaModule, Unported> {
-    let result = analyze_media(text, file, source_kind)?;
+) -> MediaModule {
+    let result = analyze_media(text, file, source_kind);
     diagnostics.extend(result.diagnostics);
-    Ok(MediaModule {
+    MediaModule {
         file: file.to_string(),
         text: text.to_string(),
         tokens: result.tokens,
@@ -69,33 +69,31 @@ pub fn parse_media_module(
             gir: result.gir,
             air: result.air,
         },
-    })
+    }
 }
 
 /// `analyzeMedia(text, file, { sourceKind })`.
-///
-/// # Errors
-/// `Unported` for `.8ba` until the audio unit lands.
-pub fn analyze_media(text: &str, file: &str, source_kind: &str) -> Result<MediaAnalysis, Unported> {
+#[must_use]
+pub fn analyze_media(text: &str, file: &str, source_kind: &str) -> MediaAnalysis {
     let (tokens, lexical) = tokenize_media(text, file, source_kind);
     if source_kind == ".8bg" {
         let (gir, syntax) = parse_graphics(&tokens, text, file);
         let checked = check_graphics(&gir, file);
         let diagnostics = lexical.into_iter().chain(syntax).chain(checked).collect();
-        return Ok(MediaAnalysis {
+        return MediaAnalysis {
             tokens,
             gir: Some(gir),
             air: None,
             diagnostics,
-        });
+        };
     }
-    let (air, syntax) = audio::parse_audio(&tokens, text, file)?;
-    // `checkAudio` is part of the audio unit.
-    let diagnostics = lexical.into_iter().chain(syntax).collect();
-    Ok(MediaAnalysis {
+    let (air, syntax) = parse_audio(&tokens, text, file);
+    let checked = check_audio(&air, file);
+    let diagnostics = lexical.into_iter().chain(syntax).chain(checked).collect();
+    MediaAnalysis {
         tokens,
         gir: None,
         air: Some(air),
         diagnostics,
-    })
+    }
 }
