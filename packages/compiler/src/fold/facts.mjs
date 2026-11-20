@@ -179,6 +179,7 @@ export const FACTS = new Map([
   ['video.spriteWidth', count('build', 'Pixels across the largest hardware sprite.')],
   ['video.spriteHeight', count('build', 'Pixels down the largest hardware sprite.')],
   ['video.spriteColors', count('build', 'Colors one hardware sprite can hold, not counting transparent.')],
+  ['video.spriteKib', count('build', 'KiB of the shared pool every sprite picture of the build is drawn from; 0 where the build models no such pool. KiB for the same reason as memory.bankedKib.')],
   ['video.frameRate', count('build', 'Display refreshes a second, for timing a screenshot; not on the sheet, the machine may be NTSC or PAL at run time.', false)],
   ['video.characterSetSwapped', flag('build', 'The two-set character ROM\'s upper/lower-case halves are the other way round from every other model (measured against the real ROM: the original PET 2001\'s 901447-08 only) — packages/pet/src/text.8bs\'s own asciiToScreenCode reads this, not a program.', false)],
   ['video.bootsInTextMode', flag('build', 'The ROM leaves the machine in its mixed-case text character set at power-on rather than the upper-case/graphics one (the PET\'s business-keyboard editor ROMs do; the 3032 and 4032 do not). A target\'s text package draws in the text set, the only one holding both cases of the alphabet, so this decides only whether it has to select that set first: a machine already there is left alone and pays nothing — packages/pet/src/text.8bs reads it, not a program.', false)],
