@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -197,6 +197,40 @@ function expectRecorded(rows, fns) {
     assert.ok('args' in row && 'result' in row, `${fn} lacks args or result`);
   }
 }
+
+test('a project with a catalog and a template records applyCatalogCharset and layoutTemplate', () => {
+  const dir = scratch();
+  const tapDir = scratch();
+  try {
+    mkdirSync(join(dir, 'src', 'i18n'), { recursive: true });
+    writeFileSync(join(dir, 'src', 'i18n', 'en.8bs'), 'export namespace Game { const NAME: string = "HELLO WORLD"; }\n');
+    writeFileSync(join(dir, 'src', 'main.8bs'), [
+      'import { screen } from "@8bitscript/screen";',
+      'import { text } from "@8bitscript/text";',
+      'import { Game } from "@8bitscript/i18n/catalog";',
+      'export function main(): void {',
+      '    let ticks: usmallint = 3;',
+      '    screen.blank();',
+      '    text.print(0, Game.NAME);',
+      '    text.print(40, `TICK ${ticks:1}`);',
+      '}',
+      '',
+    ].join('\n'));
+    writeFileSync(join(dir, '8bitscript.config.8bs'), `export default ${JSON.stringify({
+      entry: 'src/main.8bs',
+      targets: { c64: {} },
+      i18n: { defaultLocale: 'en', fallbackLocale: 'en', locales: ['en'] },
+    })};\n`);
+    const env = buildEnv(process.env, null, 'catalog/main/c64', { dir }, tapDir);
+    execFileSync(process.execPath, [cli, 'build', '--target', 'c64', '--checkout', ROOT], { cwd: dir, env, encoding: 'utf8' });
+    const rows = lines(join(tapDir, 'catalog', 'main', 'c64'));
+    expectRecorded(rows, ['applyCatalogCharset', 'layoutTemplate']);
+    assert.equal(rows.find((r) => r.fn === 'layoutTemplate').result !== undefined, true);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+    rmSync(tapDir, { recursive: true, force: true });
+  }
+});
 
 test('hello-world on c64 records the front end functions, and the build is unchanged', () => {
   const dir = scratch();

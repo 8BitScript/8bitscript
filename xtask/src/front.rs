@@ -8,6 +8,27 @@ use mos::build::Counters;
 use mos::tap::Replay;
 use serde_json::Value;
 
+/// The tapped function names, in the order [`replay`] dispatches them.
+pub const NAMES: [&str; 17] = [
+    "bind",
+    "bindImportedComponents",
+    "check",
+    "scanDeclaredTypes",
+    "layoutTemplate",
+    "checkBx",
+    "elaborateBx",
+    "applyCatalogCharset",
+    "resolveCatalogSpecifier",
+    "foldCompileTime",
+    "lower",
+    "findImports",
+    "pathFormSpecifiers",
+    "resolveSpecifier",
+    "nativeSourcesBeside",
+    "parseMediaModule",
+    "elaborateMedia",
+];
+
 fn convert(outcome: Front) -> Replay {
     match outcome {
         Front::Match => Replay::Match,

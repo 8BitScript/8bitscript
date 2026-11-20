@@ -70,7 +70,13 @@ fn walk(js: &Value, rust: &Value, pointer: &mut String) -> Option<(String, Value
                 );
                 let keep = pointer.len();
                 pointer.push_str(&format!("/{}", escape(key)));
-                let found = walk(x, y, pointer);
+                // A key one side lacks differs from one it holds as null (R3.4, Absent against
+                // Null), so it is reported even when the other value is null.
+                let found = if a.contains_key(key) == b.contains_key(key) {
+                    walk(x, y, pointer)
+                } else {
+                    Some((pointer.clone(), x.clone(), y.clone()))
+                };
                 pointer.truncate(keep);
                 if found.is_some() {
                     return found;
@@ -102,6 +108,26 @@ mod tests {
         assert_eq!(
             compare(&js, &rust),
             Replay::Mismatch("/a~1b/1/~0".into(), json!(2), json!(3))
+        );
+    }
+
+    #[test]
+    fn an_absent_key_differs_from_an_explicit_null() {
+        assert_eq!(
+            compare(&json!({"component": null}), &json!({})),
+            Replay::Mismatch("/component".into(), Value::Null, Value::Null)
+        );
+        assert_eq!(
+            compare(&json!({}), &json!({"a": {"component": null}})),
+            Replay::Mismatch("/a".into(), Value::Null, json!({"component": null}))
+        );
+        assert_eq!(
+            compare(&json!({"a": {"component": null}}), &json!({"a": {}})),
+            Replay::Mismatch("/a/component".into(), Value::Null, Value::Null)
+        );
+        assert_eq!(
+            compare(&json!({"component": null}), &json!({"component": null})),
+            Replay::Match
         );
     }
 

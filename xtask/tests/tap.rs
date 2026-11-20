@@ -199,6 +199,28 @@ fn front_dispatch_skips_every_stub_and_the_media_functions() {
 }
 
 #[test]
+fn an_unknown_front_function_filter_is_an_error() {
+    let base = dir("front-fn");
+    write(
+        &base,
+        "p/main/c64",
+        "1-0.jsonl",
+        &[json!({"seq": 0, "fn": "bind", "args": [], "result": null})],
+    );
+    let out = Command::new(env!("CARGO_BIN_EXE_xtask"))
+        .args(["tap", base.to_str().unwrap(), "--front", "--fn", "nosuch"])
+        .output()
+        .unwrap();
+    assert_eq!(out.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&out.stderr).contains("nosuch"));
+    let ok = Command::new(env!("CARGO_BIN_EXE_xtask"))
+        .args(["tap", base.to_str().unwrap(), "--front", "--fn", "bind"])
+        .output()
+        .unwrap();
+    assert_eq!(ok.status.code(), Some(0));
+}
+
+#[test]
 fn front_compare_outcomes_and_the_front_flag() {
     use front_replay::{Replay as Front, compare};
     let a = json!({"a": [1, 2]});
