@@ -73,9 +73,8 @@ user-assigned managed identity (federated credential subject
 `8bitscript`), then `az account get-access-token --resource
 499b84ac-1321-427f-aa17-267ca6975798` yields a token that is masked and
 passed to `publish-marketplace.mjs` as `VSCE_AAD_TOKEN`. Each of the six
-attempts requests a new GitHub OIDC token, runs `az login
---federated-token` again and then reads the access token, because `az`
-would otherwise hand back its cached one. A failed Azure step does not stop the
+attempts reads the token again; az returns its cached one, valid for about
+an hour, and an attempt after it expires uses `VSCE_PAT` when set or fails. A failed Azure step does not stop the
 job: the attempt uses `VSCE_PAT` when it is set, and Open VSX is
 unaffected.
 
