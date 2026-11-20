@@ -2,7 +2,7 @@
 //
 // The wasm rail models a flat screen, not VERA: a Commander X16 build through
 // it has no hardware sprites to hand a picture to, so it lowers pictures the
-// way the web target does (eight row bytes a step, drawn as a glyph) instead of
+// way the web target does (a palette and 4bpp frames, drawn as a pixel sprite) instead of
 // the VERA sprite format the native build wants. The cx16 package names that in
 // "8bitscript".wasmMedia, and the build's internal `web` tag (build.mjs adds it
 // for `--web`) says a build is such a one. A native build, and a machine that
@@ -23,8 +23,8 @@ import { stockFacts } from '../../cli/src/hardware.mjs';
 
 const CHECKOUT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 
-// The `kind` byte each lowering gives a picture: the web's glyph is 0, the X16's VERA sprite 5.
-const KIND_WEB_GLYPH = 0;
+// The `kind` byte each lowering gives a picture: the web's pixel sprite is 6, the X16's VERA sprite 5.
+const KIND_WEB_PIXEL = 6;
 const KIND_CX16_VERA = 5;
 
 const SPRITE = 'sprite dot {\n  source "./dot.png"\n  size 8x8\n  transparent auto\n}\n';
@@ -64,15 +64,15 @@ test('a native X16 build lowers a picture to a VERA sprite', () => {
   assert.equal(kindOf('cx16', []).kind, KIND_CX16_VERA);
 });
 
-test('a --web build of the X16 lowers it the way the web target does: a glyph, not a VERA sprite', () => {
+test('a --web build of the X16 lowers it the way the web target does: a pixel sprite, not a VERA sprite', () => {
   const web = kindOf('cx16', ['web']);
-  assert.equal(web.kind, KIND_WEB_GLYPH);
+  assert.equal(web.kind, KIND_WEB_PIXEL);
   assert.ok(!web.messages.some((m) => /VERA/.test(m)), 'and nothing says it became a VERA sprite');
 });
 
 test('a machine that names no wasm lowering keeps its own on a --web build', () => {
-  // The C64's pictures are sprite data (a kind of its own), never the web's glyph.
+  // The C64's pictures are sprite data (a kind of its own), never the web's pixel sprite.
   const native = kindOf('c64', []).kind;
   assert.equal(kindOf('c64', ['web']).kind, native);
-  assert.notEqual(native, KIND_WEB_GLYPH);
+  assert.notEqual(native, KIND_WEB_PIXEL);
 });

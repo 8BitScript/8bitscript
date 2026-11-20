@@ -10,9 +10,10 @@ import { join, resolve } from 'node:path';
 
 import { compile } from '../src/build.mjs';
 import { captureScreenshot } from '../src/screenshot.mjs';
-import { encodePNG } from '../src/png.mjs';
+import { encodePNG, pixelAt } from '../src/png.mjs';
+import { instantiateProgram } from '../src/wasm-host.mjs';
 import { loadCatalog, resolveHardware } from '../src/hardware.mjs';
-import { layoutFromHardware, layoutForRealMachine } from '../src/web-layout.mjs';
+import { BORDER_PX, layoutFromHardware, layoutForRealMachine } from '../src/web-layout.mjs';
 
 const REPO = resolve(import.meta.dirname, '..', '..', '..');
 const WEB_SRC = join(REPO, 'packages', 'web', 'src');
@@ -138,6 +139,57 @@ test('sprites=8 and sprites=128 draw the same pixels for the slots below 8', asy
       shots.push(await readFile(shot));
     }
     assert.ok(shots[0].equals(shots[1]), 'the same screenshot at 8 and at 128 slots');
+    // Two blank screens would also be equal: the bar at (24, 16) must be drawn, in a colour the background is not.
+    const background = pixelAt(shots[0], BORDER_PX + 200, BORDER_PX + 150);
+    let drawn = 0;
+    for (let y = 16; y < 32; y += 1) {
+      for (let x = 24; x < 40; x += 1) {
+        const px = pixelAt(shots[0], BORDER_PX + x, BORDER_PX + y);
+        if (!px.every((v, i) => v === background[i])) drawn += 1;
+      }
+    }
+    assert.ok(drawn > 20, `the bar is drawn (${drawn} pixels differ from the background)`);
+  } finally {
+    process.chdir(prev);
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('the c64 web skin with default sprites puts the program\'s data at or after the end of the agreement', async () => {
+  const dir = await mkdtemp(join(tmpdir(), '8bs-web-sprites-data-'));
+  const prev = process.cwd();
+  try {
+    await writeFile(join(dir, 'main.8bs'), [
+      'use @8bitscript::screen::screen;',
+      'use @8bitscript::text::text;',
+      '',
+      'const MARKER: string = "SPRITE-DATA-MARK";',
+      '',
+      'pub fn main() {',
+      '    screen::blank();',
+      '    text::print(0, MARKER);',
+      '}',
+    ].join('\n'));
+    process.chdir(dir);
+    const out = process.stdout.write.bind(process.stdout);
+    process.stdout.write = () => true;
+    let result;
+    try {
+      result = await compile('web', join(dir, 'main.8bs'), { checkout: REPO, hardware: { machine: 'c64' } });
+    } finally {
+      process.stdout.write = out;
+    }
+    assert.equal(result.ok, true);
+    const layout = layoutFromHardware(result.hardware);
+    assert.ok(layout.spriteCount > 0 && layout.reservedEnd > layout.spritePool, 'the default build has a sprite region');
+    const { memory } = await instantiateProgram(await readFile(result.outFile), { waitFrame: () => {} });
+    const bytes = new Uint8Array(memory.buffer);
+    const wanted = [16, ...Buffer.from('SPRITE-DATA-MARK')];
+    let at = -1;
+    for (let a = 0; a < bytes.length - wanted.length; a += 1) {
+      if (wanted.every((b, i) => bytes[a + i] === b)) { at = a; break; }
+    }
+    assert.ok(at >= layout.reservedEnd, `the string starts at ${at}, the agreement ends at ${layout.reservedEnd}`);
   } finally {
     process.chdir(prev);
     await rm(dir, { recursive: true, force: true });
