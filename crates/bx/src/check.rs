@@ -97,12 +97,17 @@ fn bx_text_value(children: &[Node]) -> String {
 struct Context<'a> {
     file: &'a str,
     bound: &'a Bound,
+    /// Where `bound` sits in `modules`: the module half of every `SymbolRef` it names.
+    module: ModuleId,
     modules: &'a [Bound],
     stack: &'a [String],
 }
 
 /// `checkBx(ast, file, symbols, { sourceKind, strict }, stack)`. `symbols` is `bound.symbols`;
 /// an imported component's symbol is looked up in `modules` (`SymbolRef.module`).
+///
+/// `bound` must be an element of `modules` (the same value, not a copy): the binder names
+/// symbols by module index, and a `bound` outside `modules` is a caller bug, so this panics.
 #[must_use]
 pub fn check_bx(
     ast: &Node,
@@ -120,9 +125,14 @@ pub fn check_bx(
         diagnostics.extend(check_file_role(ast, file, options.strict));
     }
 
+    let module = modules
+        .iter()
+        .position(|m| ptr::eq(m, bound))
+        .expect("check_bx: `bound` must be an element of `modules`");
     let ctx = Context {
         file,
         bound,
+        module: ModuleId(module as u32),
         modules,
         stack,
     };
@@ -163,22 +173,12 @@ fn check_element(ctx: &Context, el: &Node, diagnostics: &mut Vec<Diagnostic>) {
     if name == "slot" {
         return;
     }
-    let named = ctx
-        .bound
-        .symbols
-        .get(name)
-        .and_then(|id| ctx.bound.symbol_table.get(id.0 as usize));
-    // `bound` is one of `modules`; the binder's `component_of` names symbols by module index.
-    let named_ref = ctx
-        .modules
-        .iter()
-        .position(|m| ptr::eq(m, ctx.bound))
-        .and_then(|module| {
-            ctx.bound.symbols.get(name).map(|&symbol| SymbolRef {
-                module: ModuleId(module as u32),
-                symbol,
-            })
-        });
+    let id = ctx.bound.symbols.get(name).copied();
+    let named = id.and_then(|id| ctx.bound.symbol_table.get(id.0 as usize));
+    let named_ref = id.map(|symbol| SymbolRef {
+        module: ctx.module,
+        symbol,
+    });
     let Some(sym) = component_of(ctx.modules, named_ref).and_then(|r| {
         ctx.modules
             .get(r.module.0 as usize)?
