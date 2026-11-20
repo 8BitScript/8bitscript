@@ -6,7 +6,10 @@ use jsnum::{cmp_utf16, number_to_string, object_key_order};
 
 /// A JSON value as JS holds it after `JSON.parse`: numbers are f64 and an
 /// object keeps its keys in the order they were given.
-#[derive(Debug, Clone, PartialEq)]
+///
+/// The parser accepts any nesting depth, so every walk over a value here
+/// (drop, clone, compare, stringify, `String(v)`) keeps its own stack rather
+/// than recursing.
 pub enum Json {
     Null,
     Bool(bool),
@@ -16,31 +19,186 @@ pub enum Json {
     Object(IndexMap<String, Json>),
 }
 
+/// An open array or object during a walk.
+enum Walk<'a> {
+    Array(std::slice::Iter<'a, Json>),
+    Object(indexmap::map::Iter<'a, String, Json>),
+}
+
+impl Drop for Json {
+    fn drop(&mut self) {
+        let mut stack: Vec<Json> = Vec::new();
+        detach(self, &mut stack);
+        while let Some(mut next) = stack.pop() {
+            detach(&mut next, &mut stack);
+        }
+    }
+}
+
+/// Move a value's children onto `stack`, leaving it empty.
+fn detach(value: &mut Json, stack: &mut Vec<Json>) {
+    match value {
+        Json::Array(items) => stack.append(items),
+        Json::Object(map) => stack.extend(std::mem::take(map).into_values()),
+        _ => {}
+    }
+}
+
+impl std::fmt::Debug for Json {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.stringify())
+    }
+}
+
+impl Clone for Json {
+    fn clone(&self) -> Json {
+        enum Open<'a> {
+            Array(std::slice::Iter<'a, Json>, Vec<Json>),
+            Object(
+                indexmap::map::Iter<'a, String, Json>,
+                Option<&'a String>,
+                IndexMap<String, Json>,
+            ),
+        }
+        let mut stack: Vec<Open> = Vec::new();
+        let mut next: Option<&Json> = Some(self);
+        let mut done: Option<Json> = None;
+        loop {
+            if let Some(value) = next.take() {
+                done = match value {
+                    Json::Array(items) => {
+                        stack.push(Open::Array(items.iter(), Vec::with_capacity(items.len())));
+                        None
+                    }
+                    Json::Object(map) => {
+                        stack.push(Open::Object(
+                            map.iter(),
+                            None,
+                            IndexMap::with_capacity(map.len()),
+                        ));
+                        None
+                    }
+                    Json::Null => Some(Json::Null),
+                    Json::Bool(b) => Some(Json::Bool(*b)),
+                    Json::Number(n) => Some(Json::Number(*n)),
+                    Json::String(s) => Some(Json::String(s.clone())),
+                };
+            }
+            if let Some(value) = done.take() {
+                match stack.last_mut() {
+                    None => return value,
+                    Some(Open::Array(_, out)) => out.push(value),
+                    Some(Open::Object(_, key, out)) => {
+                        out.insert(key.take().cloned().unwrap_or_default(), value);
+                    }
+                }
+            }
+            match stack.last_mut() {
+                None => return Json::Null,
+                Some(Open::Array(iter, _)) => match iter.next() {
+                    Some(child) => next = Some(child),
+                    None => {
+                        if let Some(Open::Array(_, out)) = stack.pop() {
+                            done = Some(Json::Array(out));
+                        }
+                    }
+                },
+                Some(Open::Object(iter, key, _)) => match iter.next() {
+                    Some((k, child)) => {
+                        *key = Some(k);
+                        next = Some(child);
+                    }
+                    None => {
+                        if let Some(Open::Object(_, _, out)) = stack.pop() {
+                            done = Some(Json::Object(out));
+                        }
+                    }
+                },
+            }
+        }
+    }
+}
+
+impl PartialEq for Json {
+    fn eq(&self, other: &Json) -> bool {
+        let mut pairs: Vec<(&Json, &Json)> = vec![(self, other)];
+        while let Some((a, b)) = pairs.pop() {
+            match (a, b) {
+                (Json::Null, Json::Null) => {}
+                (Json::Bool(x), Json::Bool(y)) if x == y => {}
+                (Json::Number(x), Json::Number(y)) if x == y => {}
+                (Json::String(x), Json::String(y)) if x == y => {}
+                (Json::Array(x), Json::Array(y)) if x.len() == y.len() => {
+                    pairs.extend(x.iter().zip(y))
+                }
+                (Json::Object(x), Json::Object(y)) if x.len() == y.len() => {
+                    for ((kx, vx), (ky, vy)) in x.iter().zip(y) {
+                        if kx != ky {
+                            return false;
+                        }
+                        pairs.push((vx, vy));
+                    }
+                }
+                _ => return false,
+            }
+        }
+        true
+    }
+}
+
 impl Json {
     /// `JSON.stringify(value)` for a value that has no `undefined` in it.
     #[must_use]
     pub fn stringify(&self) -> String {
-        match self {
-            Json::Null => "null".to_string(),
-            Json::Bool(b) => b.to_string(),
-            Json::Number(n) => {
-                if n.is_finite() {
-                    number_to_string(*n)
-                } else {
-                    "null".to_string()
+        let mut out = String::new();
+        let mut stack: Vec<(Walk, bool)> = Vec::new();
+        let mut next: Option<&Json> = Some(self);
+        loop {
+            if let Some(value) = next.take() {
+                match value {
+                    Json::Null => out.push_str("null"),
+                    Json::Bool(b) => out.push_str(if *b { "true" } else { "false" }),
+                    Json::Number(n) if n.is_finite() => out.push_str(&number_to_string(*n)),
+                    Json::Number(_) => out.push_str("null"),
+                    Json::String(s) => out.push_str(&quote(s)),
+                    Json::Array(items) => {
+                        out.push('[');
+                        stack.push((Walk::Array(items.iter()), true));
+                    }
+                    Json::Object(map) => {
+                        out.push('{');
+                        stack.push((Walk::Object(map.iter()), true));
+                    }
                 }
             }
-            Json::String(s) => quote(s),
-            Json::Array(items) => {
-                let parts: Vec<String> = items.iter().map(Json::stringify).collect();
-                format!("[{}]", parts.join(","))
-            }
-            Json::Object(map) => {
-                let parts: Vec<String> = map
-                    .iter()
-                    .map(|(k, v)| format!("{}:{}", quote(k), v.stringify()))
-                    .collect();
-                format!("{{{}}}", parts.join(","))
+            match stack.last_mut() {
+                None => return out,
+                Some((Walk::Array(iter), first)) => match iter.next() {
+                    Some(child) => {
+                        if !std::mem::replace(first, false) {
+                            out.push(',');
+                        }
+                        next = Some(child);
+                    }
+                    None => {
+                        out.push(']');
+                        stack.pop();
+                    }
+                },
+                Some((Walk::Object(iter), first)) => match iter.next() {
+                    Some((key, child)) => {
+                        if !std::mem::replace(first, false) {
+                            out.push(',');
+                        }
+                        out.push_str(&quote(key));
+                        out.push(':');
+                        next = Some(child);
+                    }
+                    None => {
+                        out.push('}');
+                        stack.pop();
+                    }
+                },
             }
         }
     }
@@ -53,23 +211,35 @@ impl Json {
     /// `String(v)` for a value that came out of JSON (an array joins with
     /// commas, `null` inside it is empty).
     fn to_js_string(&self) -> String {
-        match self {
-            Json::Null => "null".to_string(),
-            Json::Bool(b) => b.to_string(),
-            Json::Number(n) => number_to_string(*n),
-            Json::String(s) => s.clone(),
-            Json::Array(items) => items
-                .iter()
-                .map(|item| {
-                    if *item == Json::Null {
-                        String::new()
-                    } else {
-                        item.to_js_string()
+        let mut out = String::new();
+        let mut stack: Vec<(std::slice::Iter<Json>, bool)> = Vec::new();
+        let mut next: Option<&Json> = Some(self);
+        loop {
+            if let Some(value) = next.take() {
+                match value {
+                    Json::Null if !stack.is_empty() => {}
+                    Json::Null => out.push_str("null"),
+                    Json::Bool(b) => out.push_str(if *b { "true" } else { "false" }),
+                    Json::Number(n) => out.push_str(&number_to_string(*n)),
+                    Json::String(s) => out.push_str(s),
+                    Json::Array(items) => stack.push((items.iter(), true)),
+                    Json::Object(_) => out.push_str("[object Object]"),
+                }
+            }
+            match stack.last_mut() {
+                None => return out,
+                Some((iter, first)) => match iter.next() {
+                    Some(child) => {
+                        if !std::mem::replace(first, false) {
+                            out.push(',');
+                        }
+                        next = Some(child);
                     }
-                })
-                .collect::<Vec<String>>()
-                .join(","),
-            Json::Object(_) => "[object Object]".to_string(),
+                    None => {
+                        stack.pop();
+                    }
+                },
+            }
         }
     }
 

@@ -36,11 +36,12 @@ fn field<'a>(row: &'a Json, name: &str) -> &'a Json {
 
 #[test]
 fn facts_match_js() {
-    let Json::Array(rows) = Json::parse(include_str!("fixtures/facts.json")).unwrap() else {
+    let fixture = Json::parse(include_str!("fixtures/facts.json")).unwrap();
+    let Json::Array(rows) = &fixture else {
         panic!("rows")
     };
     let mut seen = std::collections::BTreeSet::new();
-    for row in &rows {
+    for row in rows {
         let Json::String(fn_name) = field(row, "fn") else {
             panic!("fn")
         };
@@ -105,10 +106,6 @@ fn facts_match_js() {
 
 #[test]
 fn json_parse_and_stringify_follow_js() {
-    deep(json_parse_and_stringify_follow_js_body);
-}
-
-fn json_parse_and_stringify_follow_js_body() {
     let v =
         Json::parse(r#"{"b":1.0,"7":{},"a":[1.5,"x\"\n",null,true,1e21],"3":0,"b":2}"#).unwrap();
     assert_eq!(
@@ -137,12 +134,22 @@ fn json_parse_and_stringify_follow_js_body() {
     }
 }
 
-/// Run `f` on a thread with a large stack: the fixtures nest thousands deep.
-fn deep(f: impl FnOnce() + Send + 'static) {
-    std::thread::Builder::new()
-        .stack_size(256 << 20)
-        .spawn(f)
-        .unwrap()
-        .join()
-        .unwrap();
+#[test]
+fn nesting_the_parser_accepts_is_walked_without_recursion() {
+    let depth = 100_000;
+    let text = format!(
+        r#"{{"name":"deep","x":{}1{}}}"#,
+        "[".repeat(depth),
+        "]".repeat(depth)
+    );
+    let value = Json::parse(&text).unwrap();
+    let Json::Object(map) = &value else {
+        panic!("object")
+    };
+    assert_eq!(map["name"], Json::String("deep".to_string()));
+    let copy = value.clone();
+    assert!(copy == value);
+    assert_eq!(value.stringify().len(), text.len());
+    drop(copy);
+    drop(value);
 }

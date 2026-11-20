@@ -48,10 +48,6 @@ fn field<'a>(row: &'a Json, name: &str) -> &'a Json {
 
 #[test]
 fn nearest_package_matches_js() {
-    deep(nearest_package_matches_js_body);
-}
-
-fn nearest_package_matches_js_body() {
     let fixture = Json::parse(include_str!("fixtures/package.json")).unwrap();
     let root = Root::new("fixture");
     let Json::Object(tree) = field(&fixture, "tree") else {
@@ -143,14 +139,4 @@ fn relative_dir_resolves_against_the_working_directory() {
             .unwrap(),
     );
     assert_eq!(here, there);
-}
-
-/// Run `f` on a thread with a large stack: the fixtures nest thousands deep.
-fn deep(f: impl FnOnce() + Send + 'static) {
-    std::thread::Builder::new()
-        .stack_size(256 << 20)
-        .spawn(f)
-        .unwrap()
-        .join()
-        .unwrap();
 }
