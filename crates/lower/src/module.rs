@@ -374,7 +374,7 @@ impl Lowering {
         let node = node?;
         match &node.kind {
             NodeKind::IntegerLiteral { value, .. } => Some(*value),
-            NodeKind::BooleanLiteral { value } => Some(if *value { 1.0 } else { 0.0 }),
+            NodeKind::BooleanLiteral { value, .. } => Some(if *value { 1.0 } else { 0.0 }),
             NodeKind::UnaryExpression { operator, argument }
                 if operator == "-" || operator == "+" =>
             {
@@ -1532,7 +1532,7 @@ impl Lowering {
                     ty: Some(narrowest_integer_type(*value)),
                 }))
             }
-            NodeKind::BooleanLiteral { value } => Some(Expr::Const(Const {
+            NodeKind::BooleanLiteral { value, .. } => Some(Expr::Const(Const {
                 value: i64::from(*value),
                 ty: Some("bool".to_string()),
             })),
