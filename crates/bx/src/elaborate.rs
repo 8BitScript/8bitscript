@@ -8,8 +8,12 @@
 //!
 //! The JS rewrites the tree in place and shares some nodes between several parents (the statements
 //! around a slot appear in all three functions of a slotted component). Here every output node is
-//! its own copy (R1.7: a rewrite replaces the whole node); the JSON is the same, only the sharing
-//! is gone. New nodes carry no `NodeId`: the caller renumbers (R1.5).
+//! its own copy (R1.1, R1.7); the JSON is the same, only the sharing is gone.
+//!
+//! `NodeId`s follow R1.10. A clone of a node the JS shares keeps its ids. Every node made here (a
+//! JS `node(...)`, a `cloneNode` copy with everything inside it, a `{ ...n }` copy) gets a fresh
+//! id from a counter that starts one above the largest id of the tree at entry; a copy is
+//! renumbered in `syntax::children_mut` pre-order. Nothing renumbers the tree afterwards.
 //!
 //! The binder's symbols hold `NodeId`s into the tree they were bound from (`symbol.node`, a
 //! prop's `default_value` and `type_annotation`). The module's own tree is looked up in a snapshot
@@ -17,6 +21,7 @@
 //! `trees`. A node that cannot be found sets the "missing" flag and the call returns
 //! [`MissingNode`]; the tree is then unspecified.
 
+use std::cell::Cell;
 use std::collections::HashMap;
 
 use indexmap::IndexMap;
@@ -49,6 +54,8 @@ struct Ctx<'a> {
     module: ModuleId,
     /// Pre-order node lists, by module (the module's own is its snapshot).
     trees: Vec<Option<Vec<&'a Node>>>,
+    /// The next fresh `NodeId` (R1.10).
+    ids: &'a Cell<u32>,
     file: &'a str,
     hoisted: u32,
     instances: u32,
@@ -62,8 +69,32 @@ fn end_of(n: &Node) -> u32 {
     n.start.saturating_add(n.length)
 }
 
-fn ident(start: u32, end: u32, name: String) -> Node {
-    Node::new(
+/// A node the JS builds with `node(...)`: a fresh id (R1.10).
+fn mk(ids: &Cell<u32>, start: u32, end: u32, kind: NodeKind) -> Node {
+    let mut n = Node::new(start, end, kind);
+    n.id = NodeId(ids.get());
+    ids.set(ids.get().saturating_add(1));
+    n
+}
+
+/// Fresh ids for `n` and everything under it: a JS `cloneNode` copy (R1.10).
+fn renumber(ids: &Cell<u32>, n: &mut Node) {
+    n.id = NodeId(ids.get());
+    ids.set(ids.get().saturating_add(1));
+    for child in children_mut(n) {
+        renumber(ids, child);
+    }
+}
+
+fn copied(ids: &Cell<u32>, n: &Node) -> Node {
+    let mut copy = n.clone();
+    renumber(ids, &mut copy);
+    copy
+}
+
+fn ident(ids: &Cell<u32>, start: u32, end: u32, name: String) -> Node {
+    mk(
+        ids,
         start,
         end,
         NodeKind::Identifier {
@@ -94,8 +125,9 @@ fn body_of(block: Option<&Node>) -> &[Node] {
     }
 }
 
-fn block(stmts: Vec<Node>, at: &Node) -> Node {
-    Node::new(
+fn block(ids: &Cell<u32>, stmts: Vec<Node>, at: &Node) -> Node {
+    mk(
+        ids,
         at.start,
         end_of(at),
         NodeKind::BlockStatement { body: stmts },
@@ -133,18 +165,26 @@ fn may_have_effect(expr: &Node) -> bool {
 
 /// `name(args);` where the element stood, with the element's span and, when the component keeps
 /// state, its instance tag.
-fn call_statement(el: &Node, name: &str, args: Vec<Node>, instance: Option<String>) -> Node {
+fn call_statement(
+    ids: &Cell<u32>,
+    el: &Node,
+    name: &str,
+    args: Vec<Node>,
+    instance: Option<String>,
+) -> Node {
     let end = end_of(el);
     let el_name_len = match &el.kind {
         NodeKind::BxElement { name, .. } => utf16_len(name),
         _ => 0,
     };
     let callee = ident(
+        ids,
         el.start,
         el.start.saturating_add(el_name_len).saturating_add(1),
         name.to_string(),
     );
-    let call = Node::new(
+    let call = mk(
+        ids,
         el.start,
         end,
         NodeKind::CallExpression {
@@ -153,7 +193,8 @@ fn call_statement(el: &Node, name: &str, args: Vec<Node>, instance: Option<Strin
             instance,
         },
     );
-    Node::new(
+    mk(
+        ids,
         el.start,
         end,
         NodeKind::ExpressionStatement {
@@ -248,11 +289,13 @@ impl<'a> Ctx<'a> {
         else {
             return Vec::new();
         };
+        let ids = self.ids;
         let mut by_name: IndexMap<&str, Node> = IndexMap::new();
         for attr in attributes {
             if let NodeKind::BxAttribute { name, value } = &attr.kind {
                 let value = value.as_deref().cloned().unwrap_or_else(|| {
-                    Node::new(
+                    mk(
+                        ids,
                         attr.start,
                         end_of(attr),
                         NodeKind::BooleanLiteral { value: true },
@@ -270,7 +313,8 @@ impl<'a> Ctx<'a> {
             if let Some(value) = by_name.get(prop.name.as_str()) {
                 args.push(value.clone());
             } else if prop.name == "children" && !text.is_empty() {
-                args.push(Node::new(
+                args.push(mk(
+                    ids,
                     el.start,
                     el.start,
                     NodeKind::StringLiteral {
@@ -280,7 +324,7 @@ impl<'a> Ctx<'a> {
                 ));
             } else if let Some(id) = prop.default_value {
                 match self.node_at(comp.module, id) {
-                    Some(default) => args.push(default.clone()),
+                    Some(default) => args.push(copied(ids, default)),
                     None => break,
                 }
             } else {
@@ -346,7 +390,8 @@ impl<'a> Ctx<'a> {
                 self.imports[i].names.push(half.clone());
                 self.added.push((
                     i,
-                    Node::new(
+                    mk(
+                        self.ids,
                         start,
                         start.saturating_add(length),
                         NodeKind::Identifier {
@@ -363,6 +408,7 @@ impl<'a> Ctx<'a> {
 
     /// An element whose children go into a slot: the two halves around them.
     fn slotted_element(&mut self, el: &Node, comp: SymbolRef) -> Vec<Node> {
+        let ids = self.ids;
         let args = self.arguments_for(el, comp);
         let mut stmts = Vec::new();
         let mut passed = Vec::new();
@@ -381,14 +427,20 @@ impl<'a> Ctx<'a> {
             };
             self.hoisted += 1;
             let name = format!("__bx_{}_{prop_name}", self.hoisted);
-            let make_id =
-                |start: u32| ident(start, start.saturating_add(utf16_len(&name)), name.clone());
+            let make_id = |start: u32| {
+                ident(
+                    ids,
+                    start,
+                    start.saturating_add(utf16_len(&name)),
+                    name.clone(),
+                )
+            };
             let type_annotation = self
                 .node_at(comp.module, annotation_id)
-                .cloned()
-                .map(Box::new);
+                .map(|a| Box::new(copied(ids, a)));
             let (start, end) = (arg.start, end_of(&arg));
-            stmts.push(Node::new(
+            stmts.push(mk(
+                ids,
                 start,
                 end,
                 NodeKind::VariableDeclaration {
@@ -409,7 +461,13 @@ impl<'a> Ctx<'a> {
         let open = self.imported(&local, OPEN);
         let close = self.imported(&local, CLOSE);
         let instance = self.instance_tag(comp);
-        stmts.push(call_statement(el, &open, passed.clone(), instance.clone()));
+        stmts.push(call_statement(
+            ids,
+            el,
+            &open,
+            passed.clone(),
+            instance.clone(),
+        ));
         if let NodeKind::BxElement { children, .. } = &el.kind {
             for child in children {
                 if !matches!(child.kind, NodeKind::BxText { .. }) {
@@ -417,7 +475,8 @@ impl<'a> Ctx<'a> {
                 }
             }
         }
-        stmts.push(call_statement(el, &close, passed, instance));
+        let passed: Vec<Node> = passed.iter().map(|a| copied(ids, a)).collect();
+        stmts.push(call_statement(ids, el, &close, passed, instance));
         stmts
     }
 
@@ -444,7 +503,7 @@ impl<'a> Ctx<'a> {
         // No slot to put children in: the checker said so; they are dropped here.
         let args = self.arguments_for(el, comp);
         let instance = self.instance_tag(comp);
-        vec![call_statement(el, name, args, instance)]
+        vec![call_statement(self.ids, el, name, args, instance)]
     }
 
     /// A composition-valued expression as statements, or `None` when the expression is not one.
@@ -466,13 +525,15 @@ impl<'a> Ctx<'a> {
                 else {
                     return None;
                 };
-                Some(vec![Node::new(
+                let ids = self.ids;
+                Some(vec![mk(
+                    ids,
                     expr.start,
                     end_of(expr),
                     NodeKind::IfStatement {
                         test: Some(test.clone()),
-                        consequent: Some(Box::new(block(yes, consequent))),
-                        alternate: Some(Box::new(block(no, alternate))),
+                        consequent: Some(Box::new(block(ids, yes, consequent))),
+                        alternate: Some(Box::new(block(ids, no, alternate))),
                     },
                 )])
             }
@@ -482,12 +543,14 @@ impl<'a> Ctx<'a> {
                 right,
             } if operator == "&&" => {
                 let yes = self.composition_of(Some(right))?;
-                Some(vec![Node::new(
+                let ids = self.ids;
+                Some(vec![mk(
+                    ids,
                     expr.start,
                     end_of(expr),
                     NodeKind::IfStatement {
                         test: Some(left.clone()),
-                        consequent: Some(Box::new(block(yes, right))),
+                        consequent: Some(Box::new(block(ids, yes, right))),
                         alternate: None,
                     },
                 )])
@@ -529,8 +592,9 @@ impl<'a> Ctx<'a> {
 
     fn transform_statement(&mut self, stmt: &Node) -> Vec<Node> {
         let (start, end) = (stmt.start, end_of(stmt));
+        let ids = self.ids;
         let rebuilt = |kind: NodeKind| {
-            let mut n = Node::new(start, end, kind);
+            let mut n = mk(ids, start, end, kind);
             n.decorators.clone_from(&stmt.decorators);
             vec![n]
         };
@@ -604,11 +668,14 @@ impl<'a> Ctx<'a> {
             ..
         } = &stmt.kind
         else {
-            unreachable!("component_fn is called on a ComponentDeclaration")
+            // Only `component_function` calls this, on a `ComponentDeclaration`.
+            return stmt.clone();
         };
+        let ids = self.ids;
         let span = component_body.as_deref().unwrap_or(stmt);
         let fn_name = match name.as_deref() {
             Some(n) if !suffix.is_empty() => Some(Box::new(ident(
+                ids,
                 n.start,
                 end_of(n),
                 format!("{owner}{suffix}"),
@@ -616,14 +683,20 @@ impl<'a> Ctx<'a> {
             _ => name.clone(),
         };
         let statements = self.transform_all(body);
-        Node::new(
+        let params = if suffix.is_empty() {
+            params.clone()
+        } else {
+            params.iter().map(|p| copied(ids, p)).collect()
+        };
+        mk(
+            ids,
             stmt.start,
             end_of(stmt),
             NodeKind::FunctionDeclaration {
                 name: fn_name,
-                params: params.clone(),
+                params,
                 return_type: None,
-                body: Some(Box::new(block(statements, span))),
+                body: Some(Box::new(block(ids, statements, span))),
                 exported: *exported,
                 component: Some(true),
                 owner: Some(owner.to_string()),
@@ -645,6 +718,7 @@ impl<'a> Ctx<'a> {
         let Some(owner) = name_of(name) else {
             return Vec::new();
         };
+        let ids = self.ids;
         let declared = body_of(cbody.as_deref());
         // State: one template global per field, at module level, and the body reading and
         // writing it by that name.
@@ -677,12 +751,13 @@ impl<'a> Ctx<'a> {
                     return None;
                 };
                 let n = name.as_deref()?;
-                Some(Node::new(
+                Some(mk(
+                    ids,
                     f.start,
                     end_of(f),
                     NodeKind::VariableDeclaration {
                         kind: "let".into(),
-                        name: Some(Box::new(ident(n.start, end_of(n), s.global.clone()))),
+                        name: Some(Box::new(ident(ids, n.start, end_of(n), s.global.clone()))),
                         type_annotation: type_annotation.clone(),
                         initializer: initializer.clone(),
                         exported: false,
@@ -710,6 +785,7 @@ impl<'a> Ctx<'a> {
         let rewrite = |s: &Node| -> Node {
             let mut copy = s.clone();
             if !by_field.is_empty() || !by_method.is_empty() {
+                renumber(ids, &mut copy);
                 rename(&mut copy, false, &by_field, &by_method);
             }
             copy
@@ -738,15 +814,17 @@ impl<'a> Ctx<'a> {
             };
             let at = body.as_deref().unwrap_or(m);
             let statements = self.transform_all(body_of(body.as_deref()));
-            let new_body = block(statements, at);
+            let new_body = block(ids, statements, at);
             let NodeKind::FunctionDeclaration { name: Some(n), .. } = &m.kind else {
                 continue;
             };
-            let mut node = Node::new(
+            let mut node = mk(
+                ids,
                 m.start,
                 end_of(m),
                 NodeKind::FunctionDeclaration {
                     name: Some(Box::new(ident(
+                        ids,
                         n.start,
                         end_of(n),
                         by_method[*method_name].clone(),
@@ -789,8 +867,11 @@ impl<'a> Ctx<'a> {
                 body: Some(body), ..
             } => {
                 let statements = self.transform_all(body_of(Some(body)));
-                let new_body = block(statements, body);
+                let new_body = block(self.ids, statements, body);
                 **body = new_body;
+                // The JS spreads the declaration into a new object.
+                stmt.id = NodeId(self.ids.get());
+                self.ids.set(self.ids.get().saturating_add(1));
                 vec![stmt]
             }
             NodeKind::ComponentDeclaration { .. } => self.component_function(&stmt),
@@ -804,7 +885,8 @@ impl<'a> Ctx<'a> {
 /// `ast` must be numbered (`syntax::number_nodes`), so the `NodeId`s of `modules[module]`'s
 /// symbols index it. `trees[m]` is the tree module `m` was bound from, needed for the props of an
 /// imported component (its `default_value` and `type_annotation` live there); the entry for
-/// `module` itself is ignored.
+/// `module` itself is ignored. For an imported component `trees[m]` must be the definer's tree in
+/// its current state, since the fold rewrites the JS default-value nodes in place.
 ///
 /// # Errors
 /// [`MissingNode`] when a symbol points into a tree that `trees` does not hold. The tree is then
@@ -820,6 +902,9 @@ pub fn elaborate_bx(
         return Ok(());
     }
     let snapshot = ast.clone();
+    let mut largest = 0;
+    walk(&snapshot, &mut |n, _| largest = largest.max(n.id.0));
+    let ids = Cell::new(largest.saturating_add(1));
     let count = modules.len().max(trees.len()).max(module.0 as usize + 1);
     let all: Vec<Option<Vec<&Node>>> = (0..count)
         .map(|m| {
@@ -838,6 +923,7 @@ pub fn elaborate_bx(
         modules,
         module,
         trees: all,
+        ids: &ids,
         file,
         hoisted: 0,
         instances: 0,
@@ -871,15 +957,22 @@ pub fn elaborate_bx(
             });
         }
     }
-    let mut out: Vec<Node> = Vec::new();
+    // Like the JS: every `transformDecl` first, then every `transformStatement`, so the instance
+    // and hoist counters run in that order. An import declaration stays one node in both passes.
+    let mut decls: Vec<Node> = Vec::new();
+    let mut decl_slot: HashMap<usize, usize> = HashMap::new();
     for (i, stmt) in original.into_iter().enumerate() {
-        let import = import_slot.get(&i).copied();
-        if let Some(slot) = import {
+        if let Some(slot) = import_slot.get(&i).copied() {
+            decl_slot.insert(decls.len(), slot);
+        }
+        decls.extend(ctx.transform_decl(stmt));
+    }
+    let mut out: Vec<Node> = Vec::new();
+    for (i, decl) in decls.iter().enumerate() {
+        if let Some(slot) = decl_slot.get(&i).copied() {
             ctx.imports[slot].out = out.len();
         }
-        for decl in ctx.transform_decl(stmt) {
-            out.extend(ctx.transform_statement(&decl));
-        }
+        out.extend(ctx.transform_statement(decl));
     }
     for (slot, spec) in std::mem::take(&mut ctx.added) {
         if let Some(NodeKind::ImportDeclaration { specifiers, .. }) =

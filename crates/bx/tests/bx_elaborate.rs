@@ -10,7 +10,7 @@ use serde_json::Value;
 fn rows_match_the_js() {
     let text = include_str!("fixtures/bx-elaborate.json");
     let rows: Vec<Value> = serde_json::from_str(text).expect("fixture parses");
-    assert!(rows.len() >= 30, "fixture has {} rows", rows.len());
+    assert!(rows.len() >= 59, "fixture has {} rows", rows.len());
     let mut failures = Vec::new();
     for row in &rows {
         let name = row["name"].as_str().unwrap_or("?");

@@ -23,6 +23,7 @@ const LABEL = 'component Label(children: string) {}\ncomponent Soft(children: st
 const BOX = 'pub component Box(label: u8, mark: u8 = 7) {\n    <slot />;\n}\npub component Tick(n: u8 = 2) {\n    state t: u8 = 0;\n}\ncomponent Hidden() {}\n';
 
 /** `[name, text, extra]`: `extra` is `{ files, lookup }` for imports. */
+const TICK = 'component T() {\n    state t: u8 = 0;\n}\n';
 const cases = [
   // Elements and attributes.
   ['plain-element', `${CARD}component A() {\n    <Card title={1} />;\n}\n`],
@@ -81,6 +82,15 @@ const cases = [
   ['import-renamed-slot', 'use self::box::{Box as Crate};\ncomponent A() {\n    <Crate label={1}><Crate label={2} /></Crate>;\n}\n', { files: { box: BOX }, lookup: ['box'] }],
   ['import-two-specifiers', 'use self::box::{Tick, Box};\nuse self::box::{Hidden};\ncomponent A() {\n    <Box label={1}><Tick /></Box>;\n}\n', { files: { box: BOX }, lookup: ['box'] }],
   ['import-unresolved', 'use self::box::{Box, Hidden};\ncomponent A() {\n    <Box label={1}><Hidden /></Box>;\n}\n', { files: { box: BOX }, lookup: [] }],
+  ['p-toplevel-instance-order', `${TICK}<T />;\nfn f() {\n    <T />;\n}\n`],
+  ['p-toplevel-block-instance-order', `${TICK}{ <T />; }\ncomponent B() {\n    <T />;\n}\n`],
+  ['p-toplevel-hoist-order', `${FRAME}component Plain() {}\n<Frame title={next()}><Plain /></Frame>;\nfn f() {\n    <Frame title={next()}><Plain /></Frame>;\n}\n`],
+  ['p-toplevel-import-order', 'use self::box::{Box, Tick};\n<Box label={1}><Tick /></Box>;\nfn f() {\n    <Tick />;\n}\ncomponent A() {\n    <Box label={2}><Box label={3} /></Box>;\n}\n', { files: { box: BOX }, lookup: ['box'] }],
+  ['p-decorated-method', 'component C() {\n    state h: u8 = 0;\n    @inline\n    fn f() {\n        h += 1;\n    }\n    f();\n}\n'],
+  ['p-discarded-conditional-instance', `${TICK}component A(ok: bool) {\n    <>{ok ? <T /> : 1}</>;\n    <T />;\n}\n`],
+  ['p-slot-nested-stateful', `${TICK}component W() {\n    state k: u8 = 0;\n    <T />;\n    <slot />;\n    <T />;\n}\ncomponent A() {\n    <W><W><T /></W></W>;\n}\n`],
+  ['p-two-imports-same-source', 'use self::box::{Tick};\nuse self::box::{Box};\ncomponent A() {\n    <Box label={1}><Tick /></Box>;\n}\n', { files: { box: BOX }, lookup: ['box'] }],
+  ['p-unicode-name', 'component Ünï(a: u8) {\n    <slot />;\n}\ncomponent A() {\n    <Ünï a={f()}><Ünï a={1} /></Ünï>;\n}\n'],
 ];
 
 const rows = [];

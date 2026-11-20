@@ -17,7 +17,7 @@ use front_replay::{Replay, compare};
 use indexmap::IndexMap;
 use sema::binder::types::{Bound, ModuleId, Scope, ScopeId, Symbol, SymbolId, SymbolKind};
 use serde_json::{Value, json};
-use syntax::{Node, NodeKind, children_mut, walk};
+use syntax::{Node, NodeKind, children};
 
 use super::check_bx::{collect, decode_symbol, sym_id};
 use crate::elaborate::{MissingNode, elaborate_bx};
@@ -126,79 +126,147 @@ pub fn run(args: &ElaborateArgs) -> Result<Value, MissingNode> {
     Ok(serde_json::to_value(&ast).unwrap_or(Value::Null))
 }
 
-const REF: &str = "$ref:";
+const SLOT: &str = "$slot:";
 
-fn mark_refs(v: &Value, wanted: &mut BTreeSet<usize>) -> Value {
-    match v {
-        Value::Array(items) => Value::Array(items.iter().map(|i| mark_refs(i, wanted)).collect()),
-        Value::Object(map) => {
-            if map.len() == 1
-                && let Some(n) = map.get("$node").and_then(Value::as_u64)
-                && let Ok(n) = usize::try_from(n)
-            {
-                wanted.insert(n);
-                return json!({"type": "Identifier", "start": 0, "length": 0, "name": format!("{REF}{n}")});
-            }
-            Value::Object(
-                map.iter()
-                    .map(|(k, x)| (k.clone(), mark_refs(x, wanted)))
-                    .collect(),
-            )
+fn ref_target(v: &Value) -> Option<usize> {
+    let map = v.as_object()?;
+    if map.len() != 1 {
+        return None;
+    }
+    usize::try_from(map.get("$node")?.as_u64()?).ok()
+}
+
+fn is_node_like(v: &Value) -> bool {
+    ref_target(v).is_some() || v.get("type").is_some_and(Value::is_string)
+}
+
+fn leaf(at: &str) -> Value {
+    json!({"type": "Identifier", "start": 0, "length": 0, "name": format!("{SLOT}{at}")})
+}
+
+/// Where the node-like children of the object `v` sit, in the order `syntax::children` visits
+/// them: `(key, index)`, the index being `None` for a single node and the array position
+/// otherwise. The order is the port's own: a shallow copy of `v`, each child replaced by a leaf
+/// that names its place, goes through `syntax::Node`. Keys the port does not know are left
+/// alone, so they stay in `v` for the comparison.
+fn child_places(v: &Value) -> Result<Vec<(String, Option<usize>)>, String> {
+    let Some(map) = v.as_object() else {
+        return Ok(Vec::new());
+    };
+    let mut shallow = map.clone();
+    for (key, x) in map {
+        if is_node_like(x) {
+            shallow.insert(key.clone(), leaf(key));
+        } else if let Some(items) = x.as_array()
+            && items.iter().any(is_node_like)
+        {
+            let replaced = items
+                .iter()
+                .enumerate()
+                .map(|(i, item)| {
+                    if is_node_like(item) {
+                        leaf(&format!("{key}:{i}"))
+                    } else {
+                        item.clone()
+                    }
+                })
+                .collect();
+            shallow.insert(key.clone(), Value::Array(replaced));
         }
-        other => other.clone(),
+    }
+    let node: Node =
+        serde_json::from_value(Value::Object(shallow)).map_err(|e| format!("tree: {e}"))?;
+    Ok(children(&node)
+        .into_iter()
+        .filter_map(|c| match &c.kind {
+            NodeKind::Identifier { name, .. } => {
+                let at = name.strip_prefix(SLOT)?;
+                Some(match at.rsplit_once(':') {
+                    Some((key, i)) if map.get(key).is_some_and(Value::is_array) => {
+                        (key.to_string(), i.parse().ok())
+                    }
+                    _ => (at.to_string(), None),
+                })
+            }
+            _ => None,
+        })
+        .collect())
+}
+
+fn slot_mut<'a>(v: &'a mut Value, key: &str, index: Option<usize>) -> Option<&'a mut Value> {
+    let x = v.get_mut(key)?;
+    match index {
+        Some(i) => x.get_mut(i),
+        None => Some(x),
     }
 }
 
-fn placeholder(n: &Node) -> Option<usize> {
-    match &n.kind {
-        NodeKind::Identifier { name, .. } => name.strip_prefix(REF)?.parse().ok(),
-        _ => None,
+fn size(v: &Value) -> Result<usize, String> {
+    let mut count = 1;
+    for (key, index) in child_places(v)? {
+        let x = v.get(&key).ok_or("child vanished")?;
+        count += size(match index {
+            Some(i) => x.get(i).ok_or("child vanished")?,
+            None => x,
+        })?;
     }
-}
-
-fn size(n: &Node) -> usize {
-    let mut count = 0;
-    walk(n, &mut |_, _| count += 1);
-    count
+    Ok(count)
 }
 
 fn expand(
-    n: &mut Node,
+    v: &mut Value,
     counter: &mut usize,
     wanted: &BTreeSet<usize>,
-    store: &mut BTreeMap<usize, Node>,
+    store: &mut BTreeMap<usize, Value>,
 ) -> Result<(), String> {
     let at = *counter;
     *counter += 1;
-    for child in children_mut(n) {
-        if let Some(target) = placeholder(child) {
+    for (key, index) in child_places(v)? {
+        let child = slot_mut(v, &key, index).ok_or("child vanished")?;
+        if let Some(target) = ref_target(child) {
             let copy = store
                 .get(&target)
                 .ok_or_else(|| format!("$node {target} refers to a node not seen yet"))?
                 .clone();
-            *counter += size(&copy);
+            *counter += size(&copy)?;
             *child = copy;
         } else {
             expand(child, counter, wanted, store)?;
         }
     }
     if wanted.contains(&at) {
-        store.insert(at, n.clone());
+        store.insert(at, v.clone());
     }
     Ok(())
 }
 
+fn collect_refs(v: &Value, wanted: &mut BTreeSet<usize>) {
+    match v {
+        Value::Array(items) => items.iter().for_each(|i| collect_refs(i, wanted)),
+        Value::Object(map) => {
+            if let Some(n) = ref_target(v) {
+                wanted.insert(n);
+            } else {
+                map.values().for_each(|x| collect_refs(x, wanted));
+            }
+        }
+        _ => {}
+    }
+}
+
 /// `value`, a tree in graph form, with every `{"$node": n}` replaced by the node at pre-order
-/// index `n` of the full tree (counted with multiplicity, as the tap's encoder does).
+/// index `n` of the full tree (counted with multiplicity, as the tap's encoder does). The tree
+/// stays a `serde_json::Value` throughout, so a key the port does not write, or one absent where
+/// it writes `null`, still shows in the comparison.
 ///
 /// # Errors
 /// A text when `value` is not a tree or a reference points forward.
 pub fn expand_refs(value: &Value) -> Result<Value, String> {
     let mut wanted = BTreeSet::new();
-    let marked = mark_refs(value, &mut wanted);
-    let mut root: Node = serde_json::from_value(marked).map_err(|e| format!("tree: {e}"))?;
+    collect_refs(value, &mut wanted);
+    let mut root = value.clone();
     expand(&mut root, &mut 0, &wanted, &mut BTreeMap::new())?;
-    serde_json::to_value(&root).map_err(|e| e.to_string())
+    Ok(root)
 }
 
 /// Runs the port on the record's arguments and compares with its `result` and `after`.
