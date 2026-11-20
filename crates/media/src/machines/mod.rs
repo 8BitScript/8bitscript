@@ -74,20 +74,28 @@ mod tests {
         let pcm: IndexMap<String, Pcm> = IndexMap::new();
         let facts = Facts::new();
         let enc = |s: &Song| encode_song(&air, s);
+        // The machines that have a ported lowering are covered by their
+        // fixture replays (`tests/machine_media_<machine>.rs`).
+        const GRAPHICS_PORTED: [&str; 4] = ["atari8", "nes", "pet", "web"];
+        const AUDIO_PORTED: [&str; 4] = ["atari8", "nes", "pet", "web"];
         for n in NAMES {
             let m = for_machine(n).unwrap();
             let mut slots = crate::machine::MediaSlots::default();
-            assert_eq!(
-                m.lower_graphics(&sprite, &[], &facts, "a.8bg", Some(&mut slots)),
-                GraphicsLowered::default(),
-                "{n}"
-            );
-            assert_eq!(slots, crate::machine::MediaSlots::default(), "{n}");
-            assert_eq!(
-                m.lower_audio(&air, &pcm, &facts, "a.8ba", &enc),
-                AudioLowered::default(),
-                "{n}"
-            );
+            if !GRAPHICS_PORTED.contains(&n) {
+                assert_eq!(
+                    m.lower_graphics(&sprite, &[], &facts, "a.8bg", Some(&mut slots)),
+                    GraphicsLowered::default(),
+                    "{n}"
+                );
+                assert_eq!(slots, crate::machine::MediaSlots::default(), "{n}");
+            }
+            if !AUDIO_PORTED.contains(&n) {
+                assert_eq!(
+                    m.lower_audio(&air, &pcm, &facts, "a.8ba", &enc),
+                    AudioLowered::default(),
+                    "{n}"
+                );
+            }
         }
     }
 }
