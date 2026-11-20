@@ -280,6 +280,7 @@ impl Parser<'_> {
                         NodeKind::StringLiteral {
                             value: bx_string_value(&v),
                             unterminated: None,
+                            raw: None,
                         },
                     ))
                 }
@@ -300,7 +301,10 @@ impl Parser<'_> {
             Some(Node::new(
                 t.start,
                 end,
-                NodeKind::BooleanLiteral { value: true },
+                NodeKind::BooleanLiteral {
+                    value: true,
+                    raw: None,
+                },
             ))
         };
         Node::new(

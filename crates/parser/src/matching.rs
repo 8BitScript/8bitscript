@@ -244,6 +244,7 @@ impl Parser<'_> {
                     tok_end(&token),
                     NodeKind::BooleanLiteral {
                         value: token.text == "true",
+                        raw: None,
                     },
                 ))
             }
