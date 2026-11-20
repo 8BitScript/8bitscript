@@ -470,8 +470,8 @@ pub fn layout_template<'a>(
         let (expression, part_width) = match &part.kind {
             NodeKind::TemplateText { value } => {
                 pieces.push(Piece::Text { offset, node: part });
-                // A template text is far below u32::MAX code units; JS would not wrap either.
-                offset += u32::try_from(utf16_len(value)).unwrap_or(u32::MAX);
+                // JS offsets are f64 and never wrap; saturate rather than overflow.
+                offset = offset.saturating_add(u32::try_from(utf16_len(value)).unwrap_or(u32::MAX));
                 continue;
             }
             NodeKind::TemplateField { expression, width } => (expression, width.as_deref()),
@@ -530,7 +530,7 @@ pub fn layout_template<'a>(
             width,
             node: part,
         });
-        offset += width;
+        offset = offset.saturating_add(width);
     }
     Layout {
         pieces,

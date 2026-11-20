@@ -140,6 +140,40 @@ fn g() { text::print(0, \`\${t[0]} \${t.length}\`); }
 `,
 };
 
+// Astral text, widths in every radix, shadowing and odd declarations (reviewer probe).
+const T = (body) => `\`${body}\``;
+const F = (e) => `\${${e}}`;
+const probeLines = [
+  `const dup: u8 = 1;`,
+  `let dup: u16;`,
+  `fn dup() -> u8 { return 1; }`,
+  `let late: array<u8, AFTER>;`,
+  `const AFTER: u8 = 4;`,
+  `const MINUS: i8 = -1;`,
+  `let neg: array<u8, MINUS>;`,
+  `let unk: Mystery;`,
+  `let unk2: array<Mystery, 3>;`,
+  `let bare: volatile;`,
+  `let vol: volatile<array<u8, 4>>;`,
+  `let arr: array<u8, 4>;`,
+  `let a: u8;`,
+  `fn probe(arr: u8, n: u8, dup: u16) {`,
+  `  text::print(0, ${T('😀' + F('a'))});`,
+  `  text::print(0, ${T('𝔘𝔫𝔦' + F('a') + '𝔘𝔫𝔦' + F('n'))});`,
+  `  text::print(0, ${T('x'.repeat(300) + F('a'))});`,
+  `  text::print(0, ${T('é😀'.repeat(130) + F('a') + F('n:3'))});`,
+  `  text::print(0, ${T(F('a:255') + F('n:255') + F('a'))});`,
+  `  text::print(0, ${T('')});`,
+  `  text::print(0, ${T(F('a') + F('a'))});`,
+  `  text::print(0, ${T(F('x' )+ ' ' + F(T('inner ' + F('a'))))});`,
+  `  text::print(0, ${T('\\u{1F600} ' + F('a') + ' \\n \\t \\\\')});`,
+  ...['$FF', '0x10', '0b11', '1e23', '1.5', '-1']
+    .map((w) => `  text::print(0, ${T(F(`a:${w}`))});`),
+  `  text::print(0, ${T(F('arr') + F('dup') + F('late') + F('unk'))});`,
+  `}`,
+];
+sources.probe = `${probeLines.join('\n')}\n`;
+
 const templates = [];
 const calls = [];
 const expressions = [];
