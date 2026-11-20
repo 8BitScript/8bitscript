@@ -30,7 +30,7 @@ pub struct CheckArgs {
     pub stack: Vec<String>,
 }
 
-fn node_id(v: Option<&Value>) -> Option<NodeId> {
+pub(crate) fn node_id(v: Option<&Value>) -> Option<NodeId> {
     match v {
         None | Some(Value::Null) => None,
         Some(v) => Some(NodeId(
@@ -53,14 +53,14 @@ fn link(v: Option<&Value>) -> Nullable<SymbolRef> {
     }
 }
 
-fn sym_id(v: &Value) -> Option<u32> {
+pub(crate) fn sym_id(v: &Value) -> Option<u32> {
     v.get("$sym")
         .and_then(Value::as_u64)
         .and_then(|n| u32::try_from(n).ok())
 }
 
 /// Every symbol written out in full anywhere under `v`, by id (the first write wins).
-fn collect<'a>(v: &'a Value, out: &mut BTreeMap<u32, &'a Value>) {
+pub(crate) fn collect<'a>(v: &'a Value, out: &mut BTreeMap<u32, &'a Value>) {
     match v {
         Value::Array(items) => items.iter().for_each(|item| collect(item, out)),
         Value::Object(map) => {
@@ -75,7 +75,7 @@ fn collect<'a>(v: &'a Value, out: &mut BTreeMap<u32, &'a Value>) {
     }
 }
 
-fn decode_prop(p: &Value) -> Prop {
+pub(crate) fn decode_prop(p: &Value) -> Prop {
     Prop {
         name: p
             .get("name")
@@ -88,7 +88,7 @@ fn decode_prop(p: &Value) -> Prop {
     }
 }
 
-fn decode_symbol(v: &Value) -> Symbol {
+pub(crate) fn decode_symbol(v: &Value) -> Symbol {
     let flag = |key: &str| v.get(key).and_then(Value::as_bool);
     Symbol {
         name: v
@@ -100,7 +100,7 @@ fn decode_symbol(v: &Value) -> Symbol {
             .get("kind")
             .and_then(|k| serde_json::from_value(k.clone()).ok())
             .unwrap_or(SymbolKind::Variable),
-        node: NodeId(0),
+        node: node_id(v.get("node")).unwrap_or(NodeId(0)),
         scope: ScopeId(0),
         props: v
             .get("props")
@@ -117,9 +117,16 @@ fn decode_symbol(v: &Value) -> Symbol {
             Some(Value::String(s)) => Nullable::Value(s.clone()),
             Some(_) => Nullable::Null,
         },
-        imported: None,
+        imported: v
+            .get("imported")
+            .and_then(Value::as_str)
+            .map(str::to_string),
         members: None,
-        state: None,
+        state: v.get("state").and_then(Value::as_array).map(|l| {
+            l.iter()
+                .filter_map(|s| s.as_str().map(str::to_string))
+                .collect()
+        }),
         body: None,
         resolved: flag("resolved"),
     }

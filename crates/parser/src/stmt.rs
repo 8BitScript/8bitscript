@@ -525,6 +525,10 @@ impl Parser<'_> {
                 return_type: return_type.map(Box::new),
                 body: body.map(Box::new),
                 exported,
+                component: None,
+                owner: None,
+                method: None,
+                state: None,
             },
         ))
     }
