@@ -1,14 +1,12 @@
 // @8bitscript/graphics on the web, end to end: real PNGs and a real .8bg
 // compiled by the native web backend (packages/web/media/index.cjs lowers
-// each picture to eight row bytes per step, packages/graphics/src/index.web.8bs
-// writes them into the glyph table and plays them through the glyph layer),
-// then rasterized by the headless
+// each picture to a palette and 4bpp frames, packages/graphics/src/index.web.8bs
+// writes them into the page's sprite region), then rasterized by the headless
 // --screenshot path (captureScreenshot, the call `8bs run web --screenshot`
-// makes). The pictures must land on the cells their stage pixels name, an
+// makes). The pictures must land on the pixels their stage position names, an
 // animated one must step through its frames in order at its `every`, the
-// grid's last cell must draw, a position past the grid must draw nothing and
-// write nothing, and a CHARSET band over the pictures' rows must leave the
-// block codes alone.
+// grid's last cell must draw, a position past the grid must draw nothing, and
+// a CHARSET band over the pictures' rows must leave them alone.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, writeFile, rm, readFile } from 'node:fs/promises';
@@ -17,11 +15,11 @@ import { join, resolve } from 'node:path';
 
 import { compile } from '../src/build.mjs';
 import { captureScreenshot } from '../src/screenshot.mjs';
-import { BLOCK_CODE_BASE, glyphRows } from '../src/font8x8.mjs';
 import { encodePNG, pixelAt } from '../src/png.mjs';
 import { BORDER_PX, layoutFromHardware } from '../src/web-layout.mjs';
 import { rgbPalette } from '../src/web-scanline.mjs';
 import web from '../../web/media/index.cjs';
+import cx16 from '../../cx16/media/index.cjs';
 
 const REPO = resolve(import.meta.dirname, '..', '..', '..');
 
@@ -135,22 +133,36 @@ const PROGRAM = [
   '}',
 ].join('\n');
 
-/** The 8×8 picture pixels of cell (col, cellRow) as row-bytes, bit 0 leftmost, against `ink`. */
-function cellBits(png, col, cellRow, ink) {
+/**
+ * The w×h sprite box at stage pixel (x, y) as rows of 0/1: 1 where the pixel
+ * is exactly `color`.
+ */
+function spriteBits(png, x, y, w, h, color) {
   const rows = [];
-  for (let gy = 0; gy < 8; gy += 1) {
-    let bits = 0;
-    for (let gx = 0; gx < 8; gx += 1) {
-      const px = pixelAt(png, BORDER_PX + col * 8 + gx, BORDER_PX + cellRow * 8 + gy);
-      if (px.every((v, i) => v === ink[i])) bits |= 1 << gx;
+  for (let gy = 0; gy < h; gy += 1) {
+    const row = [];
+    for (let gx = 0; gx < w; gx += 1) {
+      const px = pixelAt(png, BORDER_PX + x + gx, BORDER_PX + y + gy);
+      row.push(px.every((v, i) => v === color[i]) ? 1 : 0);
     }
-    rows.push(bits);
+    rows.push(row);
   }
   return rows;
 }
 
-const blockRows = (quadrants) => [...glyphRows(BLOCK_CODE_BASE + quadrants)];
-const BLANK = new Array(8).fill(0);
+/** The pixels a quadrant picture of w×h has lit, as rows of 0/1. */
+function quadrantBits(w, h, quadrants) {
+  const rows = [];
+  for (let y = 0; y < h; y += 1) {
+    rows.push(Array.from({ length: w }, (_, x) => {
+      const bit = y < h / 2 ? (x < w / 2 ? TL : TR) : (x < w / 2 ? BL : BR);
+      return quadrants & bit ? 1 : 0;
+    }));
+  }
+  return rows;
+}
+
+const blank = (w, h) => Array.from({ length: h }, () => new Array(w).fill(0));
 
 async function build(machine) {
   const dir = await mkdtemp(join(tmpdir(), '8bs-web-graphics-'));
@@ -179,17 +191,19 @@ async function shoot({ dir, result }, frames) {
 }
 
 for (const machine of [undefined, 'pet-2001']) {
-  test(`graphics pictures land on their cells and animate (${machine ?? 'Modern host'})`, async () => {
+  test(`graphics pictures land on their pixels and animate (${machine ?? 'Modern host'})`, async () => {
     const built = await build(machine);
     try {
       const layout = layoutFromHardware(built.result.hardware);
+      // A picture shows its own colours (white here); a two-colour skin shows ink.
+      const color = machine === 'pet-2001' ? rgbPalette(layout.palette)[1] : [255, 255, 255];
       const ink = rgbPalette(layout.palette)[1];
-      const lastCol = layout.cols - 1;
-      const lastRow = layout.rows - 1;
+      const lastX = (layout.cols - 1) * 8;
+      const lastY = (layout.rows - 1) * 8;
       const stepOf = (png) => {
-        const bits = cellBits(png, 12, 5, ink);
-        const found = WALK_ORDER.findIndex((q) => bits.every((b, i) => b === blockRows(q)[i]));
-        assert.notEqual(found, -1, `column 12 row 5 is one of the walk frames, got ${bits.join(',')}`);
+        const bits = spriteBits(png, 96, 40, 16, 16, color);
+        const found = WALK_ORDER.findIndex((q) => JSON.stringify(bits) === JSON.stringify(quadrantBits(16, 16, q)));
+        assert.notEqual(found, -1, 'the pixels at (96, 40) are one of the walk frames');
         return found;
       };
 
@@ -197,16 +211,15 @@ for (const machine of [undefined, 'pet-2001']) {
       for (let frames = 2; frames <= 11; frames += 1) {
         const png = await shoot(built, frames);
         seen.push(stepOf(png));
-        // The still picture, the grid's last cell, and the cells that stay blank.
-        assert.deepEqual(cellBits(png, 3, 2, ink), blockRows(BAR), `bar on column 3 row 2 at frame ${frames}`);
-        assert.deepEqual(cellBits(png, lastCol, lastRow, ink), blockRows(15), `dot on the last cell at frame ${frames}`);
-        assert.deepEqual(cellBits(png, 4, 2, ink), BLANK, 'the cell beside the bar is empty');
-        // A picture placed one column past the grid draws nothing: its cell
-        // number is the grid width, which would wrap onto row 1, column 0.
-        assert.deepEqual(cellBits(png, 0, 1, ink), BLANK, 'nothing wrapped onto the next row');
-        assert.deepEqual(cellBits(png, lastCol, 0, ink), BLANK, 'nothing drawn at the right edge of row 0');
+        // The still picture, the grid's last cell, and the pixels that stay blank.
+        assert.deepEqual(spriteBits(png, 24, 16, 16, 16, color), quadrantBits(16, 16, BAR), `bar at (24, 16) at frame ${frames}`);
+        assert.deepEqual(spriteBits(png, lastX, lastY, 8, 8, color), quadrantBits(8, 8, 15), `dot on the last cell at frame ${frames}`);
+        assert.deepEqual(spriteBits(png, 40, 16, 8, 16, color), blank(8, 16), 'the pixels beside the bar are empty');
+        // A picture placed at the grid's right edge draws nothing, and nothing wraps.
+        assert.deepEqual(spriteBits(png, 0, 8, 8, 8, color), blank(8, 8), 'nothing wrapped onto the next row');
+        assert.deepEqual(spriteBits(png, lastX, 0, 8, 8, color), blank(8, 8), 'nothing drawn at the right edge of row 0');
         // The text under no band is the boot set: "abc" on row 8 in lower case.
-        assert.deepEqual(cellBits(png, 0, 8, ink), [...glyphRows(97, layout.font)], 'row 8 col 0 is lower case');
+        assert.deepEqual(spriteBits(png, 0, 64, 8, 8, ink).flat().some(Boolean), true, 'row 8 has text');
       }
 
       // Every two frames the picture moves on by exactly one frame, in the order
@@ -222,14 +235,12 @@ for (const machine of [undefined, 'pet-2001']) {
   });
 }
 
-test('a picture in the CHARSET band keeps its block code (the alternate set only remaps 97-122)', async () => {
+test('a picture in the CHARSET band is unchanged (a sprite is drawn over the cells, not by them)', async () => {
   const built = await build(undefined);
   try {
-    const layout = layoutFromHardware(built.result.hardware);
-    const ink = rgbPalette(layout.palette)[1];
     const png = await shoot(built, 3);
-    // cell rows 2-5 are inside the band: the bar is there and is unchanged.
-    assert.deepEqual(cellBits(png, 3, 2, ink), blockRows(BAR));
+    // picture lines 16-47 are inside the band: the bar is there and is unchanged.
+    assert.deepEqual(spriteBits(png, 24, 16, 16, 16, [255, 255, 255]), quadrantBits(16, 16, BAR));
   } finally {
     await rm(built.dir, { recursive: true, force: true });
   }
@@ -238,97 +249,95 @@ test('a picture in the CHARSET band keeps its block code (the alternate set only
 // ---- the lowering, in isolation -----------------------------------------
 
 const wrap = (code, message, file, start, length, severity) => ({ code, message, file, start, length, severity });
-const frameOf = (w, h, quadrants) => ({ rgba: quadrantImage(w, h, quadrants), width: w, height: h });
-const sprite = (animations) => ({ name: 'p', width: 16, height: 16, animations, start: 0, length: 1 });
-const opaque = (w, h, on) => {
-  const rgba = new Uint8Array(w * h * 4);
-  for (let y = 0; y < h; y += 1) {
-    for (let x = 0; x < w; x += 1) {
-      if (on(x, y)) rgba.set([255, 255, 255, 255], (y * w + x) * 4);
-    }
-  }
+const FACTS = { 'video.sprites': 16, 'video.spriteWidth': 64, 'video.spriteHeight': 64, 'video.spriteKib': 16 };
+const sprite = (animations, name = 'p') => ({ name, width: 16, height: 16, animations, start: 0, length: 1 });
+const frameOf = (w, h, quadrants, rgb = [255, 255, 255]) => {
+  const rgba = quadrantImage(w, h, quadrants);
+  for (let i = 0; i < w * h; i += 1) if (rgba[i * 4 + 3]) rgba.set(rgb, i * 4);
   return { rgba, width: w, height: h };
 };
+const messages = (out) => out.diagnostics.map((d) => d.message);
 
-test('web lowering: a quadrant-shaped 16×16 picture lowers to exactly the pixels of its block glyph', () => {
-  for (let q = 1; q < 16; q += 1) {
-    const out = web.lowerGraphics(sprite([]), [frameOf(16, 16, q)], {}, 't.8bg', wrap);
-    assert.deepEqual(out.data, blockRows(q), `quadrants ${q}`);
-    assert.equal(out.frames, 1);
-    assert.equal(out.width, 8);
-    assert.equal(out.height, 8);
+test('web lowering: bytes 2.. are the cx16 lowering byte for byte, for 8x8, 16x16 and 64x64 sources', () => {
+  const cases = [
+    { frames: [frameOf(8, 8, TL | BR, [200, 40, 40])], anim: [] },
+    { frames: [frameOf(16, 16, TL, [10, 200, 30]), frameOf(16, 16, BR, [30, 30, 220])], anim: [{ frames: [0, 1], every: 3 }] },
+    { frames: [frameOf(64, 64, TL), frameOf(64, 64, TR, [250, 250, 0]), frameOf(64, 64, BL, [0, 250, 250])], anim: [{ frames: [0, 1, 2], every: 4 }] },
+  ];
+  for (const { frames, anim } of cases) {
+    const w = web.lowerGraphics(sprite(anim), frames, FACTS, 't.8bg', wrap, { graphics: 1 });
+    const c = cx16.lowerGraphics(sprite(anim), frames, {}, 't.8bg', wrap);
+    assert.deepEqual(w.data.slice(2), c.data, `${frames[0].width}x${frames[0].width}`);
+    assert.deepEqual(w.data.slice(0, 2), [0, 0], 'the first picture starts at pool offset 0');
+    assert.equal(w.kind, 6);
+    assert.equal(w.frames, c.frames);
+    assert.equal(w.every, c.every);
+    assert.equal(w.width, c.width);
+    assert.equal(w.height, c.height);
   }
 });
 
-test('web lowering: an 8×8 source is carried pixel for pixel, bit 0 the leftmost pixel, with nothing said about it', () => {
-  // A diagonal from the top-left: row r has only pixel r lit.
-  const diagonal = opaque(8, 8, (x, y) => x === y);
-  const out = web.lowerGraphics(sprite([]), [diagonal], {}, 't.8bg', wrap);
-  assert.deepEqual(out.data, [1, 2, 4, 8, 16, 32, 64, 128]);
-  assert.deepEqual(out.diagnostics, [], 'a one-ink 8×8 picture loses nothing, so says nothing');
-  // The same shape through the renderer's own bit order: pixel x of a row is bit x.
-  const left = web.lowerGraphics(sprite([]), [opaque(8, 8, (x) => x === 0)], {}, 't.8bg', wrap);
-  assert.deepEqual(left.data, new Array(8).fill(1));
-  const right = web.lowerGraphics(sprite([]), [opaque(8, 8, (x) => x === 7)], {}, 't.8bg', wrap);
-  assert.deepEqual(right.data, new Array(8).fill(128));
+test('web lowering: the pool offset is where the build has counted to, and frames add up', () => {
+  const tally = { graphics: 1 };
+  const first = web.lowerGraphics(sprite([]), [frameOf(16, 16, TL)], FACTS, 't.8bg', wrap, tally);
+  assert.equal(tally.webSpriteBytes, 128, 'a 16x16 frame is 128 bytes');
+  tally.graphics = 2;
+  const second = web.lowerGraphics(sprite([]), [frameOf(16, 16, TR)], FACTS, 't.8bg', wrap, tally);
+  assert.deepEqual(first.data.slice(0, 2), [0, 0]);
+  assert.deepEqual(second.data.slice(0, 2), [128, 0]);
+  assert.equal(tally.webSpriteBytes, 256);
 });
 
-test('web lowering: a larger source is reduced by area — a glyph pixel is lit at half its source pixels or more', () => {
-  // 16×16: the glyph pixel at (1, 1) covers source x 2-3, y 2-3. One of four
-  // lit is a quarter, below the share; two of four is half, at it.
-  const quarter = opaque(16, 16, (x, y) => x === 2 && y === 2);
-  const half = opaque(16, 16, (x, y) => x >= 2 && x <= 3 && y === 2);
-  // A lone quarter is the picture's inkiest glyph pixel, so it is still lit
-  // (a thin picture does not vanish); the half is lit on its own merits.
-  assert.deepEqual(web.lowerGraphics(sprite([]), [quarter], {}, 't.8bg', wrap).data, [0, 2, 0, 0, 0, 0, 0, 0]);
-  assert.deepEqual(web.lowerGraphics(sprite([]), [half], {}, 't.8bg', wrap).data, [0, 2, 0, 0, 0, 0, 0, 0]);
-  // With a half somewhere else in the frame, the quarter no longer reaches
-  // the threshold and goes dark: the share is 0.5, not "the inkiest".
-  const both = opaque(16, 16, (x, y) => (x === 2 && y === 2) || (x >= 8 && x <= 9 && y === 8));
-  assert.deepEqual(web.lowerGraphics(sprite([]), [both], {}, 't.8bg', wrap).data, [0, 0, 0, 0, 16, 0, 0, 0]);
-  // A 10×12 block centred in a 16×16 frame (x 3-12, y 2-13): glyph columns
-  // 1-6 reach half in every row from 1 to 6, and rows 0 and 7 are empty.
-  const block = opaque(16, 16, (x, y) => x >= 3 && x <= 12 && y >= 2 && y <= 13);
-  assert.deepEqual(web.lowerGraphics(sprite([]), [block], {}, 't.8bg', wrap).data, [0, 126, 126, 126, 126, 126, 126, 0]);
-  // A size that is not a multiple of eight still covers every source pixel once.
-  const wide = opaque(24, 21, () => true);
-  assert.deepEqual(web.lowerGraphics(sprite([]), [wide], {}, 't.8bg', wrap).data, new Array(8).fill(255));
+test('web lowering: a picture past the pool keeps the frames that fit and says so; none left is allowed', () => {
+  const facts = { ...FACTS, 'video.spriteKib': 4 };
+  const frames = [frameOf(64, 64, TL), frameOf(64, 64, TR)];
+  const tally = { graphics: 1 };
+  const both = web.lowerGraphics(sprite([{ frames: [0, 1], every: 1 }], 'a'), frames, facts, 't.8bg', wrap, tally);
+  assert.equal(both.frames, 2);
+  assert.equal(tally.webSpriteBytes, 4096);
+  tally.graphics = 2;
+  const none = web.lowerGraphics(sprite([{ frames: [0, 1], every: 1 }], 'b'), frames, facts, 't.8bg', wrap, tally);
+  assert.equal(none.frames, 0);
+  assert.equal(none.data.length, 34, 'a pool offset and a palette, no frames');
+  assert.ok(messages(none).includes("sprite 'b': the 4096-byte sprite pool has 0 bytes left; 0 of 2 frames kept"), messages(none).join('|'));
+  const small = { ...FACTS, 'video.spriteKib': 3 };
+  const t2 = { graphics: 1 };
+  const one = web.lowerGraphics(sprite([{ frames: [0, 1], every: 1 }], 'c'), frames, small, 't.8bg', wrap, t2);
+  assert.equal(one.frames, 1);
+  assert.ok(messages(one).includes("sprite 'c': the 3072-byte sprite pool has 3072 bytes left; 1 of 2 frames kept"), messages(one).join('|'));
+  assert.equal(t2.webSpriteBytes, 2048);
 });
 
-test('web lowering: a thin picture does not vanish, and an empty frame is eight zero bytes', () => {
-  const rgba = new Uint8Array(16 * 16 * 4);
-  rgba.set([255, 255, 255, 255], (3 * 16 + 3) * 4); // one pixel in the top-left quadrant
-  const thin = web.lowerGraphics(sprite([]), [{ rgba, width: 16, height: 16 }], {}, 't.8bg', wrap);
-  assert.deepEqual(thin.data, [0, 2, 0, 0, 0, 0, 0, 0], 'the glyph pixel that covers it is lit');
-  const empty = web.lowerGraphics(sprite([]), [{ rgba: new Uint8Array(16 * 16 * 4), width: 16, height: 16 }], {}, 't.8bg', wrap);
-  assert.deepEqual(empty.data, new Array(8).fill(0));
+test('web lowering: a slot at or past video.sprites is never drawn and says so', () => {
+  const facts = { ...FACTS, 'video.sprites': 2 };
+  const out = web.lowerGraphics(sprite([], 'late'), [frameOf(16, 16, TL)], facts, 't.8bg', wrap, { graphics: 3 });
+  assert.deepEqual(out.data, []);
+  assert.equal(out.frames, 0);
+  assert.deepEqual(messages(out), ["sprite 'late' is slot 2; this build has 2 sprites, so it is never drawn"]);
+  const tally = { graphics: 3 };
+  web.lowerGraphics(sprite([], 'late'), [frameOf(16, 16, TL)], facts, 't.8bg', wrap, tally);
+  assert.equal(tally.webSpriteBytes, undefined, 'a slot never drawn takes no pool');
+  const none = web.lowerGraphics(sprite([], 'x'), [frameOf(16, 16, TL)], { ...FACTS, 'video.sprites': 0 }, 't.8bg', wrap, { graphics: 1 });
+  assert.equal(none.frames, 0);
 });
 
-test('web lowering: an animation keeps its steps in order, repeats included, up to eight, eight bytes each', () => {
-  const frames = [frameOf(16, 16, TL), frameOf(16, 16, TR), frameOf(16, 16, BL)];
-  const out = web.lowerGraphics(sprite([{ frames: [2, 0, 0, 1], every: 5 }]), frames, {}, 't.8bg', wrap);
-  assert.deepEqual(out.data, [BL, TL, TL, TR].flatMap((q) => blockRows(q)));
-  assert.equal(out.frames, 4);
-  assert.equal(out.every, 5);
-  assert.ok(out.diagnostics.some((d) => d.code === '8BS2111' && /4 animation steps kept/.test(d.message)));
-
-  const long = web.lowerGraphics(sprite([{ frames: [0, 1, 0, 1, 0, 1, 0, 1, 0, 1], every: 1 }]), frames, {}, 't.8bg', wrap);
-  assert.equal(long.data.length, web.MAX_STEPS * 8);
-  assert.ok(long.diagnostics.some((d) => /steps past 8 dropped/.test(d.message)));
-});
-
-test('web lowering: more than one ink is dropped to the cell\'s one, and the build says so', () => {
-  const two = opaque(8, 8, () => true);
-  for (let i = 0; i < 8 * 8; i += 1) {
-    two.rgba.set(i % 8 < 4 ? [255, 0, 0, 255] : [0, 0, 255, 255], i * 4);
-  }
-  const out = web.lowerGraphics(sprite([]), [two], {}, 't.8bg', wrap);
-  assert.deepEqual(out.data, new Array(8).fill(255));
-  assert.ok(out.diagnostics.some((d) => d.code === '8BS2111' && /colours dropped/.test(d.message)));
-});
-
-test('web lowering: a missing source falls back to a solid 8×8 cell, never PETSCII', () => {
-  const out = web.lowerGraphics(sprite([]), [], {}, 't.8bg', wrap);
-  assert.deepEqual(out.data, new Array(8).fill(255));
+test('web lowering: a missing source is one 8x8 white block, and a thin 8x8 loses nothing', () => {
+  const out = web.lowerGraphics(sprite([]), [], FACTS, 't.8bg', wrap, { graphics: 1 });
   assert.equal(out.frames, 1);
+  assert.equal(out.width, 8);
+  assert.deepEqual(out.data.slice(0, 2), [0, 0]);
+  assert.deepEqual(out.data.slice(2, 6), [0, 0, 0xFF, 0x0F], 'entry 1 is white');
+  assert.deepEqual(out.data.slice(34), new Array(32).fill(0x11), 'every pixel is index 1');
+  assert.deepEqual(out.diagnostics, []);
+});
+
+test('web lowering: a source over 64 and more than fifteen colours are named, a VERA note is not', () => {
+  const big = frameOf(80, 80, 15);
+  const out = web.lowerGraphics(sprite([]), [big], FACTS, 't.8bg', wrap, { graphics: 1 });
+  assert.ok(messages(out).some((m) => /a web sprite is at most 64x64/.test(m)), messages(out).join('|'));
+  assert.ok(!messages(out).some((m) => /VERA/.test(m)));
+  const many = frameOf(16, 16, 15);
+  for (let i = 0; i < 256; i += 1) many.rgba.set([i, 255 - i, (i * 7) & 255, 255], i * 4);
+  const out2 = web.lowerGraphics(sprite([]), [many], FACTS, 't.8bg', wrap, { graphics: 1 });
+  assert.ok(out2.diagnostics.some((d) => d.code === '8BS2110' && /a web sprite holds 15 plus transparent/.test(d.message)));
 });

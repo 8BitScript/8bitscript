@@ -638,17 +638,25 @@ test('two .8bg files get slots 0 and 1 and are bound in the order they are decla
 });
 
 
-test('web lowering keeps all four animation steps as 8×8 glyph rows; its audio is lowered for the oscillator', () => {
+test('web lowering keeps all four animation steps as 4bpp pixel frames; its audio is lowered for the oscillator', () => {
   withProject((dir) => {
     const { ir, diagnostics } = linked(dir, 'web');
     assert.deepEqual(diagnostics.filter((d) => d.severity !== 'warning'), []);
-    assert.ok(diagnostics.some((d) => d.code === '8BS2111' && /8×8 one-ink glyph on the web.*4 animation steps kept/.test(d.message)));
+    assert.ok(!diagnostics.some((d) => /glyph/.test(d.message)), 'nothing says the picture became a glyph');
     const gfx = ir.globals.find((g) => g.name.includes('8bg') && Array.isArray(g.init));
-    // The picture is a 10×12 block centred in each 16×16 frame (x 3-12, y 2-13):
-    // reduced by area to 8×8 it is rows 1-6 lit across glyph columns 1-6 (0x7E)
-    // and rows 0 and 7 empty — eight bytes a step, four steps.
-    const step = [0, 126, 126, 126, 126, 126, 126, 0];
-    assert.deepEqual(gfx.init, [...step, ...step, ...step, ...step]);
+    // Two bytes of pool offset (the first picture starts at 0), a 32-byte palette,
+    // then four 16x16 frames of 128 bytes each (two pixels a byte, linear).
+    assert.equal(gfx.init.length, 2 + 32 + 4 * 128);
+    assert.deepEqual(gfx.init.slice(0, 2), [0, 0]);
+    const frames = gfx.init.slice(34);
+    // The picture is a 10x12 block centred in each 16x16 frame (x 3-12, y 2-13): row 0 is clear
+    // and row 2 is lit from x 3 to 12, in one palette colour (both nibbles, so 0x11 pairs).
+    assert.deepEqual(frames.slice(0, 8), [0, 0, 0, 0, 0, 0, 0, 0], 'row 0 of frame 0 is clear');
+    const row2 = frames.slice(2 * 8, 3 * 8);
+    assert.equal(row2[0], 0x00);
+    assert.notEqual(row2[1] & 0x0f, 0, 'pixel x = 3 is opaque (the low nibble of byte 1)');
+    assert.equal(row2[1] >> 4, 0, 'pixel x = 2 is clear');
+    assert.equal(frames.length, 4 * 128);
     assert.ok(!diagnostics.some((d) => d.code === Codes.AUD_NO_DRIVER), 'the web has an audio driver now');
     assert.ok(diagnostics.some((d) => d.code === '8BS2210' && /web/.test(d.message)), 'a sample is its synth fallback');
     const song = ir.globals.find((g) => g.name.includes('8ba_song') && Array.isArray(g.init));

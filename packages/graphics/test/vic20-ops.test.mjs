@@ -79,7 +79,8 @@ ${body}
     await writeFile(entry, source);
     process.chdir(dir);
     console.log = () => {};
-    const result = await compile('web', entry);
+    // No sprite region: the tables stay where keep() looks, just past the agreement page.
+    const result = await compile('web', entry, { hardware: { sprites: '0' } });
     console.log = log;
     assert.equal(result.ok, true, JSON.stringify(result));
     const program = await instantiateProgram(await readFile(result.outFile));

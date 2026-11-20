@@ -410,7 +410,11 @@ importers:
 
   packages/cpc: {}
 
-  packages/cx16: {}
+  packages/cx16:
+    dependencies:
+      '@8bitscript/graphics-tools':
+        specifier: workspace:*
+        version: link:../graphics-tools
 
   packages/examples:
     dependencies:
@@ -1100,7 +1104,11 @@ importers:
 
   packages/vic20: {}
 
-  packages/web: {}
+  packages/web:
+    dependencies:
+      '@8bitscript/graphics-tools':
+        specifier: workspace:*
+        version: link:../graphics-tools
 
 packages:
 

@@ -1,131 +1,91 @@
-// Web media lowering. A PNG becomes, per animation step, one 8×8 glyph:
-// eight row bytes (bit 0 the leftmost pixel, the order every font on this
-// target uses) that packages/graphics/src/index.web.8bs writes into the
-// redefinable glyph table (packages/cli/src/web-layout.mjs GLYPH_*, the
-// character codes 176-255) and draws as a cell. The picture is sampled at
-// build time, so the program carries eight bytes per step and the machine
-// does no image work.
+// Web media lowering. A PNG becomes a 4bpp pixel sprite the page draws, with
+// its own palette; a song or sample becomes the web host's one oscillator.
 //
-// Before this module drew real art it sampled each picture to one of the
-// sixteen 2×2 quadrant-block codes (128-143) — a 16×16 source became four
-// lit-or-dark quadrants. The glyph table is the redefinable character set
-// the web roadmap lists (packages/web/AGENTS.md, "What a superset runtime
-// would add", item 3), so a picture can now be what it is: 64 pixels of one
-// ink. A source of 8×8 pixels is carried exactly; a larger one is reduced by
-// area (each glyph pixel is lit when at least half of the source pixels it
-// covers are opaque, and the inkiest one is lit if none reaches that, so a
-// thin picture does not vanish). Colour is still dropped — a cell has one
-// ink; `graphics.color()` tints it — and the lowering says so with 8BS2111.
+// What the graphics twin (@8bitscript/graphics' index.web.8bs and
+// index.cx16.web.8bs) is handed, byte by byte through graphics.bind:
 //
-// The default lowering (packages/compiler/src/media/lower-default.mjs)
-// picks PETSCII-ish codes — 0xA0 "reverse space", 0x51 "ball" — which the
-// web does not draw: its font holds ASCII 32-122, the blocks at 128-143 and
-// nothing else (font8x8.mjs `glyphRows`), so before there was a module of
-// its own a mostly-filled picture was an empty cell and a mostly-clear one
-// the letter Q. The web is the one release target with its own font, so it
-// names its own data.
+//   bytes 0..1    where this sprite's frames start in the shared pool, low byte
+//                 then high byte: the build counts the pool across every
+//                 picture of the link, in the order the program declares them
+//   bytes 2..33   the sprite's palette: sixteen 12-bit colours in VERA's order
+//                 (GGGGBBBB, then 0000RRRR); entry 0 is the clear one
+//   bytes 34..    every animation frame, one after another, each a linear 4bpp
+//                 bitmap (width/2 bytes a row, the LEFT pixel in the HIGH nibble)
+//
+// Bytes 2.. are the Commander X16's own lowering, byte for byte: the picture
+// is quantized the same way on both, so a program looks the same on either.
+// The three limits come from the build's facts (packages/web/package.json
+// hardware): video.sprites slots, video.spriteWidth x video.spriteHeight bytes
+// of window per sprite, and video.spriteKib KiB of pool every picture shares.
 //
 // Audio: the web host plays songs and samples through its one oscillator (audio.tone's voice),
 // square, triangle or sawtooth; noise has no oscillator here, so it plays as the square.
 'use strict';
 
-const KIND_GLYPH = 0;
-// graphics/src/index.web.8bs holds this many animation steps per picture.
-const MAX_STEPS = 8;
-// The glyph is eight rows of eight pixels.
-const GLYPH_SIZE = 8;
-// A glyph pixel is lit when at least this share of the source pixels it
-// covers is opaque.
-const LIT_SHARE = 0.5;
-const OPAQUE_ALPHA = 16;
+const { legalSize, buildPalette, packFrame } = require('@8bitscript/graphics-tools/sprite-pack');
 
-/** The opaque share (0..1) of the source box behind glyph pixel (gx, gy). */
-function boxShare(frame, gx, gy) {
-  const { rgba, width, height } = frame;
-  const x0 = Math.floor((gx * width) / GLYPH_SIZE);
-  const x1 = Math.max(x0 + 1, Math.floor(((gx + 1) * width) / GLYPH_SIZE));
-  const y0 = Math.floor((gy * height) / GLYPH_SIZE);
-  const y1 = Math.max(y0 + 1, Math.floor(((gy + 1) * height) / GLYPH_SIZE));
-  let ink = 0;
-  let area = 0;
-  for (let y = y0; y < y1 && y < height; y += 1) {
-    for (let x = x0; x < x1 && x < width; x += 1) {
-      area += 1;
-      if (rgba[(y * width + x) * 4 + 3] >= OPAQUE_ALPHA) ink += 1;
-    }
-  }
-  return area === 0 ? 0 : ink / area;
-}
+const KIND_WEB = 6;
+const PALETTE_COLORS = 15;
+const PALETTE_BYTES = 32;
 
-/**
- * The eight row bytes for one frame. A frame with ink always shows some: if
- * no glyph pixel reaches the share, the inkiest are lit. A frame with none is
- * the empty glyph (eight zero bytes: an undefined glyph, which draws blank).
- */
-function glyphOf(frame) {
-  const shares = [];
-  let best = 0;
-  for (let gy = 0; gy < GLYPH_SIZE; gy += 1) {
-    for (let gx = 0; gx < GLYPH_SIZE; gx += 1) {
-      const share = boxShare(frame, gx, gy);
-      shares.push(share);
-      if (share > best) best = share;
-    }
-  }
-  const rows = new Array(GLYPH_SIZE).fill(0);
-  if (best === 0) return rows;
-  const threshold = best >= LIT_SHARE ? LIT_SHARE : best;
-  shares.forEach((share, i) => {
-    if (share >= threshold) rows[Math.floor(i / GLYPH_SIZE)] |= 1 << (i % GLYPH_SIZE);
-  });
-  return rows;
-}
-
-/** How many distinct opaque colours a frame has (alpha-blind: the RGB triple). */
-function opaqueColours(frame) {
-  const seen = new Set();
-  const { rgba, width, height } = frame;
-  for (let i = 0; i < width * height; i += 1) {
-    if (rgba[i * 4 + 3] >= OPAQUE_ALPHA) {
-      seen.add((rgba[i * 4] << 16) | (rgba[i * 4 + 1] << 8) | rgba[i * 4 + 2]);
-    }
-  }
-  return seen.size;
-}
-
-function lowerGraphics(sprite, frames, _facts, file, diagnostic) {
-  const diagnostics = [];
-  const anim = sprite.animations?.[0];
-  if (!frames || frames.length === 0) {
-    return {
-      kind: KIND_GLYPH, data: new Array(GLYPH_SIZE).fill(255), frames: 1, every: anim?.every ?? 8, width: GLYPH_SIZE, height: GLYPH_SIZE, chrPatches: [], diagnostics,
-    };
-  }
-  const sequence = anim?.frames?.length ? anim.frames : [0];
-  const kept = sequence.slice(0, MAX_STEPS);
-  const used = kept.map((index) => frames[index] ?? frames[0]);
-  const data = used.flatMap((frame) => glyphOf(frame));
-  const notes = [];
-  if (used.some((frame) => opaqueColours(frame) > 1)) notes.push('colours dropped');
-  if (used.some((frame) => frame.width !== GLYPH_SIZE || frame.height !== GLYPH_SIZE)) {
-    notes.push(`${used[0].width}×${used[0].height} reduced to ${GLYPH_SIZE}×${GLYPH_SIZE}`);
-  }
-  if (kept.length > 1) notes.push(`${kept.length} animation steps kept`);
-  if (sequence.length > MAX_STEPS) notes.push(`steps past ${MAX_STEPS} dropped`);
-  if (notes.length > 0) {
-    diagnostics.push(diagnostic(
-      '8BS2111',
-      `sprite '${sprite.name}' is an 8×8 one-ink glyph on the web; ${notes.join('; ')}`,
-      file, sprite.start, sprite.length, 'warning',
-    ));
-  }
+function empty(sprite, diagnostics, every) {
   return {
-    kind: KIND_GLYPH,
+    kind: KIND_WEB, data: [], frames: 0, every, width: 8, height: 8, chrPatches: [], diagnostics,
+  };
+}
+
+
+function lowerGraphics(sprite, frames, facts, file, diagnostic, tally) {
+  const diagnostics = [];
+  const warn = (code, text) => diagnostics.push(diagnostic(code, text, file, sprite.start, sprite.length, 'warning'));
+  const anim = sprite.animations?.[0];
+  const every = anim?.every ?? 8;
+  const slot = tally ? tally.graphics - 1 : 0;
+  const max = facts?.['video.sprites'] ?? 0;
+  if (slot >= max) {
+    warn('8BS2111', `sprite '${sprite.name}' is slot ${slot}; this build has ${max} sprites, so it is never drawn`);
+    return empty(sprite, diagnostics, every);
+  }
+  // A source with no picture is one white 8x8 block.
+  const source = frames?.[0] ? frames : [{ width: 8, height: 8, rgba: new Uint8Array(8 * 8 * 4).fill(255) }];
+  const width = legalSize(source[0].width);
+  const height = legalSize(source[0].height);
+  if (source[0].width > 64 || source[0].height > 64) {
+    warn('8BS2111', `sprite '${sprite.name}' is ${source[0].width}x${source[0].height}; a web sprite is at most 64x64 — the rest was cut`);
+  }
+  let order = anim?.frames?.length && frames?.[0] ? [...anim.frames] : [0];
+  const frameBytes = (width * height) / 2;
+  const window = (facts?.['video.spriteWidth'] ?? 0) * (facts?.['video.spriteHeight'] ?? 0);
+  const fit = Math.max(1, Math.floor(window / frameBytes));
+  if (order.length > fit) {
+    warn('8BS2111', `sprite '${sprite.name}': ${order.length} frames of ${width}x${height} do not fit its ${window}-byte window; the first ${fit} are kept`);
+    order = order.slice(0, fit);
+  }
+  const pool = (facts?.['video.spriteKib'] ?? 0) * 1024;
+  const at = tally?.webSpriteBytes ?? 0;
+  const kept = Math.min(order.length, Math.max(0, Math.floor((pool - at) / frameBytes)));
+  if (kept < order.length) {
+    warn('8BS2111', `sprite '${sprite.name}': the ${pool}-byte sprite pool has ${Math.max(0, pool - at)} bytes left; ${kept} of ${order.length} frames kept`);
+  }
+  if (tally) tally.webSpriteBytes = at + kept * frameBytes;
+  const used = order.slice(0, kept).map((i) => source[i] ?? source[0]);
+  const { colors, distinct } = buildPalette(used);
+  if (distinct > PALETTE_COLORS) {
+    warn('8BS2110', `sprite '${sprite.name}' has ${distinct} colours; a web sprite holds ${PALETTE_COLORS} plus transparent — the rarest were mapped to the nearest kept`);
+  }
+  const data = [at & 255, at >> 8, ...new Array(PALETTE_BYTES).fill(0)];
+  colors.forEach((key, i) => {
+    data[2 + (i + 1) * 2] = (((key >> 4) & 15) << 4) | (key & 15);
+    data[2 + (i + 1) * 2 + 1] = (key >> 8) & 15;
+  });
+  for (const frame of used) data.push(...packFrame(frame, colors, width, height));
+  return {
+    kind: KIND_WEB,
     data,
-    frames: kept.length,
-    every: anim?.every ?? 8,
-    width: GLYPH_SIZE,
-    height: GLYPH_SIZE,
+    frames: used.length,
+    every,
+    width,
+    height,
     chrPatches: [],
     diagnostics,
   };
@@ -160,4 +120,4 @@ function lowerAudio(air, _pcm, _facts, file, diagnostic, helpers) {
   return { samples, songs, diagnostics };
 }
 
-module.exports = { lowerGraphics, lowerAudio, glyphOf, GLYPH_SIZE, MAX_STEPS };
+module.exports = { lowerGraphics, lowerAudio };

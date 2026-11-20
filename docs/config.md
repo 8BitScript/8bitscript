@@ -71,6 +71,15 @@ works today.
 | What does each build do without? | `8bs build --release` | prints, per artifact, `short of the baseline (c64): video.raster, memory::ram 3071 of 51199` |
 | Does a named system clear the floor? | `8bs targets` | prints `short: memory::ram needs 8192, has 3071` under the system |
 
+The web's own hardware options (`web: { hardware: { ... } }`, or `--hardware` on the command line) size its pixel sprites, which draw a `.8bg` picture:
+
+| Option | Values (default first) | What it sets |
+| --- | --- | --- |
+| `sprites` | `16`, `0`, `8`, `32`, `64`, `128` | `video.sprites`: how many pictures the page can draw at once. A picture in a slot past the count is never drawn, and the build says so (`8BS2111`). `0` leaves the page with no sprite region. |
+| `spriteMemory` | `16`, `0`, `4`, `8`, `24`, `32` | `video.spriteKib`: KiB of frame memory every picture shares. Frames that do not fit are cut and the build says so (`8BS2111`). |
+
+The sprite region lives in the web's one 64 KiB page, after the fixed part of the agreement, so a program's own data starts higher the more it asks for. `8bs build --target web --hardware sprites=32,spriteMemory=24` is an example.
+
 The fact keys are the compiler's (`packages/compiler/src/fold/facts.mjs`),
 listed with one line each by `8bs targets --json` under `facts`, and
 read from a program as `#fact(...)`

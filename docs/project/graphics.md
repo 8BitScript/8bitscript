@@ -51,11 +51,12 @@ Host decode lives in `@8bitscript/graphics-tools` (PNG, no Aseprite, GIF,
 or SVG). The compiler never shells out. Lowering belongs to the machine:
 C64, NES, PET, Atari 8-bit, and VIC-20 each export a `"8bitscript".media` module.
 Every other machine uses the glyph path `@8bitscript/sprites` already has,
-with `8BS2111` naming the adaptation. The web exports one too, because its
-font draws only ASCII and the sixteen 2×2 block codes: the default glyph
-codes (reverse space, a ball) are PETSCII and draw nothing there. It lowers
-a picture to an 8×8 bitmap per animation step, which the web twin writes into
-the runtime's redefinable glyph table (`@8bitscript/web/charset`).
+with `8BS2111` naming the adaptation. The web exports one too: it lowers a
+picture to a 4bpp palette and frames (the Commander X16's packing, byte for
+byte), which the web twin writes into the sprite region of the page's
+agreement, and the page draws them as pixel sprites. How many sprites, and
+how much memory their frames share, is the build's (`video.sprites` and
+`video.spriteKib`, set by the web options `sprites` and `spriteMemory`).
 
 ## The portable contract
 
@@ -127,7 +128,7 @@ One row per machine, so a machine's own work edits its row and nothing else
 | VIC-20 | 8 | 8 (one 64-byte pool) | 16×16 | 1 | yes | 8×8 | no | no |
 | C64 | 24 (eight on one line) | 4 | 24×21 | 1 | yes | 1×1 | yes | yes |
 | Commander X16 | 8 | 2 at 64×64 (32 at 16×16, 8 at 32×16) | 64×64 | 15 | yes | 1×1 | yes | yes |
-| Web | 8 | 8 | 8×8 | 1 | yes | 8×8 | no | no |
+| Web | 16 (the `sprites` option: 0, 8, 16, 32, 64 or 128) | 2 at 64×64 (the 16 KiB pool, `spriteMemory`, is shared by every picture) | 64×64 | 15 | yes | 1×1 | yes | yes |
 | NES (parked) | 8 | 4 | 16×16 | 3 | no | 1×1 | yes | yes |
 | every other machine | 8 | 4 | 8×8 | 1 | where it colours cells | 8×8 | no | no |
 
@@ -179,7 +180,7 @@ nearest evidence for it.
 | Atari 8-bit | A software glyph; frames collapsed (`8BS2111`). Player/missile shapes are a later slice. |
 | VIC-20 | Quadrant-block characters from the ROM, worked out at build time: one cell for a source of 8 pixels or fewer, 2×2 cells for anything larger (scaled down), one screen code a cell a frame, the animation's frames (the first 8) stepping every `every` updates; a picture with almost no ink becomes one glyph (`8BS2111` either way, and each sprite says how many of the 64 pool bytes it takes). Moving or hiding an object blanks the cells it left and puts their colour back to white; cells off the screen are not drawn. See [On the VIC-20](#on-the-vic-20). |
 | Commander X16 | A VERA hardware sprite in its own 15-colour palette; 8, 16, 32 or 64 px a side, real animation frames (`8BS2110` over 15 colours, `8BS2111` for padding or cut frames). See [Commander X16](#commander-x16). |
-| Web | One cell of real art per animation step: `packages/web/media/index.cjs` reduces each frame at build time to an 8×8 bitmap (eight row bytes, bit 0 the leftmost pixel; an 8×8 source is carried pixel for pixel, a larger one by area, a glyph pixel lit at half its source pixels or more), `packages/graphics/src/index.web.8bs` writes it into the runtime's redefinable glyph table (`@8bitscript/web/charset`, character codes 176–255) and draws it as a cell, up to eight pictures of eight steps, stepped every `every` calls to `graphics::update()`. One ink per cell (`graphics::color()` tints it); a source with more than one colour, or a larger size, or steps past eight is adapted and the build says so (`8BS2111`). A true sprite layer is a later item for the web runtime (`packages/web/AGENTS.md`). |
+| Web | A 4bpp pixel sprite in its own 15-colour palette, 8, 16, 32 or 64 px a side, drawn by the page: `packages/web/media/index.cjs` lowers each picture with the Commander X16's packing (`8BS2110` over 15 colours, `8BS2111` for a slot past `video.sprites`, a cut size, or frames past the pool), `packages/graphics/src/index.web.8bs` writes it into the sprite region. `color()` shows the sprite in a host colour; 16 and up give its own colours back. |
 | every other machine | The same glyph path, quantized to that machine's cell size: one glyph per animation step, up to four (`8BS2111` names what was dropped). |
 
 ### On the PET

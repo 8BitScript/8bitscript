@@ -158,7 +158,18 @@ test('the web shell opens into the DAW: a menu bar on top, a status bar below, a
   assert.match(row(0), /FILE\s+EDIT\s+SONG\s+TRACK\s+VIEW\s+HELP/);
   assert.match(row(layout.rows - 1), /READY\s+DAW MODULE/);
   assert.match(row(layout.rows - 1), new RegExp(`GRID ${String(layout.cols).padStart(3, '0')}X${String(layout.rows).padStart(3, '0')} $`));
-  assert.ok(row(0)[0] !== ' ', 'the mark.8bg glyph sits in the corner cell on web');
+  // mark.8bg is slot 0 of the page's sprite region: shown, at (4, 4), a legal
+  // size, in its own colours, its frame inside the pool.
+  const entry = layout.spriteTable;
+  assert.ok(entry > 0 && layout.spriteCount > 0, 'the hires host has a sprite region');
+  assert.equal(mem[entry] & 1, 1, 'the mark.8bg sprite is shown');
+  assert.deepEqual([mem[entry + 1] | (mem[entry + 2] << 8), mem[entry + 3] | (mem[entry + 4] << 8)], [4, 4], 'in the corner, at (4, 4)');
+  assert.ok([8, 16, 32, 64].includes(mem[entry + 5]) && [8, 16, 32, 64].includes(mem[entry + 6]), 'a legal size');
+  assert.equal(mem[entry + 9], 255, 'in its own colours');
+  const pool0 = mem[entry + 7] | (mem[entry + 8] << 8);
+  assert.ok(pool0 + (mem[entry + 5] * mem[entry + 6]) / 2 <= layout.spritePoolBytes, 'its frame lies inside the pool');
+  const poolStart = layout.spritePool + pool0;
+  assert.ok(mem.subarray(poolStart, poolStart + (mem[entry + 5] * mem[entry + 6]) / 2).some((b) => b !== 0), 'and holds pixels');
   assert.equal(mem[0], 6, 'border BLUE');
   assert.equal(mem[1], 0, 'background BLACK');
 });

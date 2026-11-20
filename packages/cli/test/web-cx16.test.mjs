@@ -24,6 +24,7 @@ import { compile } from '../src/build.mjs';
 import { captureScreenshot } from '../src/screenshot.mjs';
 import { encodePNG, pixelAt } from '../src/png.mjs';
 import { BORDER_PX, C64_PALETTE, GLYPH_COUNT, GLYPH_FIRST, VERA_PALETTE, layoutForRealMachine } from '../src/web-layout.mjs';
+import { loadCatalog, resolveHardware } from '../src/hardware.mjs';
 
 const REPO = resolve(import.meta.dirname, '..', '..', '..');
 const CX16_FACTS = { 'video.columns': 76, 'video.rows': 56 };
@@ -72,7 +73,7 @@ test("VERA's default palette is VERA's: the C64's names in the C64's order, with
   assert.deepEqual(layoutForRealMachine('c64', { facts: {} }).palette, C64_PALETTE, 'and the C64 still from its own');
 });
 
-test('the X16 layout carries the redefinable glyph table the graphics twin writes at the address it reads', async () => {
+test('the X16 layout carries the redefinable glyph table and the sprite table the graphics twin reads', async () => {
   const layout = layoutForRealMachine('cx16', { facts: CX16_FACTS });
   assert.ok(layout.glyphBase > layout.rasterBase, 'after the raster list');
   assert.equal(layout.glyphFirst, GLYPH_FIRST);
@@ -80,9 +81,8 @@ test('the X16 layout carries the redefinable glyph table the graphics twin write
   assert.ok(layout.reservedEnd >= layout.glyphBase + GLYPH_COUNT * 8, 'and the program data starts above it');
   const twin = await readFile(join(REPO, 'packages', 'graphics', 'src', 'index.cx16.web.8bs'), 'utf8');
   const constant = (name) => Number(new RegExp(`const ${name}: \\w+ = (\\d+);`).exec(twin)?.[1]);
-  assert.equal(constant('GLYPH_BASE'), layout.glyphBase, 'GLYPH_BASE in index.cx16.web.8bs is where the page reads the table (web-layout.mjs agreementFor)');
-  assert.equal(constant('GLYPH_FIRST'), layout.glyphFirst);
-  assert.equal(constant('GLYPH_COUNT'), layout.glyphCount);
+  const stock = layoutForRealMachine('cx16', resolveHardware(loadCatalog('cx16'), {}).hardware);
+  assert.equal(constant('SPRITE_TABLE'), stock.spriteTable, 'SPRITE_TABLE in index.cx16.web.8bs is where the page reads the sprite table (web-layout.mjs agreementFor)');
   // The machines with their own ROM or RAM glyphs keep no such table.
   for (const target of ['c64', 'vic20', 'pet']) assert.equal(layoutForRealMachine(target, { facts: {} }).glyphBase, -1, `${target} has none`);
 });
@@ -149,14 +149,13 @@ test('Studio renders on the X16 wasm build: VERA blue border, black screen, its 
     const png = await shoot(dir, join('src', 'main.8bs'), { frames: 8 });
     assert.ok(same(pixelAt(png, 4, 4), rgb(VERA_PALETTE[6])), 'the border is BorderColor.BLUE as x16emu draws it');
     assert.ok(same(pixelAt(png, 300, 240), rgb(VERA_PALETTE[0])), 'the screen is black');
-    // The mark is mark.png, 8x8, at cell (0, 0): it lights something there and nothing outside that cell.
-    const lit = (x0, y0) => {
+    // The mark is mark.png, 8x8, a sprite at (4, 4) in its own colours: it lights something in that box.
+    const drawn = (x0, y0, w, h) => {
       let n = 0;
-      for (let y = 0; y < 8; y += 1) for (let x = 0; x < 8; x += 1) if (same(pixelAt(png, BORDER_PX + x0 + x, BORDER_PX + y0 + y), rgb(VERA_PALETTE[1]))) n += 1;
+      for (let y = 0; y < h; y += 1) for (let x = 0; x < w; x += 1) if (!same(pixelAt(png, BORDER_PX + x0 + x, BORDER_PX + y0 + y), rgb(VERA_PALETTE[0]))) n += 1;
       return n;
     };
-    assert.ok(lit(0, 0) > 4, 'the mark is drawn in its cell');
-    assert.equal(lit(8, 0) + lit(0, 8) + lit(8, 8), 0, 'and only there');
+    assert.ok(drawn(4, 4, 8, 8) > 4, 'the mark is drawn where it was placed');
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

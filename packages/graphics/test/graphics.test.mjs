@@ -38,22 +38,14 @@ test('the web twin exports graphics.bind, meta, place, and update', () => {
   }
 });
 
-test('the web twin holds exactly as many animation steps as the web lowering keeps, and every one has a glyph', async () => {
+test('the web twin sizes its tables by the build and keeps the lowering header size', async () => {
   const src = readFileSync(join(SRC, 'index.web.8bs'), 'utf8');
-  const steps = Number(/const STEPS: utinyint = (\d+);/.exec(src)?.[1]);
   const { default: web } = await import('../../web/media/index.cjs');
-  assert.equal(steps, web.MAX_STEPS);
-  assert.equal(web.GLYPH_SIZE, 8, 'the lowering emits eight row bytes a step');
-  // A picture's bytes are STEPS glyphs of eight, indexed (index >> 3) step, (index & 7) row.
-  assert.equal(Number(/const BYTES: utinyint = (\d+);/.exec(src)?.[1]), steps * web.GLYPH_SIZE);
-  assert.equal(steps, 8, 'the (slot << 3) glyph numbering assumes eight steps');
-  // MAX pictures x STEPS glyphs must fit the web's glyph table (geometry.8bs GLYPH_COUNT).
-  const max = Number(/^const SLOTS: utinyint = (\d+);/m.exec(src)?.[1]);
-  const geometry = readFileSync(join(SRC, '..', '..', 'web', 'src', 'geometry.8bs'), 'utf8');
-  const table = Number(/const GLYPH_COUNT: utinyint = (\d+);/.exec(geometry)?.[1]);
-  const first = Number(/const GLYPH_FIRST: utinyint = (\d+);/.exec(geometry)?.[1]);
-  assert.ok(max * steps <= table, `${max} pictures x ${steps} steps is ${max * steps} glyphs; the table holds ${table}`);
-  assert.ok(first + max * steps <= 256, 'the last glyph code is a byte');
+  assert.equal(typeof web.lowerGraphics, 'function');
+  // The twin's arrays are as long as the largest sprite table the build offers.
+  assert.match(src, /const SLOTS: utinyint = #fact\(video::sprites\);/);
+  assert.match(src, /let mut frameCount: \[u8; 128\];/);
+  assert.match(src, /const FIRST_FRAME_BYTE: usmallint = 34;/, 'the pool follows the 2-byte base and the 32-byte palette');
 });
 
 // --- C64 twin: capacity and colour (packages/c64/test/graphics.test.mjs runs it) ---

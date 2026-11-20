@@ -12,6 +12,7 @@
   "main": "./src/index.mjs",
   "exports": {
     ".": "./src/index.mjs",
+    "./sprite-pack": "./src/sprite-pack.cjs",
     "./package.json": "./package.json"
   },
   "files": [
