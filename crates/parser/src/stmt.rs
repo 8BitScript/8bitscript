@@ -628,6 +628,7 @@ impl Parser<'_> {
                 NodeKind::StringLiteral {
                     value: strip_quotes(&token.text),
                     unterminated: None,
+                    raw: None,
                 },
             );
             self.expect("::");
@@ -780,6 +781,7 @@ impl Parser<'_> {
             NodeKind::StringLiteral {
                 value: words.join("/"),
                 unterminated: None,
+                raw: None,
             },
         );
         (Some(source), Some(true), brace_form)
@@ -869,7 +871,10 @@ impl Parser<'_> {
         let test = Node::new(
             keyword.start,
             tok_end(&keyword),
-            NodeKind::BooleanLiteral { value: true },
+            NodeKind::BooleanLiteral {
+                value: true,
+                raw: None,
+            },
         );
         let body = self.parse_block_required();
         let end = body.as_ref().map_or_else(|| self.prev_end(), node_end);
