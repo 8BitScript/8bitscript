@@ -1,0 +1,3075 @@
+{
+  "rows": [
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$undefined": true
+        },
+        "/proj/app"
+      ],
+      "result": {
+        "ok": true,
+        "importAliases": {}
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$undefined": true
+        },
+        "/"
+      ],
+      "result": {
+        "ok": true,
+        "importAliases": {}
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$undefined": true
+        },
+        "/a/b/../c"
+      ],
+      "result": {
+        "ok": true,
+        "importAliases": {}
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$undefined": true
+        },
+        "/with space"
+      ],
+      "result": {
+        "ok": true,
+        "importAliases": {}
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        null,
+        "/proj/app"
+      ],
+      "result": {
+        "ok": true,
+        "importAliases": {}
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        null,
+        "/"
+      ],
+      "result": {
+        "ok": true,
+        "importAliases": {}
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        null,
+        "/a/b/../c"
+      ],
+      "result": {
+        "ok": true,
+        "importAliases": {}
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        null,
+        "/with space"
+      ],
+      "result": {
+        "ok": true,
+        "importAliases": {}
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": []
+        },
+        "/proj/app"
+      ],
+      "result": {
+        "ok": true,
+        "importAliases": {}
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": []
+        },
+        "/"
+      ],
+      "result": {
+        "ok": true,
+        "importAliases": {}
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": []
+        },
+        "/a/b/../c"
+      ],
+      "result": {
+        "ok": true,
+        "importAliases": {}
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": []
+        },
+        "/with space"
+      ],
+      "result": {
+        "ok": true,
+        "importAliases": {}
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        [],
+        "/proj/app"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports must be an object of @prefix → directory path"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        [],
+        "/"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports must be an object of @prefix → directory path"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        [],
+        "/a/b/../c"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports must be an object of @prefix → directory path"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        [],
+        "/with space"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports must be an object of @prefix → directory path"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        "str",
+        "/proj/app"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports must be an object of @prefix → directory path"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        "str",
+        "/"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports must be an object of @prefix → directory path"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        "str",
+        "/a/b/../c"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports must be an object of @prefix → directory path"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        "str",
+        "/with space"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports must be an object of @prefix → directory path"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        5,
+        "/proj/app"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports must be an object of @prefix → directory path"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        5,
+        "/"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports must be an object of @prefix → directory path"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        5,
+        "/a/b/../c"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports must be an object of @prefix → directory path"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        5,
+        "/with space"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports must be an object of @prefix → directory path"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        true,
+        "/proj/app"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports must be an object of @prefix → directory path"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        true,
+        "/"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports must be an object of @prefix → directory path"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        true,
+        "/a/b/../c"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports must be an object of @prefix → directory path"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        true,
+        "/with space"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports must be an object of @prefix → directory path"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@lib",
+              "src/lib"
+            ]
+          ]
+        },
+        "/proj/app"
+      ],
+      "result": {
+        "ok": true,
+        "importAliases": {
+          "@lib": "/proj/app/src/lib"
+        }
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@lib",
+              "src/lib"
+            ]
+          ]
+        },
+        "/"
+      ],
+      "result": {
+        "ok": true,
+        "importAliases": {
+          "@lib": "/src/lib"
+        }
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@lib",
+              "src/lib"
+            ]
+          ]
+        },
+        "/a/b/../c"
+      ],
+      "result": {
+        "ok": true,
+        "importAliases": {
+          "@lib": "/a/c/src/lib"
+        }
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@lib",
+              "src/lib"
+            ]
+          ]
+        },
+        "/with space"
+      ],
+      "result": {
+        "ok": true,
+        "importAliases": {
+          "@lib": "/with space/src/lib"
+        }
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@lib",
+              "./src/lib/"
+            ],
+            [
+              "@ui",
+              "ui//deep/./x"
+            ],
+            [
+              "@a",
+              "a"
+            ]
+          ]
+        },
+        "/proj/app"
+      ],
+      "result": {
+        "ok": true,
+        "importAliases": {
+          "@lib": "/proj/app/src/lib",
+          "@ui": "/proj/app/ui/deep/x",
+          "@a": "/proj/app/a"
+        }
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@lib",
+              "./src/lib/"
+            ],
+            [
+              "@ui",
+              "ui//deep/./x"
+            ],
+            [
+              "@a",
+              "a"
+            ]
+          ]
+        },
+        "/"
+      ],
+      "result": {
+        "ok": true,
+        "importAliases": {
+          "@lib": "/src/lib",
+          "@ui": "/ui/deep/x",
+          "@a": "/a"
+        }
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@lib",
+              "./src/lib/"
+            ],
+            [
+              "@ui",
+              "ui//deep/./x"
+            ],
+            [
+              "@a",
+              "a"
+            ]
+          ]
+        },
+        "/a/b/../c"
+      ],
+      "result": {
+        "ok": true,
+        "importAliases": {
+          "@lib": "/a/c/src/lib",
+          "@ui": "/a/c/ui/deep/x",
+          "@a": "/a/c/a"
+        }
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@lib",
+              "./src/lib/"
+            ],
+            [
+              "@ui",
+              "ui//deep/./x"
+            ],
+            [
+              "@a",
+              "a"
+            ]
+          ]
+        },
+        "/with space"
+      ],
+      "result": {
+        "ok": true,
+        "importAliases": {
+          "@lib": "/with space/src/lib",
+          "@ui": "/with space/ui/deep/x",
+          "@a": "/with space/a"
+        }
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@lib",
+              "src/lib"
+            ],
+            [
+              "@ui",
+              "src/ui"
+            ],
+            [
+              "@lib2",
+              "l2"
+            ]
+          ]
+        },
+        "/proj/app"
+      ],
+      "result": {
+        "ok": true,
+        "importAliases": {
+          "@lib": "/proj/app/src/lib",
+          "@ui": "/proj/app/src/ui",
+          "@lib2": "/proj/app/l2"
+        }
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@lib",
+              "src/lib"
+            ],
+            [
+              "@ui",
+              "src/ui"
+            ],
+            [
+              "@lib2",
+              "l2"
+            ]
+          ]
+        },
+        "/"
+      ],
+      "result": {
+        "ok": true,
+        "importAliases": {
+          "@lib": "/src/lib",
+          "@ui": "/src/ui",
+          "@lib2": "/l2"
+        }
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@lib",
+              "src/lib"
+            ],
+            [
+              "@ui",
+              "src/ui"
+            ],
+            [
+              "@lib2",
+              "l2"
+            ]
+          ]
+        },
+        "/a/b/../c"
+      ],
+      "result": {
+        "ok": true,
+        "importAliases": {
+          "@lib": "/a/c/src/lib",
+          "@ui": "/a/c/src/ui",
+          "@lib2": "/a/c/l2"
+        }
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@lib",
+              "src/lib"
+            ],
+            [
+              "@ui",
+              "src/ui"
+            ],
+            [
+              "@lib2",
+              "l2"
+            ]
+          ]
+        },
+        "/with space"
+      ],
+      "result": {
+        "ok": true,
+        "importAliases": {
+          "@lib": "/with space/src/lib",
+          "@ui": "/with space/src/ui",
+          "@lib2": "/with space/l2"
+        }
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "lib",
+              "src"
+            ]
+          ]
+        },
+        "/proj/app"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports key \"lib\" must be a single @-prefix with no / (e.g. '@lib')"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "lib",
+              "src"
+            ]
+          ]
+        },
+        "/"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports key \"lib\" must be a single @-prefix with no / (e.g. '@lib')"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "lib",
+              "src"
+            ]
+          ]
+        },
+        "/a/b/../c"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports key \"lib\" must be a single @-prefix with no / (e.g. '@lib')"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "lib",
+              "src"
+            ]
+          ]
+        },
+        "/with space"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports key \"lib\" must be a single @-prefix with no / (e.g. '@lib')"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@",
+              "src"
+            ]
+          ]
+        },
+        "/proj/app"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports key \"@\" must be a single @-prefix with no / (e.g. '@lib')"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@",
+              "src"
+            ]
+          ]
+        },
+        "/"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports key \"@\" must be a single @-prefix with no / (e.g. '@lib')"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@",
+              "src"
+            ]
+          ]
+        },
+        "/a/b/../c"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports key \"@\" must be a single @-prefix with no / (e.g. '@lib')"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@",
+              "src"
+            ]
+          ]
+        },
+        "/with space"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports key \"@\" must be a single @-prefix with no / (e.g. '@lib')"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@a/b",
+              "src"
+            ]
+          ]
+        },
+        "/proj/app"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports key \"@a/b\" must be a single @-prefix with no / (e.g. '@lib')"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@a/b",
+              "src"
+            ]
+          ]
+        },
+        "/"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports key \"@a/b\" must be a single @-prefix with no / (e.g. '@lib')"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@a/b",
+              "src"
+            ]
+          ]
+        },
+        "/a/b/../c"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports key \"@a/b\" must be a single @-prefix with no / (e.g. '@lib')"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@a/b",
+              "src"
+            ]
+          ]
+        },
+        "/with space"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports key \"@a/b\" must be a single @-prefix with no / (e.g. '@lib')"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@a b",
+              "src"
+            ]
+          ]
+        },
+        "/proj/app"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports key \"@a b\" must be a single @-prefix with no / (e.g. '@lib')"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@a b",
+              "src"
+            ]
+          ]
+        },
+        "/"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports key \"@a b\" must be a single @-prefix with no / (e.g. '@lib')"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@a b",
+              "src"
+            ]
+          ]
+        },
+        "/a/b/../c"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports key \"@a b\" must be a single @-prefix with no / (e.g. '@lib')"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@a b",
+              "src"
+            ]
+          ]
+        },
+        "/with space"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports key \"@a b\" must be a single @-prefix with no / (e.g. '@lib')"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@a\tb",
+              "src"
+            ]
+          ]
+        },
+        "/proj/app"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports key \"@a\\tb\" must be a single @-prefix with no / (e.g. '@lib')"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@a\tb",
+              "src"
+            ]
+          ]
+        },
+        "/"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports key \"@a\\tb\" must be a single @-prefix with no / (e.g. '@lib')"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@a\tb",
+              "src"
+            ]
+          ]
+        },
+        "/a/b/../c"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports key \"@a\\tb\" must be a single @-prefix with no / (e.g. '@lib')"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@a\tb",
+              "src"
+            ]
+          ]
+        },
+        "/with space"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports key \"@a\\tb\" must be a single @-prefix with no / (e.g. '@lib')"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@ ",
+              "s"
+            ]
+          ]
+        },
+        "/proj/app"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports key \"@ \" must be a single @-prefix with no / (e.g. '@lib')"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@ ",
+              "s"
+            ]
+          ]
+        },
+        "/"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports key \"@ \" must be a single @-prefix with no / (e.g. '@lib')"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@ ",
+              "s"
+            ]
+          ]
+        },
+        "/a/b/../c"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports key \"@ \" must be a single @-prefix with no / (e.g. '@lib')"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@ ",
+              "s"
+            ]
+          ]
+        },
+        "/with space"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports key \"@ \" must be a single @-prefix with no / (e.g. '@lib')"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@é😀",
+              "src"
+            ]
+          ]
+        },
+        "/proj/app"
+      ],
+      "result": {
+        "ok": true,
+        "importAliases": {
+          "@é😀": "/proj/app/src"
+        }
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@é😀",
+              "src"
+            ]
+          ]
+        },
+        "/"
+      ],
+      "result": {
+        "ok": true,
+        "importAliases": {
+          "@é😀": "/src"
+        }
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@é😀",
+              "src"
+            ]
+          ]
+        },
+        "/a/b/../c"
+      ],
+      "result": {
+        "ok": true,
+        "importAliases": {
+          "@é😀": "/a/c/src"
+        }
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@é😀",
+              "src"
+            ]
+          ]
+        },
+        "/with space"
+      ],
+      "result": {
+        "ok": true,
+        "importAliases": {
+          "@é😀": "/with space/src"
+        }
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@a\"b",
+              "src"
+            ]
+          ]
+        },
+        "/proj/app"
+      ],
+      "result": {
+        "ok": true,
+        "importAliases": {
+          "@a\"b": "/proj/app/src"
+        }
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@a\"b",
+              "src"
+            ]
+          ]
+        },
+        "/"
+      ],
+      "result": {
+        "ok": true,
+        "importAliases": {
+          "@a\"b": "/src"
+        }
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@a\"b",
+              "src"
+            ]
+          ]
+        },
+        "/a/b/../c"
+      ],
+      "result": {
+        "ok": true,
+        "importAliases": {
+          "@a\"b": "/a/c/src"
+        }
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@a\"b",
+              "src"
+            ]
+          ]
+        },
+        "/with space"
+      ],
+      "result": {
+        "ok": true,
+        "importAliases": {
+          "@a\"b": "/with space/src"
+        }
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@a\\b",
+              "x"
+            ]
+          ]
+        },
+        "/proj/app"
+      ],
+      "result": {
+        "ok": true,
+        "importAliases": {
+          "@a\\b": "/proj/app/x"
+        }
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@a\\b",
+              "x"
+            ]
+          ]
+        },
+        "/"
+      ],
+      "result": {
+        "ok": true,
+        "importAliases": {
+          "@a\\b": "/x"
+        }
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@a\\b",
+              "x"
+            ]
+          ]
+        },
+        "/a/b/../c"
+      ],
+      "result": {
+        "ok": true,
+        "importAliases": {
+          "@a\\b": "/a/c/x"
+        }
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@a\\b",
+              "x"
+            ]
+          ]
+        },
+        "/with space"
+      ],
+      "result": {
+        "ok": true,
+        "importAliases": {
+          "@a\\b": "/with space/x"
+        }
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@a\u0001",
+              "x"
+            ]
+          ]
+        },
+        "/proj/app"
+      ],
+      "result": {
+        "ok": true,
+        "importAliases": {
+          "@a\u0001": "/proj/app/x"
+        }
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@a\u0001",
+              "x"
+            ]
+          ]
+        },
+        "/"
+      ],
+      "result": {
+        "ok": true,
+        "importAliases": {
+          "@a\u0001": "/x"
+        }
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@a\u0001",
+              "x"
+            ]
+          ]
+        },
+        "/a/b/../c"
+      ],
+      "result": {
+        "ok": true,
+        "importAliases": {
+          "@a\u0001": "/a/c/x"
+        }
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@a\u0001",
+              "x"
+            ]
+          ]
+        },
+        "/with space"
+      ],
+      "result": {
+        "ok": true,
+        "importAliases": {
+          "@a\u0001": "/with space/x"
+        }
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "",
+              "src"
+            ]
+          ]
+        },
+        "/proj/app"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports key \"\" must be a single @-prefix with no / (e.g. '@lib')"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "",
+              "src"
+            ]
+          ]
+        },
+        "/"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports key \"\" must be a single @-prefix with no / (e.g. '@lib')"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "",
+              "src"
+            ]
+          ]
+        },
+        "/a/b/../c"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports key \"\" must be a single @-prefix with no / (e.g. '@lib')"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "",
+              "src"
+            ]
+          ]
+        },
+        "/with space"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports key \"\" must be a single @-prefix with no / (e.g. '@lib')"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@lib",
+              ""
+            ]
+          ]
+        },
+        "/proj/app"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports.@lib must be a relative directory path without .."
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@lib",
+              ""
+            ]
+          ]
+        },
+        "/"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports.@lib must be a relative directory path without .."
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@lib",
+              ""
+            ]
+          ]
+        },
+        "/a/b/../c"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports.@lib must be a relative directory path without .."
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@lib",
+              ""
+            ]
+          ]
+        },
+        "/with space"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports.@lib must be a relative directory path without .."
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@lib",
+              "/abs"
+            ]
+          ]
+        },
+        "/proj/app"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports.@lib must be a relative directory path without .."
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@lib",
+              "/abs"
+            ]
+          ]
+        },
+        "/"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports.@lib must be a relative directory path without .."
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@lib",
+              "/abs"
+            ]
+          ]
+        },
+        "/a/b/../c"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports.@lib must be a relative directory path without .."
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@lib",
+              "/abs"
+            ]
+          ]
+        },
+        "/with space"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports.@lib must be a relative directory path without .."
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@lib",
+              "../up"
+            ]
+          ]
+        },
+        "/proj/app"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports.@lib must be a relative directory path without .."
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@lib",
+              "../up"
+            ]
+          ]
+        },
+        "/"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports.@lib must be a relative directory path without .."
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@lib",
+              "../up"
+            ]
+          ]
+        },
+        "/a/b/../c"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports.@lib must be a relative directory path without .."
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@lib",
+              "../up"
+            ]
+          ]
+        },
+        "/with space"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports.@lib must be a relative directory path without .."
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@lib",
+              "a..b"
+            ]
+          ]
+        },
+        "/proj/app"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports.@lib must be a relative directory path without .."
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@lib",
+              "a..b"
+            ]
+          ]
+        },
+        "/"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports.@lib must be a relative directory path without .."
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@lib",
+              "a..b"
+            ]
+          ]
+        },
+        "/a/b/../c"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports.@lib must be a relative directory path without .."
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@lib",
+              "a..b"
+            ]
+          ]
+        },
+        "/with space"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports.@lib must be a relative directory path without .."
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@lib",
+              5
+            ]
+          ]
+        },
+        "/proj/app"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports.@lib must be a relative directory path without .."
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@lib",
+              5
+            ]
+          ]
+        },
+        "/"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports.@lib must be a relative directory path without .."
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@lib",
+              5
+            ]
+          ]
+        },
+        "/a/b/../c"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports.@lib must be a relative directory path without .."
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@lib",
+              5
+            ]
+          ]
+        },
+        "/with space"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports.@lib must be a relative directory path without .."
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@lib",
+              null
+            ]
+          ]
+        },
+        "/proj/app"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports.@lib must be a relative directory path without .."
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@lib",
+              null
+            ]
+          ]
+        },
+        "/"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports.@lib must be a relative directory path without .."
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@lib",
+              null
+            ]
+          ]
+        },
+        "/a/b/../c"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports.@lib must be a relative directory path without .."
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@lib",
+              null
+            ]
+          ]
+        },
+        "/with space"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports.@lib must be a relative directory path without .."
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@lib",
+              [
+                "x"
+              ]
+            ]
+          ]
+        },
+        "/proj/app"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports.@lib must be a relative directory path without .."
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@lib",
+              [
+                "x"
+              ]
+            ]
+          ]
+        },
+        "/"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports.@lib must be a relative directory path without .."
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@lib",
+              [
+                "x"
+              ]
+            ]
+          ]
+        },
+        "/a/b/../c"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports.@lib must be a relative directory path without .."
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@lib",
+              [
+                "x"
+              ]
+            ]
+          ]
+        },
+        "/with space"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports.@lib must be a relative directory path without .."
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@lib",
+              {}
+            ]
+          ]
+        },
+        "/proj/app"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports.@lib must be a relative directory path without .."
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@lib",
+              {}
+            ]
+          ]
+        },
+        "/"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports.@lib must be a relative directory path without .."
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@lib",
+              {}
+            ]
+          ]
+        },
+        "/a/b/../c"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports.@lib must be a relative directory path without .."
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@lib",
+              {}
+            ]
+          ]
+        },
+        "/with space"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports.@lib must be a relative directory path without .."
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@ok",
+              "fine"
+            ],
+            [
+              "bad",
+              "x"
+            ]
+          ]
+        },
+        "/proj/app"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports key \"bad\" must be a single @-prefix with no / (e.g. '@lib')"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@ok",
+              "fine"
+            ],
+            [
+              "bad",
+              "x"
+            ]
+          ]
+        },
+        "/"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports key \"bad\" must be a single @-prefix with no / (e.g. '@lib')"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@ok",
+              "fine"
+            ],
+            [
+              "bad",
+              "x"
+            ]
+          ]
+        },
+        "/a/b/../c"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports key \"bad\" must be a single @-prefix with no / (e.g. '@lib')"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@ok",
+              "fine"
+            ],
+            [
+              "bad",
+              "x"
+            ]
+          ]
+        },
+        "/with space"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports key \"bad\" must be a single @-prefix with no / (e.g. '@lib')"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "bad",
+              "x"
+            ],
+            [
+              "@ok",
+              ".."
+            ]
+          ]
+        },
+        "/proj/app"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports key \"bad\" must be a single @-prefix with no / (e.g. '@lib')"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "bad",
+              "x"
+            ],
+            [
+              "@ok",
+              ".."
+            ]
+          ]
+        },
+        "/"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports key \"bad\" must be a single @-prefix with no / (e.g. '@lib')"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "bad",
+              "x"
+            ],
+            [
+              "@ok",
+              ".."
+            ]
+          ]
+        },
+        "/a/b/../c"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports key \"bad\" must be a single @-prefix with no / (e.g. '@lib')"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "bad",
+              "x"
+            ],
+            [
+              "@ok",
+              ".."
+            ]
+          ]
+        },
+        "/with space"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports key \"bad\" must be a single @-prefix with no / (e.g. '@lib')"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "7",
+              "x"
+            ],
+            [
+              "@lib",
+              "src"
+            ]
+          ]
+        },
+        "/proj/app"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports key \"7\" must be a single @-prefix with no / (e.g. '@lib')"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "7",
+              "x"
+            ],
+            [
+              "@lib",
+              "src"
+            ]
+          ]
+        },
+        "/"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports key \"7\" must be a single @-prefix with no / (e.g. '@lib')"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "7",
+              "x"
+            ],
+            [
+              "@lib",
+              "src"
+            ]
+          ]
+        },
+        "/a/b/../c"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports key \"7\" must be a single @-prefix with no / (e.g. '@lib')"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "7",
+              "x"
+            ],
+            [
+              "@lib",
+              "src"
+            ]
+          ]
+        },
+        "/with space"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports key \"7\" must be a single @-prefix with no / (e.g. '@lib')"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "7",
+              "x"
+            ],
+            [
+              "@lib",
+              "src"
+            ]
+          ]
+        },
+        "/proj/app"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports key \"7\" must be a single @-prefix with no / (e.g. '@lib')"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "7",
+              "x"
+            ],
+            [
+              "@lib",
+              "src"
+            ]
+          ]
+        },
+        "/"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports key \"7\" must be a single @-prefix with no / (e.g. '@lib')"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "7",
+              "x"
+            ],
+            [
+              "@lib",
+              "src"
+            ]
+          ]
+        },
+        "/a/b/../c"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports key \"7\" must be a single @-prefix with no / (e.g. '@lib')"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "7",
+              "x"
+            ],
+            [
+              "@lib",
+              "src"
+            ]
+          ]
+        },
+        "/with space"
+      ],
+      "result": {
+        "ok": false,
+        "error": "8bitscript.config.ts's imports key \"7\" must be a single @-prefix with no / (e.g. '@lib')"
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@z",
+              "z"
+            ],
+            [
+              "@a",
+              "a"
+            ]
+          ]
+        },
+        "/proj/app"
+      ],
+      "result": {
+        "ok": true,
+        "importAliases": {
+          "@z": "/proj/app/z",
+          "@a": "/proj/app/a"
+        }
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@z",
+              "z"
+            ],
+            [
+              "@a",
+              "a"
+            ]
+          ]
+        },
+        "/"
+      ],
+      "result": {
+        "ok": true,
+        "importAliases": {
+          "@z": "/z",
+          "@a": "/a"
+        }
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@z",
+              "z"
+            ],
+            [
+              "@a",
+              "a"
+            ]
+          ]
+        },
+        "/a/b/../c"
+      ],
+      "result": {
+        "ok": true,
+        "importAliases": {
+          "@z": "/a/c/z",
+          "@a": "/a/c/a"
+        }
+      }
+    },
+    {
+      "fn": "resolveImportAliases",
+      "args": [
+        {
+          "$entries": [
+            [
+              "@z",
+              "z"
+            ],
+            [
+              "@a",
+              "a"
+            ]
+          ]
+        },
+        "/with space"
+      ],
+      "result": {
+        "ok": true,
+        "importAliases": {
+          "@z": "/with space/z",
+          "@a": "/with space/a"
+        }
+      }
+    },
+    {
+      "fn": "isPathForm",
+      "args": [
+        "./geo"
+      ],
+      "result": true
+    },
+    {
+      "fn": "isPathForm",
+      "args": [
+        "geo"
+      ],
+      "result": true
+    },
+    {
+      "fn": "isPathForm",
+      "args": [
+        "a/b/c"
+      ],
+      "result": true
+    },
+    {
+      "fn": "isPathForm",
+      "args": [
+        "a/b.json"
+      ],
+      "result": false
+    },
+    {
+      "fn": "isPathForm",
+      "args": [
+        "a/_x1"
+      ],
+      "result": true
+    },
+    {
+      "fn": "isPathForm",
+      "args": [
+        "a/1x"
+      ],
+      "result": false
+    },
+    {
+      "fn": "isPathForm",
+      "args": [
+        "a/"
+      ],
+      "result": false
+    },
+    {
+      "fn": "isPathForm",
+      "args": [
+        ""
+      ],
+      "result": false
+    },
+    {
+      "fn": "isPathForm",
+      "args": [
+        "a/b-c"
+      ],
+      "result": false
+    },
+    {
+      "fn": "isPathForm",
+      "args": [
+        "a/é"
+      ],
+      "result": false
+    },
+    {
+      "fn": "isPathForm",
+      "args": [
+        "x_"
+      ],
+      "result": true
+    },
+    {
+      "fn": "isPathForm",
+      "args": [
+        "_"
+      ],
+      "result": true
+    },
+    {
+      "fn": "isPathForm",
+      "args": [
+        "a/b/c9"
+      ],
+      "result": true
+    },
+    {
+      "fn": "isPathForm",
+      "args": [
+        "@lib/util/math"
+      ],
+      "result": true
+    },
+    {
+      "fn": "isPathForm",
+      "args": [
+        "a.8bs"
+      ],
+      "result": false
+    },
+    {
+      "fn": "isPathForm",
+      "args": [
+        "./data.json"
+      ],
+      "result": false
+    },
+    {
+      "fn": "isPathForm",
+      "args": [
+        "a//b"
+      ],
+      "result": true
+    },
+    {
+      "fn": "longestAliasPrefix",
+      "args": [
+        "@lib/a",
+        {
+          "@lib": "/p/lib",
+          "@lib/game": "/p/game",
+          "@ui": "/p/ui",
+          "@é": "/p/e",
+          "@😀x": "/p/x"
+        }
+      ],
+      "result": "@lib"
+    },
+    {
+      "fn": "longestAliasPrefix",
+      "args": [
+        "@lib/game/rules",
+        {
+          "@lib": "/p/lib",
+          "@lib/game": "/p/game",
+          "@ui": "/p/ui",
+          "@é": "/p/e",
+          "@😀x": "/p/x"
+        }
+      ],
+      "result": "@lib/game"
+    },
+    {
+      "fn": "longestAliasPrefix",
+      "args": [
+        "@lib",
+        {
+          "@lib": "/p/lib",
+          "@lib/game": "/p/game",
+          "@ui": "/p/ui",
+          "@é": "/p/e",
+          "@😀x": "/p/x"
+        }
+      ],
+      "result": null
+    },
+    {
+      "fn": "longestAliasPrefix",
+      "args": [
+        "@libx/a",
+        {
+          "@lib": "/p/lib",
+          "@lib/game": "/p/game",
+          "@ui": "/p/ui",
+          "@é": "/p/e",
+          "@😀x": "/p/x"
+        }
+      ],
+      "result": null
+    },
+    {
+      "fn": "longestAliasPrefix",
+      "args": [
+        "@ui/x.8bs",
+        {
+          "@lib": "/p/lib",
+          "@lib/game": "/p/game",
+          "@ui": "/p/ui",
+          "@é": "/p/e",
+          "@😀x": "/p/x"
+        }
+      ],
+      "result": "@ui"
+    },
+    {
+      "fn": "longestAliasPrefix",
+      "args": [
+        "@other/x",
+        {
+          "@lib": "/p/lib",
+          "@lib/game": "/p/game",
+          "@ui": "/p/ui",
+          "@é": "/p/e",
+          "@😀x": "/p/x"
+        }
+      ],
+      "result": null
+    },
+    {
+      "fn": "longestAliasPrefix",
+      "args": [
+        "lib/a",
+        {
+          "@lib": "/p/lib",
+          "@lib/game": "/p/game",
+          "@ui": "/p/ui",
+          "@é": "/p/e",
+          "@😀x": "/p/x"
+        }
+      ],
+      "result": null
+    },
+    {
+      "fn": "longestAliasPrefix",
+      "args": [
+        "",
+        {
+          "@lib": "/p/lib",
+          "@lib/game": "/p/game",
+          "@ui": "/p/ui",
+          "@é": "/p/e",
+          "@😀x": "/p/x"
+        }
+      ],
+      "result": null
+    },
+    {
+      "fn": "longestAliasPrefix",
+      "args": [
+        "@lib/",
+        {
+          "@lib": "/p/lib",
+          "@lib/game": "/p/game",
+          "@ui": "/p/ui",
+          "@é": "/p/e",
+          "@😀x": "/p/x"
+        }
+      ],
+      "result": "@lib"
+    },
+    {
+      "fn": "longestAliasPrefix",
+      "args": [
+        "@é/a",
+        {
+          "@lib": "/p/lib",
+          "@lib/game": "/p/game",
+          "@ui": "/p/ui",
+          "@é": "/p/e",
+          "@😀x": "/p/x"
+        }
+      ],
+      "result": "@é"
+    },
+    {
+      "fn": "longestAliasPrefix",
+      "args": [
+        "@😀x/a",
+        {
+          "@lib": "/p/lib",
+          "@lib/game": "/p/game",
+          "@ui": "/p/ui",
+          "@é": "/p/e",
+          "@😀x": "/p/x"
+        }
+      ],
+      "result": "@😀x"
+    },
+    {
+      "fn": "longestAliasPrefix",
+      "args": [
+        "@lib/a",
+        {}
+      ],
+      "result": null
+    },
+    {
+      "fn": "aliasedSubpath",
+      "args": [
+        "@lib/util/math.8bs",
+        "@lib"
+      ],
+      "result": "util/math.8bs"
+    },
+    {
+      "fn": "aliasedSubpath",
+      "args": [
+        "@lib/util/math.8bs",
+        "@lib",
+        false
+      ],
+      "result": "util/math.8bs"
+    },
+    {
+      "fn": "aliasedSubpath",
+      "args": [
+        "@lib/util/math.8bs",
+        "@lib",
+        true
+      ],
+      "result": "util/math.8bs"
+    },
+    {
+      "fn": "aliasedSubpath",
+      "args": [
+        "@lib/util/math",
+        "@lib"
+      ],
+      "result": null
+    },
+    {
+      "fn": "aliasedSubpath",
+      "args": [
+        "@lib/util/math",
+        "@lib",
+        false
+      ],
+      "result": null
+    },
+    {
+      "fn": "aliasedSubpath",
+      "args": [
+        "@lib/util/math",
+        "@lib",
+        true
+      ],
+      "result": "util/math"
+    },
+    {
+      "fn": "aliasedSubpath",
+      "args": [
+        "@lib/data.json",
+        "@lib"
+      ],
+      "result": null
+    },
+    {
+      "fn": "aliasedSubpath",
+      "args": [
+        "@lib/data.json",
+        "@lib",
+        false
+      ],
+      "result": null
+    },
+    {
+      "fn": "aliasedSubpath",
+      "args": [
+        "@lib/data.json",
+        "@lib",
+        true
+      ],
+      "result": null
+    },
+    {
+      "fn": "aliasedSubpath",
+      "args": [
+        "@lib/x.8bx",
+        "@lib"
+      ],
+      "result": "x.8bx"
+    },
+    {
+      "fn": "aliasedSubpath",
+      "args": [
+        "@lib/x.8bx",
+        "@lib",
+        false
+      ],
+      "result": "x.8bx"
+    },
+    {
+      "fn": "aliasedSubpath",
+      "args": [
+        "@lib/x.8bx",
+        "@lib",
+        true
+      ],
+      "result": "x.8bx"
+    },
+    {
+      "fn": "aliasedSubpath",
+      "args": [
+        "@lib/x.8bg",
+        "@lib"
+      ],
+      "result": "x.8bg"
+    },
+    {
+      "fn": "aliasedSubpath",
+      "args": [
+        "@lib/x.8bg",
+        "@lib",
+        false
+      ],
+      "result": "x.8bg"
+    },
+    {
+      "fn": "aliasedSubpath",
+      "args": [
+        "@lib/x.8bg",
+        "@lib",
+        true
+      ],
+      "result": "x.8bg"
+    },
+    {
+      "fn": "aliasedSubpath",
+      "args": [
+        "@lib/x.8ba",
+        "@lib"
+      ],
+      "result": "x.8ba"
+    },
+    {
+      "fn": "aliasedSubpath",
+      "args": [
+        "@lib/x.8ba",
+        "@lib",
+        false
+      ],
+      "result": "x.8ba"
+    },
+    {
+      "fn": "aliasedSubpath",
+      "args": [
+        "@lib/x.8ba",
+        "@lib",
+        true
+      ],
+      "result": "x.8ba"
+    },
+    {
+      "fn": "aliasedSubpath",
+      "args": [
+        "@lib/",
+        "@lib"
+      ],
+      "result": null
+    },
+    {
+      "fn": "aliasedSubpath",
+      "args": [
+        "@lib/",
+        "@lib",
+        false
+      ],
+      "result": null
+    },
+    {
+      "fn": "aliasedSubpath",
+      "args": [
+        "@lib/",
+        "@lib",
+        true
+      ],
+      "result": null
+    },
+    {
+      "fn": "aliasedSubpath",
+      "args": [
+        "@lib/9x",
+        "@lib"
+      ],
+      "result": null
+    },
+    {
+      "fn": "aliasedSubpath",
+      "args": [
+        "@lib/9x",
+        "@lib",
+        false
+      ],
+      "result": null
+    },
+    {
+      "fn": "aliasedSubpath",
+      "args": [
+        "@lib/9x",
+        "@lib",
+        true
+      ],
+      "result": null
+    },
+    {
+      "fn": "aliasedSubpath",
+      "args": [
+        "@😀/a.8bs",
+        "@😀"
+      ],
+      "result": "a.8bs"
+    },
+    {
+      "fn": "aliasedSubpath",
+      "args": [
+        "@😀/a.8bs",
+        "@😀",
+        false
+      ],
+      "result": "a.8bs"
+    },
+    {
+      "fn": "aliasedSubpath",
+      "args": [
+        "@😀/a.8bs",
+        "@😀",
+        true
+      ],
+      "result": "a.8bs"
+    },
+    {
+      "fn": "aliasedSubpath",
+      "args": [
+        "@😀/a",
+        "@😀"
+      ],
+      "result": null
+    },
+    {
+      "fn": "aliasedSubpath",
+      "args": [
+        "@😀/a",
+        "@😀",
+        false
+      ],
+      "result": null
+    },
+    {
+      "fn": "aliasedSubpath",
+      "args": [
+        "@😀/a",
+        "@😀",
+        true
+      ],
+      "result": "a"
+    },
+    {
+      "fn": "aliasedSubpath",
+      "args": [
+        "@lib",
+        "@lib"
+      ],
+      "result": null
+    },
+    {
+      "fn": "aliasedSubpath",
+      "args": [
+        "@lib",
+        "@lib",
+        false
+      ],
+      "result": null
+    },
+    {
+      "fn": "aliasedSubpath",
+      "args": [
+        "@lib",
+        "@lib",
+        true
+      ],
+      "result": null
+    }
+  ]
+}
