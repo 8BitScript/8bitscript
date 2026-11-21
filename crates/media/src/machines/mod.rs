@@ -7,7 +7,7 @@ pub mod c64;
 pub mod cx16;
 pub mod nes;
 pub mod pet;
-mod sprite_pack;
+pub(crate) mod sprite_pack;
 pub mod vic20;
 pub mod web;
 

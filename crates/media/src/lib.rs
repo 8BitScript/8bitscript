@@ -4,6 +4,7 @@
 
 pub mod audio;
 pub mod cursor;
+pub mod elaborate;
 pub mod graphics;
 pub mod kinds;
 pub mod lexer;
