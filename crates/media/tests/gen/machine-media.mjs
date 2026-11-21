@@ -102,7 +102,7 @@ for (const path of corpus(join(root, 'packages'))) {
   const rel = relative(root, path);
   if (path.endsWith('.8bg')) {
     const { gir } = analyzeMedia(text, 'a.8bg', { sourceKind: '.8bg' });
-    gir.sprites.forEach((sprite, i) => graphics(`${rel} / ${sprite.name}`, text, i, decode(sprite, path)));
+    gir.sprites.forEach((sprite, i) => (extra.corpusGraphics ?? [{}]).forEach(({ label, facts, slots }) => graphics(label ? `${rel} / ${sprite.name} / ${label}` : `${rel} / ${sprite.name}`, text, i, decode(sprite, path), facts, slots)));
   } else {
     (extra.corpusFacts ?? [{}]).forEach((facts) => audio(`${rel} / ${JSON.stringify(facts)}`, text, facts, { path }));
   }
