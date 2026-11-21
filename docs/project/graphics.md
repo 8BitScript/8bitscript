@@ -200,7 +200,7 @@ the web's tests (`packages/cli/test/web-graphics-ops.test.mjs`) are the
 nearest evidence for it.
 
 `hit` is verified by one program built for the web (`hifi`), and for the PET,
-VIC-20, C64 and Commander X16 `--web` builds, run in wasm: it stores seventeen
+VIC-20, C64 and Commander X16 `--web` builds, run in wasm: it stores twenty-three
 answers in RAM and every build stores the same ones
 (`packages/cli/test/graphics-hit.test.mjs`). That is the twin's own code
 running, not a hardware screenshot.
