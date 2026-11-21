@@ -188,7 +188,7 @@ screen yet — that is the next piece of work on that machine.
 | --- | --- | --- | --- | --- | --- | --- |
 | PET | verified | verified | verified | verified | stub (`RECOLORS` false) | verified (wasm) |
 | VIC-20 | verified | verified | verified | verified | verified | verified (wasm) |
-| C64 | verified (under the playfield-pixel rule) | verified | verified | verified | verified | verified (wasm) |
+| C64 | verified (under the playfield-pixel rule) | verified | verified | verified | verified | verified (wasm, and under x64sc) |
 | Commander X16 | verified | verified | verified | verified | verified | verified (wasm, `--web`); links on the native build |
 | Web | verified | verified | verified | verified | verified | verified (wasm) |
 | NES (parked) | links | links | links | links | stub | links |
@@ -200,10 +200,12 @@ the web's tests (`packages/cli/test/web-graphics-ops.test.mjs`) are the
 nearest evidence for it.
 
 `hit` is verified by one program built for the web (`hifi`), and for the PET,
-VIC-20, C64 and Commander X16 `--web` builds, run in wasm: it stores twenty-three
+VIC-20, C64 and Commander X16 `--web` builds, run in wasm: it stores fifty
 answers in RAM and every build stores the same ones
 (`packages/cli/test/graphics-hit.test.mjs`). That is the twin's own code
-running, not a hardware screenshot.
+running, not a hardware screenshot. On the C64 the same program also runs as
+6502 code under x64sc and draws its answers on the text screen
+(`packages/c64/test/graphics-hit.test.mjs`).
 
 ## How the four stress machines differ
 
