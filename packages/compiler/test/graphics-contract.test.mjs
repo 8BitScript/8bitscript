@@ -1,7 +1,8 @@
 // The @8bitscript/graphics contract (packages/graphics/src/index.8bs, "the
 // constants a program folds on" and "the calls"): every machine twin answers
-// the same ten constants, folded to literals, and exports the same seven
-// calls, so one program links against any of them.
+// the same ten constants, folded to literals, and exports the same eleven
+// calls (the eight a program makes, plus bind, meta and bounds), so one
+// program links against any of them.
 //
 // This is the gate for that promise on every target, the way
 // rasterline-charset.test.mjs is for Slot.CHARSET. It lives in the compiler's
