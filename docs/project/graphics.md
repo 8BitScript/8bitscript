@@ -142,33 +142,68 @@ One row per machine, so a machine's own work edits its row and nothing else
 | `animate(slot, on)` | Pause (`false`) or resume (`true`) its automatic stepping. |
 | `color(slot, c)` | The object's colour, where `RECOLORS`; otherwise nothing. |
 | `update()` | Once a frame: advance every playing animation, then draw. |
+| `hit(a, b)` | `true` when the boxes of two placed sprites overlap. See [Hits](#hits). |
+| `hitAny(a)` | The lowest slot `b` other than `a` with `hit(a, b)`, or 255. |
 
 Every call that changes what is shown takes effect by the next `update()`.
 There is no separate `show`: the layers underneath all define `hide` as
-"not drawn until placed again", so a position-free `show` would make every
-twin keep a position per slot — four bytes a slot, on top of what the sprite
-layer already holds — to save a program one `place()` it can already write. A program that hides and shows an object knows where
-it is and says so in `place`.
+"not drawn until placed again", and that stays the rule. A program that
+hides and shows an object knows where it is and says so in `place`.
+
+### Hits
+
+`hit(a, b)` answers whether two sprites overlap, the same on every machine.
+It is **one box per sprite, not pixel-exact**: two pictures whose boxes
+overlap hit even where their drawn pixels do not touch.
+
+- **The box** is worked out while the program is compiled, from the source
+  picture: the union, over every frame, of the pixels with alpha 16 or more,
+  as left, top, right and bottom (right and bottom exclusive). A picture with
+  no such pixel, or no frames, has the box 0, 0, 0, 0, which never hits.
+- **The position** is the x and y the last `place` gave, exactly: not rounded
+  to `STEP_X` or `STEP_Y`, not clipped to the playfield, so an off-screen pair
+  can hit.
+- **Hidden.** After `hide`, and before the first `place`, a sprite never hits;
+  a `place` after `hide` counts again.
+- **Drawing is never consulted.** Not the frame on show, `FRAMES`, the pool,
+  a cut frame, `color()` or any hardware register. A picture that lowered to
+  nothing but was placed still hits.
+- **`false`** when `a == b`, when a slot is at or past `MAX`, or when a
+  coordinate is 32768 or more. `MAX` differs per build, so a program that must
+  agree everywhere uses slots below 8.
+- **`hitAny(a)`** is the lowest `b` other than `a` with `hit(a, b)`, or 255.
+- **Timing.** Both read the state of the last `place` or `hide`; no
+  `update()` is needed first.
+
+The C64's `sprites::collisions()` and `backgroundCollisions()` stay as that
+machine's own API; hardware collision is not used here, and there is no
+portable collision with the background.
 
 Where each machine stands on each call. *Verified* means a headless
 emulator screenshot shows it; *links* means the contract test builds it and
 it is the same code path as a verified call, but nothing has looked at the
 screen yet — that is the next piece of work on that machine.
 
-| Machine | `place` / `update` | `hide` | `setFrame` | `animate` | `color` |
-| --- | --- | --- | --- | --- | --- |
-| PET | verified | verified | verified | verified | stub (`RECOLORS` false) |
-| VIC-20 | verified | verified | verified | verified | verified |
-| C64 | verified (under the playfield-pixel rule) | verified | verified | verified | verified |
-| Commander X16 | verified | verified | verified | verified | verified |
-| Web | verified | verified | verified | verified | verified |
-| NES (parked) | links | links | links | links | stub |
-| every other machine | links | links | links | links | links |
+| Machine | `place` / `update` | `hide` | `setFrame` | `animate` | `color` | `hit` |
+| --- | --- | --- | --- | --- | --- | --- |
+| PET | verified | verified | verified | verified | stub (`RECOLORS` false) | verified (wasm) |
+| VIC-20 | verified | verified | verified | verified | verified | verified (wasm) |
+| C64 | verified (under the playfield-pixel rule) | verified | verified | verified | verified | verified (wasm) |
+| Commander X16 | verified | verified | verified | verified | verified | verified (wasm, `--web`); links on the native build |
+| Web | verified | verified | verified | verified | verified | verified (wasm) |
+| NES (parked) | links | links | links | links | stub | links |
+| every other machine | links | links | links | links | links | links |
 
 The "every other machine" row is the glyph path of `index.8bs`, which is
 the code the web twin copies and which has no emulator behind it here;
 the web's tests (`packages/cli/test/web-graphics-ops.test.mjs`) are the
 nearest evidence for it.
+
+`hit` is verified by one program built for the web (`hifi`), and for the PET,
+VIC-20, C64 and Commander X16 `--web` builds, run in wasm: it stores twenty-three
+answers in RAM and every build stores the same ones
+(`packages/cli/test/graphics-hit.test.mjs`). That is the twin's own code
+running, not a hardware screenshot.
 
 ## How the four stress machines differ
 
@@ -310,6 +345,16 @@ into the glyph table (2026-10-04). The 136 bytes more are the binder calls
 that carry eight bytes a step instead of one; the 64 bytes less are the
 code table the twin no longer keeps — the glyph table is the runtime's own
 memory, not the program's.
+
+Each slot a twin holds costs **9 bytes of RAM** for `hit`: a 16-bit x and y,
+a placed flag, and the four box edges. Measured on `packages/studio`
+(`8bs build`, before and after): the C64 `--web` build's variables went from 509 to
+725 bytes, 216 for its 24 slots; the web build (`hifi-hires`) from 1612 to 2764,
+1152 for the 128 slots its tables always hold, whatever `sprites` says; the
+PET's 187 more bytes of program are the 72 for its 8 slots (arrays are
+zero-filled bytes in the image there) and 115 for the position hooks in `place`,
+`hide` and `meta` and the box each binder hands over. A program that never calls
+`hit` still pays the arrays and those hooks.
 
 The VIC-20 row was measured again on 2026-10-03, after its twin changed: it
 was 2383 and 41 on the same example before, and the 256-byte glyph table it

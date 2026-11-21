@@ -67,7 +67,7 @@ const RULES = [
     (s) => /fn color\(slot: utinyint, c: utinyint\) \{\s*if slot >= SLOTS \{\s*return;\s*\}\s*ensure\(\);\s*sprites::setColor\(slot, c\);/.test(s),
     ['sprites::setColor(slot, c);', 'sprites::setColor(slot, 1);']],
   ['hide passes the slot to the sprite layer, inside the slot-range check',
-    (s) => /fn hide\(slot: utinyint\) \{\s*if slot >= SLOTS \{\s*return;\s*\}\s*ensure\(\);\s*sprites::hide\(slot\);/.test(s),
+    (s) => /fn hide\(slot: utinyint\) \{\s*if slot >= SLOTS \{\s*return;\s*\}\s*hitOn\[slot\] = 0;\s*ensure\(\);\s*sprites::hide\(slot\);/.test(s),
     ['ensure();\n        sprites::hide(slot);\n    }\n\n    fn setFrame', 'ensure();\n    }\n\n    fn setFrame']],
 ];
 

@@ -403,8 +403,8 @@ for (const [what, from, to, name] of MUTATIONS) {
 // move), with every operation reached so none is pruned: it must build, fit
 // the machine, and not grow without somebody noticing.
 
-/** Bytes of program the all-operations probe may take: 1710 measured on 2026-10-04, on both layouts, with a little room. */
-const BUDGET = 1800;
+/** Bytes of program the all-operations probe may take: 1710 measured on 2026-10-04, 1817 on 2026-11-20 once the twin keeps what the hit check reads, on both layouts, with a little room. */
+const BUDGET = 1850;
 
 for (const layout of Object.keys(LAYOUTS)) {
   test(`the 6502 build of the twin links every operation and fits the VIC-20 (${layout})`, async () => {
