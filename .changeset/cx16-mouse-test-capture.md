@@ -1,4 +1,5 @@
 ---
+"@8bitscript/cli": patch
 ---
 
-The X16 mouse-cursor test runs x16emu with `-capture` for that scenario only, so the arrow is in the screenshot under a display with no pointer over the window. Nothing is released.
+cx16 screenshots draw the mouse arrow again: `8bs run cx16 --screenshot` starts x16emu with `-capture`, so the KERNAL pointer is on the picture. The interactive launch is unchanged.

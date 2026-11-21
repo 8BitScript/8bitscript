@@ -8,7 +8,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { delimiter, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -109,9 +109,9 @@ function writeProbe(dir, ops, { mouse = false } = {}) {
   ].join('\n'));
 }
 
-function runCli(args, { timeoutMs = 180_000, env = {} } = {}) {
+function runCli(args, { timeoutMs = 180_000 } = {}) {
   return new Promise((resolvePromise) => {
-    const child = spawn(process.execPath, [CLI_BIN, ...args], { cwd: ROOT, env: { ...process.env, EIGHTBITSCRIPT_CHECKOUT: CHECKOUT, ...env }, stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(process.execPath, [CLI_BIN, ...args], { cwd: ROOT, env: { ...process.env, EIGHTBITSCRIPT_CHECKOUT: CHECKOUT }, stdio: ['ignore', 'pipe', 'pipe'] });
     let stdout = '';
     let stderr = '';
     const timer = setTimeout(() => child.kill('SIGKILL'), timeoutMs);
@@ -126,9 +126,9 @@ function runCli(args, { timeoutMs = 180_000, env = {} } = {}) {
 const INSET = 16;
 const at = (png, x, y) => pixelAt(png, INSET + x, INSET + y);
 
-async function shoot(dir, frames, name, env) {
+async function shoot(dir, frames, name) {
   const shot = join(dir, name);
-  const { code, stdout, stderr } = await runCli(['run', 'cx16', '--screenshot', shot, '--frames', String(frames), join(dir, 'probe.8bs')], { env });
+  const { code, stdout, stderr } = await runCli(['run', 'cx16', '--screenshot', shot, '--frames', String(frames), join(dir, 'probe.8bs')]);
   assert.equal(code, 0, `8bs run cx16 --screenshot failed:\n${stdout}${stderr}`);
   return readFileSync(shot);
 }
@@ -139,20 +139,8 @@ async function scenario(ops, frames, check, options) {
   const dir = mkdtempSync(join(HERE, 'gfx-ops-'));
   try {
     writeProbe(dir, ops, options);
-    let env;
-    if (options?.mouse) {
-      // The stock launch has no `-capture` (packages/cx16/AGENTS.md), and an
-      // uncaptured x16emu with no pointer over its window (an xvfb host) draws
-      // no arrow in the picture at all. A shim ahead of the real x16emu on
-      // PATH adds the flag for this scenario only, and nothing else changes.
-      const real = (process.env.PATH ?? '').split(delimiter).map((d) => join(d, 'x16emu')).find((f) => existsSync(f));
-      mkdirSync(join(dir, 'bin'));
-      writeFileSync(join(dir, 'bin', 'x16emu'), `#!/bin/sh\nexec '${real}' -capture "$@"\n`);
-      chmodSync(join(dir, 'bin', 'x16emu'), 0o755);
-      env = { PATH: `${join(dir, 'bin')}${delimiter}${process.env.PATH}` };
-    }
     const shots = [];
-    for (const f of frames) shots.push(await shoot(dir, f, `s${f}.png`, env));
+    for (const f of frames) shots.push(await shoot(dir, f, `s${f}.png`));
     await check(shots);
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -260,12 +248,11 @@ test('under x16emu, the KERNAL mouse cursor (sprite 0) and the four objects shar
     // The firmware parks the arrow's hotspot at the centre of the active
     // area — screenshot (335, 254), playfield (319, 238) after the inset
     // (packages/cx16/AGENTS.md) — and draws it down and to the right.
-    // Measured under xvfb on x16emu r50 (77f2bab3, ROM fbe32a60), 300 frames:
-    // with `-capture` the arrow is 43 non-black pixels in this box, spanning
-    // screenshot (335, 254)-(345, 269); without it, 0 in the box and none
-    // anywhere below the object row (x16emu sees no host pointer in its
-    // window and the KERNAL parks the sprite off the picture). x16emu r49
-    // with its own ROM, uncaptured, measured the same 0.
+    // Measured under xvfb, 300 frames, x16emu r50 (77f2bab3, ROM fbe32a60):
+    // 43 non-black pixels in this box, spanning screenshot (335, 254)-(345, 269),
+    // from `8bs run cx16 --screenshot`, which passes `-capture`. Without that
+    // flag the box had 0 on r50 and on r49 (ROM r49): no host pointer is over
+    // the window, so the KERNAL parks the sprite off the picture.
     let lit = 0;
     for (let dy = 0; dy < 24; dy += 1) {
       for (let dx = 0; dx < 24; dx += 1) {
