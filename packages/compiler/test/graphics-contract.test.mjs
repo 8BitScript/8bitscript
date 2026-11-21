@@ -38,7 +38,7 @@ const TARGETS = ['vic20', 'c64', 'pet', 'c128', 'atari8', 'nes', 'cx16', 'mega65
 const NUMBERS = ['MAX', 'FRAMES', 'WIDTH', 'HEIGHT', 'COLORS', 'STEP_X', 'STEP_Y'];
 const BOOLEANS = ['RECOLORS', 'RESTORES', 'TRANSPARENT'];
 const CONSTANTS = [...NUMBERS, ...BOOLEANS];
-const CALLS = ['bind', 'meta', 'place', 'hide', 'setFrame', 'animate', 'color', 'update'];
+const CALLS = ['bind', 'meta', 'place', 'hide', 'setFrame', 'animate', 'color', 'update', 'bounds', 'hit', 'hitAny'];
 
 // What each machine with its own twin answers. docs/project/graphics.md
 // ("The portable contract") is this table; change both together. A machine
@@ -68,6 +68,8 @@ pub fn main() {
     graphics::setFrame(0, 1);
     graphics::animate(0, false);
     graphics::color(0, 1);
+    graphics::hit(0, 1);
+    graphics::hitAny(0);
     graphics::update();
     return;
 }
@@ -97,7 +99,7 @@ test('every target links a probe that reads all ten constants and calls all seve
   for (const target of TARGETS) {
     const { values, called } = probe(target);
     for (const name of CONSTANTS) assert.ok(name in values, `${target}: graphics.${name}`);
-    for (const call of ['place', 'hide', 'setFrame', 'animate', 'color', 'update']) {
+    for (const call of ['place', 'hide', 'setFrame', 'animate', 'color', 'update', 'hit', 'hitAny']) {
       assert.ok(called.includes(`graphics_${call}`), `${target}: graphics.${call} is called in the linked program`);
     }
   }

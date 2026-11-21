@@ -86,7 +86,7 @@ function dataGlobal(name, bytes) {
   };
 }
 
-function bindFunction(name, ns, memberBind, memberMeta, slot, dataName, length, metaArgs, bindPrefix = []) {
+function bindFunction(name, ns, memberBind, memberMeta, slot, dataName, length, metaArgs, bindPrefix = [], after = []) {
   const idxType = length > 255 ? 'usmallint' : 'utinyint';
   const body = [];
   if (length > 0 && dataName) {
@@ -135,6 +135,15 @@ function bindFunction(name, ns, memberBind, memberMeta, slot, dataName, length, 
     args: metaArgs.map((v) => ({ kind: 'const', value: v, type: 'utinyint' })),
     type: 'void',
   });
+  for (const { member, args } of after) {
+    body.push({
+      kind: 'namespaceCall',
+      namespace: ns,
+      member,
+      args: args.map((v) => ({ kind: 'const', value: v, type: 'utinyint' })),
+      type: 'void',
+    });
+  }
   return {
     name,
     exported: false,
@@ -145,6 +154,28 @@ function bindFunction(name, ns, memberBind, memberMeta, slot, dataName, length, 
     start: 0,
     length: name.length,
   };
+}
+
+// The box a sprite's hit check uses: the union over every frame of the pixels
+// with alpha >= 16, as [left, top, right, bottom] with right and bottom
+// exclusive. No opaque pixel, or no frames, is [0, 0, 0, 0], which never hits.
+function spriteBounds(frames) {
+  let left = Infinity;
+  let top = Infinity;
+  let right = 0;
+  let bottom = 0;
+  for (const { rgba, width, height } of frames) {
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        if (rgba[(y * width + x) * 4 + 3] < 16) continue;
+        if (x < left) left = x;
+        if (y < top) top = y;
+        if (x + 1 > right) right = x + 1;
+        if (y + 1 > bottom) bottom = y + 1;
+      }
+    }
+  }
+  return right === 0 ? [0, 0, 0, 0] : [left, top, right, bottom];
 }
 
 function decodeSpriteSource(sprite, file, diagnostics) {
@@ -261,6 +292,8 @@ export function elaborateMedia(module, diagnostics, options = {}) {
         'graphics', 'bind', 'meta',
         slot, dataName, (result.data ?? []).length,
         [slot, result.frames ?? 1, result.every ?? 8, result.kind ?? 0, result.width ?? 8, result.height ?? 8],
+        [],
+        [{ member: 'bounds', args: [slot, ...spriteBounds(frames)] }],
       ));
       for (const patch of result.chrPatches ?? []) chrPatches.push(patch);
     });

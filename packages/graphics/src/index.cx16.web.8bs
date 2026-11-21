@@ -75,6 +75,14 @@ fn writeFrame(slot: utinyint) {
     memory::write(entry + 8, at / 256);
 }
 
+let mut hitX: [u16; 128];
+let mut hitY: [u16; 128];
+let mut hitOn: [u8; 128];
+let mut hitL: [u8; 128];
+let mut hitT: [u8; 128];
+let mut hitR: [u8; 128];
+let mut hitB: [u8; 128];
+
 pub mod graphics {
     // The portable contract (index.8bs): what this build answers.
     const MAX: utinyint = #fact(video::sprites);
@@ -120,6 +128,7 @@ pub mod graphics {
         if slot >= SLOTS {
             return;
         }
+        hitOn[slot] = 0;
         let w: usmallint = width;
         let h: usmallint = height;
         frameCount[slot] = frames;
@@ -140,6 +149,9 @@ pub mod graphics {
         if slot >= SLOTS {
             return;
         }
+        hitX[slot] = x;
+        hitY[slot] = y;
+        hitOn[slot] = 1;
         if frameCount[slot] == 0 {
             return;
         }
@@ -157,6 +169,7 @@ pub mod graphics {
         if slot >= SLOTS {
             return;
         }
+        hitOn[slot] = 0;
         shown[slot] = 0;
         memory::write(entryAt(slot), 0);
     }
@@ -212,4 +225,52 @@ pub mod graphics {
             }
         }
     }
+
+    // ---- hit ----
+    fn bounds(slot: utinyint, left: utinyint, top: utinyint, right: utinyint, bottom: utinyint) {
+        if slot >= SLOTS {
+            return;
+        }
+        hitL[slot] = left;
+        hitT[slot] = top;
+        hitR[slot] = right;
+        hitB[slot] = bottom;
+    }
+
+    fn hit(a: utinyint, b: utinyint) -> bool {
+        if a == b || a >= SLOTS || b >= SLOTS {
+            return false;
+        }
+        if hitOn[a] == 0 || hitOn[b] == 0 || hitR[a] == 0 || hitR[b] == 0 {
+            return false;
+        }
+        if hitX[a] >= 32768 || hitY[a] >= 32768 || hitX[b] >= 32768 || hitY[b] >= 32768 {
+            return false;
+        }
+        let aLeft: usmallint = hitL[a];
+        let aTop: usmallint = hitT[a];
+        let aRight: usmallint = hitR[a];
+        let aBottom: usmallint = hitB[a];
+        let bLeft: usmallint = hitL[b];
+        let bTop: usmallint = hitT[b];
+        let bRight: usmallint = hitR[b];
+        let bBottom: usmallint = hitB[b];
+        if hitX[a] + aLeft >= hitX[b] + bRight || hitX[b] + bLeft >= hitX[a] + aRight {
+            return false;
+        }
+        if hitY[a] + aTop >= hitY[b] + bBottom || hitY[b] + bTop >= hitY[a] + aBottom {
+            return false;
+        }
+        return true;
+    }
+
+    fn hitAny(a: utinyint) -> utinyint {
+        for b: utinyint in 0..SLOTS {
+            if graphics::hit(a, b) {
+                return b;
+            }
+        }
+        return 255;
+    }
+    // ---- end hit ----
 }

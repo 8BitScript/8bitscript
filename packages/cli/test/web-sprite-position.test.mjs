@@ -22,12 +22,22 @@ const CROP_W = 176;
 const CROP_H = 184;
 const WHITE = '#ffffff';
 
+// What colour 2 shows as on each target, written out and not read from the layout.
+const DOT_INK = {
+  hifi: '#883932',
+  'hifi-hires': '#883932',
+  c64: '#883932',
+  vic20: '#782922',
+  'cx16 --web': '#880000',
+  'pet-2001': '#00e000',
+};
+
 // The four pictures, in slot order: the rule that lights a pixel, the size and where the program places them.
 const SPRITES = [
-  { name: 'bar', size: 16, at: [37, 23], tint: 255, lit: (x, y) => x < 8 || y < 4 },
-  { name: 'dot', size: 8, at: [101, 150], tint: 2, lit: (x, y) => x + y < 8 },
-  { name: 'box', size: 32, at: [136, 144], tint: 255, lit: (x, y) => x === 0 || y === 0 || x === 31 || y === 31 || x === y },
-  { name: 'edge', size: 16, at: [168, 176], tint: 255, lit: (x, y) => (x + y) % 3 === 0 },
+  { name: 'bar', size: 16, at: [37, 23], tint: 255, frame: 0, lit: (x, y) => x < 8 || y < 4 },
+  { name: 'dot', size: 8, at: [101, 150], tint: 2, frame: 128, lit: (x, y) => x + y < 8 },
+  { name: 'box', size: 32, at: [136, 144], tint: 255, frame: 160, lit: (x, y) => x === 0 || y === 0 || x === 31 || y === 31 || x === y },
+  { name: 'edge', size: 16, at: [168, 176], tint: 255, frame: 672, lit: (x, y) => (x + y) % 3 === 0 },
 ];
 
 const ART = SPRITES.flatMap(({ name, size }) => [
@@ -166,7 +176,7 @@ const u16 = (entry, at) => entry[at] | (entry[at + 1] << 8);
 for (const { name } of TARGETS) {
   test(`${name}: the sprite table holds what the program placed`, () => {
     const { layout, slots } = built.get(name);
-    SPRITES.forEach(({ name: sprite, size, at, tint }, slot) => {
+    SPRITES.forEach(({ name: sprite, size, at, tint, frame }, slot) => {
       const entry = slots[slot];
       const where = `${name}, ${sprite} (slot ${slot})`;
       assert.equal(entry[0] & 1, 1, `${where}: shown`);
@@ -175,9 +185,10 @@ for (const { name } of TARGETS) {
       assert.equal(entry[5], size, `${where}: W`);
       assert.equal(entry[6], size, `${where}: H`);
       assert.equal(entry[9], tint, `${where}: TINT`);
+      assert.equal(u16(entry, 7), frame, `${where}: FRAME`);
     });
     for (let slot = SPRITES.length; slot < layout.spriteCount; slot += 1) {
-      assert.equal(slots[slot][0] & 1, 0, `${name}: slot ${slot} is not shown`);
+      assert.equal(slots[slot][0], 0, `${name}: slot ${slot} is untouched`);
     }
   });
 }
@@ -204,12 +215,12 @@ for (const { name } of TARGETS) {
   });
 
   test(`${name}: the lit pixels have the sprite's colour`, () => {
-    const { layout, pixels } = built.get(name);
+    const { pixels } = built.get(name);
     for (let y = 0; y < CROP_H; y += 1) {
       for (let x = 0; x < CROP_W; x += 1) {
         const slot = owner(x, y);
         if (slot < 0) continue;
-        const ink = SPRITES[slot].name === 'dot' ? layout.palette[2] : (name === 'pet-2001' ? PET_GREEN : WHITE);
+        const ink = SPRITES[slot].name === 'dot' ? DOT_INK[name] : (name === 'pet-2001' ? PET_GREEN : WHITE);
         const got = pixels[BORDER_PX + y][BORDER_PX + x];
         assert.equal(got, ink, `${name}: first difference at (${x}, ${y}) in ${SPRITES[slot].name}: ${got}, expected ${ink}`);
       }
