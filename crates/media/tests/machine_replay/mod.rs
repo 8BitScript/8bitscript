@@ -71,6 +71,7 @@ fn slots_of(v: &Value) -> Option<MediaSlots> {
         audio: count(&v["audio"]),
         audio_bytes: count(&v["audioBytes"]),
         pet_shapes: v.get("petShapes").map(count),
+        web_sprite_bytes: v.get("webSpriteBytes").map(count),
     })
 }
 
@@ -79,6 +80,9 @@ fn slots_json(s: Option<&MediaSlots>) -> Value {
     let mut v = j!({ "graphics": s.graphics, "audio": s.audio, "audioBytes": s.audio_bytes });
     if let Some(p) = s.pet_shapes {
         v["petShapes"] = j!(p);
+    }
+    if let Some(w) = s.web_sprite_bytes {
+        v["webSpriteBytes"] = j!(w);
     }
     norm(&v)
 }

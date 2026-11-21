@@ -71,6 +71,8 @@ pub struct MediaSlots {
     pub audio_bytes: u32,
     /// `shared.petShapes`: absent until the PET module first writes it.
     pub pet_shapes: Option<u32>,
+    /// `webSpriteBytes`: absent until the web module first writes it.
+    pub web_sprite_bytes: Option<u32>,
 }
 
 /// `{tile, bytes}` of a `chrPatches` entry.
