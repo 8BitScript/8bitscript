@@ -3,7 +3,7 @@
 // here it ends by drawing every answer byte on the text screen, one row of four bytes, one cell a bit
 // (most significant first): a white cell is a 1, a red cell is a 0, and anything else fails. The
 // header and the trailer are part of the picture, so a program that stopped early or a misread grid
-// cannot pass. Skips without x64sc on PATH.
+// cannot pass. Skips without x64sc on PATH, and without a display or xvfb-run.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
@@ -23,16 +23,46 @@ function onPath(name) {
   return (process.env.PATH ?? '').split(delimiter).some((dir) => dir && existsSync(join(dir, name)));
 }
 
+const GRACE_MS = 3000;
+const sleep = (ms) => new Promise((resolvePromise) => setTimeout(resolvePromise, ms));
+
+function groupAlive(pid) {
+  try { process.kill(-pid, 0); return true; } catch { return false; }
+}
+
+// SIGTERM to the CLI's whole process group (the emulator it launched is in it), then SIGKILL only
+// what is still alive after a short, bounded wait.
+async function stopGroup(pid) {
+  try { process.kill(-pid, 'SIGTERM'); } catch { return; }
+  for (let waited = 0; waited < GRACE_MS && groupAlive(pid); waited += 50) await sleep(50);
+  if (groupAlive(pid)) {
+    try { process.kill(-pid, 'SIGKILL'); } catch { /* already gone */ }
+  }
+}
+
 function runCli(args, { timeoutMs = 180_000 } = {}) {
   return new Promise((resolvePromise) => {
-    const child = spawn(process.execPath, [CLI_BIN, ...args], { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'] });
+    const wrap = onPath('xvfb-run') && !process.env.DISPLAY ? ['xvfb-run', '-a'] : [];
+    const child = spawn(wrap[0] ?? process.execPath, [...wrap.slice(1), ...(wrap.length ? [process.execPath] : []), CLI_BIN, ...args], { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'], detached: true });
     let stdout = '';
     let stderr = '';
-    const timer = setTimeout(() => child.kill('SIGKILL'), timeoutMs);
+    let timedOut = false;
+    let stopping = null;
+    let settled = false;
+    const finish = (code, err) => {
+      if (settled) return;
+      settled = true;
+      resolvePromise({ code, stdout, stderr: err ?? stderr, timedOut });
+    };
+    const stop = () => {
+      stopping ??= stopGroup(child.pid);
+      return stopping;
+    };
+    const timer = setTimeout(() => { timedOut = true; stop(); }, timeoutMs);
     child.stdout.on('data', (d) => { stdout += d; });
     child.stderr.on('data', (d) => { stderr += d; });
-    child.on('close', (code) => { clearTimeout(timer); resolvePromise({ code, stdout, stderr }); });
-    child.on('error', (err) => { clearTimeout(timer); resolvePromise({ code: null, stdout, stderr: String(err) }); });
+    child.on('close', (code) => { clearTimeout(timer); stop().then(() => finish(code)); });
+    child.on('error', (err) => { clearTimeout(timer); finish(null, String(err)); });
   });
 }
 
@@ -110,7 +140,11 @@ function readBytes(file) {
   return bytes;
 }
 
-test('under x64sc, the C64 build stores the same answers as the wasm builds', { skip: onPath('x64sc') ? false : 'x64sc not on PATH' }, async () => {
+const skipReason = !onPath('x64sc') ? 'x64sc not on PATH'
+  : !process.env.DISPLAY && !onPath('xvfb-run') ? 'no DISPLAY and no xvfb-run on PATH: x64sc has no screen to open'
+    : false;
+
+test('under x64sc, the C64 build stores the same answers as the wasm builds', { skip: skipReason }, async () => {
   const dir = mkdtempSync(join(HERE, 'gfx-hit-'));
   try {
     for (const { name, w, h, opaque } of PICTURES) writeFileSync(join(dir, `${name}.png`), image(w, h, opaque));
@@ -122,9 +156,10 @@ test('under x64sc, the C64 build stores the same answers as the wasm builds', { 
       show: 'show();',
     }));
     const shot = join(dir, 'hit.png');
-    const { code, stdout, stderr } = await runCli([
+    const { code, stdout, stderr, timedOut } = await runCli([
       'run', 'c64', '--checkout', CHECKOUT, '--screenshot', shot, '--frames', '600', join(dir, 'probe.8bs'),
     ]);
+    assert.ok(!timedOut, `8bs run c64 --screenshot timed out; stdout tail:\n${stdout.slice(-400)}${stderr.slice(-400)}`);
     assert.equal(code, 0, `8bs run c64 --screenshot failed:\n${stdout}${stderr}`);
     const got = readBytes(shot);
     const want = expected();

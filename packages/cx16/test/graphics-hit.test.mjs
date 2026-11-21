@@ -4,7 +4,7 @@
 // a start line and an end line, and the emulator's -echo option copies that text to stdout. The
 // header and the trailer are part of the answers, so a program that stopped early or a misread
 // line cannot pass. The emulator never exits on its own: the test kills it once the end line has
-// arrived (or after a timeout). Skips without x16emu on PATH.
+// arrived (or after a timeout). Skips without x16emu on PATH, and without a display or xvfb-run.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
@@ -23,7 +23,25 @@ function onPath(name) {
   return (process.env.PATH ?? '').split(delimiter).some((dir) => dir && existsSync(join(dir, name)));
 }
 
-// The child leads its own process group and the whole group is killed: xvfb-run leaves the emulator
+const GRACE_MS = 3000;
+const EMU_TIMEOUT_MS = 120_000;
+const sleep = (ms) => new Promise((resolvePromise) => setTimeout(resolvePromise, ms));
+
+function groupAlive(pid) {
+  try { process.kill(-pid, 0); return true; } catch { return false; }
+}
+
+// SIGTERM to the whole group first, so xvfb-run can run its own cleanup and remove its /tmp/.X*-lock
+// file, then SIGKILL only what is still alive after a short, bounded wait.
+async function stopGroup(pid) {
+  try { process.kill(-pid, 'SIGTERM'); } catch { return; }
+  for (let waited = 0; waited < GRACE_MS && groupAlive(pid); waited += 50) await sleep(50);
+  if (groupAlive(pid)) {
+    try { process.kill(-pid, 'SIGKILL'); } catch { /* already gone */ }
+  }
+}
+
+// The child leads its own process group and the whole group is stopped: xvfb-run leaves the emulator
 // and the X server running when only the wrapper dies, and their open pipes would hold the test.
 function run(command, args, { cwd, timeoutMs, until } = {}) {
   return new Promise((resolvePromise) => {
@@ -31,15 +49,25 @@ function run(command, args, { cwd, timeoutMs, until } = {}) {
     let stdout = '';
     let stderr = '';
     let timedOut = false;
-    const stop = () => { try { process.kill(-child.pid, 'SIGKILL'); } catch { /* already gone */ } };
+    let stopping = null;
+    let settled = false;
+    const finish = (code, err) => {
+      if (settled) return;
+      settled = true;
+      resolvePromise({ code, stdout, stderr: err ?? stderr, timedOut });
+    };
+    const stop = () => {
+      stopping ??= stopGroup(child.pid);
+      return stopping;
+    };
     const timer = setTimeout(() => { timedOut = true; stop(); }, timeoutMs);
     child.stdout.on('data', (d) => {
       stdout += d;
       if (until && until.test(stdout)) stop();
     });
     child.stderr.on('data', (d) => { stderr += d; });
-    child.on('exit', (code) => { clearTimeout(timer); stop(); resolvePromise({ code, stdout, stderr, timedOut }); });
-    child.on('error', (err) => { clearTimeout(timer); resolvePromise({ code: null, stdout, stderr: String(err), timedOut }); });
+    child.on('exit', (code) => { clearTimeout(timer); stop().then(() => finish(code)); });
+    child.on('error', (err) => { clearTimeout(timer); finish(null, String(err)); });
   });
 }
 
@@ -83,17 +111,24 @@ const SHOW = [
 ];
 
 // The stdout of -echo escapes what is not printable ASCII, and the screen editor may break a long
-// line, so the answers are read as the hex pairs between the <<< and >>> markers, whatever the
-// separators between them.
+// line, so the answers are the whitespace-separated tokens between the <<< and >>> markers, and every
+// token must be exactly two hex digits.
 function readBytes(stdout) {
   const start = stdout.lastIndexOf('<<<');
   const end = stdout.indexOf('>>>', start);
   assert.ok(start >= 0 && end > start, `the answers were printed:\n${stdout.slice(-400)}`);
-  const pairs = stdout.slice(start + 3, end).match(/[0-9A-F]{2}/g) ?? [];
-  return pairs.map((p) => parseInt(p, 16));
+  const tokens = stdout.slice(start + 3, end).split(/\s+/).filter((t) => t !== '');
+  const bad = tokens.findIndex((t) => !/^[0-9A-F]{2}$/.test(t));
+  assert.equal(bad, -1, `token ${bad} of the readback is not two hex digits: ${JSON.stringify(tokens[bad])}`);
+  return tokens.map((t) => parseInt(t, 16));
 }
 
-test('under x16emu, the X16 build stores the same answers as the wasm builds', { skip: onPath('x16emu') ? false : 'x16emu not on PATH' }, async () => {
+const needsDisplay = !process.env.DISPLAY && !onPath('xvfb-run');
+const skipReason = !onPath('x16emu') ? 'x16emu not on PATH'
+  : needsDisplay ? 'no DISPLAY and no xvfb-run on PATH: x16emu has no screen to open'
+    : false;
+
+test('under x16emu, the X16 build stores the same answers as the wasm builds', { skip: skipReason }, async () => {
   const dir = mkdtempSync(join(HERE, 'gfx-hit-'));
   try {
     for (const { name, w, h, opaque } of PICTURES) writeFileSync(join(dir, `${name}.png`), image(w, h, opaque));
@@ -108,7 +143,8 @@ test('under x16emu, the X16 build stores the same answers as the wasm builds', {
     assert.ok(existsSync(prg), `the build wrote ${prg}:\n${built.stdout}`);
 
     const emu = onPath('xvfb-run') && !process.env.DISPLAY ? ['xvfb-run', '-a', 'x16emu'] : ['x16emu'];
-    const ran = await run(emu[0], [...emu.slice(1), '-warp', '-echo', '-prg', prg, '-run'], { cwd: dir, timeoutMs: 120_000, until: />>>/ });
+    const ran = await run(emu[0], [...emu.slice(1), '-warp', '-echo', '-prg', prg, '-run'], { cwd: dir, timeoutMs: EMU_TIMEOUT_MS, until: />>>/ });
+    assert.ok(!ran.timedOut, `x16emu timed out after ${EMU_TIMEOUT_MS} ms before printing the end line; stdout tail:\n${ran.stdout.slice(-400)}`);
     const got = readBytes(ran.stdout);
     const want = expected();
     assert.equal(got.length, want.length, `${want.length} answers, got ${got.length}`);
