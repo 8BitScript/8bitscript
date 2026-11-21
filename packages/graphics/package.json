@@ -1,6 +1,6 @@
 {
   "name": "@8bitscript/graphics",
-  "version": "0.26.0",
+  "version": "0.27.0",
   "description": "Play a sprite compiled from a .8bg file, the same on every machine: place it at a playfield pixel, hide it, pick or pause its animation frame, tint it, advance it once a frame, and read ten constants that say what this machine does. Hardware sprites on the C64 and X16, CHR/OAM on the NES, pixel sprites drawn by the page on the web, quadrant-block cells on the PET and VIC-20, a software glyph everywhere else; a hit check between two pictures works the same on every machine.",
   "license": "MIT",
   "repository": {

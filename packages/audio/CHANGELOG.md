@@ -1,5 +1,23 @@
 # @8bitscript/audio
 
+## 0.26.1
+
+### Patch Changes
+
+- c4a7477: Every .8bs and .8bx source in the packages is converted to the new Rust-style syntax by `8bs migrate`, and each `8bitscript.config.8bs` is renamed to `8bitscript.config.ts`. The c64 character ROM generator now writes the new const array form.
+- Updated dependencies [c4a7477]
+- Updated dependencies [3077a55]
+- Updated dependencies [302c8d2]
+- Updated dependencies [3077a55]
+  - @8bitscript/atari8@0.27.0
+  - @8bitscript/c64@0.27.0
+  - @8bitscript/cx16@0.27.0
+  - @8bitscript/nes@0.27.0
+  - @8bitscript/pet@0.27.0
+  - @8bitscript/system@0.27.0
+  - @8bitscript/vic20@0.27.0
+  - @8bitscript/web@0.27.0
+
 ## 0.25.1
 
 ### Patch Changes
