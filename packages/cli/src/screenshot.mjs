@@ -299,14 +299,17 @@ async function windowScreenshot(target, outFile, screenshotPath, { pal, hardware
 const CX16_FPS = 60;
 
 /**
- * The argv for a headless x16emu capture. `-capture` is on here and only here:
- * a headless run has no human pointer to leave free, and without it x16emu
+ * The argv for a screenshot capture of x16emu. `-capture` is on here and only
+ * here: nobody is holding a pointer, so there is none to leave free (under
+ * xvfb nothing is; on a real display the grab is brief). Without it x16emu
  * reports the host cursor as off the window, mouse_scan slams the KERNAL
  * pointer to the last cell (a probe printed CELL 04255), and the arrow sprite
  * sits off the picture. Measured under xvfb, x16emu r50 (77f2bab3, ROM
- * fbe32a60), 300 frames: 43 lit pixels in the 24x24 box at (316, 236) with
- * `-capture`, 0 without; r49 uncaptured also 0. The interactive `8bs run cx16`
- * launch stays uncaptured (the catalog's run.x16emu).
+ * fbe32a60), 300 frames: 43 lit pixels in the 24x24 box at screenshot
+ * (332, 252) with `-capture`, 0 without; r49 uncaptured also 0. Some older
+ * x16emu builds exited 13 combining `-capture` with `-gif` and no window; r50
+ * records the gif fine. The interactive `8bs run cx16` launch stays uncaptured
+ * (the catalog's run.x16emu).
  */
 export function cx16CaptureArgs(outFile, gifPath, hardware = stockHardware('cx16')) {
   // The catalog's own flags first (the banked-RAM size), then how the built
@@ -328,10 +331,6 @@ async function cx16Screenshot(outFile, screenshotPath, { frames, hardware = stoc
   const scratch = await mkdtemp(join(tmpdir(), '8bs-cx16-shot-'));
   const gifPath = join(scratch, 'capture.gif');
   try {
-    // The catalog's own flags first (the banked-RAM size, the mouse grab),
-    // then how the built file is handed over — the same list the interactive
-    // `8bs run` passes, so a screenshot reflects the hardware the program
-    // was built for instead of silently running on the emulator's defaults.
     const args = cx16CaptureArgs(outFile, gifPath, hardware);
     const child = spawn(resolveBinary('x16emu'), args, { stdio: 'ignore' });
     await sleep(1000 * ((frames ?? emulatorFor('cx16').defaultFrames) / CX16_FPS));
