@@ -181,11 +181,11 @@ the build's facts rather than from `#system()`. The web's sheet says
 `audio::voices` is still zero (`video.glyphs` is 80), so the web stays the read-only **viewer**
 tier — and, with `storage.save` false, it is the one viewer
 that cannot even play or load: view only. The runtime growing a keyboard
-is done; what still lifts the tier is something to edit (item 3 below), and its 57344 bytes and the browser's
-capacity are why the full tier is designed to be hosted here eventually.
+is done; what still lifts the tier is something to edit (item 3 below), and the browser's capacity (the catalog declares
+`memory.ram` 57344; the data actually starts at the data base, see the data-start row) is why the full tier is designed to be hosted here eventually.
 door renders correctly in the browser was not run while writing this
 file (*to verify*). `docs/compiler.md`
-names the web backend and the `0xE000` data segment but does not describe
+names the web backend but does not describe
 the worker/`Atomics` pacing anywhere; the only description of it is the
 header comment of `web-runtime.mjs` itself.
 
@@ -233,7 +233,7 @@ what to search for when they drift.
 | Output is `dist/<stem>.wasm` beside its generated `dist/<stem>.ts`, no target/region/profile suffix; the memory line is the source's declared counts. | `build.mjs:215-225, 262-268`, `memoryLine` (read); `built …/dist/main.wasm`, `memory: 4 bytes of RAM for variables, 23 bytes of constant data (as declared)` (ran) |
 | The checker's portable string set is space, `0`–`9`, `A`–`Z`, `! , - . : ?` — a subset of what the host draws (32–122, plus 2×2 blocks at 128–143). `text::putChar` takes any `utinyint`; the host decides what shows. | `packages/compiler/src/checker/index.mjs:68` (read) |
 | The web is the last of nine machines the resolver knows; `@8bitscript/screen` and `@8bitscript/text` map it to this package's two subpaths. | `packages/compiler/src/resolver/index.mjs:42`; `packages/screen/package.json`, `packages/web/package.json:9-12` (read) |
-| The catalog's stock fact sheet: grid 48×27 of 8×8, 16 colors, 2 per cell (its own foreground, the global background), 80 redefinable glyphs (codes 176–255), 2×2 block glyphs at codes 128–143, no bitmap, one layer, no scroll, 16 pixel sprites of up to 64×64 (the `sprites` and `spriteMemory` options size them); no sound, ports, pads, mouse or paddles, and nowhere to save; `input.keyboard` true — arrow keys, Enter and Escape through the snapshot at INPUT_OFFSET, plus `input.touch()` and `input.keyboard()` (the fact is the build's; the probe is this host's, false on a phone) from HOST_OFFSET. 57344 bytes (`0x0000`–`0xDFFF`, under the data base), nothing banked. A `machine` option (`hifi`, `pet-2001`, `c64`, `vic20`) is a separate wasm with that machine's video facts. Studio is a viewer here because there is nothing to edit, not because there is no keyboard. | `src/geometry.8bs`; the grid, font, memory and `--memoryBase` rows above; `package.json` (read) |
+| The catalog's stock fact sheet: grid 48×27 of 8×8, 16 colors, 2 per cell (its own foreground, the global background), 80 redefinable glyphs (codes 176–255), 2×2 block glyphs at codes 128–143, no bitmap, one layer, no scroll, 16 pixel sprites of up to 64×64 (the `sprites` and `spriteMemory` options size them); no sound, ports, pads, mouse or paddles, and nowhere to save; `input.keyboard` true — arrow keys, Enter and Escape through the snapshot at INPUT_OFFSET, plus `input.touch()` and `input.keyboard()` (the fact is the build's; the probe is this host's, false on a phone) from HOST_OFFSET. `memory.ram` 57344 and `memory.banked` false: the catalog's declared RAM figure, which `#fact(memory.ram)` reports and no backend uses to place anything. Where the program's data really goes is `dataBaseFor(reservedEnd)` (26112 at the default Modern host; see the data-start row), so the free range is not `0x0000`–`0xDFFF`. A `machine` option (`hifi`, `pet-2001`, `c64`, `vic20`) is a separate wasm with that machine's video facts. Studio is a viewer here because there is nothing to edit, not because there is no keyboard. | `src/geometry.8bs`; the grid, font, memory and `--memoryBase` rows above; `package.json` (read) |
 
 ## The schema, as the runtime decides it today
 
@@ -482,9 +482,12 @@ sources before a capability depends on it.
    bottom of the page into a documented map instead of the current
    "2002 bytes then nothing": an *agreement page* (registers, input
    snapshot, audio voice table, sprite table, palette RAM, layer scroll)
-   at fixed offsets, then the character/tile maps, then free RAM. Move
-   `let` arrays out of the `0xE000` static segment into that free RAM so
-   variables and constants stop sharing 8 KB. If Studio's web tier ever
+   at fixed offsets, then the character/tile maps, then free RAM. The
+   agreement/data split is built in part: the program's static data starts
+   at `dataBaseFor(reservedEnd)`, above the agreement and sprite region
+   (8192 at the lowest), not at a fixed `0xE000`. What is not done is
+   moving `let` arrays out of that static segment into free RAM, so
+   variables and constants still share it. If Studio's web tier ever
    needs more than a page, do it as a *profile* (`web` / `web-large`),
    never by growing the default — and shape any far-memory idea after the
    X16's bank model, which is Studio's reference, not after wasm's.
@@ -612,7 +615,7 @@ packages/cli/test/web-graphics.test.mjs  a compiled .8bg program's headless scre
 packages/web/src/rasterline.8bs          @8bitscript/web/rasterline (behind @8bitscript/raster): the raster list at HOST_OFFSET + 1/2/3 — control, count, 64 three-byte entries; this file IS the implementation, no address form beneath it
 packages/web/package.json                "8bitscript".entry and the subpaths ./screen, ./text, ./input, ./pointer, ./rasterline, ./charset
 packages/compiler/src/wasm/index.ts        IR → .wasm: not implemented; records the host contract (one page, env.waitFrame, exported memory)
-packages/compiler/test/wasm.test.ts   u8 wrap, shared memory + host import, string data at 0xE000 clear of the screen
+packages/compiler/test/wasm.test.ts   u8 wrap, shared memory + host import, the data floor (8192) and pinned arrays at 0xE000, string data clear of the screen
 packages/cli/src/web-layout.mjs          the facts both renderers agree on: agreementFor(), COLORS, HOST_OFFSET, HostStatus, hostIsTouch(), hostHasKeyboard(), borderFor(), InputEdge, swipeEdge()
 packages/cli/src/web-scanline.mjs        the per-scanline compositor both renderers share: readRasterEntries(), rowState(), renderFrame() — screenshot.mjs imports it, the loader inlines a mirrored copy
 packages/cli/src/web-loader.mjs          what runs in the browser: 8bitscript.js (mount(), <eightbit-screen>, paint(), the rAF clock, key/swipe snapshot, and the JSPI road for a page that cannot be isolated), worker.js (Atomics.wait), coi.js (opt-in isolation shim)
@@ -630,7 +633,7 @@ packages/cli/test/screenshot.test.mjs    web: --screenshot produces a PNG with n
 packages/compiler/src/mos/index.ts       FRAME_SYNC's accumulator comment: this host is the reference the 6502 clock imitates (the backend refuses to build)
 packages/compiler/src/fold/index.mjs     SYSTEMS: #system() is 0 on a web build (System.WEB)
 packages/studio/src/main.8bs             the one Studio entry: input.keyboard is true, but voices are zero, so the web takes Tier.VIEWER
-docs/compiler.md                         the web backend row, 0xE000 strings, the 8 KB static-data limit, memory.write on the web
+docs/compiler.md                         the web backend row and memory.write on the web (it no longer names a 0xE000 segment or an 8 KB static-data limit)
 docs/setup/verify.md                     the web row of the --screenshot table
 docs/web-embedding.md                    embedding: the bundle's files, the two headers per host, coi.js and what it costs, the border table, the mount()/<eightbit-screen> options
 docs/roadmap.md, docs/studio.md          "the web version can be much fancier"; the web is a viewer until its runtime reads keys
