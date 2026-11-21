@@ -49,14 +49,18 @@ each machine answers, is [the portable contract](#the-portable-contract).
 
 Host decode lives in `@8bitscript/graphics-tools` (PNG, no Aseprite, GIF,
 or SVG). The compiler never shells out. Lowering belongs to the machine:
-C64, NES, PET, Atari 8-bit, and VIC-20 each export a `"8bitscript".media` module.
+C64, NES, PET, Atari 8-bit, VIC-20, and Commander X16 each export a `"8bitscript".media` module.
 Every other machine uses the glyph path `@8bitscript/sprites` already has,
 with `8BS2111` naming the adaptation. The web exports one too: it lowers a
 picture to a 4bpp palette and frames (the Commander X16's packing, byte for
 byte), which the web twin writes into the sprite region of the page's
 agreement, and the page draws them as pixel sprites. How many sprites, and
 how much memory their frames share, is the build's (`video.sprites` and
-`video.spriteKib`, set by the web options `sprites` and `spriteMemory`).
+`video.spriteKib`, set by the web options `sprites` and `spriteMemory`); the
+defaults are 16 sprites and 16 KiB. A Commander X16 `--web` build uses the
+same page sprites with 128 slots and 32 KiB. The `pet-2001` skin draws ink
+only. The options and each skin's limits are in
+[the configuration reference](../config.md).
 
 ## The portable contract
 
@@ -64,7 +68,8 @@ One program should run on every machine, doing as much as the machine
 can and saying honestly what it cannot. So `@8bitscript/graphics` is a
 **contract**: every machine's twin (`packages/graphics/src/index.<machine>.8bs`,
 the generic one in `index.8bs` for the rest) answers the same ten constants
-and exports the same eight calls. A machine that can do more says so in
+and the same eight calls a program makes, plus the three the compiler's
+binders make before `main()` (`bind`, `meta`, `bounds`). A machine that can do more says so in
 its constants; a machine that can do less answers honestly and the call
 degrades. A call never fails to link and never writes outside its own
 tables, and `packages/compiler/test/graphics-contract.test.mjs` builds a
@@ -127,8 +132,8 @@ One row per machine, so a machine's own work edits its row and nothing else
 | PET | 8 | 7 (shared by every picture) | 16×16 | 1 | no | 4×4 | yes | yes (a letter underneath is replaced) |
 | VIC-20 | 8 | 8 (one 64-byte pool) | 16×16 | 1 | yes | 8×8 | no | no |
 | C64 | 24 (eight on one line) | 4 | 24×21 | 1 | yes | 1×1 | yes | yes |
-| Commander X16 | 8 | 2 at 64×64 (32 at 16×16, 8 at 32×16) | 64×64 | 15 | yes | 1×1 | yes | yes |
-| Web | 16 (the `sprites` option: 0, 8, 16, 32, 64 or 128) | 2 at 64×64 (the 16 KiB pool, `spriteMemory`, is shared by every picture) | 64×64 | 15 | yes | 1×1 | yes | yes |
+| Commander X16 | 8 (128 in a `--web` build, which is drawn as the web's) | 2 at 64×64 (32 at 16×16, 8 at 32×16) | 64×64 | 15 | yes | 1×1 | yes | yes |
+| Web | 16 (the `sprites` option: 0, 8, 16, 32, 64 or 128) | 2 at 64×64 (a fixed answer; what really fits is the shared `spriteMemory` pool's, 16 KiB by default, and the build cuts the rest, `8BS2111`) | 64×64 | 15 (the `pet-2001` skin shows each in its one ink) | yes | 1×1 | yes | yes |
 | NES (parked) | 8 | 4 | 16×16 | 3 | no | 1×1 | yes | yes |
 | every other machine | 8 | 4 | 8×8 | 1 | where it colours cells | 8×8 | no | no |
 
@@ -169,18 +174,23 @@ overlap hit even where their drawn pixels do not touch.
   a cut frame, `color()` or any hardware register. A picture that lowered to
   nothing but was placed still hits.
 - **`false`** when `a == b`, when a slot is at or past `MAX`, or when a
-  coordinate is 32768 or more. `MAX` differs per build, so a program that must
-  agree everywhere uses slots below 8.
+  coordinate is 32768 or more. `MAX` differs per build (8 on most machines, 24
+  on the C64, the `sprites` option on the web, 128 on a Commander X16 `--web`
+  build), so a program that must agree everywhere uses slots below 8.
 - **`hitAny(a)`** is the lowest `b` other than `a` with `hit(a, b)`, or 255.
 - **Timing.** Both read the state of the last `place` or `hide`; no
   `update()` is needed first.
+- **Cost.** 9 bytes of RAM a slot; see [What it costs](#what-it-costs).
 
 The C64's `sprites::collisions()` and `backgroundCollisions()` stay as that
 machine's own API; hardware collision is not used here, and there is no
 portable collision with the background.
 
 Where each machine stands on each call. *Verified* means a headless
-emulator screenshot shows it; *links* means the contract test builds it and
+emulator screenshot shows it (for `hit`, "verified (wasm)" means the build's
+own code ran in wasm and stored the expected fifty answers in RAM, and "under
+x64sc" means the same program ran as 6502 code and its answers were read off a
+screenshot); *links* means the contract test builds it and
 it is the same code path as a verified call, but nothing has looked at the
 screen yet — that is the next piece of work on that machine.
 
@@ -189,7 +199,7 @@ screen yet — that is the next piece of work on that machine.
 | PET | verified | verified | verified | verified | stub (`RECOLORS` false) | verified (wasm) |
 | VIC-20 | verified | verified | verified | verified | verified | verified (wasm) |
 | C64 | verified (under the playfield-pixel rule) | verified | verified | verified | verified | verified (wasm, and under x64sc) |
-| Commander X16 | verified | verified | verified | verified | verified | verified (wasm, `--web`); links on the native build |
+| Commander X16 | verified | verified | verified | verified | verified | verified (wasm, `--web`); links on the native build (the native build has not been run under x16emu yet) |
 | Web | verified | verified | verified | verified | verified | verified (wasm) |
 | NES (parked) | links | links | links | links | stub | links |
 | every other machine | links | links | links | links | links | links |
@@ -198,6 +208,16 @@ The "every other machine" row is the glyph path of `index.8bs`, which is
 the code the web twin copies and which has no emulator behind it here;
 the web's tests (`packages/cli/test/web-graphics-ops.test.mjs`) are the
 nearest evidence for it.
+
+On the web, pixel screenshots are asserted on the Modern host (`hifi`) and the
+`pet-2001` skin (`web-graphics.test.mjs`: pictures on the pixels their
+position names, animation in order, ink only on `pet-2001`). One program placed
+on `hifi`, `hifi-hires`, `pet-2001`, `c64`, `vic20` and a Commander X16 `--web`
+build (`web-sprite-position.test.mjs`) has its sprite tables compared for slots 0
+to 3 byte for byte and its lit pixels in a screenshot compared with the pixels
+its positions give; `web-pixel-sprites.test.mjs` shows `sprites=8` and
+`sprites=128` draw the same pixels on the default skin, and checks the other
+skins' sprite table offsets without a screenshot.
 
 `hit` is verified by one program built for the web (`hifi`), and for the PET,
 VIC-20, C64 and Commander X16 `--web` builds, run in wasm: it stores fifty
@@ -216,8 +236,8 @@ running, not a hardware screenshot. On the C64 the same program also runs as
 | PET | A 4×4 quadrant-block object, one sprite-layer shape a frame of the animation — seven shapes in all, shared by every picture in the program — or a small centre block if the picture is too faint to survive the downsample (`8BS2111` either way, and again when frames are dropped or a picture finds no shape left). |
 | Atari 8-bit | A software glyph; frames collapsed (`8BS2111`). Player/missile shapes are a later slice. |
 | VIC-20 | Quadrant-block characters from the ROM, worked out at build time: one cell for a source of 8 pixels or fewer, 2×2 cells for anything larger (scaled down), one screen code a cell a frame, the animation's frames (the first 8) stepping every `every` updates; a picture with almost no ink becomes one glyph (`8BS2111` either way, and each sprite says how many of the 64 pool bytes it takes). Moving or hiding an object blanks the cells it left and puts their colour back to white; cells off the screen are not drawn. See [On the VIC-20](#on-the-vic-20). |
-| Commander X16 | A VERA hardware sprite in its own 15-colour palette; 8, 16, 32 or 64 px a side, real animation frames (`8BS2110` over 15 colours, `8BS2111` for padding or cut frames). See [Commander X16](#commander-x16). |
-| Web | A 4bpp pixel sprite in its own 15-colour palette, 8, 16, 32 or 64 px a side, drawn by the page: `packages/web/media/index.cjs` lowers each picture with the Commander X16's packing (`8BS2110` over 15 colours, `8BS2111` for a slot past `video.sprites`, a cut size, or frames past the pool), `packages/graphics/src/index.web.8bs` writes it into the sprite region. `color()` shows the sprite in a host colour; 16 and up give its own colours back. |
+| Commander X16 | A VERA hardware sprite in its own 15-colour palette; 8, 16, 32 or 64 px a side, real animation frames (`8BS2110` over 15 colours, `8BS2111` for padding or cut frames). See [Commander X16](#commander-x16). A `--web` build is drawn as the web's: 128 slots, a 32 KiB pool. |
+| Web | A 4bpp pixel sprite in its own 15-colour palette, 8, 16, 32 or 64 px a side, drawn by the page: `packages/web/media/index.cjs` lowers each picture with the Commander X16's packing (`8BS2110` over 15 colours, `8BS2111` for a slot past `video.sprites`, a cut size, or frames past the pool), `packages/graphics/src/index.web.8bs` writes it into the sprite region. `color()` shows the sprite in a host colour; 16 and up give its own colours back. On the `pet-2001` skin every opaque pixel is drawn in its one ink. |
 | every other machine | The same glyph path, quantized to that machine's cell size: one glyph per animation step, up to four (`8BS2111` names what was dropped). |
 
 ### On the PET
@@ -304,22 +324,23 @@ with 8K.
 ## What it costs
 
 `packages/examples/media-walk`, `memory::program` then RAM
-(`8bs build <target> --size`, 2026-09-24; the PET row re-measured
-2026-10-03, after its animation landed — 3591 before the animation
-driver, 3765 with it). The stock PET 2001's 4K is too small (the
-program ends 284 bytes past `$1000`); the measured PET is the 32K 3032
-with a user-port speaker so the VIA song actually plays.
+(`8bs build <target> --size`, measured 2026-11-20 at the tip of trunk, with the
+config's own hardware). The stock PET 2001's 4K is too small; the measured PET
+is the 32K 4032 with a user-port speaker so the VIA song actually plays.
 
 | Machine | Program | Variables |
 | --- | --- | --- |
-| PET 3032 + speaker | 3787 | 50 |
-| C64 | 4692 | 46 |
-| VIC-20 8K | 2515 | 48 |
-| Commander X16 | 4114 | 70 |
-| Web (wasm module bytes) | 1956 | 203 |
+| PET 4032 32K + speaker | 4714 | 59 |
+| C64 | 6309 | 62 |
+| VIC-20 8K | 3744 | 61 |
+| Commander X16 | 5469 | 81 |
+| Web (wasm module bytes) | 4040 | 2764 |
 
-These are the figures after the portable contract landed
-(2026-10-04); before it they were 3765, 4577, 2455, 3982 and 1797 bytes of
+The paragraphs below are history, measured in 2026-09 and 2026-10. Since then the web draws pixel sprites and every
+twin keeps the tables `hit` reads.
+
+The figures the page held before those two (3787, 4692, 2515, 4114 and 1956)
+were the ones after the portable contract landed (2026-10-04); before it they were 3765, 4577, 2455, 3982 and 1797 bytes of
 program. The difference — 22, 60, 38, 20 and 23 bytes on an example that
 calls only `place()` and `update()` — is the pause flag every animation loop
 now reads, the array that holds it (it counts in the program figure on
@@ -342,17 +363,19 @@ The web row is `examples/media-walk` built with `8bs build --target web
 1610 and 235 with the default glyph path, which also drew nothing for that
 example's picture; 1797 and 259 once the twin kept one block code per step
 (2026-10-03); 1820 and 267 after the portable contract (2026-10-04); and
-1956 and 203 now that a picture is eight row bytes a step written straight
-into the glyph table (2026-10-04). The 136 bytes more are the binder calls
+1956 and 203 on 2026-10-04, once a picture was eight row bytes a step written
+straight into the glyph table; 4040 and 2764 on 2026-11-20, since the web draws
+pixel sprites. The 136 bytes more are the binder calls
 that carry eight bytes a step instead of one; the 64 bytes less are the
 code table the twin no longer keeps — the glyph table is the runtime's own
 memory, not the program's.
 
 Each slot a twin holds costs **9 bytes of RAM** for `hit`: a 16-bit x and y,
-a placed flag, and the four box edges. Measured on `packages/studio`
-(`8bs build`, before and after): the C64 `--web` build's variables went from 509 to
+a placed flag, and the four box edges. The cost is 9 × slots: 72 for 8, 216 for 24, 1152 for 128. Measured on `packages/studio`
+(`8bs build --size`, before the hit check at d8168f62 and after it at 491499b6, 2026-11-20): the C64 `--web` build's variables went from 509 to
 725 bytes, 216 for its 24 slots; the web build (`hifi-hires`) from 1612 to 2764,
 1152 for the 128 slots its tables always hold, whatever `sprites` says; the
+Commander X16 `--web` build from 1612 to 2764, the same 1152 for its 128; the
 PET's 187 more bytes of program are the 72 for its 8 slots (arrays are
 zero-filled bytes in the image there) and 115 for the position hooks in `place`,
 `hide` and `meta` and the box each binder hands over. A program that never calls
@@ -466,7 +489,9 @@ video memory. Measured under x16emu r50 (ROM `fbe32a60`), headless, with
   nothing else. A frame count that does not fit the window is cut
   (`8BS2111`): 32 frames at 16×16, 8 at 32×16, 2 at 64×64.
 - **Slots.** Eight objects (`MAX`), VERA sprites 1–8. Sprite 0 is the
-  KERNAL's mouse cursor and is left alone.
+  KERNAL's mouse cursor and is left alone. A `--web` build uses a different
+  twin, `index.cx16.web.8bs`: the page's pixel sprites, 128 slots, 32 KiB, not
+  VERA.
 - **Where it lands.** `graphics::place(x, y)` is a stage pixel: (0, 0) is the
   picture's top-left corner, the same pixel as text cell (0, 0), after
   `screen::blank()` has inset the display. A sprite's first line sits one

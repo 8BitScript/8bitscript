@@ -80,6 +80,30 @@ The web's own hardware options (`web: { hardware: { ... } }`, or `--hardware` on
 
 The sprite region lives in the web's one 64 KiB page, after the fixed part of the agreement, so a program's own data starts higher the more it asks for. `8bs build --target web --hardware sprites=32,spriteMemory=24` is an example.
 
+Where the region sits depends on the skin (the `machine` option), because each skin has its own grid and so its own fixed part. Measured with `layoutFromHardware` over every `sprites` and `spriteMemory` value (2026-11-20):
+
+| Skin (`machine`) | Sprite table starts at | Region ends at (defaults: 16 sprites, 16 KiB) | Program data starts at (defaults) | Combinations refused |
+| --- | ---: | ---: | ---: | --- |
+| `hifi` (default) | 9042 | 26098 | 26112 | none (128 sprites with 32 KiB ends at 47186) |
+| `hifi-hires` | 32850 | 49906 | 49920 | `spriteMemory=32` with `sprites` of 8 or more (128 sprites with 32 KiB runs to 70994) |
+| `pet-2001` | 2842 | 19898 | 19968 | none (128 sprites with 32 KiB ends at 40986) |
+| `c64` | 2842 | 19898 | 19968 | none (128 sprites with 32 KiB ends at 40986) |
+| `vic20` | 1854 | 18910 | 18944 | none (128 sprites with 32 KiB ends at 39998) |
+
+Program data starts at the next multiple of 256 at or above the region's end, and never below 8192. A build whose region, or whose own data, runs past the one 64 KiB page is refused rather than built to read the wrong bytes. For example, `8bs build --target web --hardware machine=hifi-hires,sprites=128,spriteMemory=32` says:
+
+```
+8bs build: the sprite region needs 38144 bytes (128 sprites, 32 KiB pool) and runs to 70994, past 64 KiB; ask for fewer with --hardware sprites=N or spriteMemory=N
+```
+
+A region that ends exactly at 65536 is accepted.
+
+The `pet-2001` skin has two colours, so every opaque sprite pixel is drawn in its ink (the green), whatever the picture's own colours or `graphics::color()`.
+
+A Commander X16 `--web` build does not take these options. It always has 128 sprites and a 32 KiB pool (`video.sprites` 128 and `video.spriteKib` 32 in `packages/cx16/package.json`); its region starts at 9357 and ends at 47501, so its program data starts at 47616.
+
+`@8bitscript/graphics`' hit tables hold 128 slots on the web and on a Commander X16 `--web` build, whatever `sprites` says: 1152 bytes of variables. See [What it costs](project/graphics.md#what-it-costs).
+
 The fact keys are the compiler's (`packages/compiler/src/fold/facts.mjs`),
 listed with one line each by `8bs targets --json` under `facts`, and
 read from a program as `#fact(...)`

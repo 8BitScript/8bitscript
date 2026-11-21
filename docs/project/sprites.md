@@ -39,7 +39,7 @@ Two limits on every machine, and they are different kinds of number:
 | X16 | 128 descriptors, 8–64 px, 15 or 255 colours | a **798-cycle budget**: 46 at 8 px/4 bpp … 5 at 64 px/8 bpp | size and depth; index order is drop order; attributes may be rewritten at a line IRQ (1–2 lines late) | two tile layers | 10-bit, wraps at 1024; hide = Z 0 |
 | VIC-20 | none | — | — | **charset objects**: 2×2 glyphs per 8×8 shape at pixel positions (32 bytes a frame each), 64 spare glyphs unexpanded; the screen is RAM, so the background is restorable | cells; pixels with a charset twin |
 | PET | none | — | — | **quadrant objects**: the 16 PETSCII 2×2 codes give 80×50 pseudo-pixels; an 8×8 shape at 2:1 is 2×2 cells, moving in 4-px steps; the screen at `$8000` is readable, so quadrant cells merge and restore | cells; pseudo-pixels |
-| web | none | — | — | cells; quadrant codes 128–143 | cells |
+| web | pixel sprites the page draws (`@8bitscript/graphics`): `video.sprites`, 16 by default, 0 to 128; up to 64×64, 15 colours | no limit | — | cells; quadrant codes 128–143 (what `@8bitscript/sprites` still uses) | pixels (graphics); cells (sprites) |
 
 Shipped PET action games — PETSCII Robots included, its source read —
 move objects by whole cells (3×3-character tiles with a per-character
