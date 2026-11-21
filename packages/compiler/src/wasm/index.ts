@@ -376,7 +376,6 @@ async function buildModule(ir: IrProgram, options: BuildOptions): Promise<BuildR
   if (cursor > 0x10000) {
     return { ok: false, error: `the program's own data (${dataStart}..${cursor}) runs past 64 KiB; the page keeps 0..${options.reserved ?? 0} for itself` };
   }
-  let pinnedEnd = 0;
   for (const p of pinnedArrays) {
     const end = p.address + p.length * p.elementWidth;
     if (end > 0xffff + 1) {
@@ -391,7 +390,6 @@ async function buildModule(ir: IrProgram, options: BuildOptions): Promise<BuildR
       }
     }
     arrayIndex.set(p.name, { address: p.address, elementWidth: p.elementWidth, mutable: true });
-    pinnedEnd = Math.max(pinnedEnd, end);
   }
   for (const r of options.reservedRanges ?? []) {
     if (cursor > dataStart && r.start < cursor && r.end > dataStart) {
