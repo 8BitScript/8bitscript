@@ -95,7 +95,7 @@ function probe(target) {
   return { values, called };
 }
 
-test('every target links a probe that reads all ten constants and calls all seven operations, each constant folded to a literal', () => {
+test('every target links a probe that reads all ten constants and calls all eight operations a program makes, each constant folded to a literal', () => {
   for (const target of TARGETS) {
     const { values, called } = probe(target);
     for (const name of CONSTANTS) assert.ok(name in values, `${target}: graphics.${name}`);
@@ -140,7 +140,7 @@ test('a constant a twin states as a literal says in its source what the linker f
   }
 });
 
-test('every twin source declares all eight calls, and none of them is a stub that fails to link', () => {
+test('every twin source declares all eleven calls (the eight a program makes, plus bind, meta and bounds), and none of them is a stub that fails to link', () => {
   for (const file of new Set([GENERIC.file, ...Object.values(TWINS).map((t) => t.file)])) {
     const source = readFileSync(join(SRC, file), 'utf8');
     assert.match(source, /pub mod graphics \{/, file);
