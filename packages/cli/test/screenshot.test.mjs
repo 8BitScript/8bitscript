@@ -29,9 +29,9 @@ import { tmpdir } from 'node:os';
 import { delimiter, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { emulatorFor } from '../src/hardware.mjs';
+import { emulatorFor, loadCatalog } from '../src/hardware.mjs';
 import { releaseTargetList } from '../src/release.mjs';
-import { mameCaptureArgs, openmsxCaptureScript, waitSeconds } from '../src/screenshot.mjs';
+import { cx16CaptureArgs, mameCaptureArgs, openmsxCaptureScript, waitSeconds } from '../src/screenshot.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CLI_BIN = join(HERE, '..', 'bin', '8bs.mjs');
@@ -195,6 +195,14 @@ test('mameCaptureArgs for apple2 boots the system without a host-file positional
 test('mameCaptureArgs for oric uses -cass', () => {
   const { args } = mameCaptureArgs('oric', '/tmp/game.tap', '/tmp/scratch');
   assert.equal(args[args.indexOf('-cass') + 1], '/tmp/game.tap');
+});
+
+test('a cx16 screenshot captures the pointer, and the stock interactive launch does not', () => {
+  const args = cx16CaptureArgs('/tmp/game.prg', '/tmp/shot.gif');
+  assert.ok(args.includes('-capture'), `-capture in ${args}`);
+  assert.equal(args[args.indexOf('-prg') + 1], '/tmp/game.prg');
+  assert.equal(args[args.indexOf('-gif') + 1], '/tmp/shot.gif');
+  assert.ok(!loadCatalog('cx16').run.x16emu.includes('-capture'));
 });
 
 test('openmsxCaptureScript writes a raw screenshot then exits', () => {

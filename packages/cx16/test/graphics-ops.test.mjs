@@ -248,12 +248,17 @@ test('under x16emu, the KERNAL mouse cursor (sprite 0) and the four objects shar
     // The firmware parks the arrow's hotspot at the centre of the active
     // area — screenshot (335, 254), playfield (319, 238) after the inset
     // (packages/cx16/AGENTS.md) — and draws it down and to the right.
+    // Measured under xvfb, 300 frames, x16emu r50 (77f2bab3, ROM fbe32a60):
+    // 43 non-black pixels in this box, spanning screenshot (335, 254)-(345, 269),
+    // from `8bs run cx16 --screenshot`, which passes `-capture`. Without that
+    // flag the box had 0 on r50 and on r49 (ROM r49): no host pointer is over
+    // the window, so the KERNAL parks the sprite off the picture.
     let lit = 0;
     for (let dy = 0; dy < 24; dy += 1) {
       for (let dx = 0; dx < 24; dx += 1) {
         if (!same(at(png, 316 + dx, 236 + dy), BLACK)) lit += 1;
       }
     }
-    assert.ok(lit > 10, `the mouse cursor is drawn near the centre (${lit} lit pixels)`);
+    assert.ok(lit > 20, `the mouse cursor is drawn near the centre (${lit} lit pixels)`);
   }, { mouse: true });
 });
