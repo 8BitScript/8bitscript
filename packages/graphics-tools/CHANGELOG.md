@@ -1,5 +1,11 @@
 # @8bitscript/graphics-tools
 
+## 0.27.0
+
+### Minor Changes
+
+- 3077a55: The 4bpp sprite packing (legal sizes, the 12-bit palette and the linear frames) the cx16 and web media lowerings share now lives once in `@8bitscript/graphics-tools/sprite-pack`. The cx16 output is byte for byte unchanged.
+
 ## 0.23.0
 
 ### Minor Changes

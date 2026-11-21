@@ -1,5 +1,19 @@
 # @8bitscript/color
 
+## 0.26.1
+
+### Patch Changes
+
+- Updated dependencies [c4a7477]
+- Updated dependencies [3077a55]
+- Updated dependencies [302c8d2]
+- Updated dependencies [3077a55]
+  - @8bitscript/c64@0.27.0
+  - @8bitscript/cx16@0.27.0
+  - @8bitscript/pet@0.27.0
+  - @8bitscript/vic20@0.27.0
+  - @8bitscript/web@0.27.0
+
 ## 0.25.1
 
 ### Patch Changes

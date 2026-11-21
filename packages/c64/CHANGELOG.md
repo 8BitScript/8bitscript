@@ -1,5 +1,12 @@
 # @8bitscript/c64
 
+## 0.27.0
+
+### Patch Changes
+
+- c4a7477: Every .8bs and .8bx source in the packages is converted to the new Rust-style syntax by `8bs migrate`, and each `8bitscript.config.8bs` is renamed to `8bitscript.config.ts`. The c64 character ROM generator now writes the new const array form.
+- 302c8d2: Every hardware catalog now declares video.spriteKib, the KiB of the shared pool sprite pictures are drawn from (32 on the Commander X16, 0 where there is none), and the system package exposes it as Video::SPRITE_KIB. Nothing reads it yet.
+
 ## 0.26.0
 
 No changes in this release.
