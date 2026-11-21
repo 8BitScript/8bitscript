@@ -37,6 +37,8 @@ export default {
     graphics('one 8x8 frame, pool overrun', h.sprite('8x8'), 0, [h.solid(8, 8, ink)], WEB, slots({ webSpriteBytes: 20000 }));
     graphics('one 8x8 frame, offset 300', h.sprite('8x8'), 0, [h.solid(8, 8, ink)], WEB, slots({ webSpriteBytes: 300 }));
     graphics('one 8x8 frame, no pool', h.sprite('8x8'), 0, [h.solid(8, 8, ink)], { ...WEB, 'video.spriteKib': 0 }, T);
+    graphics('sprites fact null', h.sprite('8x8'), 0, [h.solid(8, 8, ink)], { ...WEB, 'video.sprites': null }, T);
+    graphics('one 8x8 frame, offset past 65535', h.sprite('8x8'), 0, [h.solid(8, 8, ink)], { ...WEB, 'video.spriteKib': 100 }, slots({ webSpriteBytes: 70000 }));
     graphics('second sprite', `${h.sprite('8x8')}\n${h.anim('8x8', '0', 9)}`, 1, [h.solid(8, 8, ink)], WEB, slots({ graphics: 2 }));
     graphics('non-ascii name', 'sprite é { source "s.png" size 8x8 }', 0, [h.solid(8, 8, ink)], WEB, T);
     graphics('cx16 facts, pool short', h.anim('16x16', '0, 1', 2), 0, [h.solid(16, 16, ink), h.solid(16, 16, other)], CX16, slots({ webSpriteBytes: 32568 }));

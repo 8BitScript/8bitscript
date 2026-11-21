@@ -127,9 +127,10 @@ impl MachineMedia for Web {
                     "sprite '{}' is slot {}; this build has {} sprites, so it is never drawn",
                     sprite.name,
                     number_to_string(slot),
-                    facts
-                        .get("video.sprites")
-                        .map_or_else(|| "0".to_string(), join_string),
+                    match facts.get("video.sprites") {
+                        None | Some(Value::Null) => "0".to_string(),
+                        Some(v) => join_string(v),
+                    },
                 ),
             );
             return empty(diagnostics, every);
@@ -164,7 +165,8 @@ impl MachineMedia for Web {
         let frame_bytes = (width * height) / 2.0;
         let window = facts.get("video.spriteWidth").map_or(0.0, facts_number)
             * facts.get("video.spriteHeight").map_or(0.0, facts_number);
-        // NaN is unreachable here: the facts are counts (R2.11).
+        // NaN is unreachable here: the facts are counts (R2.11); the same holds
+        // for the `kept` max/min below.
         let fit = f64::max(1.0, (window / frame_bytes).floor());
         if order.len() as f64 > fit {
             warn(
@@ -204,7 +206,7 @@ impl MachineMedia for Web {
             );
         }
         if let Some(s) = slots.as_mut() {
-            // R2.1: the cast saturates; NaN is 0 (R7.8).
+            // R2.1: the cast saturates (the tally is a byte count, R7.8 note above).
             s.web_sprite_bytes = Some((at + kept * frame_bytes) as u32);
         }
         let used: Vec<&Frame> = order
@@ -224,19 +226,23 @@ impl MachineMedia for Web {
                 ),
             );
         }
-        let mut data = vec![0u8; 2 + PALETTE_BYTES];
-        data[0] = (to_int32(at) & 255) as u8;
-        data[1] = (to_int32(at) >> 8) as u8;
+        let mut data = vec![0.0f64; 2 + PALETTE_BYTES];
+        data[0] = f64::from(to_int32(at) & 255);
+        data[1] = f64::from(to_int32(at) >> 8);
         for (i, key) in colors.iter().enumerate() {
-            data[2 + (i + 1) * 2] = ((((key >> 4) & 15) << 4) | (key & 15)) as u8;
-            data[2 + (i + 1) * 2 + 1] = ((key >> 8) & 15) as u8;
+            data[2 + (i + 1) * 2] = f64::from(((((key >> 4) & 15) << 4) | (key & 15)) as u8);
+            data[2 + (i + 1) * 2 + 1] = f64::from(((key >> 8) & 15) as u8);
         }
         for frame in &used {
-            data.extend(pack_frame(frame, &colors, width as usize, height as usize));
+            data.extend(
+                pack_frame(frame, &colors, width as usize, height as usize)
+                    .into_iter()
+                    .map(f64::from),
+            );
         }
         GraphicsLowered {
             kind: Some(KIND_WEB),
-            data: Some(data.iter().map(|b| f64::from(*b)).collect()),
+            data: Some(data),
             frames: Some(used.len() as f64),
             every: Some(every),
             width: Some(width),
