@@ -8,10 +8,12 @@
 // What this pins, each of which was wrong before:
 //   - the colours are VERA's own default palette, not the C64's (blue is
 //     #0000aa, which is what x16emu draws for BorderColor.BLUE);
-//   - a picture (`.8bg`) is drawn at all: the wasm model has no VERA sprites, so
-//     it is carried as a glyph in the redefinable table the layout now has;
-//   - the address the graphics twin writes that table at is the address the page
-//     reads it from;
+//   - a picture (`.8bg`) is drawn at all, pixel for pixel: the page paints it as
+//     a pixel sprite from the sprite region its layout carries at the end of the
+//     reserved memory (the stock X16 build asks for 128 slots over a 32 KiB
+//     pool), and the redefinable glyph table stays in the layout beside it;
+//   - the address the twin, index.cx16.web.8bs, writes the sprite table at
+//     (SPRITE_TABLE) is the address the page reads it from;
 //   - Studio, the app the editor's Studio button opens in a tab, renders: the
 //     blue border and its 8x8 mark.
 import { test } from 'node:test';
