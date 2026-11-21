@@ -74,7 +74,7 @@ export const CASES = [
   [43, 'place(two, 45, 45); place(notch, 48, 48);', 'answers[43] = graphics::hitAny(two);', 4],
 ];
 
-// hitAny for every slot from inside the caller's own loop, once and then after 60 more rounds (300 early returns, more than the 256-byte stack could absorb if one leaked a byte).
+// hitAny for every slot from inside the caller's own loop, once and then in 60 more rounds: 305 calls, 183 of them returning from inside hitAny's own loop (slots 1, 3 and 4 on every pass). On the 6502 builds a return that left a byte on the stack would break the next RTS.
 export const SWEEP = {
   place: 'graphics::place(solid, 200, 100); graphics::place(margin, 50, 50); graphics::place(blank, 40, 40); graphics::place(two, 45, 45); graphics::place(notch, 48, 48);',
   first: 44,

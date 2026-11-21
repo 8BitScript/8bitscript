@@ -18,7 +18,10 @@ Regenerate `player.png` / `blip.wav` with `node generate-assets.mjs`; shared mar
 
 | Target | `memory::program` |
 | --- | ---: |
-| C64 | 4485 |
-| PET (4032 32K, speaker) | 3579 |
+| C64 | 6309 |
+| PET (4032 32K, speaker) | 4714 |
+| VIC-20 (8K) | 3744 |
+| Commander X16 | 5469 |
+| Web (wasm module bytes) | 4040 |
 
 See `docs/project/graphics.md` and `docs/project/audio.md` for adaptations and diagnostics.
