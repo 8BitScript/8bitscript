@@ -166,7 +166,7 @@ Do not describe more than this as working:
   actually collapses the toolbar; it is provably harmless where it does
   not.
 
-The Modern host has a pointer (the browser's mouse, or the last touch) and the skins have none; the browser's cursor is the arrow and nothing draws one in the picture. There is no sound, no sprites, no tiles, no bitmap, no
+The Modern host has a pointer (the browser's mouse, or the last touch) and the skins have none; the browser's cursor is the arrow and nothing draws one in the picture. There is no sound, no tiles, no bitmap, no
 character set beyond 80 redefinable glyphs (codes 176–255, see the glyph
 table below), no scrolling beyond the raster list's per-line
 horizontal fine scroll, no storage,
@@ -177,15 +177,15 @@ byte at `INPUT_OFFSET` that the page writes and `@8bitscript/web/input`
 reads.
 Studio has one `main.8bs` for every machine, and it reads the tier from
 the build's facts rather than from `#system()`. The web's sheet says
-`input.keyboard` true, but `video.sprites` and `audio::voices` are still zero
-(`video.glyphs` is 80), so the web stays the read-only **viewer**
+`input.keyboard` true and `video.sprites` is 16 (the page's pixel sprites), but
+`audio::voices` is still zero (`video.glyphs` is 80), so the web stays the read-only **viewer**
 tier — and, with `storage.save` false, it is the one viewer
 that cannot even play or load: view only. The runtime growing a keyboard
-is done; what still lifts the tier is something to edit (item 3 below), and its 57344 bytes and the browser's
-capacity are why the full tier is designed to be hosted here eventually.
+is done; what still lifts the tier is something to edit (item 3 below), and the browser's capacity (the catalog declares
+`memory.ram` 57344; the data actually starts at the data base, see the data-start row) is why the full tier is designed to be hosted here eventually.
 door renders correctly in the browser was not run while writing this
 file (*to verify*). `docs/compiler.md`
-names the web backend and the `0xE000` data segment but does not describe
+names the web backend but does not describe
 the worker/`Atomics` pacing anywhere; the only description of it is the
 header comment of `web-runtime.mjs` itself.
 
@@ -212,10 +212,12 @@ what to search for when they drift.
 | Only codes 32–122 (the portable set) and 128–143 (the sixteen 2×2 quadrant blocks, `video.blockWidth`/`blockHeight` 2) draw; 0 and everything else draws nothing, in both renderers. | `web-runtime.mjs` `glyphRows`; `packages/cli/src/font8x8.mjs` `glyphRows` (read) |
 | The alternate character set — what a `Slot.CHARSET` entry of 1 selects from its line down — is the boot set with every lower-case letter (97–122) drawn as its capital (65–90), every other code unchanged. The web has no character ROM, so this is a decision, made to match what an alternate set means on the machines that have one: every Commodore target pairs a mixed-case set with an upper-case one (the PET's text/graphics ROM halves, the VIC-20's and C64's two sets), and the web boots mixed-case. The bytes in screen memory never change; the split decides which set draws them. Applies on every synthetic skin (all draw the shared ASCII font); a real machine's own captured ROM table (`NAMED_FONTS`) is never remapped. The browser carries both tables (`GLYPHS`, `ALT_GLYPHS`) and picks one per row. | `packages/cli/src/font8x8.mjs` `glyphRows(code, font, charset)`; `web-scanline.mjs` `rowState`; `web-loader.mjs` (ran: `font8x8.test.mjs`, `web-scanline.test.mjs`, `web-loader.test.mjs` parity on the default and PET skins, and `web-charset-raster.test.mjs` — a compiled `.8bs` program's headless screenshot, capitals on exactly the band's cell rows, on the Modern host and the `pet-2001` skin) |
 | The browser and the headless screenshot both draw cells from `font8x8.mjs` as 8×8 bits (Hepper's `font8x8_basic` for ASCII 32–122, generated 4×4 quadrants at 128–143), and from the program's own glyph table where it has defined one. The two pictures are pixel-identical for the same memory. | `web-runtime.mjs` `paintGlyph`; `screenshot.mjs` `webScreenshot` (read) |
-| The redefinable glyph table — a decision, and the first half of the web roadmap's item 3. `GLYPH_COUNT` (80) glyphs of eight row bytes (bit 0 the leftmost pixel, the order every font here uses) sit in the agreement page right after the raster list, at `GLYPH_BASE` (8392 on the Modern host; 2198 on the PET 2001 and C64 skins; 1210 on the VIC-20 skin), for the character codes `GLYPH_FIRST` (176) up to 255 — the gap the font leaves: 128–143 are the quadrant blocks, 144–147 the corner masks, 0xA9 the copyright sign, so no table glyph shadows a font glyph. Either renderer draws a cell whose code is in range from the table **when any of its eight rows is nonzero**, and from the font as before when all are zero (blank, in this range): an untouched table changes nothing, and a program that never writes it pays nothing. The table is the program's memory read fresh at every paint, so a write shows on the next frame with no call. It is a character, not a sprite: it lands on the grid, takes the cell's one ink, and the alternate set (`Slot.CHARSET`) leaves it alone, since that remaps 97–122 only. Only the synthetic web hosts have it — `agreementFor({ userGlyphs: true })`, which `layoutFromHardware` and `DEFAULT_LAYOUT` pass; a real machine's own `--web` build (`layoutForRealMachine`) keeps its ROM's codes, has no table, and its agreement is unchanged. The agreement now ends at 9032 on the Modern host (was 8392), so the program's data starts at 9216 (was 8448); the fixed skins' data stays at 8192. `@8bitscript/web/charset` is the writer: `charset::define(code, r0…r7)` and `charset::setRow(code, row, bits)`, which refuse a code outside the table or a row past 7 (so a stray write cannot reach the raster list below or the program's data above), and `charset::FIRST`/`COUNT`. | `packages/cli/src/web-layout.mjs` `agreementFor`, `userGlyph`; `web-scanline.mjs`, `web-loader.mjs` (the loader's inlined copy); `packages/web/src/charset.8bs`; `geometry*.8bs` (ran: `web-glyphs.test.mjs` — layout, geometry agreement, `userGlyph`, the rasterizer; `web-loader.test.mjs` — the loader paints the same pixels as `renderFrame` on the Modern host, the PET and VIC-20 skins under CHARSET and SCROLL_X bands; `web-glyph-art.test.mjs` — a compiled program defining glyphs, refused writes, the program's data above the table intact) |
-| A `.8bg` picture on the web is one cell of real art — a decision, not a lack. `packages/web/media/index.cjs` reduces each animation step at build time to an 8×8 bitmap (eight row bytes, bit 0 the leftmost pixel: an 8×8 source is carried pixel for pixel, a larger one by area — a glyph pixel is lit at half of the source pixels it covers or more, and the inkiest is lit if none reaches that, so a thin picture does not vanish; an empty frame is eight zero bytes), and `packages/graphics/src/index.web.8bs` writes those bytes straight into the glyph table through `@8bitscript/web/charset` (picture `slot`, step `n` is glyph `(slot << 3) + n`, code `176 + that`) and draws the code through `@8bitscript/sprites`' glyph layer, up to eight pictures of eight steps (64 of the 80 glyphs), moving on one step every `every` calls to `graphics::update()`. It was a 2×2 quadrant block (codes 128–143) until the table existed; a sprite layer (item 7 below) is still a series of its own, so `#fact(video.sprites)` stays 0. What it costs, in the open: one ink per cell (`graphics::color()` tints it; a source with more than one colour is adapted and the build says so, `8BS2111`), a picture is one 8×8 cell on the grid (STEP 8; a larger source is reduced, and a 16×16 one is a quarter of its area per glyph pixel), at most eight pictures and eight steps each (`MAX_STEPS` in the module and `STEPS` in the twin must agree), and a moved picture does not restore what it covered (`RESTORES` is false). The default lowering (`lower-default.mjs`) picks the PETSCII codes 0xA0 and 0x51, which this font does not draw — before this module a mostly-filled picture was an empty cell on the web and a mostly-clear one the letter Q. A `Slot.CHARSET` band over a picture leaves it alone. Measured 2026-10-04, `examples/media-walk` built for web: 1820 → 1956 wasm bytes and 267 → 203 bytes of RAM against the quadrant-block twin (the binder now carries eight bytes a step instead of one; the 64-byte code table is gone, the glyph table being the runtime's). | `packages/web/media/index.cjs`; `packages/graphics/src/index.web.8bs`; `packages/web/src/charset.8bs`; `packages/cli/test/web-graphics.test.mjs` and `web-glyph-art.test.mjs` (ran: a compiled `.8bg` program's headless screenshot on the Modern host and the `pet-2001` skin — asymmetric 8×8 art pixel for pixel (a flipped bit or row order is a different picture), a 16×16 picture reduced exactly, an eight-frame animation stepping in order every frame, a paused one holding, a recoloured one, a hidden one gone, a moved one leaving no copy, the grid's last cell, a picture one column past the grid drawing nothing, a CHARSET band over the pictures; and the lowering's own cases) |
+| The redefinable glyph table — a decision, and the first half of the web roadmap's item 3. `GLYPH_COUNT` (80) glyphs of eight row bytes (bit 0 the leftmost pixel, the order every font here uses) sit in the agreement page right after the raster list, at `GLYPH_BASE` (8392 on the Modern host; 2198 on the PET 2001 and C64 skins; 1210 on the VIC-20 skin), for the character codes `GLYPH_FIRST` (176) up to 255 — the gap the font leaves: 128–143 are the quadrant blocks, 144–147 the corner masks, 0xA9 the copyright sign, so no table glyph shadows a font glyph. Either renderer draws a cell whose code is in range from the table **when any of its eight rows is nonzero**, and from the font as before when all are zero (blank, in this range): an untouched table changes nothing, and a program that never writes it pays nothing. The table is the program's memory read fresh at every paint, so a write shows on the next frame with no call. It is a character, not a sprite: it lands on the grid, takes the cell's one ink, and the alternate set (`Slot.CHARSET`) leaves it alone, since that remaps 97–122 only. Only the synthetic web hosts have it — `agreementFor({ userGlyphs: true })`, which `layoutFromHardware` and `DEFAULT_LAYOUT` pass; a real machine's own `--web` build (`layoutForRealMachine`) keeps its ROM's codes, has no table, and its agreement is unchanged. With the tone registers and the sprite region after the glyph table, the agreement ends elsewhere now: see the sprite-region row below for where the program's data starts. `@8bitscript/web/charset` is the writer: `charset::define(code, r0…r7)` and `charset::setRow(code, row, bits)`, which refuse a code outside the table or a row past 7 (so a stray write cannot reach the raster list below or the program's data above), and `charset::FIRST`/`COUNT`. | `packages/cli/src/web-layout.mjs` `agreementFor`, `userGlyph`; `web-scanline.mjs`, `web-loader.mjs` (the loader's inlined copy); `packages/web/src/charset.8bs`; `geometry*.8bs` (ran: `web-glyphs.test.mjs` — layout, geometry agreement, `userGlyph`, the rasterizer; `web-loader.test.mjs` — the loader paints the same pixels as `renderFrame` on the Modern host, the PET and VIC-20 skins under CHARSET and SCROLL_X bands; `web-glyph-art.test.mjs` — a compiled program defining glyphs, refused writes, the program's data above the table intact) |
+| A `.8bg` picture on the web is a pixel sprite the page draws, sized by the build. `packages/web/media/index.cjs` lowers each picture with the Commander X16's packing, the shared helpers in `@8bitscript/graphics-tools/sprite-pack` (`legalSize`, `buildPalette`, `packFrame`): a 32-byte palette in VERA order, then linear 4bpp frames, 8, 16, 32 or 64 px a side (`SIZES`; a larger source is cut to 64 and the build says so), index 0 clear, after a two-byte pool offset; `packages/graphics/src/index.web.8bs` writes the palette and frames into the sprite region of the agreement and `web-sprites.mjs` composites them. The region sits after the glyph table, tone registers and (on the Modern host) the pointer block: `count` ten-byte table entries (`SPRITE_ENTRY_BYTES`), `count` 32-byte palette slots (`SPRITE_PALETTE_SLOT_BYTES`), then `poolBytes` of shared frames. The build sizes it: the `sprites` option (0, 8, 16, 32, 64, 128; default 16) is `video.sprites` and `spriteMemory` (0, 4, 8, 16, 24, 32 KiB; default 16) is `video.spriteKib`; the twin reads the table's address from the skin's geometry (`Video::SPRITE_TABLE`). A picture past the slot count is never drawn, frames past the pool are cut, and the build says so (`8BS2111`); more than 15 colours is `8BS2110`. `color()` shows the sprite in a host colour (16 and up give its own colours back); a moved picture restores what it covered. `index.cx16.web.8bs` shares the body below its `// ---- shared body ----` line. The cell glyph path (`@8bitscript/sprites` over `text`) is still there for programs that use it. | `packages/web/media/index.cjs`; `packages/graphics-tools/src/sprite-pack.cjs`; `packages/graphics/src/index.web.8bs`; `packages/cli/src/web-layout.mjs` `agreementFor`, `spriteRegion`; `web-sprites.mjs`; `packages/cli/test/web-graphics.test.mjs`, `web-graphics-ops.test.mjs`, `web-glyph-art.test.mjs`, `web-sprites.test.mjs` and `web-pixel-sprites.test.mjs` (the lowering equal to the X16's byte for byte, headless screenshots on the Modern host and the `pet-2001` skin pixel for pixel, the geometry constants against the agreement, the two twins' shared body) |
+| Where the program's data starts depends on the sprite region. `dataBaseFor(reservedEnd)` places it on the next 256-byte boundary at or above the agreement's end, never below 8192. At the default 16 sprites and 16 KiB the agreement ends at 26098 and data starts at 26112 on the Modern host (49906 and 49920 on `hifi-hires`; 19898 and 19968 on the PET 2001 and C64 skins; 18910 and 18944 on the VIC-20 skin). With `sprites=0` and `spriteMemory=0` the Modern host ends at 9042 and its data starts at 9216, `hifi-hires` ends at 32850 and starts at 33024, and the three fixed skins end at 2842, 2842 and 1854 and start at 8192. The sprite table starts at 9042 (Modern), 2842 (PET 2001, C64), 1854 (VIC-20), 32850 (hires). One sprite costs 42 bytes of table and palette plus the pool, so the default region is 17056 bytes on the Modern host. | `packages/cli/src/web-layout.mjs` `agreementFor`; `packages/compiler/src/wasm/index.ts` `dataBaseFor`; `packages/cli/test/web-pixel-sprites.test.mjs` (the geometry `SPRITE_TABLE` against the agreement on every skin) (ran: `layoutFromHardware` on every skin at the defaults and at `sprites=0 spriteMemory=0`, on the build workers) |
+| The sprite region must fit the 64 KiB page. `spriteRegionProblem(layout)` returns a message when `reservedEnd` is past 65536 (null otherwise, or with no sprites), naming the bytes the region needs, the slot count and pool, and the options to lower (`--hardware sprites=N` or `spriteMemory=N`). A region ending exactly at 65536 is accepted, one at 65537 is refused. `hifi-hires` at 128 sprites and 32 KiB runs to 70994 and is refused; the largest Modern-host setting, 128 and 32 KiB, ends at 47186. The data section then has what is left above the base. | `packages/cli/src/web-layout.mjs` `spriteRegionProblem`; `packages/cli/test/web-64k.test.mjs` (the exact-fit, one-over and no-sprites cases) (ran: `layoutFromHardware` on `hifi-hires` at 128 sprites and 32 KiB) |
 | Memory: exactly one 64 KB wasm page; flat, unbanked. The host instantiates exported `memory` (`memory::buffer.byteLength === 65536`) and a `SharedArrayBuffer` for a `waitFrame()` build. Code generation is not built. | `packages/cli/src/wasm-host.mjs`, `instantiateProgram` (read); `packages/compiler/src/wasm/index.ts` (the contract, not a generator) |
-| Static data — string literals, `const` arrays, **`let` arrays**, `string<N>` variables — was laid out from `0xE000` under the pre-0.2.0 toolchain; the 8192 bytes to the end of the page are the limit. The native backend does not yet emit that layout. | `packages/compiler/src/wasm/index.ts` (the contract); the borders program's two literals sat at `0xE000` as `[5,'T','I','C','K',' ', 8,' ','O','P',…]` and its highest non-zero byte was `0xE016` (ran, pre-0.2.0) |
+| Static data — string literals, `const` arrays, **`let` arrays**, `string<N>` variables — was laid out from `0xE000` under the pre-0.2.0 toolchain (8192 bytes to the end of the page). Today it starts at `dataBaseFor(reservedEnd)` (see the data-start row above) and runs to the end of the page, so the room depends on the sprite region. The native backend does not yet emit that layout. | `packages/compiler/src/wasm/index.ts` (the contract); the borders program's two literals sat at `0xE000` as `[5,'T','I','C','K',' ', 8,' ','O','P',…]` and its highest non-zero byte was `0xE016` (ran, pre-0.2.0) |
 | Scalar globals are wasm globals, exported by name, not bytes in linear memory: `memory::read` cannot see a variable. Arrays and strings *are* in memory. Observed pre-0.2.0 on a built module. Code generation is not built. | `packages/cli/src/wasm-host.mjs`; exports of a pre-0.2.0 module were `BORDERS BACKGROUNDS framesUntilTick ticks option currentColor` (globals), `main` (function), `memory` (ran, pre-0.2.0) |
 | `#[address]` on a scalar is refused for the web; `#[address]` on an *array* is accepted and becomes a raw offset into the page. | `packages/compiler/src/wasm/index.ts` (the contract; code generation is not built) |
 | The `.wasm` imports at most `env.waitFrame` and exports exactly one function, found by kind, not by name; there is no crt0 — the worker and the headless host call the entry bare. | `wasm-host.mjs:45-56`, `instantiateProgram` (read); imports `['env.waitFrame']` (ran, pre-0.2.0); `web-runtime.mjs:102`, `wasm-host.mjs:70` (read) |
@@ -231,7 +233,7 @@ what to search for when they drift.
 | Output is `dist/<stem>.wasm` beside its generated `dist/<stem>.ts`, no target/region/profile suffix; the memory line is the source's declared counts. | `build.mjs:215-225, 262-268`, `memoryLine` (read); `built …/dist/main.wasm`, `memory: 4 bytes of RAM for variables, 23 bytes of constant data (as declared)` (ran) |
 | The checker's portable string set is space, `0`–`9`, `A`–`Z`, `! , - . : ?` — a subset of what the host draws (32–122, plus 2×2 blocks at 128–143). `text::putChar` takes any `utinyint`; the host decides what shows. | `packages/compiler/src/checker/index.mjs:68` (read) |
 | The web is the last of nine machines the resolver knows; `@8bitscript/screen` and `@8bitscript/text` map it to this package's two subpaths. | `packages/compiler/src/resolver/index.mjs:42`; `packages/screen/package.json`, `packages/web/package.json:9-12` (read) |
-| The catalog's stock fact sheet: grid 48×27 of 8×8, 16 colors, 2 per cell (its own foreground, the global background), 80 redefinable glyphs (codes 176–255), 2×2 block glyphs at codes 128–143, no bitmap, one layer, no scroll, no sprites; no sound, ports, pads, mouse or paddles, and nowhere to save; `input.keyboard` true — arrow keys, Enter and Escape through the snapshot at INPUT_OFFSET, plus `input.touch()` and `input.keyboard()` (the fact is the build's; the probe is this host's, false on a phone) from HOST_OFFSET. 57344 bytes (`0x0000`–`0xDFFF`, under the data base), nothing banked. A `machine` option (`hifi`, `pet-2001`, `c64`, `vic20`) is a separate wasm with that machine's video facts. Studio is a viewer here because there is nothing to edit, not because there is no keyboard. | `src/geometry.8bs`; the grid, font, memory and `--memoryBase` rows above; `package.json` (read) |
+| The catalog's stock fact sheet: grid 48×27 of 8×8, 16 colors, 2 per cell (its own foreground, the global background), 80 redefinable glyphs (codes 176–255), 2×2 block glyphs at codes 128–143, no bitmap, one layer, no scroll, 16 pixel sprites of up to 64×64 (the `sprites` and `spriteMemory` options size them); no sound, ports, pads, mouse or paddles, and nowhere to save; `input.keyboard` true — arrow keys, Enter and Escape through the snapshot at INPUT_OFFSET, plus `input.touch()` and `input.keyboard()` (the fact is the build's; the probe is this host's, false on a phone) from HOST_OFFSET. `memory.ram` 57344 and `memory.banked` false: the catalog's declared RAM figure, which `#fact(memory.ram)` reports and no backend uses to place anything. Where the program's data really goes is `dataBaseFor(reservedEnd)` (26112 at the default Modern host; see the data-start row), so the free range is not `0x0000`–`0xDFFF`. A `machine` option (`hifi`, `pet-2001`, `c64`, `vic20`) is a separate wasm with that machine's video facts. Studio is a viewer here because there is nothing to edit, not because there is no keyboard. | `src/geometry.8bs`; the grid, font, memory and `--memoryBase` rows above; `package.json` (read) |
 
 ## The schema, as the runtime decides it today
 
@@ -242,14 +244,15 @@ web each answer is a line of code, cited above; this is the compact form.
    exists; integer wrap at every store is the host contract, not something
    generated today. There is no cycle budget: a frame's work takes however
    long the host takes. `asm6502` is refused. Code generation is not built.
-2. **RAM and banking** — one flat 64 KB page, no banking. `0x0000`–`0x07D1`
-   is the screen agreement, `0xE000`–`0xFFFF` is static data (8 KB, shared
-   by literals and `let`/`const` arrays), everything between is free and
-   unprotected. Scalar variables are not in the page at all.
+2. **RAM and banking** — one flat 64 KB page, no banking. The low
+   bytes are the screen agreement (glyph table, tone registers, pointer
+   block, sprite region), the program's static data (literals and
+   `let`/`const` arrays) runs from `dataBaseFor(reservedEnd)` to the end
+   of the page, and anything between is free and unprotected. Scalar variables are not in the page at all.
 3. **Native unit** — character cells drawn by the host from a font it
    owns, with a table of 80 glyphs the program redefines (codes 176–255,
    `@8bitscript/web/charset`); no framebuffer the program can reach; no
-   tiles; no sprites.
+   tiles; pixel sprites the page draws (item 7).
 4. **Text grid** — 48×27 of 8×8 px (16:9) inside a 24 px border whose color is
    byte 0; a character at `(x, y)` is `memory::write(2 + y * 40 + x, code)`.
 5. **Modes / color** — one mode. Sixteen C64 colors; per-cell foreground
@@ -258,12 +261,12 @@ web each answer is a line of code, cited above; this is the compact form.
 6. **Layers** — one (the cell grid over the background color). No layer
    scroll; the raster list can fine-scroll a horizontal band per line
    (SCROLL_X, 0-7).
-7. **Sprites** — none. The software substitute is the cell glyph path: `@8bitscript/sprites` over `text`, and `@8bitscript/graphics`' web twin (`.8bg` pictures as 8×8 art in the redefinable glyph table, animated) — see "A `.8bg` picture on the web is one cell" above.
+7. **Sprites** — pixel sprites the page draws (`web-sprites.mjs`): `video.sprites` slots (16 by default, up to 128), 8 to 64 px a side, 15 colours plus clear, one shared pool of `video.spriteKib` KiB. `@8bitscript/graphics`' web twin drives them from `.8bg` pictures; see "A `.8bg` picture on the web" above. The cell glyph path (`@8bitscript/sprites` over `text`) remains.
 8. **Pseudo-pixels** — 2×2, codes 128–143, the sixteen quadrant patterns. Drawn in both renderers from `font8x8.mjs`.
 9. **Audio** — one tone voice: four bytes (gate, note, wave, volume) at
    `AUDIO_BASE` in the agreement page (9032 on the Modern host, 2838 on the
    PET 2001 and C64 skins, 1850 on the VIC-20 skin, right after the glyph
-   table), read at every paint and played through one Web Audio oscillator
+   table; computed on the build workers), read at every paint and played through one Web Audio oscillator
    (`packages/web/src/voice.8bs` writes them for `@8bitscript/audio`'s
    `audio::tone`; `packages/cli/src/web-audio.mjs` is the reference of what they
    sound like, and the loader carries a hand copy of its two pure functions).
@@ -329,8 +332,8 @@ web each answer is a line of code, cited above; this is the compact form.
   web.
 - Scalar globals are wasm globals. `memory::read` cannot observe a
   variable, and no offset in the page aliases one. Arrays, `string<N>`
-  variables and literals are in the page, at `0xE000` and up — including
-  `let` arrays, which therefore spend the same 8 KB static budget as
+  variables and literals are in the page, from the data base (`dataBaseFor`, 8192 at the lowest) up — including
+  `let` arrays, which therefore spend the same static budget as
   constants. That budget is the target's only memory limit today and it
   is the one thing that fails a web build for size.
 - `#[address]` is refused on a scalar and accepted on an array. Until that
@@ -418,7 +421,7 @@ pixel ratio).
 
 ### What is not here yet
 
-- No drawn arrow, sound, sprites, tiles, storage, palette or layer scroll —
+- No drawn arrow, sound, tiles, storage, palette or layer scroll —
   for the web or (mostly) any machine. Keyboard directions reach the
   program, and the raster list (border/background splits, per-line fine
   scroll) is real here. `packages/studio/AGENTS.md` lists what Studio
@@ -434,8 +437,8 @@ wrong web program, today:
   changes and nothing reads it. Border is byte 0, through `screen`.
 - **A variable is not in memory.** `memory::read` of "where my counter is"
   reads a page byte, never the wasm global the counter actually is.
-  Arrays and strings are in the page — at `0xE000`, and `let` arrays
-  count against the same 8 KB as the constants.
+  Arrays and strings are in the page — from the data base, and `let` arrays
+  count against the same budget as the constants.
 - **Color RAM starts black, and there is only a foreground nibble.**
   `putChar` alone is invisible on black; reverse video is color bit 7,
   not a second nibble. No colors 16+. Codes 128–143 are 2×2 blocks; 0
@@ -479,9 +482,12 @@ sources before a capability depends on it.
    bottom of the page into a documented map instead of the current
    "2002 bytes then nothing": an *agreement page* (registers, input
    snapshot, audio voice table, sprite table, palette RAM, layer scroll)
-   at fixed offsets, then the character/tile maps, then free RAM. Move
-   `let` arrays out of the `0xE000` static segment into that free RAM so
-   variables and constants stop sharing 8 KB. If Studio's web tier ever
+   at fixed offsets, then the character/tile maps, then free RAM. The
+   agreement/data split is built in part: the program's static data starts
+   at `dataBaseFor(reservedEnd)`, above the agreement and sprite region
+   (8192 at the lowest), not at a fixed `0xE000`. What is not done is
+   moving `let` arrays out of that static segment into free RAM, so
+   variables and constants still share it. If Studio's web tier ever
    needs more than a page, do it as a *profile* (`web` / `web-large`),
    never by growing the default — and shape any far-memory idea after the
    X16's bank model, which is Studio's reference, not after wasm's.
@@ -596,16 +602,20 @@ packages/web/src/geometry.8bs            default 48×27 agreement; twins `geomet
 packages/web/src/screen.8bs              @8bitscript/web/screen: setColors/setBorder/setBackground (& 15), blank() over Video.CELL_COUNT chars, sixteen names + KEEP
 packages/web/src/text.8bs                @8bitscript/web/text: ASCII straight into the page, setReverse (color bit 7), COLUMNS/CELL_COUNT from geometry, divide-based printNumber, eight TextColor names
 packages/web/src/input.8bs               @8bitscript/web/input: poll() reads INPUT_OFFSET; touch() and keyboard() read HOST_OFFSET; arrows, Enter, Escape; pointer still false
-packages/web/media/index.cjs             the web's `.8bg` lowering: one 8×8 bitmap (eight row bytes) per animation step, reduced by area at build time (`"8bitscript".media`)
+packages/web/media/index.cjs             the web's `.8bg` lowering: the web's pixel-sprite lowering: X16 packing (palette plus 4bpp frames, 8 to 64 px) via `@8bitscript/graphics-tools/sprite-pack`, sized by `video.sprites` and `video.spriteKib` (`"8bitscript".media`)
 packages/web/src/charset.8bs             @8bitscript/web/charset: define/setRow into the redefinable glyph table (codes 176-255), refusing anything outside it
-packages/graphics/src/index.web.8bs      @8bitscript/graphics on the web: bind/meta/place/update over the sprites glyph layer, bitmaps written into the glyph table, up to eight pictures × eight steps, animation advanced in update()
+packages/graphics/src/index.web.8bs      @8bitscript/graphics on the web: bind/meta/place/update over the page's sprite region, palettes and 4bpp frames written into the agreement, animation advanced in update()
 packages/cli/test/web-glyphs.test.mjs    the glyph table in isolation: layout, geometry agreement, userGlyph, the rasterizer
 packages/cli/test/web-glyph-art.test.mjs a compiled program defining glyphs and .8bg pictures as asymmetric art, headless screenshots, pixel for pixel
+packages/cli/test/web-pixel-sprites.test.mjs the sprite constants against the agreement on every skin, the twins' shared body, a small table drawing the same pixels as the largest
+packages/cli/test/web-sprites.test.mjs   web-sprites.mjs: the sprite compositor
+packages/cli/test/web-64k.test.mjs       spriteRegionProblem: exactly 64 KiB is fine, one byte over is refused
+packages/graphics-tools/src/sprite-pack.cjs the shared packing helpers (legalSize, buildPalette, packFrame) the web and X16 lowerings use
 packages/cli/test/web-graphics.test.mjs  a compiled .8bg program's headless screenshots: placement, edges, off-grid, animation order, the lowering's own cases
 packages/web/src/rasterline.8bs          @8bitscript/web/rasterline (behind @8bitscript/raster): the raster list at HOST_OFFSET + 1/2/3 — control, count, 64 three-byte entries; this file IS the implementation, no address form beneath it
 packages/web/package.json                "8bitscript".entry and the subpaths ./screen, ./text, ./input, ./pointer, ./rasterline, ./charset
 packages/compiler/src/wasm/index.ts        IR → .wasm: not implemented; records the host contract (one page, env.waitFrame, exported memory)
-packages/compiler/test/wasm.test.ts   u8 wrap, shared memory + host import, string data at 0xE000 clear of the screen
+packages/compiler/test/wasm.test.ts   u8 wrap, shared memory + host import, the data floor (8192) and pinned arrays at 0xE000, string data clear of the screen
 packages/cli/src/web-layout.mjs          the facts both renderers agree on: agreementFor(), COLORS, HOST_OFFSET, HostStatus, hostIsTouch(), hostHasKeyboard(), borderFor(), InputEdge, swipeEdge()
 packages/cli/src/web-scanline.mjs        the per-scanline compositor both renderers share: readRasterEntries(), rowState(), renderFrame() — screenshot.mjs imports it, the loader inlines a mirrored copy
 packages/cli/src/web-loader.mjs          what runs in the browser: 8bitscript.js (mount(), <eightbit-screen>, paint(), the rAF clock, key/swipe snapshot, and the JSPI road for a page that cannot be isolated), worker.js (Atomics.wait), coi.js (opt-in isolation shim)
@@ -622,8 +632,8 @@ packages/cli/src/config.mjs              resolveFrameRate: the one timing knob
 packages/cli/test/screenshot.test.mjs    web: --screenshot produces a PNG with no emulator at all
 packages/compiler/src/mos/index.ts       FRAME_SYNC's accumulator comment: this host is the reference the 6502 clock imitates (the backend refuses to build)
 packages/compiler/src/fold/index.mjs     SYSTEMS: #system() is 0 on a web build (System.WEB)
-packages/studio/src/main.8bs             the one Studio entry: input.keyboard is true, but glyphs/sprites/voices are zero, so the web takes Tier.VIEWER
-docs/compiler.md                         the web backend row, 0xE000 strings, the 8 KB static-data limit, memory.write on the web
+packages/studio/src/main.8bs             the one Studio entry: input.keyboard is true, but voices are zero, so the web takes Tier.VIEWER
+docs/compiler.md                         the web backend row and memory.write on the web (it no longer names a 0xE000 segment or an 8 KB static-data limit)
 docs/setup/verify.md                     the web row of the --screenshot table
 docs/web-embedding.md                    embedding: the bundle's files, the two headers per host, coi.js and what it costs, the border table, the mount()/<eightbit-screen> options
 docs/roadmap.md, docs/studio.md          "the web version can be much fancier"; the web is a viewer until its runtime reads keys
