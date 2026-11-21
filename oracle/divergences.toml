@@ -37,3 +37,4 @@
 #     FLAC_NEEDS_FFMPEG code survives.
 #   - a WAV with zero channels is an error, and slice_frames with a frame
 #     size of 0 returns no frames; accepted: JS does not terminate.
+# lower: R3.1: Lowering::expression and statement: JS passes a port.write call through in expression position and a port.read call through in statement position, giving an IR node the schema has no slot for (an expression portWrite, a statement portRead); Rust returns None with no diagnostic. Unreachable in the corpus: no build writes a port in a value position or discards a port read.

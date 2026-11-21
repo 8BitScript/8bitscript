@@ -924,7 +924,7 @@ mod tests {
             array: var(array, "array"),
             index,
             value,
-            element_type: ty.to_string(),
+            element_type: Some(ty.to_string()),
             start: 0,
             length: 0,
         })

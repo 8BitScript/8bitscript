@@ -3,22 +3,19 @@
 //! Module lowering: the `Lowering` state, `program`, consts, strings, templates, mods
 //! (namespaces), imports, globals and arrays. A module lowers to a [`ModuleIr`], not yet linked.
 //!
-//! Function lowering (`ir/index.mjs:799-1588`) is the next unit. [`Lowering::function`] and
-//! [`Lowering::call_expression`] stand in for it and record that they were reached
-//! (`unported_function`, `unported_call`), so a replay knows what it can still compare.
+//! Function lowering (`ir/index.mjs:799-1588`) is in `function`, `stmt` and `expr`; they add to
+//! the same [`Lowering`].
 
 use diagnostics::{Diagnostic, Severity, codes, diagnostic};
 use indexmap::{IndexMap, IndexSet};
 use jsnum::{Nullable, number_to_string, utf16_len};
 use mos_ir::{
-    ArrayElement, Binop, Block, ChrPatch, Cond, Const, Expr, Function, Global, GlobalInit, Index,
-    IrString, NamespaceCall, NamespaceConst, Record, RecordField, Ref, Stmt, StringByte,
-    StringCopy, StringLength, StringLiteral, Unop,
+    ArrayElement, Binop, Block, ChrPatch, Const, Expr, Function, Global, GlobalInit, Index,
+    IrString, NamespaceCall, Ref, Stmt, StringCopy, StringLiteral,
 };
 use sema::templates::{
-    Arity, ArrayInfo, COMPARISON_OPERATORS, MAX_STRING_LENGTH, Piece, TypeScope, layout_template,
-    misplaced_template, resolve_array_type, resolve_scalar_type, scan_declared_types,
-    type_for_count, wider_of,
+    Arity, ArrayInfo, MAX_STRING_LENGTH, Piece, TypeScope, layout_template, misplaced_template,
+    resolve_array_type, resolve_scalar_type, scan_declared_types, wider_of,
 };
 use sema::types::{narrowest_integer_type, resolve_integer_type};
 use serde::{Deserialize, Serialize};
@@ -120,6 +117,8 @@ pub struct IrConst {
 pub struct ArrayDesc {
     pub ty: String,
     pub length: f64,
+    /// A const array: data in the program, not RAM.
+    pub constant: bool,
 }
 
 /// `arrayReference`'s answer: the `ref` expression and what is known of the array.
@@ -132,32 +131,32 @@ pub struct ArrayReference {
 /// A JS number held as an IR integer (R2.1): `as i64` saturates (NaN to 0). Reachable with an
 /// out-of-range literal; the IR value saturates and a message prints the JS number (`last_wide`).
 #[allow(clippy::cast_possible_truncation)]
-fn int(value: f64) -> i64 {
+pub(crate) fn int(value: f64) -> i64 {
     value as i64
 }
 
 /// A value the saturating `int` could not hold.
-fn is_wide(value: i64) -> bool {
+pub(crate) fn is_wide(value: i64) -> bool {
     value.unsigned_abs() >= 9_200_000_000_000_000_000
 }
 
-fn wide_of(value: f64) -> Option<f64> {
+pub(crate) fn wide_of(value: f64) -> Option<f64> {
     (value.abs() >= 9.2e18).then_some(value)
 }
 
-fn span(node: &Node) -> (Option<i64>, Option<i64>) {
+pub(crate) fn span(node: &Node) -> (Option<i64>, Option<i64>) {
     (Some(i64::from(node.start)), Some(i64::from(node.length)))
 }
 
 /// The `name` of an identifier or type reference.
-fn name_of(node: &Node) -> Option<&str> {
+pub(crate) fn name_of(node: &Node) -> Option<&str> {
     match &node.kind {
         NodeKind::Identifier { name, .. } | NodeKind::TypeReference { name, .. } => Some(name),
         _ => None,
     }
 }
 
-fn type_arguments(node: &Node) -> &[Node] {
+pub(crate) fn type_arguments(node: &Node) -> &[Node] {
     match &node.kind {
         NodeKind::TypeReference { type_arguments, .. } => type_arguments,
         _ => &[],
@@ -199,7 +198,7 @@ pub fn type_of(expr: &Expr) -> Option<&str> {
     }
 }
 
-fn nullable(value: Option<String>) -> Nullable<String> {
+pub(crate) fn nullable(value: Option<String>) -> Nullable<String> {
     value.map_or(Nullable::Null, Nullable::Value)
 }
 
@@ -236,10 +235,10 @@ pub struct Lowering {
     pub pending_consts: IndexSet<String>,
     /// Every top-level const by name, whatever its value turns out to be.
     pub const_names: IndexSet<String>,
-    /// Set when lowering reached a function body, which is not ported yet.
-    pub unported_function: bool,
-    /// Set when lowering reached a call expression, which is not ported yet.
-    pub unported_call: bool,
+    /// The return type of the function being lowered; `None` outside one.
+    pub current_return_type: Option<String>,
+    /// The names declared in the current block; `None` until a block opens.
+    pub block_names: Option<IndexSet<String>>,
     /// The JS number behind the last constant lowered, when it is past the `i64` range and so
     /// saturated in the IR (R2.1). A diagnostic prints it, as JS does, not the saturated value.
     pub last_wide: Option<f64>,
@@ -267,7 +266,7 @@ impl Lowering {
         }
     }
 
-    fn report_at(&mut self, start: u32, length: u32, message: impl Into<String>) {
+    pub(crate) fn report_at(&mut self, start: u32, length: u32, message: impl Into<String>) {
         self.diagnostics.push(diagnostic(
             codes::NOT_COMPILABLE,
             message,
@@ -289,7 +288,7 @@ impl Lowering {
         None
     }
 
-    fn push_error(&mut self, code: &str, message: String, start: u32, length: u32) {
+    pub(crate) fn push_error(&mut self, code: &str, message: String, start: u32, length: u32) {
         self.diagnostics.push(diagnostic(
             code,
             message,
@@ -827,16 +826,7 @@ impl Lowering {
 
         let mut init: Option<Expr> = None;
         if let Some(initializer) = initializer.as_deref() {
-            // Only this initializer's own call counts: the flag stays set for the module.
-            let reached_before = std::mem::take(&mut self.unported_call);
             init = self.expression(Some(initializer));
-            let reached_call = self.unported_call;
-            self.unported_call |= reached_before;
-            // A call is not lowered yet (P3-15). JS lowers it to a call node and refuses it just
-            // below, so this global is never declared; stop here the same way.
-            if init.is_none() && reached_call {
-                return;
-            }
             // A bare name that is not an own const is either an imported const, left for the
             // linker, or a name this module declares, which is refused here and now.
             match &init {
@@ -1335,6 +1325,7 @@ impl Lowering {
                 array: Some(ArrayDesc {
                     ty: a.type_.to_string(),
                     length: a.length,
+                    constant: a.constant,
                 }),
             });
         }
@@ -1498,334 +1489,5 @@ impl Lowering {
             element_type: element_type.clone(),
             ty: element_type,
         }))
-    }
-
-    /// `function(node, { mangledName })` (`ir/index.mjs:799`): not ported yet. It lowers
-    /// nothing and records that a function body was reached.
-    pub fn function(&mut self, _node: &Node, _mangled_name: Option<&str>) {
-        self.unported_function = true;
-    }
-
-    /// `callExpression(node)` (`ir/index.mjs:1123`): not ported yet.
-    pub fn call_expression(&mut self, _node: &Node) -> Option<Stmt> {
-        self.unported_call = true;
-        None
-    }
-
-    /// A constant as JS prints it in a message: the number it held, not its saturated IR value.
-    fn shown(&self, value: i64) -> String {
-        match self.last_wide {
-            Some(wide) if is_wide(value) => number_to_string(wide),
-            _ => number_to_string(value as f64),
-        }
-    }
-
-    /// An AST expression as IR (`expression(node)`, `ir/index.mjs:1386`).
-    #[allow(clippy::too_many_lines)]
-    pub fn expression(&mut self, node: Option<&Node>) -> Option<Expr> {
-        let node = node?; // a hole the parser already reported
-        match &node.kind {
-            NodeKind::IntegerLiteral { value, .. } => {
-                self.last_wide = wide_of(*value);
-                Some(Expr::Const(Const {
-                    value: int(*value),
-                    ty: Some(narrowest_integer_type(*value)),
-                }))
-            }
-            NodeKind::BooleanLiteral { value, .. } => Some(Expr::Const(Const {
-                value: i64::from(*value),
-                ty: Some("bool".to_string()),
-            })),
-            NodeKind::StringLiteral { value, .. } => Some(self.string_constant(node, value)),
-            NodeKind::TemplateLiteral { .. } => {
-                self.diagnostics
-                    .push(misplaced_template(node, &self.file, None));
-                None
-            }
-            NodeKind::IndexExpression { object, index } => {
-                // `s[i]`: the i-th byte of a string parameter; otherwise `a[i]`.
-                if let NodeKind::Identifier { name, .. } = &object.kind
-                    && self.is_string_parameter(name)
-                {
-                    let index = self.expression(index.as_deref())?;
-                    return Some(Expr::StringByte(StringByte {
-                        string: Box::new(self.string_ref(object)),
-                        index: Box::new(index),
-                        ty: "utinyint".to_string(),
-                    }));
-                }
-                self.index_read(node)
-            }
-            NodeKind::ArrayLiteral { .. } => self.fail(
-                node,
-                "an array literal only initializes an array<T, N> declaration",
-            ),
-            NodeKind::Identifier { name, .. } => self.identifier(node, name),
-            NodeKind::ConditionalExpression {
-                test,
-                consequent,
-                alternate,
-            } => {
-                let test = self.expression(Some(test));
-                let consequent = self.expression(consequent.as_deref());
-                let alternate = self.expression(alternate.as_deref());
-                let (test, consequent, alternate) = (test?, consequent?, alternate?);
-                let ty = wider_of(type_of(&consequent), type_of(&alternate));
-                Some(Expr::Cond(Cond {
-                    test: Box::new(test),
-                    consequent: Box::new(consequent),
-                    alternate: Box::new(alternate),
-                    ty: nullable(ty),
-                }))
-            }
-            NodeKind::BinaryExpression {
-                operator,
-                left,
-                right,
-            } => {
-                let left = self.expression(Some(left));
-                let right = self.expression(Some(right));
-                let (left, right) = (left?, right?);
-                // Comparisons and the logical operators always produce a bool.
-                let ty = if COMPARISON_OPERATORS.contains(&operator.as_str()) {
-                    Some("bool".to_string())
-                } else {
-                    wider_of(type_of(&left), type_of(&right))
-                };
-                Some(Expr::Binop(Binop {
-                    operator: operator.clone(),
-                    left: Box::new(left),
-                    right: Box::new(right),
-                    ty,
-                }))
-            }
-            NodeKind::UnaryExpression { operator, argument } => {
-                let argument = self.expression(Some(argument))?;
-                // A signed literal is written `-128`, so a negated constant has to be a
-                // constant. Only `-`/`+`; `~` and `!` are left to the target.
-                if let Expr::Const(c) = &argument
-                    && (operator == "-" || operator == "+")
-                {
-                    let value = if operator == "-" {
-                        self.last_wide = self.last_wide.map(|w| -w);
-                        c.value.saturating_neg()
-                    } else {
-                        c.value
-                    };
-                    // The value's own sign decides its type here, not the operand's.
-                    return Some(Expr::Const(Const {
-                        value,
-                        ty: Some(narrowest_integer_type(value as f64)),
-                    }));
-                }
-                let ty = if operator == "!" {
-                    Some("bool".to_string())
-                } else {
-                    type_of(&argument).map(str::to_string)
-                };
-                Some(Expr::Unop(Unop {
-                    operator: operator.clone(),
-                    argument: Box::new(argument),
-                    ty,
-                }))
-            }
-            NodeKind::CallExpression { .. } => {
-                // `memory.write` and `waitFrame()` come back as statements and are refused
-                // here, so that arm lands with the call lowering.
-                match self.call_expression(node)? {
-                    Stmt::Call(c) => Some(Expr::Call(c)),
-                    Stmt::NamespaceCall(c) => Some(Expr::NamespaceCall(c)),
-                    Stmt::MemoryRead(c) => Some(Expr::MemoryRead(c)),
-                    Stmt::MemoryWrite(_) => self.fail(
-                        node,
-                        "memory.write does not return a value and cannot be used as an expression",
-                    ),
-                    Stmt::WaitFrame(_) => self.fail(
-                        node,
-                        "waitFrame() does not return a value and cannot be used as an expression",
-                    ),
-                    _ => None,
-                }
-            }
-            NodeKind::RecordLiteral { properties } => {
-                let mut fields = Vec::new();
-                for prop in properties {
-                    let NodeKind::RecordProperty { key, value } = &prop.kind else {
-                        continue;
-                    };
-                    let value = self.expression(Some(value))?;
-                    fields.push(RecordField {
-                        name: key.clone(),
-                        value,
-                        start: i64::from(prop.start),
-                        length: i64::from(prop.length),
-                    });
-                }
-                Some(Expr::Record(Record {
-                    fields,
-                    start: i64::from(node.start),
-                    length: i64::from(node.length),
-                }))
-            }
-            NodeKind::MemberExpression { object, property } => {
-                self.member_expression(node, object, property)
-            }
-            _ => self.fail(
-                node,
-                format!("a {} expression is not compilable yet", node.type_name()),
-            ),
-        }
-    }
-
-    /// The `Identifier` arm of `expression`.
-    fn identifier(&mut self, node: &Node, name: &str) -> Option<Expr> {
-        let shadowed = self.current_params.contains_key(name);
-        // A const declared in this module is its value, here and now — but a parameter of the
-        // same name shadows it, ordinary lexical scoping.
-        if !shadowed && let Some(value) = self.own_consts.get(name) {
-            self.last_wide = wide_of(*value);
-            return Some(Expr::Const(Const {
-                value: int(*value),
-                ty: self.own_const_types.get(name).cloned(),
-            }));
-        }
-        if !shadowed && let Some(index) = self.own_strings.get(name) {
-            let (start, length) = span(node);
-            return Some(Expr::String(StringLiteral {
-                index: *index,
-                ty: Nullable::Value("string".to_string()),
-                start,
-                length,
-            }));
-        }
-        // An array is used one element at a time; its bare name is not a value.
-        if !shadowed && self.arrays.contains_key(name) {
-            return self.fail(
-                node,
-                format!("'{name}' is an array: read an element ({name}[i]) or its .length"),
-            );
-        }
-        if self.current_array_params.contains_key(name) {
-            return self.fail(
-                node,
-                format!(
-                    "'{name}' is an array parameter: read an element ({name}[i]) or its .length"
-                ),
-            );
-        }
-        // The span rides along so the linker can point a diagnostic at the exact reference.
-        // Its type comes from wherever the name is declared; an imported name stays untyped.
-        let (start, length) = span(node);
-        Some(Expr::Ref(Ref {
-            name: name.to_string(),
-            ty: nullable(
-                self.current_params
-                    .get(name)
-                    .or_else(|| self.global_types.get(name))
-                    .cloned(),
-            ),
-            start,
-            length,
-        }))
-    }
-
-    /// The `MemberExpression` arm of `expression`.
-    fn member_expression(&mut self, node: &Node, object: &Node, property: &Node) -> Option<Expr> {
-        let property_name = name_of(property).unwrap_or_default();
-        let (start, length) = (i64::from(node.start), i64::from(node.length));
-        let NodeKind::Identifier {
-            name: object_name, ..
-        } = &object.kind
-        else {
-            if property_name == "length" {
-                let inner = self.expression(Some(object))?;
-                return Some(Expr::StringLength(StringLength {
-                    string: Box::new(inner),
-                    ty: "utinyint".to_string(),
-                    start: Some(start),
-                    length: Some(length),
-                }));
-            }
-            return self.fail(node, "a member expression is not compilable yet");
-        };
-        // `s.length`: how many bytes a string parameter holds.
-        if self.is_string_parameter(object_name) {
-            if property_name != "length" {
-                return self.fail(
-                    node,
-                    format!("a string has no '{property_name}'; it has .length and s[i]"),
-                );
-            }
-            return Some(Expr::StringLength(StringLength {
-                string: Box::new(self.string_ref(object)),
-                ty: "utinyint".to_string(),
-                start: None,
-                length: None,
-            }));
-        }
-        // `t.length` on an array parameter: the length is part of the parameter's type.
-        if let Some(p) = self.current_array_params.get(object_name) {
-            let length = p.length;
-            if property_name != "length" {
-                return self.fail(
-                    node,
-                    format!("an array has no '{property_name}'; it has .length and a[i]"),
-                );
-            }
-            return Some(Expr::Const(Const {
-                value: int(length),
-                ty: Some(type_for_count(length).to_string()),
-            }));
-        }
-        // `a.length` on this module's own array: a number, right here.
-        if !self.current_params.contains_key(object_name)
-            && let Some(array) = self.arrays.get(object_name)
-        {
-            let length = array.length;
-            if property_name != "length" {
-                return self.fail(
-                    node,
-                    format!("an array has no '{property_name}'; it has .length and a[i]"),
-                );
-            }
-            return Some(Expr::Const(Const {
-                value: int(length),
-                ty: Some(type_for_count(length).to_string()),
-            }));
-        }
-        // `BorderColor.BLUE`: a namespace const used as a value, resolved by the linker.
-        Some(Expr::NamespaceConst(NamespaceConst {
-            namespace: object_name.clone(),
-            member: property_name.to_string(),
-            ty: Nullable::Null,
-            start,
-            length,
-        }))
-    }
-}
-
-/// What module lowering produced, and what it could not reach yet.
-#[derive(Debug, Clone, PartialEq)]
-pub struct Lowered {
-    pub ir: ModuleIr,
-    pub diagnostics: Vec<Diagnostic>,
-    pub unported_function: bool,
-    pub unported_call: bool,
-    pub skipped_unnamed_member: bool,
-}
-
-/// `lower(ast, file, source)` as far as this unit goes: [`Lowering::program`] on a fresh
-/// state. `lower()` itself belongs with function lowering.
-#[must_use]
-pub fn lower_module(ast: &Node, file: &str, source: Option<&str>) -> Lowered {
-    let mut lowering = Lowering::new(file);
-    lowering.source = source.map(str::to_string);
-    let ir = lowering.program(ast);
-    Lowered {
-        ir,
-        diagnostics: lowering.diagnostics,
-        unported_function: lowering.unported_function,
-        unported_call: lowering.unported_call,
-        skipped_unnamed_member: lowering.skipped_unnamed_member,
     }
 }

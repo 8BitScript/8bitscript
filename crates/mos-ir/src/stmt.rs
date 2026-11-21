@@ -153,7 +153,9 @@ pub struct StoreIndex {
     pub array: Expr,
     pub index: Expr,
     pub value: Expr,
-    pub element_type: String,
+    /// `null` on an imported array, until the linker fills it in: R3.3.
+    #[serde(default)]
+    pub element_type: Option<String>,
     pub start: i64,
     pub length: i64,
 }
