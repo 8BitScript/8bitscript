@@ -2,7 +2,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use oracle::{
-    Options, Roots, canonical_json, compare, glob_match, hex_dump, parse_hex, tokenize_path,
+    Options, Roots, canonical_json, compare, detokenize_path, glob_match, hex_dump, parse_hex,
+    tokenize_path,
 };
 use serde_json::json;
 
@@ -57,6 +58,25 @@ fn identical_dirs_have_no_errors() {
         r.summary(),
         "compare: 4 files, 0 ERROR, 0 accepted, 0 stale"
     );
+}
+
+#[test]
+fn an_excluded_id_is_not_compared() {
+    let (a, b) = (scratch("excl-a"), scratch("excl-b"));
+    fixture(&a, 0xa9, 5);
+    fixture(&b, 0xa5, 5);
+    let all = compare(&a, &b, &opts("")).unwrap();
+    assert_eq!(all.errors, 1);
+    let skipped = compare(
+        &a,
+        &b,
+        &Options {
+            exclude: vec!["*/pet".to_string()],
+            ..opts("")
+        },
+    )
+    .unwrap();
+    assert_eq!((skipped.errors, skipped.files), (0, 0));
 }
 
 #[test]
@@ -216,6 +236,13 @@ fn hex_roundtrip_and_tokens_and_glob() {
     );
     assert_eq!(tokenize_path("/r/pj", &roots), "<project>");
     assert_eq!(tokenize_path("/r/tcx/y", &roots), "/r/tcx/y");
+    assert_eq!(
+        detokenize_path("<toolchain>/packages/x", &roots),
+        "/r/tc/packages/x"
+    );
+    assert_eq!(detokenize_path("<project>", &roots), "/r/pj");
+    assert_eq!(detokenize_path("<projectx/y", &roots), "<projectx/y");
+    assert_eq!(detokenize_path("/abs/y", &roots), "/abs/y");
     assert!(glob_match("vegas-nights/*/c64", "vegas-nights/slots/c64"));
     assert!(glob_match("*", ""));
     assert!(glob_match("a?c", "abc") && !glob_match("a?c", "ac"));

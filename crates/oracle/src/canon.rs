@@ -108,3 +108,24 @@ pub fn tokenize_path(path: &str, roots: &Roots) -> String {
     }
     path.to_string()
 }
+
+/// The inverse of [`tokenize_path`]: `<toolchain>/x` becomes the toolchain root and `/x`, and
+/// likewise `<project>`. A path with neither token is returned as it is.
+#[must_use]
+pub fn detokenize_path(path: &str, roots: &Roots) -> String {
+    for (root, token) in [
+        (roots.toolchain, "<toolchain>"),
+        (roots.project, "<project>"),
+    ] {
+        if root.is_empty() {
+            continue;
+        }
+        if path == token {
+            return root.to_string();
+        }
+        if let Some(rest) = path.strip_prefix(token).filter(|r| r.starts_with('/')) {
+            return format!("{root}{rest}");
+        }
+    }
+    path.to_string()
+}
