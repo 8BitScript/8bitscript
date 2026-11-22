@@ -1,5 +1,20 @@
 # @8bitscript/web
 
+## 0.27.0
+
+### Minor Changes
+
+- 3077a55: A `.8bg` picture on the web is now a 4bpp pixel sprite the page draws, in its own colours, instead of one 8x8 glyph in a single ink. The build sizes it: the new web options `sprites` (0, 8, 16, 32, 64 or 128 slots, default 16) and `spriteMemory` (0 to 32 KiB of shared frame memory, default 16) set `video.sprites` and `video.spriteKib`, and `8bs build --hardware sprites=32,spriteMemory=24` picks them. Sprites are up to 64x64 with 15 colours, move a pixel at a time, restore what they cover and are transparent. A picture past the last slot, or frames past the pool, are cut and named with `8BS2111`. `8bs build --target cx16 --web` draws pictures the same way with 128 slots and a 32 KiB pool; native cx16 is unchanged at 8 VERA sprites.
+
+### Patch Changes
+
+- c4a7477: Every .8bs and .8bx source in the packages is converted to the new Rust-style syntax by `8bs migrate`, and each `8bitscript.config.8bs` is renamed to `8bitscript.config.ts`. The c64 character ROM generator now writes the new const array form.
+- 3077a55: The 4bpp sprite packing (legal sizes, the 12-bit palette and the linear frames) the cx16 and web media lowerings share now lives once in `@8bitscript/graphics-tools/sprite-pack`. The cx16 output is byte for byte unchanged.
+- 302c8d2: Every hardware catalog now declares video.spriteKib, the KiB of the shared pool sprite pictures are drawn from (32 on the Commander X16, 0 where there is none), and the system package exposes it as Video::SPRITE_KIB. Nothing reads it yet.
+- Updated dependencies [8283c8a]
+- Updated dependencies [3077a55]
+  - @8bitscript/graphics-tools@0.27.0
+
 ## 0.26.0
 
 ### Minor Changes
