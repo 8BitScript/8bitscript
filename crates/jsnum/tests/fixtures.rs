@@ -222,6 +222,41 @@ fn parse_int_rows() {
     }
 }
 
+/// Values from Node: `Number.parseInt(digits, radix)`.
+#[test]
+fn parse_int_long_and_partial_inputs() {
+    let rows: [(&str, u32, &str); 9] = [
+        (
+            "1234567890123456789012345678901234567890",
+            10,
+            "1.2345678901234568e+39",
+        ),
+        (
+            "1234567890abcdef1234567890abcdef12345678",
+            16,
+            "1.0392900530792776e+47",
+        ),
+        (
+            "zz9876543210abcdefghijklmnopqrstuvwxyz12",
+            36,
+            "1.7858737402263953e+62",
+        ),
+        (
+            "7777777777777777777777777777777777777777",
+            8,
+            "1.329227995784916e+36",
+        ),
+        ("1234567890123456789012345678901234567890", 8, "342391"),
+        ("-12abc", 10, "-12"),
+        ("+ff", 16, "255"),
+        ("12z", 10, "12"),
+        ("z", 10, "NaN"),
+    ];
+    for (d, r, want) in rows {
+        assert_eq!(number_to_string(jsnum::parse_int(d, r)), want, "{d} {r}");
+    }
+}
+
 #[test]
 fn math_round_rows() {
     for row in rows("round") {

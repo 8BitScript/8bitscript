@@ -43,23 +43,35 @@ pub fn hex_upper(v: i64, width: usize) -> String {
     format!("{body:0>width$}")
 }
 
-/// `Number.parseInt(digits, radix)` on digits a regex already checked
-/// (radix 2, 10 or 16), correctly rounded.
+/// `Number.parseInt(text, radix)` for a radix from 2 to 36: an optional sign,
+/// then the longest prefix of digits valid in `radix`; no digit is NaN.
+/// Radix 10 and the power-of-two radixes 2, 8 and 16 are correctly rounded,
+/// as V8 does; other radixes accumulate in `f64`, which is V8's approximation
+/// for long inputs.
 #[must_use]
 pub fn parse_int(digits: &str, radix: u32) -> f64 {
-    if radix == 10 {
-        return digits.parse::<f64>().unwrap_or(f64::NAN);
+    use num_traits::ToPrimitive;
+    let (negative, body) = match digits.strip_prefix('-') {
+        Some(rest) => (true, rest),
+        None => (false, digits.strip_prefix('+').unwrap_or(digits)),
+    };
+    let end = body
+        .find(|c: char| c.to_digit(radix).is_none())
+        .unwrap_or(body.len());
+    let valid = &body[..end];
+    if valid.is_empty() {
+        return f64::NAN;
     }
-    let mut acc: u128 = 0;
-    for c in digits.chars() {
-        let Some(d) = c.to_digit(radix) else {
-            return f64::NAN;
-        };
-        acc = acc
-            .saturating_mul(u128::from(radix))
-            .saturating_add(u128::from(d));
-    }
-    acc as f64
+    let value = match radix {
+        10 => valid.parse::<f64>().unwrap_or(f64::NAN),
+        2 | 8 | 16 => num_bigint::BigUint::parse_bytes(valid.as_bytes(), radix)
+            .and_then(|n| n.to_f64())
+            .unwrap_or(f64::NAN),
+        _ => valid.chars().fold(0.0, |acc, c| {
+            acc * f64::from(radix) + f64::from(c.to_digit(radix).unwrap_or(0))
+        }),
+    };
+    if negative { -value } else { value }
 }
 
 /// JavaScript `Math.round`: halves go toward positive infinity.
