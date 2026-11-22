@@ -37,6 +37,14 @@ const tree = {
   'proj/src/data.bin': 'x',
   'proj/src/geo.8bs': 'x',
   'proj/src/geo.8bx': 'x',
+  'proj/case/mark/main.8bs': 'x',
+  'proj/case/mark/Mark.8bx': 'x',
+  'proj/case/mark/mark.8bg': 'x',
+  'proj/case/twin/main.8bs': 'x',
+  'proj/case/twin/Twin.c64.8bs': 'x',
+  'proj/case/twin/twin.8bx': 'x',
+  'proj/case/geo/main.8bs': 'x',
+  'proj/case/geo/Geo.8bs': 'x',
   'proj/lib/two.8bs': 'x',
   'proj/lib/two.8bx': 'x',
   'proj/src/dir.8bs/keep': 'x',
@@ -213,6 +221,10 @@ for (const options of [{ pathForm: true }, { pathForm: true, machine: 'pet' }, {
   specifier('./geo.8bs', options);
   specifier('@lib/two', { ...options, importAliases: { '@lib': '<root>/proj/lib' } });
 }
+// Names that differ only in case: 8BS2217 on every file system.
+specifier('./mark', { pathForm: true }, '<root>/proj/case/mark/main.8bs');
+specifier('./twin', { pathForm: true, machine: 'c64' }, '<root>/proj/case/twin/main.8bs');
+specifier('./geo', { pathForm: true }, '<root>/proj/case/geo/main.8bs');
 specifier('./x.8bs', { machine: 'pet', tags: ['8032'] });
 specifier('./a.8bs', { tags: ['8032'], profile: '8032', machine: 'pet' });
 // A relative import inside a package carries the package's native sources.

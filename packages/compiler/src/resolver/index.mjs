@@ -285,6 +285,33 @@ function chooseVariant(specifier, path, machine, tags = [], locale) {
   return null;
 }
 
+const asciiLower = (s) => s.replace(/[A-Z]/g, (c) => c.toLowerCase());
+
+/**
+ * The source extensions that name a file beside `target` once case is folded:
+ * on a case-folding file system `./mark` finds `Mark.8bx` as well as
+ * `mark.8bg`, on a case-sensitive one only the second, so the directory is
+ * read and every entry whose ASCII-lowercased name is `target`'s name plus a
+ * dot counts as a stem to try with each extension.
+ */
+function foldedExtensions(target) {
+  const dir = dirname(target);
+  const name = basename(target);
+  const fold = asciiLower(name);
+  let entries;
+  try {
+    entries = readdirSync(dir);
+  } catch {
+    return [];
+  }
+  const stems = new Set();
+  for (const e of entries) if (asciiLower(e).startsWith(`${fold}.`)) stems.add(e.slice(0, name.length));
+  return SOURCE_EXTENSIONS.filter((ext) => [...stems].some((stem) => {
+    const file = join(dir, stem + ext);
+    return existsSync(file) || variantsPresent(file).length > 0;
+  }));
+}
+
 /**
  * The file a relative or alias specifier means. A specifier that carries a
  * source extension is taken as written (string form), and so is every
@@ -301,12 +328,17 @@ function chooseModule(specifier, target, options) {
     const chosen = chooseVariant(specifier, `${target}${ext}`, options.machine, tags, options.locale);
     if (chosen) hits.push({ ext, chosen });
   }
-  if (hits.length < 2) return hits[0]?.chosen ?? null;
-  return {
+  const ambiguous = (exts) => ({
     code: Codes.AMBIGUOUS_IMPORT,
-    message: `'${specifier}' names more than one file (${hits.map((h) => `${basename(target)}${h.ext}`).join(', ')}) — `
+    message: `'${specifier}' names more than one file (${exts.map((ext) => `${basename(target)}${ext}`).join(', ')}) — `
       + 'keep one, or write the extension in a string path to choose',
-  };
+  });
+  if (hits.length < 2) {
+    const folded = foldedExtensions(target);
+    if (folded.length < 2) return hits[0]?.chosen ?? null;
+    return ambiguous(folded);
+  }
+  return ambiguous(hits.map((h) => h.ext));
 }
 
 // The new lexer's `@scope` token kind; the old lexer has no such kind.
