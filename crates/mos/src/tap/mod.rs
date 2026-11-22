@@ -157,13 +157,10 @@ mod tests {
     }
 
     #[test]
-    fn every_tapped_function_has_a_replay_and_the_stubs_skip() {
+    fn every_tapped_function_has_a_replay_and_none_is_a_stub() {
         let mut counters = Counters::default();
-        for name in TAPPED
-            .into_iter()
-            .filter(|n| !matches!(*n, "link" | "lower"))
-        {
-            assert_eq!(
+        for name in TAPPED {
+            assert_ne!(
                 replay(name, &json!({}), &mut counters),
                 Some(Replay::Skip),
                 "{name}"

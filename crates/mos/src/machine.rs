@@ -180,8 +180,8 @@ pub static RASTER_MACHINES: [Machine; 17] = [
 ];
 
 /// The CHRGET hole a machine sheet names with `memory.chrget`, when it falls
-/// inside `budget` (`chrgetZpHoles`). `typeof chrget !==
-/// 'number'` is `Value::is_number`.
+/// inside `budget` (`chrgetZpHoles`). `typeof chrget !== 'number'` is
+/// `Value::is_number`.
 #[must_use]
 pub fn chrget_zp_holes(facts: &IndexMap<String, Value>, budget: &Budget) -> Vec<ZpHole> {
     let Some(chrget) = facts.get("memory.chrget").and_then(Value::as_f64) else {
