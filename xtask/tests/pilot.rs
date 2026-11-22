@@ -146,3 +146,36 @@ fn the_corpus_run_dumps_with_node_and_compares_native_stages_only() {
     assert_eq!(opts.exclude, ["*/web", "*/release/*.wasm"]);
     assert_eq!(opts.divergences, "toml");
 }
+
+#[test]
+fn a_machine_with_no_zero_page_budget_is_refused() {
+    let mut input = fixture();
+    input["machine"] = Value::String("web".to_string());
+    assert_eq!(
+        refusal("nobudget", &input),
+        "the web is not a target this backend builds yet: it has no zero-page budget on the sheet, so there is nowhere to put a program's globals. The native 6502 backend is being brought up one machine at a time — pet, c64, vic20, c128, cx16, mega65, atari8, nes, plus4, oric, apple2, bbc, atari5200, lynx, pce, supervision, atari2600, atari7800 so far\n"
+    );
+}
+
+#[test]
+fn a_sheet_without_a_load_address_is_refused() {
+    let mut input = fixture();
+    input["hardware"]["build"]["defsym"]
+        .as_object_mut()
+        .unwrap()
+        .remove("__load_address");
+    assert_eq!(
+        refusal("noload", &input),
+        "the c64 hardware sheet is missing defsym.__load_address, the address its .prg loads at and the BASIC stub's SYS jumps into\n"
+    );
+}
+
+#[test]
+fn a_cartridge_start_up_driver_is_refused() {
+    let mut input = fixture();
+    input["hardware"]["build"]["startup"] = Value::String("cart-std".to_string());
+    assert_eq!(
+        refusal("cart", &input),
+        "this c64 build asks for the 'cart-std' cartridge start-up driver, and the native 6502 backend has none: it builds the one shape the machine's disk media has, loaded at $801. Pick a media value that loads rather than one that plugs in\n"
+    );
+}

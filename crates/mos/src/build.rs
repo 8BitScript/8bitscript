@@ -156,6 +156,9 @@ fn label_directive(name: &str) -> Directive {
     }
 }
 
+/// `Object.keys(ZP_BUDGETS).join(', ')`, in the JS key order.
+const ZP_BUDGET_MACHINES: &str = "pet, c64, vic20, c128, cx16, mega65, atari8, nes, plus4, oric, apple2, bbc, atari5200, lynx, pce, supervision, atari2600, atari7800";
+
 /// One lowered function (`loweredFunctions` entries).
 struct LoweredFunction {
     name: String,
@@ -188,22 +191,38 @@ fn read_native(paths: &[String], roots: &oracle::Roots) -> Result<Vec<NativeSour
 ///
 /// # Errors
 /// The JS `error` text of the first refusal.
-///
-/// # Panics
-/// When `input` names a machine with no zero-page budget or a hardware sheet with no
-/// `defsym.__load_address`: the backend-input producer owns those refusals.
 #[allow(clippy::too_many_lines)]
 pub fn build(input: &BackendInput, roots: &oracle::Roots) -> Result<BuildOutput, BuildError> {
     let mut c = Counters::default();
-    let machine: Machine = serde_json::from_value(serde_json::Value::String(input.machine.clone()))
-        .expect("the backend input names a known machine");
+    let budgets =
+        serde_json::from_value::<Machine>(serde_json::Value::String(input.machine.clone()))
+            .ok()
+            .and_then(|m| zp_budgets(m).map(|b| (m, b)));
+    let Some((machine, (polite, owned))) = budgets else {
+        return refuse(format!(
+            "the {} is not a target this backend builds yet: it has no zero-page budget on the sheet, so there is nowhere to put a program's globals. The native 6502 backend is being brought up one machine at a time — {} so far",
+            input.machine, ZP_BUDGET_MACHINES
+        ));
+    };
     let machine_name = machine.as_str();
     let defsym = &input.hardware.build.defsym;
-    let (polite, owned) =
-        zp_budgets(machine).expect("the backend input names a machine with a zero-page budget");
-    let load_address = *defsym
-        .get("__load_address")
-        .expect("the backend input's hardware sheet has defsym.__load_address");
+    let Some(&load_address) = defsym.get("__load_address") else {
+        return refuse(format!(
+            "the {machine_name} hardware sheet is missing defsym.__load_address, the address its .prg loads at and the BASIC stub's SYS jumps into"
+        ));
+    };
+    if let Some(driver) = input
+        .hardware
+        .build
+        .startup
+        .as_deref()
+        .filter(|s| s.starts_with("cart-"))
+    {
+        return refuse(format!(
+            "this {machine_name} build asks for the '{driver}' cartridge start-up driver, and the native 6502 backend has none: it builds the one shape the machine's disk media has, loaded at ${}. Pick a media value that loads rather than one that plugs in",
+            hex_upper(load_address, 0)
+        ));
+    }
     if !input.functions.iter().any(|f| f.name == input.entry) {
         return refuse(format!(
             "the linked entry point '{}' names no function in ir.functions",

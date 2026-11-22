@@ -84,12 +84,7 @@ pub fn check_fit(load: i64, body_len: usize, code_start: i64) -> Result<usize, S
         ));
     }
     // JS `Uint8Array.set` throws a RangeError for a negative offset.
-    usize::try_from(offset).map_err(|_| {
-        format!(
-            "offset is out of bounds (code starts at ${})",
-            hex_upper(code_start, 0)
-        )
-    })
+    usize::try_from(offset).map_err(|_| "offset is out of bounds".to_string())
 }
 
 /// iNES header, 32K of PRG-ROM with the code at $8000 and the vectors on top, 8K of CHR-ROM.
