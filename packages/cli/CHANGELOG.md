@@ -1,5 +1,75 @@
 # @8bitscript/cli
 
+## 0.27.0
+
+### Minor Changes
+
+- c4a7477: `.8bs` uses the new syntax; run `8bs migrate`
+
+### Patch Changes
+
+- 72d20b4: cx16 screenshots draw the mouse arrow again: `8bs run cx16 --screenshot` starts x16emu with `-capture`, so the KERNAL pointer is on the picture. The interactive launch is unchanged.
+- c4a7477: The compiler, linker, catalog and editor features now read the new Rust-style syntax. The old lexer and parser live only inside `8bs migrate`. Messages say `fn`, `mod`, `pub`, `let mut` and `::`; `use` paths resolve by extension in the language server, and the scope helpers moved to `@8bitscript/compiler/scopes`. The config file is `8bitscript.config.ts` (or the older `8bs.config.ts`); the `.8bs` config name is gone: a project with only `8bitscript.config.8bs` gets a clear error naming the rename, and `8bs migrate` renames it.
+- c4a7477: A project config loads from a read-only directory: when the temporary copy cannot be written, the `.ts` config is imported directly, and the error names both failures if that fails too. The old-name config warning now clears once the file is renamed, so a later regression warns again.
+- c4a7477: Every .8bs and .8bx source in the packages is converted to the new Rust-style syntax by `8bs migrate`, and each `8bitscript.config.8bs` is renamed to `8bitscript.config.ts`. The c64 character ROM generator now writes the new const array form.
+- c4a7477: `8bs migrate` help names both the 8bs and 8bx fence tags it converts.
+- c4a7477: `8bs migrate --fences` now converts ```8bx fences as well as ```8bs ones.
+- c4a7477: `8bs migrate` keeps the string path (`use "./menubar.8bs"::menubar;`) for an import whose module stem exists under more than one source extension, because `use self::menubar::...` is ambiguous there (8BS2217).
+- 86615a0: A web build whose sprite region, or whose own data, would run past 64 KiB now stops with a message saying how many bytes it needs, instead of producing a page that reads the wrong memory.
+- 3077a55: A `.8bg` picture on the web is now a 4bpp pixel sprite the page draws, in its own colours, instead of one 8x8 glyph in a single ink. The build sizes it: the new web options `sprites` (0, 8, 16, 32, 64 or 128 slots, default 16) and `spriteMemory` (0 to 32 KiB of shared frame memory, default 16) set `video.sprites` and `video.spriteKib`, and `8bs build --hardware sprites=32,spriteMemory=24` picks them. Sprites are up to 64x64 with 15 colours, move a pixel at a time, restore what they cover and are transparent. A picture past the last slot, or frames past the pool, are cut and named with `8BS2111`. `8bs build --target cx16 --web` draws pictures the same way with 128 slots and a 32 KiB pool; native cx16 is unchanged at 8 VERA sprites.
+- da33a12: The web page can draw pixel sprites: an optional sprite region in the agreement page, sized by the build (a slot table, per-slot palettes and a shared pool of 4bpp frames), and a compositor in the screenshot renderer and the generated loader. No host turns it on yet, so output is unchanged.
+- Updated dependencies [4a23973]
+- Updated dependencies [c4a7477]
+- Updated dependencies [c4a7477]
+- Updated dependencies [c4a7477]
+- Updated dependencies [c4a7477]
+- Updated dependencies [c4a7477]
+- Updated dependencies [8d8bfeb]
+- Updated dependencies [e335bc8]
+- Updated dependencies [8283c8a]
+- Updated dependencies [c4a7477]
+- Updated dependencies [db35303]
+- Updated dependencies [3077a55]
+- Updated dependencies [302c8d2]
+- Updated dependencies [86615a0]
+- Updated dependencies [3077a55]
+  - @8bitscript/compiler@0.27.0
+  - @8bitscript/examples@0.27.0
+  - @8bitscript/language-server@0.27.0
+  - @8bitscript/apple2@0.26.1
+  - @8bitscript/atari2600@0.26.1
+  - @8bitscript/atari5200@0.26.1
+  - @8bitscript/atari7800@0.26.1
+  - @8bitscript/atari8@0.27.0
+  - @8bitscript/bbc@0.26.1
+  - @8bitscript/c128@0.27.0
+  - @8bitscript/c64@0.27.0
+  - @8bitscript/channelf@0.26.1
+  - @8bitscript/coco@0.26.1
+  - @8bitscript/coleco@0.26.1
+  - @8bitscript/cpc@0.26.1
+  - @8bitscript/cx16@0.27.0
+  - @8bitscript/gamegear@0.26.1
+  - @8bitscript/gb@0.26.1
+  - @8bitscript/gbc@0.26.1
+  - @8bitscript/lynx@0.26.1
+  - @8bitscript/mega65@0.27.0
+  - @8bitscript/msx@0.26.1
+  - @8bitscript/nes@0.27.0
+  - @8bitscript/odyssey2@0.26.1
+  - @8bitscript/oric@0.26.1
+  - @8bitscript/pce@0.26.1
+  - @8bitscript/pet@0.27.0
+  - @8bitscript/plus4@0.26.1
+  - @8bitscript/sg1000@0.26.1
+  - @8bitscript/sms@0.26.1
+  - @8bitscript/spectrum@0.26.1
+  - @8bitscript/studio@0.27.0
+  - @8bitscript/supervision@0.26.1
+  - @8bitscript/vectrex@0.26.1
+  - @8bitscript/vic20@0.27.0
+  - @8bitscript/web@0.27.0
+
 ## 0.26.0
 
 ### Minor Changes

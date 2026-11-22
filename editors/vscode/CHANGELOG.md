@@ -1,5 +1,13 @@
 # 8bitscript-lang
 
+## 0.27.0
+
+### Patch Changes
+
+- c4a7477: The compiler, linker, catalog and editor features now read the new Rust-style syntax. The old lexer and parser live only inside `8bs migrate`. Messages say `fn`, `mod`, `pub`, `let mut` and `::`; `use` paths resolve by extension in the language server, and the scope helpers moved to `@8bitscript/compiler/scopes`. The config file is `8bitscript.config.ts` (or the older `8bs.config.ts`); the `.8bs` config name is gone: a project with only `8bitscript.config.8bs` gets a clear error naming the rename, and `8bs migrate` renames it.
+- c4a7477: A project config loads from a read-only directory: when the temporary copy cannot be written, the `.ts` config is imported directly, and the error names both failures if that fails too. The old-name config warning now clears once the file is renamed, so a later regression warns again.
+- c4a7477: Highlight the new Rust-style `.8bs` syntax: `fn`, `mut`, `use`, `pub`, `mod`, `match`, `loop`, `in`, `r#name`, `#[attributes]`, `::`, `->`, `=>`, `..`, `..=`, `assert!`-style macros, and 6502 mnemonics inside `asm6502 { }`. Snippets and the `#[` bracket follow the new syntax.
+
 ## 0.26.0
 
 ### Patch Changes

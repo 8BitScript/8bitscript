@@ -1,5 +1,28 @@
 # @8bitscript/compiler
 
+## 0.27.0
+
+### Minor Changes
+
+- 8d8bfeb: Add `graphics::hit(a, b)` and `graphics::hitAny(a)`, a sprite hit check that gives the same answer on every machine. Each sprite has one box, worked out when the picture is compiled from the pixels that are not clear, and two sprites hit when their boxes overlap at the positions the last `place` gave them.
+- c4a7477: `.8bs` uses the new syntax; run `8bs migrate`
+
+### Patch Changes
+
+- 4a23973: A path-form import that names two files differing only in case now reports 8BS2217 on every file system
+- c4a7477: Export `variantsPresent` from the package root so `8bs migrate` can apply the resolver's twin rule.
+- c4a7477: The compiler, linker, catalog and editor features now read the new Rust-style syntax. The old lexer and parser live only inside `8bs migrate`. Messages say `fn`, `mod`, `pub`, `let mut` and `::`; `use` paths resolve by extension in the language server, and the scope helpers moved to `@8bitscript/compiler/scopes`. The config file is `8bitscript.config.ts` (or the older `8bs.config.ts`); the `.8bs` config name is gone: a project with only `8bitscript.config.8bs` gets a clear error naming the rename, and `8bs migrate` renames it.
+- c4a7477: Every .8bs and .8bx source in the packages is converted to the new Rust-style syntax by `8bs migrate`, and each `8bitscript.config.8bs` is renamed to `8bitscript.config.ts`. The c64 character ROM generator now writes the new const array form.
+- e335bc8: `assert!`, `assert_eq!`, `assert_ne!` and `panic!` parse as statements inside test functions, `#[cfg(test)]` modules and `*.test.8bs` files; outside them they are still reported as before
+- 8283c8a: Three media inputs that made the toolchain loop forever now finish. `sliceFrames` with a frame width or height of 0 returns no frames, a WAV with zero channels throws "WAV has zero channels", and an `order { 5 }` list in a song stops at the first token that is not a name and reports it.
+- db35303: `#[test]` functions and `#[cfg(test)]` modules parse and are left out of builds
+- 302c8d2: Every hardware catalog now declares video.spriteKib, the KiB of the shared pool sprite pictures are drawn from (32 on the Commander X16, 0 where there is none), and the system package exposes it as Video::SPRITE_KIB. Nothing reads it yet.
+- 86615a0: A web build whose sprite region, or whose own data, would run past 64 KiB now stops with a message saying how many bytes it needs, instead of producing a page that reads the wrong memory.
+- Updated dependencies [8283c8a]
+- Updated dependencies [3077a55]
+  - @8bitscript/graphics-tools@0.27.0
+  - @8bitscript/audio-tools@0.26.1
+
 ## 0.26.0
 
 ### Patch Changes

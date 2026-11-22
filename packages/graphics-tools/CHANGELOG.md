@@ -1,5 +1,15 @@
 # @8bitscript/graphics-tools
 
+## 0.27.0
+
+### Minor Changes
+
+- 3077a55: The 4bpp sprite packing (legal sizes, the 12-bit palette and the linear frames) the cx16 and web media lowerings share now lives once in `@8bitscript/graphics-tools/sprite-pack`. The cx16 output is byte for byte unchanged.
+
+### Patch Changes
+
+- 8283c8a: Three media inputs that made the toolchain loop forever now finish. `sliceFrames` with a frame width or height of 0 returns no frames, a WAV with zero channels throws "WAV has zero channels", and an `order { 5 }` list in a song stops at the first token that is not a name and reports it.
+
 ## 0.23.0
 
 ### Minor Changes

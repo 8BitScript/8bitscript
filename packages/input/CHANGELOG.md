@@ -1,5 +1,46 @@
 # @8bitscript/input
 
+## 0.27.0
+
+### Patch Changes
+
+- Updated dependencies [c4a7477]
+- Updated dependencies [3077a55]
+- Updated dependencies [302c8d2]
+- Updated dependencies [3077a55]
+  - @8bitscript/apple2@0.26.1
+  - @8bitscript/atari2600@0.26.1
+  - @8bitscript/atari5200@0.26.1
+  - @8bitscript/atari7800@0.26.1
+  - @8bitscript/atari8@0.27.0
+  - @8bitscript/bbc@0.26.1
+  - @8bitscript/c128@0.27.0
+  - @8bitscript/c64@0.27.0
+  - @8bitscript/channelf@0.26.1
+  - @8bitscript/coco@0.26.1
+  - @8bitscript/coleco@0.26.1
+  - @8bitscript/cpc@0.26.1
+  - @8bitscript/cx16@0.27.0
+  - @8bitscript/gamegear@0.26.1
+  - @8bitscript/gb@0.26.1
+  - @8bitscript/gbc@0.26.1
+  - @8bitscript/lynx@0.26.1
+  - @8bitscript/mega65@0.27.0
+  - @8bitscript/msx@0.26.1
+  - @8bitscript/nes@0.27.0
+  - @8bitscript/odyssey2@0.26.1
+  - @8bitscript/oric@0.26.1
+  - @8bitscript/pce@0.26.1
+  - @8bitscript/pet@0.27.0
+  - @8bitscript/plus4@0.26.1
+  - @8bitscript/sg1000@0.26.1
+  - @8bitscript/sms@0.26.1
+  - @8bitscript/spectrum@0.26.1
+  - @8bitscript/supervision@0.26.1
+  - @8bitscript/vectrex@0.26.1
+  - @8bitscript/vic20@0.27.0
+  - @8bitscript/web@0.27.0
+
 ## 0.26.0
 
 ### Patch Changes

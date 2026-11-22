@@ -1,5 +1,13 @@
 # @8bitscript/i18n
 
+## 0.27.0
+
+### Patch Changes
+
+- c4a7477: Package READMEs describe and show the new syntax.
+- c4a7477: Every .8bs and .8bx source in the packages is converted to the new Rust-style syntax by `8bs migrate`, and each `8bitscript.config.8bs` is renamed to `8bitscript.config.ts`. The c64 character ROM generator now writes the new const array form.
+- @8bitscript/text@0.27.0
+
 ## 0.26.0
 
 ### Patch Changes
