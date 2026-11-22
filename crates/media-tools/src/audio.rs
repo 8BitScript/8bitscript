@@ -2,6 +2,7 @@
 
 use std::ffi::OsStr;
 use std::fmt;
+#[cfg(not(target_arch = "wasm32"))]
 use std::path::PathBuf;
 
 /// Result of `decodeWav` / `decodeFlac`: mono float samples.
@@ -43,6 +44,7 @@ pub struct Dpcm {
 }
 
 /// `resolveFfmpeg`: the first `ffmpeg` that exists in a PATH directory.
+#[cfg(not(target_arch = "wasm32"))]
 fn resolve_ffmpeg(search: Option<&OsStr>) -> Option<PathBuf> {
     let name = if cfg!(windows) {
         "ffmpeg.exe"
@@ -177,6 +179,7 @@ pub fn ffmpeg_available() -> bool {
 pub fn ffmpeg_available_in(search: Option<&OsStr>) -> bool {
     #[cfg(target_arch = "wasm32")]
     {
+        let _ = search;
         false
     }
     #[cfg(not(target_arch = "wasm32"))]
@@ -233,6 +236,7 @@ fn read_capped(mut r: impl std::io::Read) -> (Vec<u8>, bool) {
     let mut chunk = [0u8; 64 * 1024];
     loop {
         match r.read(&mut chunk) {
+            Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
             Ok(0) | Err(_) => return (buf, false),
             Ok(n) => {
                 buf.extend_from_slice(&chunk[..n]);
