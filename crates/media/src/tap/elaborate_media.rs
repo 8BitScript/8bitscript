@@ -7,7 +7,6 @@
 //! `EIGHTBS_FRONT_TAP_ROOTS` is set.
 
 use front_replay::{Replay, compare};
-use indexmap::IndexMap;
 use serde_json::{Map, Value, json};
 
 use super::roots::{missing_root, roots, tokenize, untokenize};
@@ -56,7 +55,7 @@ pub fn options_of(v: &Value) -> ElaborateOptions {
         .get("facts")
         .and_then(Value::as_object)
         .map(|o| o.iter().map(|(k, x)| (k.clone(), x.clone())).collect())
-        .unwrap_or_else(IndexMap::new);
+        .unwrap_or_default();
     ElaborateOptions {
         machine: v.get("machine").and_then(Value::as_str).map(str::to_string),
         tags: v.get("tags").and_then(Value::as_array).map(|a| {
