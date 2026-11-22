@@ -172,7 +172,9 @@ fn package_media(
             .filter(|tag| *tag != "web")
             .cloned()
             .collect();
-        return load_machine_media(Some(wasm), from_file, checkout, Some(&kept));
+        return Ok(
+            load_machine_media(Some(wasm), from_file, checkout, Some(&kept)).unwrap_or(None),
+        );
     }
     let Some(rel) = config
         .and_then(|c| c.get("media"))

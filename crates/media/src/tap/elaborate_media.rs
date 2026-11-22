@@ -9,11 +9,11 @@
 use front_replay::{Replay, compare};
 use serde_json::{Map, Value, json};
 
-use super::roots::{missing_root, roots, tokenize, untokenize};
 use crate::analyze_media;
 use crate::elaborate::{ElaborateOptions, elaborate_media};
 use crate::machine::{Facts, MediaSlots};
 use diagnostics::Diagnostic;
+use resolver::tap::roots::{missing_root, roots, tokenize, untokenize};
 
 fn count(v: &Value) -> u32 {
     u32::try_from(v.as_u64().unwrap_or(0)).unwrap_or(u32::MAX)

@@ -7,7 +7,7 @@
 use serde_json::Value;
 
 /// `(token, root)` pairs, project first (it may live inside the toolchain).
-pub(super) fn roots() -> Vec<(&'static str, String)> {
+pub fn roots() -> Vec<(&'static str, String)> {
     let Ok(text) = std::env::var("EIGHTBS_FRONT_TAP_ROOTS") else {
         return Vec::new();
     };
@@ -24,7 +24,7 @@ pub(super) fn roots() -> Vec<(&'static str, String)> {
 }
 
 /// Whether the record names a token whose root this run does not have.
-pub(super) fn missing_root(record: &Value, roots: &[(&str, String)]) -> bool {
+pub fn missing_root(record: &Value, roots: &[(&str, String)]) -> bool {
     let text = record.to_string();
     ["<project>", "<toolchain>"]
         .iter()
@@ -45,7 +45,7 @@ fn map_strings(value: &Value, f: &dyn Fn(&str) -> String) -> Value {
 }
 
 /// `value` with each token replaced by its root.
-pub(super) fn untokenize(value: &Value, roots: &[(&str, String)]) -> Value {
+pub fn untokenize(value: &Value, roots: &[(&str, String)]) -> Value {
     map_strings(value, &|s| {
         roots.iter().fold(s.to_string(), |text, (token, root)| {
             text.replace(token, root)
@@ -72,7 +72,7 @@ fn replace_root(text: &str, root: &str, token: &str) -> String {
 }
 
 /// `value` with each root replaced by its token.
-pub(super) fn tokenize(value: &Value, roots: &[(&str, String)]) -> Value {
+pub fn tokenize(value: &Value, roots: &[(&str, String)]) -> Value {
     map_strings(value, &|s| {
         roots.iter().fold(s.to_string(), |text, (token, root)| {
             replace_root(&text, root, token)
