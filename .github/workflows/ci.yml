@@ -48,11 +48,23 @@ jobs:
             cp -a "$GITHUB_WORKSPACE" "$RUNNER_TEMP/copy"
             cd "$RUNNER_TEMP/copy"
           fi
-          node scripts/oracle/corpus.mjs --dump --out "$RUNNER_TEMP/dump"
+          tap=()
+          if [ "${{ matrix.where }}" = a ]; then
+            tap=(--front-tap "$RUNNER_TEMP/front-tap")
+          fi
+          node scripts/oracle/corpus.mjs --dump --out "$RUNNER_TEMP/dump" "${tap[@]}"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: oracle-dump-${{ matrix.where }}
           path: ${{ runner.temp }}/dump
+          include-hidden-files: true
+          retention-days: 1
+          compression-level: 1
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: matrix.where == 'a'
+        with:
+          name: front-tap-a
+          path: ${{ runner.temp }}/front-tap
           include-hidden-files: true
           retention-days: 1
           compression-level: 1
@@ -72,6 +84,51 @@ jobs:
           path: ${{ runner.temp }}/dumps
       - name: The two dumps are identical
         run: cargo xtask compare "$RUNNER_TEMP/dumps/oracle-dump-a" "$RUNNER_TEMP/dumps/oracle-dump-b"
+
+  # The Rust front end against the JS oracle: front-dump rebuilds the front
+  # end's stage dumps from dump a and its front tap, and compare checks them
+  # against dump a. Any ERROR line fails the job. The log carries the summary
+  # and the first ERROR lines; the full report is in compare.txt.
+  rust-compare:
+    name: rust-compare
+    needs: oracle-dump
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@1.100.0
+      - uses: Swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6 # v2.7.8
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: oracle-dump-a
+          path: ${{ runner.temp }}/dump-a
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: front-tap-a
+          path: ${{ runner.temp }}/front-tap
+      - name: Clone the pinned games
+        run: |
+          mkdir "$RUNNER_TEMP/games"
+          jq -r '.games[] | [.name, .repo, .sha] | @tsv' oracle/corpus.json | while IFS=$'\t' read -r name repo sha; do
+            git init -q "$RUNNER_TEMP/games/$name"
+            git -C "$RUNNER_TEMP/games/$name" fetch -q --depth 1 "https://github.com/$repo.git" "$sha"
+            git -C "$RUNNER_TEMP/games/$name" checkout -q --detach FETCH_HEAD
+          done
+      - name: Dump the Rust front end
+        run: |
+          games=()
+          for dir in "$RUNNER_TEMP"/games/*; do
+            games+=(--game "$(basename "$dir")=$dir")
+          done
+          cargo xtask front-dump "$RUNNER_TEMP/rust" --toolchain "$GITHUB_WORKSPACE" "${games[@]}" --builds "$RUNNER_TEMP/front-tap" --release-of "$RUNNER_TEMP/dump-a" 2>&1 | tail -n 40
+          exit "${PIPESTATUS[0]}"
+      - name: Compare with the JS dump
+        run: |
+          status=0
+          cargo xtask compare "$RUNNER_TEMP/dump-a" "$RUNNER_TEMP/rust" --stages tokens,ast,module-ir,diagnostics --divergences oracle/divergences.toml > "$RUNNER_TEMP/compare.txt" || status=$?
+          grep -m 40 ERROR "$RUNNER_TEMP/compare.txt" || true
+          tail -n 1 "$RUNNER_TEMP/compare.txt"
+          exit "$status"
 
   # Fails the pull request when packages/ or editors/ changed and no
   # .changeset/*.md came with them. The version bot only opens a release

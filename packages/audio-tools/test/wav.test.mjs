@@ -65,3 +65,29 @@ test('decodeFlac reports missing ffmpeg as FLAC_NEEDS_FFMPEG, or decodes when pr
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+function wavBytes({ format = 1, channels, bits, data }) {
+  const fmt = Buffer.alloc(16);
+  fmt.writeUInt16LE(format, 0);
+  fmt.writeUInt16LE(channels, 2);
+  fmt.writeUInt32LE(8000, 4);
+  fmt.writeUInt32LE(8000, 8);
+  fmt.writeUInt16LE(1, 12);
+  fmt.writeUInt16LE(bits, 14);
+  const chunk = (id, body) => {
+    const head = Buffer.alloc(8);
+    head.write(id, 0, 'latin1');
+    head.writeUInt32LE(body.length, 4);
+    return Buffer.concat([head, body]);
+  };
+  const body = Buffer.concat([Buffer.from('WAVE'), chunk('fmt ', fmt), chunk('data', Buffer.from(data))]);
+  return Buffer.concat([Buffer.from('RIFF'), chunk('', body).subarray(4)]);
+}
+
+test('decodeWav throws for a WAV with zero channels instead of looping', () => {
+  assert.throws(() => decodeWav(wavBytes({ channels: 0, bits: 8, data: [1, 2, 3] })), /WAV has zero channels/);
+  assert.throws(() => decodeWav(wavBytes({ channels: 0, bits: 16, data: [1, 2] })), /WAV has zero channels/);
+  assert.throws(() => decodeWav(wavBytes({ format: 3, channels: 0, bits: 32, data: [0, 0, 0, 0] })), /WAV has zero channels/);
+  // a format that reads no samples keeps its own message
+  assert.throws(() => decodeWav(wavBytes({ channels: 0, bits: 24, data: [1, 2, 3] })), /24-bit/);
+});

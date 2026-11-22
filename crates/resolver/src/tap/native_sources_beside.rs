@@ -22,8 +22,8 @@ pub fn replay(record: &Value) -> Replay {
     else {
         return Replay::Skip;
     };
-    // A file that is not a string makes `dirname` throw: input no caller produces (R7.8), which
-    // Rust's `&str` cannot hold.
+    // R7.8 (oracle/divergences.toml): a file that is not a string makes `dirname` throw; no caller
+    // produces it, and Rust's `&str` cannot hold it.
     let Some(file) = file.as_str() else {
         return Replay::Skip;
     };
