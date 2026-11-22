@@ -1,0 +1,18 @@
+[
+  {
+    "code": "8BS2101",
+    "file": "<project>/sprite.8bg",
+    "length": 1,
+    "message": "expected a name",
+    "severity": "error",
+    "start": 7
+  },
+  {
+    "code": "8BS2101",
+    "file": "<project>/sprite.8bg",
+    "length": 0,
+    "message": "expected '}'",
+    "severity": "error",
+    "start": 9
+  }
+]

@@ -1,0 +1,8 @@
+use self::Window::Window;
+use self::Nope::Nope;
+
+pub fn main() {
+    let t: uint = #frames(1.001, seconds);
+    let s: uint = 1.5;
+    let z: uint = ;
+}

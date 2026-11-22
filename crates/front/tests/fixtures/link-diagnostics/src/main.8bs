@@ -1,0 +1,4 @@
+use "./thing.txt";
+
+pub fn main() {
+}

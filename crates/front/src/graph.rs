@@ -22,7 +22,7 @@ use crate::module::{
 
 /// `resolved.path` of a resolution that is not an error: `Some(None)` is a target-specific
 /// answer (`path === null`).
-fn path_of(resolution: &Resolution) -> Option<Option<&str>> {
+pub(crate) fn path_of(resolution: &Resolution) -> Option<Option<&str>> {
     match resolution {
         Resolution::Resolved(r) => Some(r.path.as_deref()),
         Resolution::Catalog(CatalogResolution::Found { path, .. }) => Some(Some(path)),
@@ -223,7 +223,7 @@ pub fn load_graph(
             let Some(resolved) = resolved else {
                 diagnostics.push(diagnostic(
                     NOT_COMPILABLE,
-                    format!("import specifier '{}' is not linkable yet: only './file.8bs', './file.8bx', './file.8bg' or './file.8ba' paths, project import aliases ('@lib/…' from 8bitscript.config.8bs), bare package names, and package subpaths ('@scope/name/thing') are specified", imp.source),
+                    format!("import specifier '{}' is not linkable yet: only './file.8bs', './file.8bx', './file.8bg' or './file.8ba' paths, project import aliases ('@lib/…' from 8bitscript.config.ts), bare package names, and package subpaths ('@scope/name/thing') are specified", imp.source),
                     &file, start, length, Severity::Error,
                 ));
                 continue;

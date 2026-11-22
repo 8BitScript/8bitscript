@@ -58,11 +58,11 @@ impl Stage {
 pub type DumpFn<'a> = dyn FnMut(Stage, &str, Value) + 'a;
 
 /// The options a link hands to the front end (`link()`'s `options`, as `loadGraph` reads them).
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct LinkOptions {
     /// `machine`, `tags`, `locale`, `pathForm`, `checkout`, `importAliases` and `i18n`.
     pub spec: SpecifierOptions,
-    /// The project's logical frame rate.
+    /// The project's logical frame rate (JS leaves it unset, and the fold uses 60).
     pub frame_rate: f64,
     /// The machine's hardware fact sheet.
     pub facts: Option<IndexMap<String, Value>>,
@@ -70,6 +70,19 @@ pub struct LinkOptions {
     pub defines: Option<IndexMap<String, Value>>,
     /// `bx?.strict !== false`.
     pub bx_strict: bool,
+}
+
+impl Default for LinkOptions {
+    /// The JS defaults: no frame rate (the fold's 60) and `bx?.strict !== false`.
+    fn default() -> Self {
+        LinkOptions {
+            spec: SpecifierOptions::default(),
+            frame_rate: 60.0,
+            facts: None,
+            defines: None,
+            bx_strict: true,
+        }
+    }
 }
 
 impl LinkOptions {
@@ -286,6 +299,17 @@ fn dedupe_key(d: &Diagnostic) -> String {
     format!("{}@{}+{}", d.code, d.start, d.length)
 }
 
+/// Appends the lowering diagnostics the earlier ones did not report. The JS builds `seen` once
+/// and only filters (R5.2), so two lowering diagnostics that share a key are both kept.
+fn merge_lowering(diagnostics: &mut Vec<Diagnostic>, lowered: Vec<Diagnostic>) {
+    let seen: HashSet<String> = diagnostics.iter().map(dedupe_key).collect();
+    for d in lowered {
+        if !seen.contains(&dedupe_key(&d)) {
+            diagnostics.push(d);
+        }
+    }
+}
+
 /// Folds, checks and lowers one source module: the shared tail of `finishModule` and `analyze`
 /// from `checkBx` on. Returns the lowering diagnostics that the earlier ones did not report.
 #[allow(clippy::too_many_arguments)]
@@ -297,6 +321,7 @@ fn front_tail(
     file: &str,
     text: &str,
     link: &LinkOptions,
+    source_kind: SourceKind,
     diagnostics: &mut Vec<Diagnostic>,
     snapshot: &mut Option<Node>,
 ) -> Result<ModuleIr, String> {
@@ -307,7 +332,7 @@ fn front_tail(
         &bounds[index],
         bounds,
         &BxCheckOptions {
-            source_kind: source_kind_of(file).unwrap_or(SourceKind::Bs),
+            source_kind,
             strict: link.bx_strict,
         },
         &[],
@@ -359,12 +384,8 @@ fn front_tail(
     ));
     let lowered = lower::function::lower(ast, file, Some(text));
     // The template layout runs in both check() and lower(); one problem is reported once.
-    let mut seen: HashSet<String> = diagnostics.iter().map(dedupe_key).collect();
-    for d in lowered.diagnostics {
-        if seen.insert(dedupe_key(&d)) {
-            diagnostics.push(d);
-        }
-    }
+    // `seen` is built once: duplicates among the lowering diagnostics themselves are kept.
+    merge_lowering(diagnostics, lowered.diagnostics);
     Ok(lowered.ir)
 }
 
@@ -429,6 +450,7 @@ pub fn finish_module(
             &file,
             &text,
             &options.link,
+            source_kind_of(&file).unwrap_or(SourceKind::Bs),
             diagnostics,
             &mut snapshot,
         )
@@ -448,6 +470,7 @@ pub fn finish_module(
 ///
 /// # Errors
 /// As [`finish_module`].
+#[allow(clippy::too_many_arguments)]
 pub fn analyze_tail(
     ast: &mut Node,
     trees: &[Option<&Node>],
@@ -455,6 +478,7 @@ pub fn analyze_tail(
     file: &str,
     text: &str,
     link: &LinkOptions,
+    source_kind: SourceKind,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Result<(), String> {
     let mut snapshot = None;
@@ -466,8 +490,45 @@ pub fn analyze_tail(
         file,
         text,
         link,
+        source_kind,
         diagnostics,
         &mut snapshot,
     )
     .map(|_| ())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn found(code: &str, start: u32, message: &str) -> Diagnostic {
+        Diagnostic {
+            code: code.to_string(),
+            message: message.to_string(),
+            file: "a.8bs".to_string(),
+            start,
+            length: 1,
+            severity: diagnostics::Severity::Error,
+        }
+    }
+
+    #[test]
+    fn lowering_diagnostics_sharing_a_key_are_both_kept() {
+        let mut all = vec![found("8BS1001", 0, "earlier")];
+        let lowered = vec![
+            found("8BS2002", 5, "first"),
+            found("8BS2002", 5, "second"),
+            found("8BS1001", 0, "reported already"),
+        ];
+        merge_lowering(&mut all, lowered);
+        let messages: Vec<&str> = all.iter().map(|d| d.message.as_str()).collect();
+        assert_eq!(messages, ["earlier", "first", "second"]);
+    }
+
+    #[test]
+    fn default_link_options_are_the_js_defaults() {
+        let link = LinkOptions::default();
+        assert_eq!(link.frame_rate, 60.0);
+        assert!(link.bx_strict);
+    }
 }

@@ -8,7 +8,7 @@ use lexer::tokenize;
 use module::{LinkOptions, analyze_tail, resolve_form};
 use parser::parse;
 use resolver::imports::ScanToken;
-use resolver::specifier::{Resolution, resolve_imports};
+use resolver::specifier::resolve_imports;
 use sema::binder::types::ModuleId;
 use sema::binder::{bind, bind_imports};
 use syntax::{Node, SourceKind};
@@ -87,11 +87,15 @@ pub fn analyze(
         for specifier in asked {
             let form = path_forms.contains(&specifier);
             let resolved = resolve_form(&mut options.link.spec, &specifier, file, form)?;
-            let path = match resolved.as_ref() {
-                Some(Resolution::Resolved(r)) => r.path.clone(),
-                _ => None,
+            // `resolved.path` of any answer without a `code`: a catalog's `Found` is read from
+            // disk too, as the JS does.
+            let Some(Some(path)) = resolved
+                .as_ref()
+                .and_then(graph::path_of)
+                .map(|p| p.map(str::to_string))
+            else {
+                continue;
             };
-            let Some(path) = path else { continue };
             let Ok(bytes) = std::fs::read(&path) else {
                 continue;
             };
@@ -134,6 +138,7 @@ pub fn analyze(
         file,
         text,
         &options.link,
+        kind,
         &mut all,
     )?;
     if options.resolve_imports {
