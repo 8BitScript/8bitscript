@@ -370,7 +370,7 @@ pub fn choose_variant(
     None
 }
 
-/// `chooseModule` (`index.mjs:296`): the file a relative or alias specifier means.
+/// `chooseModule` (`index.mjs:323`): the file a relative or alias specifier means.
 #[must_use]
 pub fn choose_module(specifier: &str, target: &str, options: &Options) -> Option<Chosen> {
     let tags = tags_of(options);
@@ -402,7 +402,7 @@ fn ascii_lower(s: &str) -> String {
     s.to_ascii_lowercase()
 }
 
-/// `foldedExtensions` (`index.mjs`): the source extensions that name a file beside `target` once
+/// `foldedExtensions` (`index.mjs:297`): the source extensions that name a file beside `target` once
 /// case is folded (a read of the directory, so it sees `Mark.8bx` for `./mark` on any file system).
 fn folded_extensions(target: &str) -> Vec<&'static str> {
     let dir = dirname(target);
