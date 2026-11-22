@@ -479,6 +479,7 @@ fn entries(n: &Node) -> Vec<(&'static str, &Node)> {
             many(&mut out, "typeArguments", type_arguments)
         }
         NodeKind::Decorator { args, .. } => many(&mut out, "args", args),
+        NodeKind::TestDecl { body, .. } => out.push(("body", body)),
         NodeKind::BreakStatement {}
         | NodeKind::ContinueStatement {}
         | NodeKind::BxText { .. }

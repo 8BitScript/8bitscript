@@ -25,7 +25,7 @@ use media::MediaTokenKind;
 use media::elaborate::{ElaborateOptions, elaborate_media};
 use media::lexer::MediaToken;
 use media::machine::MediaSlots;
-use parser::parse;
+use parser::{parse, strip_tests};
 use resolver::imports::{ScanToken, with_path_form};
 use resolver::specifier::{Resolution, SpecifierOptions, resolve_specifier};
 use sema::binder::bind;
@@ -215,7 +215,7 @@ pub fn parse_module(
     if let Some(dump) = dump.as_mut() {
         dump(Stage::Tokens, &canonical(file), to_value(&lexed.tokens));
     }
-    let parsed = parse(
+    let mut parsed = parse(
         &lexed.tokens,
         text,
         file,
@@ -223,6 +223,7 @@ pub fn parse_module(
             source_kind: Some(source_kind),
         },
     );
+    strip_tests(&mut parsed.ast);
     // Before bind: bind, fold and the linker mutate nodes in place.
     if let Some(dump) = dump.as_mut() {
         dump(Stage::Ast, &canonical(file), to_value(&parsed.ast));
@@ -530,5 +531,19 @@ mod tests {
         let link = LinkOptions::default();
         assert_eq!(link.frame_rate, 60.0);
         assert!(link.bx_strict);
+    }
+
+    #[test]
+    fn parse_module_leaves_test_declarations_out_of_the_tree() {
+        let mut diagnostics = Vec::new();
+        let text =
+            "fn main() {}\n#[test]\nfn t() {}\n#[cfg(test)]\nmod tests { #[test] fn x() {} }\n";
+        let (module, _) = parse_module("a.8bs", text, &mut diagnostics, None);
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let ast = module.ast.expect("a parsed tree");
+        let tree = serde_json::to_string(&ast).expect("serialize");
+        assert!(!tree.contains("TestDecl"));
+        assert!(!tree.contains("\"tests\""));
+        assert!(tree.contains("\"main\""));
     }
 }

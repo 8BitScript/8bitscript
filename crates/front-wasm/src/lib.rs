@@ -7,7 +7,7 @@
 //! Malformed input is an `{"error": "..."}` reply, never a trap (R6.5).
 
 use lexer::{Options as LexOptions, tokenize};
-use parser::{Options as ParseOptions, parse};
+use parser::{Options as ParseOptions, parse, strip_tests};
 use serde_json::{Value, json};
 use syntax::{SourceKind, differences};
 
@@ -116,7 +116,8 @@ pub fn parse_json(input: &[u8]) -> Vec<u8> {
         let req = request(input)?;
         let text = text_of(&req, "text")?;
         let lexed = lex(&req, text);
-        let parsed = parse(&lexed.tokens, text, &req.file, &parse_options(&req));
+        let mut parsed = parse(&lexed.tokens, text, &req.file, &parse_options(&req));
+        strip_tests(&mut parsed.ast);
         serde_json::to_vec(&ParseReply {
             tokens: &lexed.tokens,
             ast: &parsed.ast,

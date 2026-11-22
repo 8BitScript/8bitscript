@@ -1,5 +1,5 @@
 //! Statements and declarations (`parser/index.mjs:96-243, 436-715`, syntax
-//! spec 6 `Stmt`) with the new-syntax checks E3, E4, E12, E16-E19, E21.
+//! spec 6 `Stmt`) with the new-syntax checks E3, E4, E16-E19, E21.
 
 use syntax::{Node, NodeKind, TokenKind};
 
@@ -238,19 +238,6 @@ impl Parser<'_> {
         }
         let close = self.expect("]");
         let end = close.map_or_else(|| self.prev_end(), |t| tok_end(&t));
-        let is_test = name == "test"
-            || (name == "cfg"
-                && args.len() == 1
-                && args.first().is_some_and(
-                    |a| matches!(&a.kind, NodeKind::Identifier { name, .. } if name == "test"),
-                ));
-        if is_test {
-            self.error_at(
-                "tests come with '8bs test'",
-                open.start,
-                end.saturating_sub(open.start),
-            );
-        }
         Some(Node::new(
             open.start,
             end,
