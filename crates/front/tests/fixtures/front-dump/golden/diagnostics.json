@@ -1,0 +1,42 @@
+[
+  {
+    "code": "8BS1024",
+    "file": "<project>/Window.8bx",
+    "length": 23,
+    "message": "#frames(1.001, seconds) is not exact at this project's frameRate (60) — rounded to 60 frames",
+    "severity": "warning",
+    "start": 266
+  },
+  {
+    "code": "8BS1024",
+    "file": "<project>/Window.8bx",
+    "length": 23,
+    "message": "#frames(1.001, seconds) is not exact at this project's frameRate (60) — rounded to 60 frames",
+    "severity": "warning",
+    "start": 311
+  },
+  {
+    "code": "8BS1009",
+    "file": "<project>/Window.8bx",
+    "length": 3,
+    "message": "a decimal literal ('1.5') is only valid as the first argument to #frames(...), #system(), #fact(...), #locale(...), #package(...), #define(...)",
+    "severity": "error",
+    "start": 354
+  },
+  {
+    "code": "8BS1024",
+    "file": "<project>/Window.8bx",
+    "length": 23,
+    "message": "#frames(1.001, seconds) is not exact at this project's frameRate (60) — rounded to 60 frames",
+    "severity": "warning",
+    "start": 266
+  },
+  {
+    "code": "8BS1024",
+    "file": "<project>/Window.8bx",
+    "length": 23,
+    "message": "#frames(1.001, seconds) is not exact at this project's frameRate (60) — rounded to 60 frames",
+    "severity": "warning",
+    "start": 266
+  }
+]

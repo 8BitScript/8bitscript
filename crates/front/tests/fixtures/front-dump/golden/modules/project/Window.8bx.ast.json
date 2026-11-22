@@ -1,0 +1,163 @@
+{
+  "body": [
+    {
+      "allowsChildren": true,
+      "body": {
+        "body": [
+          {
+            "exported": false,
+            "immutable": true,
+            "initializer": {
+              "args": [
+                {
+                  "denominator": 1000,
+                  "length": 5,
+                  "numerator": 1001,
+                  "raw": "1.001",
+                  "start": 319,
+                  "type": "DecimalLiteral"
+                },
+                {
+                  "length": 7,
+                  "name": "seconds",
+                  "start": 326,
+                  "type": "Identifier"
+                }
+              ],
+              "callee": {
+                "compileTime": true,
+                "length": 7,
+                "name": "frames",
+                "start": 311,
+                "type": "Identifier"
+              },
+              "length": 23,
+              "start": 311,
+              "type": "CallExpression"
+            },
+            "kind": "let",
+            "length": 38,
+            "name": {
+              "length": 1,
+              "name": "a",
+              "start": 301,
+              "type": "Identifier"
+            },
+            "start": 297,
+            "type": "VariableDeclaration",
+            "typeAnnotation": {
+              "length": 4,
+              "name": "uint",
+              "start": 304,
+              "type": "TypeReference",
+              "typeArguments": []
+            }
+          },
+          {
+            "exported": false,
+            "immutable": true,
+            "initializer": {
+              "denominator": 10,
+              "length": 3,
+              "numerator": 15,
+              "raw": "1.5",
+              "start": 354,
+              "type": "DecimalLiteral"
+            },
+            "kind": "let",
+            "length": 18,
+            "name": {
+              "length": 1,
+              "name": "b",
+              "start": 344,
+              "type": "Identifier"
+            },
+            "start": 340,
+            "type": "VariableDeclaration",
+            "typeAnnotation": {
+              "length": 4,
+              "name": "uint",
+              "start": 347,
+              "type": "TypeReference",
+              "typeArguments": []
+            }
+          },
+          {
+            "attributes": [],
+            "children": [],
+            "length": 8,
+            "name": "slot",
+            "selfClosing": true,
+            "start": 363,
+            "type": "BxElement"
+          }
+        ],
+        "length": 83,
+        "start": 291,
+        "type": "BlockStatement"
+      },
+      "exported": true,
+      "length": 143,
+      "name": {
+        "length": 6,
+        "name": "Window",
+        "start": 245,
+        "type": "Identifier"
+      },
+      "params": [
+        {
+          "defaultValue": {
+            "args": [
+              {
+                "denominator": 1000,
+                "length": 5,
+                "numerator": 1001,
+                "raw": "1.001",
+                "start": 274,
+                "type": "DecimalLiteral"
+              },
+              {
+                "length": 7,
+                "name": "seconds",
+                "start": 281,
+                "type": "Identifier"
+              }
+            ],
+            "callee": {
+              "compileTime": true,
+              "length": 7,
+              "name": "frames",
+              "start": 266,
+              "type": "Identifier"
+            },
+            "length": 23,
+            "start": 266,
+            "type": "CallExpression"
+          },
+          "length": 37,
+          "name": {
+            "length": 5,
+            "name": "width",
+            "start": 252,
+            "type": "Identifier"
+          },
+          "optional": true,
+          "start": 252,
+          "type": "Parameter",
+          "typeAnnotation": {
+            "length": 4,
+            "name": "uint",
+            "start": 259,
+            "type": "TypeReference",
+            "typeArguments": []
+          }
+        }
+      ],
+      "start": 231,
+      "type": "ComponentDeclaration"
+    }
+  ],
+  "length": 375,
+  "start": 0,
+  "type": "Program"
+}

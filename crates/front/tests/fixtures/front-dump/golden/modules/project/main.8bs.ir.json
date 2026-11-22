@@ -1,0 +1,36 @@
+{
+  "consts": [],
+  "functions": [
+    {
+      "body": [],
+      "component": false,
+      "exported": true,
+      "length": 4,
+      "method": false,
+      "name": "main",
+      "owner": null,
+      "params": [],
+      "returnType": "void",
+      "start": 34
+    }
+  ],
+  "globals": [],
+  "imports": [
+    {
+      "length": 25,
+      "pathForm": true,
+      "source": "./Window",
+      "specifiers": [
+        {
+          "imported": "Window",
+          "length": 6,
+          "local": "Window",
+          "start": 18
+        }
+      ],
+      "start": 0
+    }
+  ],
+  "namespaces": [],
+  "strings": []
+}

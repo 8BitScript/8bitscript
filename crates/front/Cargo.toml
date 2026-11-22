@@ -15,6 +15,7 @@ indexmap = { version = "2", features = ["serde"] }
 jsnum = { path = "../jsnum" }
 lexer = { path = "../lexer" }
 lower = { path = "../lower" }
+media = { path = "../media" }
 parser = { path = "../parser" }
 resolver = { path = "../resolver" }
 sema = { path = "../sema" }

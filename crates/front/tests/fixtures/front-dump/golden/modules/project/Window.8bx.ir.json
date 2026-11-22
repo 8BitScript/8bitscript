@@ -1,0 +1,125 @@
+{
+  "consts": [],
+  "functions": [
+    {
+      "body": [
+        {
+          "init": {
+            "kind": "const",
+            "type": "utinyint",
+            "value": 60
+          },
+          "kind": "local",
+          "length": 1,
+          "name": "a",
+          "start": 301,
+          "type": "uint"
+        },
+        {
+          "init": {
+            "kind": "const",
+            "type": "utinyint",
+            "value": 0
+          },
+          "kind": "local",
+          "length": 1,
+          "name": "b",
+          "start": 344,
+          "type": "uint"
+        }
+      ],
+      "component": true,
+      "exported": true,
+      "length": 6,
+      "method": false,
+      "name": "Window",
+      "owner": "Window",
+      "params": [
+        {
+          "default": {
+            "kind": "const",
+            "type": "utinyint",
+            "value": 60
+          },
+          "name": "width",
+          "type": "uint"
+        }
+      ],
+      "returnType": "void",
+      "start": 245
+    },
+    {
+      "body": [
+        {
+          "init": {
+            "kind": "const",
+            "type": "utinyint",
+            "value": 60
+          },
+          "kind": "local",
+          "length": 1,
+          "name": "a",
+          "start": 301,
+          "type": "uint"
+        },
+        {
+          "init": {
+            "kind": "const",
+            "type": "utinyint",
+            "value": 0
+          },
+          "kind": "local",
+          "length": 1,
+          "name": "b",
+          "start": 344,
+          "type": "uint"
+        }
+      ],
+      "component": true,
+      "exported": true,
+      "length": 6,
+      "method": false,
+      "name": "Window__open",
+      "owner": "Window",
+      "params": [
+        {
+          "default": {
+            "kind": "const",
+            "type": "utinyint",
+            "value": 60
+          },
+          "name": "width",
+          "type": "uint"
+        }
+      ],
+      "returnType": "void",
+      "start": 245
+    },
+    {
+      "body": [],
+      "component": true,
+      "exported": true,
+      "length": 6,
+      "method": false,
+      "name": "Window__close",
+      "owner": "Window",
+      "params": [
+        {
+          "default": {
+            "kind": "const",
+            "type": "utinyint",
+            "value": 60
+          },
+          "name": "width",
+          "type": "uint"
+        }
+      ],
+      "returnType": "void",
+      "start": 245
+    }
+  ],
+  "globals": [],
+  "imports": [],
+  "namespaces": [],
+  "strings": []
+}
