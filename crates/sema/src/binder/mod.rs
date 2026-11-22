@@ -203,6 +203,14 @@ impl Binder {
                 let body = body.as_deref();
                 self.block_of(fn_scope, body, block_items(body), file);
             }
+            // A test declares nothing in its module (`__test_<k>` is made by lowering): only
+            // its own scope, so the names inside it resolve like a function's.
+            NodeKind::TestDecl { body, .. } => {
+                let test_scope = self.create_scope(Some(scope));
+                self.scope_of.insert(stmt.id, test_scope);
+                let body = Some(&**body);
+                self.block_of(test_scope, body, block_items(body), file);
+            }
             NodeKind::NamespaceDeclaration {
                 name,
                 members,

@@ -13,11 +13,11 @@ const M4: &str = "'#[test]' takes one string: the test's name";
 const M5: &str = "a test function is not 'pub'";
 const M6: &str = "a test function takes no other attributes";
 
-fn is_test(decorator: &Node) -> bool {
+pub(crate) fn is_test(decorator: &Node) -> bool {
     matches!(&decorator.kind, NodeKind::Decorator { name, .. } if name == "test")
 }
 
-fn is_cfg_test(decorator: &Node) -> bool {
+pub(crate) fn is_cfg_test(decorator: &Node) -> bool {
     match &decorator.kind {
         NodeKind::Decorator { name, args } if name == "cfg" && args.len() == 1 => {
             args.first().is_some_and(

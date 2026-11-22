@@ -101,6 +101,7 @@ impl Parser<'_> {
                 self.skip_reserved_item();
                 None
             }
+            (TokenKind::Macro, _) if self.test_scope => self.parse_test_macro(),
             (TokenKind::Punctuation, "{") => Some(self.parse_block(false)),
             (TokenKind::Punctuation, ";") => {
                 self.next();
@@ -286,7 +287,13 @@ impl Parser<'_> {
             self.error_found("a declaration after the attribute");
             return None;
         }
+        let outer = self.test_scope;
+        self.test_scope = outer
+            || decorators
+                .iter()
+                .any(|d| crate::tests::is_test(d) || crate::tests::is_cfg_test(d));
         let mut target = self.parse_statement(false);
+        self.test_scope = outer;
         if let Some(node) = &mut target
             && !decorators.is_empty()
         {
@@ -1070,6 +1077,102 @@ impl Parser<'_> {
             NodeKind::ContinueStatement {}
         };
         Some(Node::new(keyword.start, end, kind))
+    }
+
+    /// `assert!(c[, "m"]);`, `assert_eq!(a, b[, "m"]);`, `assert_ne!(a, b[, "m"]);` and
+    /// `panic!(["m"]);` (test spec 3.1) as `Assert` and `Fail` statements. Where they may
+    /// stand is checked after the parse, with the test declarations.
+    fn parse_test_macro(&mut self) -> Option<Node> {
+        let mac = self.next()?;
+        let name = mac.text.trim_end_matches('!').to_string();
+        if self.expect("(").is_none() {
+            self.synchronize();
+            return None;
+        }
+        let mut args: Vec<Node> = Vec::new();
+        while !self.at(")") && self.peek().is_some() {
+            let before = self.pos;
+            match self.parse_expression() {
+                Some(argument) => args.push(argument),
+                None if self.pos == before => break,
+                None => {}
+            }
+            if !self.eat(",") {
+                break;
+            }
+        }
+        if self.expect(")").is_none() {
+            self.synchronize();
+            return None;
+        }
+        let end = if self.at(";") {
+            self.next().map_or(tok_end(&mac), |t| tok_end(&t))
+        } else {
+            self.expect(";");
+            args.last().map_or(tok_end(&mac), node_end)
+        };
+        let (operands, optional) = match name.as_str() {
+            "assert" => (1, 1),
+            "assert_eq" | "assert_ne" => (2, 1),
+            _ => (0, 1),
+        };
+        if args.len() < operands || args.len() > operands + optional {
+            let shape = match name.as_str() {
+                "assert" => "a condition and an optional message",
+                "panic" => "an optional message",
+                _ => "two values and an optional message",
+            };
+            self.error_on(format!("'{name}!' takes {shape}"), &mac);
+            return None;
+        }
+        let message = if args.len() > operands {
+            match args.pop() {
+                Some(Node {
+                    kind: NodeKind::StringLiteral { value, .. },
+                    ..
+                }) => Some(value),
+                Some(other) => {
+                    self.error_at(
+                        format!("the message of '{name}!' is a string literal"),
+                        other.start,
+                        other.length,
+                    );
+                    return None;
+                }
+                None => None,
+            }
+        } else {
+            None
+        };
+        let kind = match name.as_str() {
+            "panic" => NodeKind::Fail { message },
+            "assert" => {
+                let test = args.pop()?;
+                NodeKind::Assert {
+                    test: Box::new(test),
+                    message,
+                }
+            }
+            _ => {
+                let right = args.pop()?;
+                let left = args.pop()?;
+                let operator = if name == "assert_eq" { "==" } else { "!=" };
+                let test = Node::new(
+                    left.start,
+                    node_end(&right),
+                    NodeKind::BinaryExpression {
+                        operator: operator.to_string(),
+                        left: Box::new(left),
+                        right: Box::new(right),
+                    },
+                );
+                NodeKind::Assert {
+                    test: Box::new(test),
+                    message,
+                }
+            }
+        };
+        Some(Node::new(mac.start, end, kind))
     }
 
     /// `expr;`. E17 is the missing `;` and E16 a tail expression in a `fn`
