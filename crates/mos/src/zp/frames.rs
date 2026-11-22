@@ -124,13 +124,13 @@ pub fn layout_frames(
     holes: &[ZpHole],
 ) -> Result<FrameLayout, String> {
     let parents = collect_live_parents(functions);
-    let mut remaining: IndexMap<String, usize> = IndexMap::new();
+    let mut remaining: IndexMap<String, i64> = IndexMap::new();
     let mut children: IndexMap<String, Vec<String>> = functions
         .iter()
         .map(|f| (f.name.clone(), Vec::new()))
         .collect();
     for (child, parent_set) in &parents {
-        remaining.insert(child.clone(), parent_set.len());
+        remaining.insert(child.clone(), parent_set.len() as i64);
         for parent in parent_set {
             if let Some(list) = children.get_mut(parent) {
                 list.push(child.clone());
@@ -173,7 +173,7 @@ pub fn layout_frames(
         floor = floor.max(start + bytes);
         if let Some(list) = children.get(&name) {
             for child in list {
-                let left = remaining.get(child).copied().unwrap_or(0).wrapping_sub(1);
+                let left = remaining.get(child).copied().unwrap_or(0) - 1;
                 remaining.insert(child.clone(), left);
                 if left == 0 {
                     ready.push(child.clone());
