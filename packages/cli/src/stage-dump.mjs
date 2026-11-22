@@ -37,6 +37,9 @@ const STAGE_FILES = {
   link: 'link.json',
   bytes: 'bytes.hex',
   'size-report': 'size-report.json',
+  debug: 'debug.json',
+  listing: 'listing.json',
+  remarks: 'remarks.json',
   error: 'error.txt',
 };
 const MODULE_SUFFIX = { tokens: '.tokens.json', ast: '.ast.json', 'module-ir': '.ir.json' };

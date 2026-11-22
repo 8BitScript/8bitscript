@@ -175,7 +175,10 @@ without: the writer only reads the values it is handed.
 
 The tree is `modules/<module>.{tokens,ast,ir}.json` per module,
 `diagnostics.json`, `linked.json`, `backend-input.json`, `wasm-input.json`,
-`link.json`, `bytes.hex` (lowercase, 16 bytes a line), `size-report.json`,
+`link.json`, `bytes.hex` (lowercase, 16 bytes a line), `size-report.json`
+(with the size report on), `debug.json` and `listing.json` (the debug map and
+the listing, for a native build with debug on), `remarks.json` (the
+optimizer's remarks, for a native build with remarks on),
 `error.txt` when the build failed, and `manifest.json` last. With
 `--release`, each output gets its own `<dir>/<output file>/`.
 

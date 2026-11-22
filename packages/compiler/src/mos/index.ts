@@ -67,7 +67,7 @@ export interface BuildOptions {
   debug?: boolean;
   /** Every source file's own text, keyed the same way provenance.ts's `SourceSpan.file` names it (module.file — linker/index.mjs) — how the debug map resolves an offset into a line/column and a listing line reads back the source text it names. Only read when `debug` is true; a build with no debug info needs no source text kept around after linking. */
   sources?: Map<string, string>;
-  /** Called synchronously with each stage's value as the build reaches it (`backend-input`, `link`, `bytes`, `size-report`, `error`). Absent: the build does no extra work. The caller owns any writing; nothing here touches the dump. */
+  /** Called synchronously with each stage's value as the build reaches it (`backend-input`, `link`, `bytes`, `size-report`, `debug`, `listing`, `remarks`, `error`). Absent: the build does no extra work. The caller owns any writing; nothing here touches the dump. */
   dump?: (stage: string, value: unknown, key?: string) => void;
 }
 
@@ -1399,11 +1399,17 @@ async function buildProgram(ir: IrProgram, options: BuildOptions): Promise<Build
     const sources = options.sources ?? new Map<string, string>();
     debugMap = buildDebugMap(linked.listing, symbols, options.machine, codeStart, sources);
     listing = linked.listing;
+    if (dump) {
+      dump('debug', debugMap);
+      dump('listing', listing);
+    }
     const lstFile = options.outFile.replace(/\.[^./\\]+$/, '') + '.lst';
     const debugJsonFile = options.outFile.replace(/\.[^./\\]+$/, '') + '.8bs.debug.json';
     await writeFile(lstFile, renderListing(linked.listing, options.machine, sources));
     await writeFile(debugJsonFile, JSON.stringify(debugMap, null, 2));
   }
+
+  if (dump && options.remarks) dump('remarks', remarks);
 
   return {
     ok: true, bytes, memory: { variables: linked.memory.variables, program: bytes.length },
