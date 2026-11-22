@@ -55,42 +55,37 @@ pub fn tested_facts(graph: &LoadedGraph) -> Vec<String> {
                 source: Some(source),
                 ..
             } = &n.kind
+                && matches!(&source.kind, NodeKind::StringLiteral { value, .. } if value == SYSTEM_PACKAGE)
             {
-                if matches!(&source.kind, NodeKind::StringLiteral { value, .. } if value == SYSTEM_PACKAGE)
-                {
-                    for spec in specifiers {
-                        if let NodeKind::Identifier { name, imported, .. } = &spec.kind {
-                            namespaces.insert(
-                                name.clone(),
-                                imported.clone().unwrap_or_else(|| name.clone()),
-                            );
-                        }
+                for spec in specifiers {
+                    if let NodeKind::Identifier { name, imported, .. } = &spec.kind {
+                        namespaces.insert(
+                            name.clone(),
+                            imported.clone().unwrap_or_else(|| name.clone()),
+                        );
                     }
                 }
             }
         });
         syntax::walk(ast, &mut |n, _| {
-            if let Some(raw) = raw_of(n) {
-                if let Some(rest) = raw.strip_prefix("#fact(") {
-                    let end = rest
-                        .chars()
-                        .next_back()
-                        .map_or(0, |c| rest.len() - c.len_utf8());
-                    keys.insert(rest[..end].to_string());
-                }
+            if let Some(raw) = raw_of(n)
+                && let Some(rest) = raw.strip_prefix("#fact(")
+            {
+                let end = rest
+                    .chars()
+                    .next_back()
+                    .map_or(0, |c| rest.len() - c.len_utf8());
+                keys.insert(rest[..end].to_string());
             }
-            if let NodeKind::MemberExpression { object, property } = &n.kind {
-                if let (
+            if let NodeKind::MemberExpression { object, property } = &n.kind
+                && let (
                     NodeKind::Identifier { name, .. },
                     NodeKind::Identifier { name: member, .. },
                 ) = (&object.kind, &property.kind)
-                {
-                    if let Some(ns) = namespaces.get(name) {
-                        if let Some(key) = by_const.get(&format!("{ns}.{member}")) {
-                            keys.insert((*key).to_string());
-                        }
-                    }
-                }
+                && let Some(ns) = namespaces.get(name)
+                && let Some(key) = by_const.get(&format!("{ns}.{member}"))
+            {
+                keys.insert((*key).to_string());
             }
         });
     }
@@ -332,9 +327,9 @@ pub fn resolve_pending_consts(
             }
         }
     }
-    for m in 0..sides.len() {
+    for (m, side) in sides.iter_mut().enumerate() {
         let file = file_of(graph, m);
-        for slot in pending_of(&sides[m]) {
+        for slot in pending_of(side) {
             let (start, length) = span_of(&slot.pending);
             diagnostics.push(diagnostic(
                 codes::NOT_COMPILABLE,
@@ -347,7 +342,7 @@ pub fn resolve_pending_consts(
                 span(length),
                 Severity::Error,
             ));
-            settle(&mut sides[m], &slot, 0.0);
+            settle(side, &slot, 0.0);
         }
     }
     Ok(())
@@ -431,15 +426,15 @@ pub fn resolve_initialiser(
     } else {
         resolve_integer_type(g_type).map(|t| (t.min, t.max))
     };
-    if let Some((min, max)) = range {
-        if c.value < min || c.value > max {
-            at(
-                diagnostics,
-                codes::VALUE_OUT_OF_RANGE,
-                format!("{} does not fit in {g_type} ({min}..{max})", c.value),
-            );
-            return Ok(0.0);
-        }
+    if let Some((min, max)) = range
+        && (c.value < min || c.value > max)
+    {
+        at(
+            diagnostics,
+            codes::VALUE_OUT_OF_RANGE,
+            format!("{} does not fit in {g_type} ({min}..{max})", c.value),
+        );
+        return Ok(0.0);
     }
     Ok(c.value as f64)
 }

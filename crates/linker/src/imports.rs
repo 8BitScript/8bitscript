@@ -320,18 +320,18 @@ pub fn rewrite_array_access(
             ),
         );
     }
-    if let Expr::Const(c) = index {
-        if c.value < 0 || c.value >= len {
-            at(
-                codes::INDEX_OUT_OF_RANGE,
-                format!(
-                    "index {} is outside an array<{}, {len}>: elements are 0..{}",
-                    c.value,
-                    g.ty,
-                    len - 1
-                ),
-            );
-        }
+    if let Expr::Const(c) = index
+        && (c.value < 0 || c.value >= len)
+    {
+        at(
+            codes::INDEX_OUT_OF_RANGE,
+            format!(
+                "index {} is outside an array<{}, {len}>: elements are 0..{}",
+                c.value,
+                g.ty,
+                len - 1
+            ),
+        );
     }
     Ok(())
 }
