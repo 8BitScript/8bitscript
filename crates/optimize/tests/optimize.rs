@@ -557,14 +557,34 @@ fn rest_is_inert_for_init_and_update() {
     };
     let call_stmt = |name: &str| json!({"kind": "call", "name": name, "args": []});
     let found_in_init = stmt(call_stmt("f"), Value::Null);
-    let Stmt::For(f) = &found_in_init else { unreachable!() };
-    let Some(Stmt::Call(found)) = f.init.as_option().map(|s| &**s) else { unreachable!() };
-    assert!(rest_is_inert(&found_in_init, found, callee, &ctx, &p.functions));
+    let Stmt::For(f) = &found_in_init else {
+        unreachable!()
+    };
+    let Some(Stmt::Call(found)) = f.init.as_option().map(|s| &**s) else {
+        unreachable!()
+    };
+    assert!(rest_is_inert(
+        &found_in_init,
+        found,
+        callee,
+        &ctx,
+        &p.functions
+    ));
 
     let found_in_update = stmt(Value::Null, call_stmt("f"));
-    let Stmt::For(f) = &found_in_update else { unreachable!() };
-    let Some(Stmt::Call(found)) = f.update.as_option().map(|s| &**s) else { unreachable!() };
-    assert!(rest_is_inert(&found_in_update, found, callee, &ctx, &p.functions));
+    let Stmt::For(f) = &found_in_update else {
+        unreachable!()
+    };
+    let Some(Stmt::Call(found)) = f.update.as_option().map(|s| &**s) else {
+        unreachable!()
+    };
+    assert!(rest_is_inert(
+        &found_in_update,
+        found,
+        callee,
+        &ctx,
+        &p.functions
+    ));
 
     // Another call statement as the init is not the found call.
     let other = stmt(call_stmt("g"), Value::Null);
