@@ -1,0 +1,8 @@
+use self::lib::{open, secret, missing, shared};
+use self::lib::{other as open};
+
+pub let mut shared: utinyint = 0;
+
+pub fn main() {
+    open();
+}

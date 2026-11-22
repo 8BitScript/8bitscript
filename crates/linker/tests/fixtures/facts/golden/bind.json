@@ -1,0 +1,50 @@
+{
+  "diagnostics": [],
+  "modules": [
+    {
+      "bindings": [],
+      "decls": [
+        [
+          "main",
+          true
+        ]
+      ],
+      "globalsByName": [],
+      "namespaceBindings": [
+        [
+          "M",
+          {
+            "module": 1,
+            "name": "Memory"
+          }
+        ],
+        [
+          "Video",
+          {
+            "module": 1,
+            "name": "Video"
+          }
+        ]
+      ],
+      "namespaces": [],
+      "ownConstTypes": [],
+      "ownConsts": []
+    },
+    {
+      "bindings": [],
+      "decls": [],
+      "globalsByName": [],
+      "namespaceBindings": [],
+      "namespaces": [
+        "System",
+        "Video",
+        "Audio",
+        "Input",
+        "Storage",
+        "Memory"
+      ],
+      "ownConstTypes": [],
+      "ownConsts": []
+    }
+  ]
+}

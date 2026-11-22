@@ -1,0 +1,3308 @@
+[
+  {
+    "args": [
+      0,
+      "M",
+      "RAM",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "usmallint"
+    }
+  },
+  {
+    "args": [
+      0,
+      "M",
+      "BANKED",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "bool"
+    }
+  },
+  {
+    "args": [
+      0,
+      "M",
+      "BANKED_KIB",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "usmallint"
+    }
+  },
+  {
+    "args": [
+      0,
+      "M",
+      "__missing",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1
+    }
+  },
+  {
+    "args": [
+      0,
+      "M",
+      "RAM",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "usmallint",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      0,
+      "M",
+      "BANKED",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "bool",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      0,
+      "M",
+      "BANKED_KIB",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "usmallint",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      0,
+      "M",
+      "__missing",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1
+    }
+  },
+  {
+    "args": [
+      0,
+      "Video",
+      "COLUMNS",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      0,
+      "Video",
+      "ROWS",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      0,
+      "Video",
+      "CELL_WIDTH",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      0,
+      "Video",
+      "CELL_HEIGHT",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      0,
+      "Video",
+      "PALETTE",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "usmallint"
+    }
+  },
+  {
+    "args": [
+      0,
+      "Video",
+      "CELL_COLORS",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      0,
+      "Video",
+      "COLOR_PER_CELL",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "bool"
+    }
+  },
+  {
+    "args": [
+      0,
+      "Video",
+      "GLYPHS",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "usmallint"
+    }
+  },
+  {
+    "args": [
+      0,
+      "Video",
+      "BLOCK_WIDTH",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      0,
+      "Video",
+      "BLOCK_HEIGHT",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      0,
+      "Video",
+      "BITMAP",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "bool"
+    }
+  },
+  {
+    "args": [
+      0,
+      "Video",
+      "LAYERS",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      0,
+      "Video",
+      "SCROLL",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "bool"
+    }
+  },
+  {
+    "args": [
+      0,
+      "Video",
+      "RASTER",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "bool"
+    }
+  },
+  {
+    "args": [
+      0,
+      "Video",
+      "COLOR_BLEND",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "bool"
+    }
+  },
+  {
+    "args": [
+      0,
+      "Video",
+      "SPRITES",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      0,
+      "Video",
+      "SPRITES_PER_LINE",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      0,
+      "Video",
+      "SPRITE_WIDTH",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      0,
+      "Video",
+      "SPRITE_HEIGHT",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      0,
+      "Video",
+      "SPRITE_COLORS",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      0,
+      "Video",
+      "SPRITE_KIB",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      0,
+      "Video",
+      "__missing",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1
+    }
+  },
+  {
+    "args": [
+      0,
+      "Video",
+      "COLUMNS",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      0,
+      "Video",
+      "ROWS",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      0,
+      "Video",
+      "CELL_WIDTH",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      0,
+      "Video",
+      "CELL_HEIGHT",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      0,
+      "Video",
+      "PALETTE",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "usmallint",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      0,
+      "Video",
+      "CELL_COLORS",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      0,
+      "Video",
+      "COLOR_PER_CELL",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "bool",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      0,
+      "Video",
+      "GLYPHS",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "usmallint",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      0,
+      "Video",
+      "BLOCK_WIDTH",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      0,
+      "Video",
+      "BLOCK_HEIGHT",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      0,
+      "Video",
+      "BITMAP",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "bool",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      0,
+      "Video",
+      "LAYERS",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      0,
+      "Video",
+      "SCROLL",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "bool",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      0,
+      "Video",
+      "RASTER",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "bool",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      0,
+      "Video",
+      "COLOR_BLEND",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "bool",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      0,
+      "Video",
+      "SPRITES",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      0,
+      "Video",
+      "SPRITES_PER_LINE",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      0,
+      "Video",
+      "SPRITE_WIDTH",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      0,
+      "Video",
+      "SPRITE_HEIGHT",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      0,
+      "Video",
+      "SPRITE_COLORS",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      0,
+      "Video",
+      "SPRITE_KIB",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      0,
+      "Video",
+      "__missing",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1
+    }
+  },
+  {
+    "args": [
+      0,
+      "__none",
+      "__missing",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "namespaceFound": false
+    }
+  },
+  {
+    "args": [
+      0,
+      "__none",
+      "__missing",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "namespaceFound": false
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "WEB",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "VIC20",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "C64",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "PET",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "C128",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "ATARI8",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "NES",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "CX16",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "MEGA65",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "PLUS4",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "ORIC",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "APPLE2",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "BBC",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "ATARI5200",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "LYNX",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "PCE",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "SUPERVISION",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "ATARI2600",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "ATARI7800",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "GB",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "GBC",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "SMS",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "GAMEGEAR",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "SG1000",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "MSX",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "COLECO",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "SPECTRUM",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "CPC",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "COCO",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "VECTREX",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "ODYSSEY2",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "CHANNELF",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "__missing",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "WEB",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "VIC20",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 1
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "C64",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 2
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "PET",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 3
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "C128",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 4
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "ATARI8",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 5
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "NES",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 6
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "CX16",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 7
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "MEGA65",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 8
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "PLUS4",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 9
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "ORIC",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 10
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "APPLE2",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 11
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "BBC",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 12
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "ATARI5200",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 13
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "LYNX",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 14
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "PCE",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 15
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "SUPERVISION",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 16
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "ATARI2600",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 17
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "ATARI7800",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 18
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "GB",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 19
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "GBC",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 20
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "SMS",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 21
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "GAMEGEAR",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 22
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "SG1000",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 23
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "MSX",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 24
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "COLECO",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 25
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "SPECTRUM",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 26
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "CPC",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 27
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "COCO",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 28
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "VECTREX",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 29
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "ODYSSEY2",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 30
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "CHANNELF",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 31
+    }
+  },
+  {
+    "args": [
+      1,
+      "System",
+      "__missing",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1
+    }
+  },
+  {
+    "args": [
+      1,
+      "Video",
+      "COLUMNS",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      1,
+      "Video",
+      "ROWS",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      1,
+      "Video",
+      "CELL_WIDTH",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      1,
+      "Video",
+      "CELL_HEIGHT",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      1,
+      "Video",
+      "PALETTE",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "usmallint"
+    }
+  },
+  {
+    "args": [
+      1,
+      "Video",
+      "CELL_COLORS",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      1,
+      "Video",
+      "COLOR_PER_CELL",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "bool"
+    }
+  },
+  {
+    "args": [
+      1,
+      "Video",
+      "GLYPHS",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "usmallint"
+    }
+  },
+  {
+    "args": [
+      1,
+      "Video",
+      "BLOCK_WIDTH",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      1,
+      "Video",
+      "BLOCK_HEIGHT",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      1,
+      "Video",
+      "BITMAP",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "bool"
+    }
+  },
+  {
+    "args": [
+      1,
+      "Video",
+      "LAYERS",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      1,
+      "Video",
+      "SCROLL",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "bool"
+    }
+  },
+  {
+    "args": [
+      1,
+      "Video",
+      "RASTER",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "bool"
+    }
+  },
+  {
+    "args": [
+      1,
+      "Video",
+      "COLOR_BLEND",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "bool"
+    }
+  },
+  {
+    "args": [
+      1,
+      "Video",
+      "SPRITES",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      1,
+      "Video",
+      "SPRITES_PER_LINE",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      1,
+      "Video",
+      "SPRITE_WIDTH",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      1,
+      "Video",
+      "SPRITE_HEIGHT",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      1,
+      "Video",
+      "SPRITE_COLORS",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      1,
+      "Video",
+      "SPRITE_KIB",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      1,
+      "Video",
+      "__missing",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1
+    }
+  },
+  {
+    "args": [
+      1,
+      "Video",
+      "COLUMNS",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      1,
+      "Video",
+      "ROWS",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      1,
+      "Video",
+      "CELL_WIDTH",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      1,
+      "Video",
+      "CELL_HEIGHT",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      1,
+      "Video",
+      "PALETTE",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "usmallint",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      1,
+      "Video",
+      "CELL_COLORS",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      1,
+      "Video",
+      "COLOR_PER_CELL",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "bool",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      1,
+      "Video",
+      "GLYPHS",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "usmallint",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      1,
+      "Video",
+      "BLOCK_WIDTH",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      1,
+      "Video",
+      "BLOCK_HEIGHT",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      1,
+      "Video",
+      "BITMAP",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "bool",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      1,
+      "Video",
+      "LAYERS",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      1,
+      "Video",
+      "SCROLL",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "bool",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      1,
+      "Video",
+      "RASTER",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "bool",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      1,
+      "Video",
+      "COLOR_BLEND",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "bool",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      1,
+      "Video",
+      "SPRITES",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      1,
+      "Video",
+      "SPRITES_PER_LINE",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      1,
+      "Video",
+      "SPRITE_WIDTH",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      1,
+      "Video",
+      "SPRITE_HEIGHT",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      1,
+      "Video",
+      "SPRITE_COLORS",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      1,
+      "Video",
+      "SPRITE_KIB",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      1,
+      "Video",
+      "__missing",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1
+    }
+  },
+  {
+    "args": [
+      1,
+      "Audio",
+      "VOICES",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      1,
+      "Audio",
+      "NOISE",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "bool"
+    }
+  },
+  {
+    "args": [
+      1,
+      "Audio",
+      "ENVELOPE",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "bool"
+    }
+  },
+  {
+    "args": [
+      1,
+      "Audio",
+      "FILTER",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "bool"
+    }
+  },
+  {
+    "args": [
+      1,
+      "Audio",
+      "PCM",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "bool"
+    }
+  },
+  {
+    "args": [
+      1,
+      "Audio",
+      "VOLUME",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "bool"
+    }
+  },
+  {
+    "args": [
+      1,
+      "Audio",
+      "ENTROPY",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "bool"
+    }
+  },
+  {
+    "args": [
+      1,
+      "Audio",
+      "__missing",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1
+    }
+  },
+  {
+    "args": [
+      1,
+      "Audio",
+      "VOICES",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      1,
+      "Audio",
+      "NOISE",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "bool",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      1,
+      "Audio",
+      "ENVELOPE",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "bool",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      1,
+      "Audio",
+      "FILTER",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "bool",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      1,
+      "Audio",
+      "PCM",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "bool",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      1,
+      "Audio",
+      "VOLUME",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "bool",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      1,
+      "Audio",
+      "ENTROPY",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "bool",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      1,
+      "Audio",
+      "__missing",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1
+    }
+  },
+  {
+    "args": [
+      1,
+      "Input",
+      "KEYBOARD",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "bool"
+    }
+  },
+  {
+    "args": [
+      1,
+      "Input",
+      "JOYSTICKS",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      1,
+      "Input",
+      "PADS",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      1,
+      "Input",
+      "MOUSE",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "bool"
+    }
+  },
+  {
+    "args": [
+      1,
+      "Input",
+      "PADDLES",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "bool"
+    }
+  },
+  {
+    "args": [
+      1,
+      "Input",
+      "__missing",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1
+    }
+  },
+  {
+    "args": [
+      1,
+      "Input",
+      "KEYBOARD",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "bool",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      1,
+      "Input",
+      "JOYSTICKS",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      1,
+      "Input",
+      "PADS",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      1,
+      "Input",
+      "MOUSE",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "bool",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      1,
+      "Input",
+      "PADDLES",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "bool",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      1,
+      "Input",
+      "__missing",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1
+    }
+  },
+  {
+    "args": [
+      1,
+      "Storage",
+      "SAVE",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "bool"
+    }
+  },
+  {
+    "args": [
+      1,
+      "Storage",
+      "KIB",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "usmallint"
+    }
+  },
+  {
+    "args": [
+      1,
+      "Storage",
+      "__missing",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1
+    }
+  },
+  {
+    "args": [
+      1,
+      "Storage",
+      "SAVE",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "bool",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      1,
+      "Storage",
+      "KIB",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "usmallint",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      1,
+      "Storage",
+      "__missing",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1
+    }
+  },
+  {
+    "args": [
+      1,
+      "Memory",
+      "RAM",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "usmallint"
+    }
+  },
+  {
+    "args": [
+      1,
+      "Memory",
+      "BANKED",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "bool"
+    }
+  },
+  {
+    "args": [
+      1,
+      "Memory",
+      "BANKED_KIB",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "usmallint"
+    }
+  },
+  {
+    "args": [
+      1,
+      "Memory",
+      "__missing",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1
+    }
+  },
+  {
+    "args": [
+      1,
+      "Memory",
+      "RAM",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "usmallint",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      1,
+      "Memory",
+      "BANKED",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "bool",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      1,
+      "Memory",
+      "BANKED_KIB",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "usmallint",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      1,
+      "Memory",
+      "__missing",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1
+    }
+  },
+  {
+    "args": [
+      1,
+      "__none",
+      "__missing",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "namespaceFound": false
+    }
+  },
+  {
+    "args": [
+      1,
+      "__none",
+      "__missing",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "namespaceFound": false
+    }
+  },
+  {
+    "args": [
+      0,
+      "main"
+    ],
+    "fn": "globalNamed",
+    "result": null
+  },
+  {
+    "args": [
+      0,
+      "main"
+    ],
+    "fn": "isImportedName",
+    "result": false
+  },
+  {
+    "args": [
+      0,
+      "main"
+    ],
+    "fn": "isStringName",
+    "result": false
+  },
+  {
+    "args": [
+      0,
+      "p"
+    ],
+    "fn": "globalNamed",
+    "result": null
+  },
+  {
+    "args": [
+      0,
+      "p"
+    ],
+    "fn": "isImportedName",
+    "result": false
+  },
+  {
+    "args": [
+      0,
+      "p"
+    ],
+    "fn": "isStringName",
+    "result": true
+  },
+  {
+    "args": [
+      0,
+      "__missing"
+    ],
+    "fn": "globalNamed",
+    "result": null
+  },
+  {
+    "args": [
+      0,
+      "__missing"
+    ],
+    "fn": "isImportedName",
+    "result": false
+  },
+  {
+    "args": [
+      0,
+      "__missing"
+    ],
+    "fn": "isStringName",
+    "result": false
+  },
+  {
+    "args": [
+      1,
+      "p"
+    ],
+    "fn": "globalNamed",
+    "result": null
+  },
+  {
+    "args": [
+      1,
+      "p"
+    ],
+    "fn": "isImportedName",
+    "result": false
+  },
+  {
+    "args": [
+      1,
+      "p"
+    ],
+    "fn": "isStringName",
+    "result": true
+  },
+  {
+    "args": [
+      1,
+      "__missing"
+    ],
+    "fn": "globalNamed",
+    "result": null
+  },
+  {
+    "args": [
+      1,
+      "__missing"
+    ],
+    "fn": "isImportedName",
+    "result": false
+  },
+  {
+    "args": [
+      1,
+      "__missing"
+    ],
+    "fn": "isStringName",
+    "result": false
+  }
+]

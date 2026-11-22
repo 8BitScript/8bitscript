@@ -1,0 +1,50 @@
+{
+  "diagnostics": [
+    {
+      "code": "8BS1027",
+      "file": "<project>/main.8bs",
+      "length": 8,
+      "message": "\"sixsix\" is 6 characters and does not fit in string<4>",
+      "severity": "error",
+      "start": 115
+    }
+  ],
+  "modules": [
+    {
+      "bindings": [],
+      "decls": [
+        [
+          "marker",
+          false
+        ],
+        [
+          "main",
+          true
+        ],
+        [
+          "BANNER",
+          false
+        ]
+      ],
+      "globalsByName": [
+        "marker"
+      ],
+      "namespaceBindings": [],
+      "namespaces": [],
+      "ownConstTypes": [
+        [
+          "BANNER",
+          "string"
+        ]
+      ],
+      "ownConsts": [
+        [
+          "BANNER",
+          {
+            "string": 0
+          }
+        ]
+      ]
+    }
+  ]
+}

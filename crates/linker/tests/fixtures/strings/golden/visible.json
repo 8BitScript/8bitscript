@@ -1,0 +1,36 @@
+[
+  {
+    "all": {
+      "types": [
+        [
+          "BANNER",
+          "string"
+        ]
+      ],
+      "values": [
+        [
+          "BANNER",
+          {
+            "string": 0
+          }
+        ]
+      ]
+    },
+    "settled": {
+      "types": [
+        [
+          "BANNER",
+          "string"
+        ]
+      ],
+      "values": [
+        [
+          "BANNER",
+          {
+            "string": 0
+          }
+        ]
+      ]
+    }
+  }
+]

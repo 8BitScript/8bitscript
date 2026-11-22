@@ -1,0 +1,119 @@
+{
+  "diagnostics": [],
+  "modules": [
+    {
+      "bindings": [
+        [
+          "helper",
+          {
+            "module": 1,
+            "name": "helper"
+          }
+        ],
+        [
+          "ticks",
+          {
+            "module": 1,
+            "name": "counter"
+          }
+        ],
+        [
+          "otherHelper",
+          {
+            "module": 2,
+            "name": "helper"
+          }
+        ]
+      ],
+      "decls": [
+        [
+          "main",
+          true
+        ]
+      ],
+      "globalsByName": [],
+      "namespaceBindings": [
+        [
+          "Gfx",
+          {
+            "module": 1,
+            "name": "Gfx"
+          }
+        ],
+        [
+          "M",
+          {
+            "module": 3,
+            "name": "Memory"
+          }
+        ],
+        [
+          "Video",
+          {
+            "module": 3,
+            "name": "Video"
+          }
+        ]
+      ],
+      "namespaces": [],
+      "ownConstTypes": [],
+      "ownConsts": []
+    },
+    {
+      "bindings": [],
+      "decls": [
+        [
+          "counter",
+          true
+        ],
+        [
+          "helper",
+          true
+        ],
+        [
+          "Gfx_draw",
+          false
+        ]
+      ],
+      "globalsByName": [
+        "counter"
+      ],
+      "namespaceBindings": [],
+      "namespaces": [
+        "Gfx"
+      ],
+      "ownConstTypes": [],
+      "ownConsts": []
+    },
+    {
+      "bindings": [],
+      "decls": [
+        [
+          "helper",
+          true
+        ]
+      ],
+      "globalsByName": [],
+      "namespaceBindings": [],
+      "namespaces": [],
+      "ownConstTypes": [],
+      "ownConsts": []
+    },
+    {
+      "bindings": [],
+      "decls": [],
+      "globalsByName": [],
+      "namespaceBindings": [],
+      "namespaces": [
+        "System",
+        "Video",
+        "Audio",
+        "Input",
+        "Storage",
+        "Memory"
+      ],
+      "ownConstTypes": [],
+      "ownConsts": []
+    }
+  ]
+}

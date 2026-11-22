@@ -1,5 +1,6 @@
 //! `xtask corpus-tap <out-dir> [--front] [--fn f]... [--jobs N]`: dump the JS corpus with
-//! tap recording, then replay the tap in Rust, all in one process.
+//! tap recording, then replay the tap in Rust, all in one process. With `--roundtrip` it dumps the
+//! stage files instead and round-trips them through the `mos-ir` types.
 
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
@@ -7,14 +8,14 @@ use std::process::Command;
 
 use crate::tap::{Report, replay_dir};
 
-pub const USAGE: &str =
-    "usage: cargo xtask corpus-tap <out-dir> [--front] [--fn <name>]... [--jobs N]";
+pub const USAGE: &str = "usage: cargo xtask corpus-tap <out-dir> [--front] [--fn <name>]... [--jobs N]\n       cargo xtask corpus-tap <out-dir> --roundtrip [--jobs N]";
 
 /// The parsed command line.
 #[derive(Debug, PartialEq, Eq)]
 pub struct Args {
     pub out: PathBuf,
     pub front: bool,
+    pub roundtrip: bool,
     pub only: Vec<String>,
     pub jobs: Option<usize>,
 }
@@ -29,12 +30,14 @@ pub struct Programs<'a> {
 pub fn parse_args(args: &[String]) -> Result<Args, String> {
     let mut out = None;
     let mut front = false;
+    let mut roundtrip = false;
     let mut only = Vec::new();
     let mut jobs = None;
     let mut it = args.iter();
     while let Some(arg) = it.next() {
         match arg.as_str() {
             "--front" => front = true,
+            "--roundtrip" => roundtrip = true,
             "--fn" => only.push(it.next().cloned().ok_or("--fn needs a value")?),
             "--jobs" => {
                 let value = it.next().ok_or("--jobs needs a value")?;
@@ -50,9 +53,15 @@ pub fn parse_args(args: &[String]) -> Result<Args, String> {
             _ => return Err(USAGE.to_string()),
         }
     }
+    if roundtrip && (front || !only.is_empty()) {
+        return Err(format!(
+            "--roundtrip cannot be combined with --front or --fn\n{USAGE}"
+        ));
+    }
     Ok(Args {
         out: out.ok_or_else(|| USAGE.to_string())?,
         front,
+        roundtrip,
         only,
         jobs,
     })
@@ -83,7 +92,7 @@ fn strings(parts: &[&str]) -> Vec<String> {
 }
 
 /// Installs dependencies if needed, then dumps the corpus with the tap into `<out>/dump`
-/// and `<out>/tap` (or `<out>/front`). Returns the directory the tap was written to.
+/// and `<out>/tap` (or `<out>/front`). Returns the directory the tap was written to (the dump directory with `--roundtrip`).
 pub fn dump(args: &Args, root: &Path, programs: &Programs) -> Result<PathBuf, String> {
     let out = std::path::absolute(&args.out).map_err(|e| format!("{}: {e}", args.out.display()))?;
     if !root.join("node_modules").exists() {
@@ -92,6 +101,17 @@ pub fn dump(args: &Args, root: &Path, programs: &Programs) -> Result<PathBuf, St
             &strings(&["install", "--frozen-lockfile"]),
             root,
         )?;
+    }
+    if args.roundtrip {
+        let dump = out.join("dump");
+        let mut node_args = strings(&["scripts/oracle/corpus.mjs", "--dump", "--out"]);
+        node_args.push(dump.display().to_string());
+        if let Some(jobs) = args.jobs {
+            node_args.push("--jobs".to_string());
+            node_args.push(jobs.to_string());
+        }
+        child(programs.node, &node_args, root)?;
+        return Ok(dump);
     }
     let (flag, name) = if args.front {
         ("--front-tap", "front")
@@ -133,6 +153,14 @@ pub fn replay(args: &Args, tap: &Path) -> Result<Report, String> {
 pub fn run(args: &[String], root: &Path, programs: &Programs) -> Result<u8, String> {
     let args = parse_args(args)?;
     let tap = dump(&args, root, programs)?;
+    if args.roundtrip {
+        let report = crate::roundtrip::run(&tap)?;
+        for line in &report.lines {
+            println!("{line}");
+        }
+        println!("{}", report.summary());
+        return Ok(report.exit_code());
+    }
     let report = replay(&args, &tap)?;
     for line in &report.lines {
         println!("{line}");

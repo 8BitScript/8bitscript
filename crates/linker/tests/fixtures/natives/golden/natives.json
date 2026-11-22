@@ -1,0 +1,6 @@
+[
+  "<project>/native/probe.s",
+  "<toolchain>/packages/c64/native/6502/raster.s",
+  "<toolchain>/packages/c64/native/6502/multiplex.s",
+  "<toolchain>/packages/c64/native/6502/text.s"
+]

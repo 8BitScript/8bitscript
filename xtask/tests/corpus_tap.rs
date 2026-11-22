@@ -30,6 +30,7 @@ fn parses_every_flag() {
         Args {
             out: PathBuf::from("out"),
             front: true,
+            roundtrip: false,
             only: strings(&["a", "b"]),
             jobs: Some(4),
         }
@@ -52,6 +53,8 @@ fn bad_arguments_are_errors() {
         &["a", "--jobs", "0"],
         &["a", "--jobs", "x"],
         &["a", "--nope"],
+        &["a", "--roundtrip", "--front"],
+        &["a", "--roundtrip", "--fn", "x"],
     ] {
         assert!(parse_args(&strings(bad)).is_err(), "{bad:?}");
     }
@@ -103,5 +106,34 @@ fn a_clean_dump_replays_to_a_zero_summary() {
         pnpm: "true",
     };
     let code = run(&strings(&[out.to_str().unwrap()]), &dir, &programs).unwrap();
+    assert_eq!(code, 0);
+}
+
+#[test]
+fn the_roundtrip_flag_parses_with_jobs() {
+    let args = parse_args(&strings(&["out", "--roundtrip", "--jobs", "2"])).unwrap();
+    assert!(args.roundtrip && !args.front && args.only.is_empty());
+    assert_eq!(args.jobs, Some(2));
+}
+
+#[test]
+fn a_clean_dump_roundtrips_to_a_zero_summary() {
+    let dir = root("roundtrip", true);
+    let out = dir.join("out");
+    let build = out.join("dump/p/c64");
+    fs::create_dir_all(&build).unwrap();
+    let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../crates/mos-ir/tests/fixtures/hello-world-c64/backend-input.json");
+    fs::copy(fixture, build.join("backend-input.json")).unwrap();
+    let programs = Programs {
+        node: "true",
+        pnpm: "true",
+    };
+    let code = run(
+        &strings(&[out.to_str().unwrap(), "--roundtrip"]),
+        &dir,
+        &programs,
+    )
+    .unwrap();
     assert_eq!(code, 0);
 }

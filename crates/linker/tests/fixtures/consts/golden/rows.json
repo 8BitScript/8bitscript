@@ -1,0 +1,788 @@
+[
+  {
+    "args": [
+      0,
+      "Palette",
+      "DARK",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      0,
+      "Palette",
+      "LIGHT",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      0,
+      "Palette",
+      "MIRROR",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      0,
+      "Palette",
+      "TITLE",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1
+    }
+  },
+  {
+    "args": [
+      0,
+      "Palette",
+      "__missing",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1
+    }
+  },
+  {
+    "args": [
+      0,
+      "Palette",
+      "DARK",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      0,
+      "Palette",
+      "LIGHT",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 15
+    }
+  },
+  {
+    "args": [
+      0,
+      "Palette",
+      "MIRROR",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 9
+    }
+  },
+  {
+    "args": [
+      0,
+      "Palette",
+      "TITLE",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "value": {
+        "string": 1
+      }
+    }
+  },
+  {
+    "args": [
+      0,
+      "Palette",
+      "__missing",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1
+    }
+  },
+  {
+    "args": [
+      0,
+      "__none",
+      "__missing",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "namespaceFound": false
+    }
+  },
+  {
+    "args": [
+      0,
+      "__none",
+      "__missing",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "namespaceFound": false
+    }
+  },
+  {
+    "args": [
+      1,
+      "Palette",
+      "DARK",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      1,
+      "Palette",
+      "LIGHT",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      1,
+      "Palette",
+      "MIRROR",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint"
+    }
+  },
+  {
+    "args": [
+      1,
+      "Palette",
+      "TITLE",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1
+    }
+  },
+  {
+    "args": [
+      1,
+      "Palette",
+      "__missing",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1
+    }
+  },
+  {
+    "args": [
+      1,
+      "Palette",
+      "DARK",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 0
+    }
+  },
+  {
+    "args": [
+      1,
+      "Palette",
+      "LIGHT",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 15
+    }
+  },
+  {
+    "args": [
+      1,
+      "Palette",
+      "MIRROR",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "type": "utinyint",
+      "value": 9
+    }
+  },
+  {
+    "args": [
+      1,
+      "Palette",
+      "TITLE",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": true,
+      "namespaceFound": true,
+      "targetModule": 1,
+      "value": {
+        "string": 1
+      }
+    }
+  },
+  {
+    "args": [
+      1,
+      "Palette",
+      "__missing",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "memberFound": false,
+      "namespaceFound": true,
+      "targetModule": 1
+    }
+  },
+  {
+    "args": [
+      1,
+      "__none",
+      "__missing",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "namespaceFound": false
+    }
+  },
+  {
+    "args": [
+      1,
+      "__none",
+      "__missing",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "namespaceFound": false
+    }
+  },
+  {
+    "args": [
+      0,
+      "main"
+    ],
+    "fn": "globalNamed",
+    "result": null
+  },
+  {
+    "args": [
+      0,
+      "main"
+    ],
+    "fn": "isImportedName",
+    "result": false
+  },
+  {
+    "args": [
+      0,
+      "main"
+    ],
+    "fn": "isStringName",
+    "result": false
+  },
+  {
+    "args": [
+      0,
+      "ALIAS"
+    ],
+    "fn": "globalNamed",
+    "result": null
+  },
+  {
+    "args": [
+      0,
+      "ALIAS"
+    ],
+    "fn": "isImportedName",
+    "result": false
+  },
+  {
+    "args": [
+      0,
+      "ALIAS"
+    ],
+    "fn": "isStringName",
+    "result": true
+  },
+  {
+    "args": [
+      0,
+      "SPACE"
+    ],
+    "fn": "globalNamed",
+    "result": null
+  },
+  {
+    "args": [
+      0,
+      "SPACE"
+    ],
+    "fn": "isImportedName",
+    "result": false
+  },
+  {
+    "args": [
+      0,
+      "SPACE"
+    ],
+    "fn": "isStringName",
+    "result": false
+  },
+  {
+    "args": [
+      0,
+      "GREETING"
+    ],
+    "fn": "globalNamed",
+    "result": null
+  },
+  {
+    "args": [
+      0,
+      "GREETING"
+    ],
+    "fn": "isImportedName",
+    "result": false
+  },
+  {
+    "args": [
+      0,
+      "GREETING"
+    ],
+    "fn": "isStringName",
+    "result": true
+  },
+  {
+    "args": [
+      0,
+      "LIMIT"
+    ],
+    "fn": "globalNamed",
+    "result": null
+  },
+  {
+    "args": [
+      0,
+      "LIMIT"
+    ],
+    "fn": "isImportedName",
+    "result": true
+  },
+  {
+    "args": [
+      0,
+      "LIMIT"
+    ],
+    "fn": "isStringName",
+    "result": false
+  },
+  {
+    "args": [
+      0,
+      "NAME"
+    ],
+    "fn": "globalNamed",
+    "result": null
+  },
+  {
+    "args": [
+      0,
+      "NAME"
+    ],
+    "fn": "isImportedName",
+    "result": true
+  },
+  {
+    "args": [
+      0,
+      "NAME"
+    ],
+    "fn": "isStringName",
+    "result": true
+  },
+  {
+    "args": [
+      0,
+      "WIDE"
+    ],
+    "fn": "globalNamed",
+    "result": null
+  },
+  {
+    "args": [
+      0,
+      "WIDE"
+    ],
+    "fn": "isImportedName",
+    "result": true
+  },
+  {
+    "args": [
+      0,
+      "WIDE"
+    ],
+    "fn": "isStringName",
+    "result": false
+  },
+  {
+    "args": [
+      0,
+      "p"
+    ],
+    "fn": "globalNamed",
+    "result": null
+  },
+  {
+    "args": [
+      0,
+      "p"
+    ],
+    "fn": "isImportedName",
+    "result": false
+  },
+  {
+    "args": [
+      0,
+      "p"
+    ],
+    "fn": "isStringName",
+    "result": true
+  },
+  {
+    "args": [
+      0,
+      "__missing"
+    ],
+    "fn": "globalNamed",
+    "result": null
+  },
+  {
+    "args": [
+      0,
+      "__missing"
+    ],
+    "fn": "isImportedName",
+    "result": false
+  },
+  {
+    "args": [
+      0,
+      "__missing"
+    ],
+    "fn": "isStringName",
+    "result": false
+  },
+  {
+    "args": [
+      1,
+      "LIMIT"
+    ],
+    "fn": "globalNamed",
+    "result": null
+  },
+  {
+    "args": [
+      1,
+      "LIMIT"
+    ],
+    "fn": "isImportedName",
+    "result": false
+  },
+  {
+    "args": [
+      1,
+      "LIMIT"
+    ],
+    "fn": "isStringName",
+    "result": false
+  },
+  {
+    "args": [
+      1,
+      "NAME"
+    ],
+    "fn": "globalNamed",
+    "result": null
+  },
+  {
+    "args": [
+      1,
+      "NAME"
+    ],
+    "fn": "isImportedName",
+    "result": false
+  },
+  {
+    "args": [
+      1,
+      "NAME"
+    ],
+    "fn": "isStringName",
+    "result": true
+  },
+  {
+    "args": [
+      1,
+      "WIDE"
+    ],
+    "fn": "globalNamed",
+    "result": null
+  },
+  {
+    "args": [
+      1,
+      "WIDE"
+    ],
+    "fn": "isImportedName",
+    "result": false
+  },
+  {
+    "args": [
+      1,
+      "WIDE"
+    ],
+    "fn": "isStringName",
+    "result": false
+  },
+  {
+    "args": [
+      1,
+      "p"
+    ],
+    "fn": "globalNamed",
+    "result": null
+  },
+  {
+    "args": [
+      1,
+      "p"
+    ],
+    "fn": "isImportedName",
+    "result": false
+  },
+  {
+    "args": [
+      1,
+      "p"
+    ],
+    "fn": "isStringName",
+    "result": true
+  },
+  {
+    "args": [
+      1,
+      "__missing"
+    ],
+    "fn": "globalNamed",
+    "result": null
+  },
+  {
+    "args": [
+      1,
+      "__missing"
+    ],
+    "fn": "isImportedName",
+    "result": false
+  },
+  {
+    "args": [
+      1,
+      "__missing"
+    ],
+    "fn": "isStringName",
+    "result": false
+  },
+  {
+    "args": [
+      32,
+      "utinyint"
+    ],
+    "fn": "constExpression",
+    "result": {
+      "kind": "const",
+      "type": "utinyint",
+      "value": 32
+    }
+  },
+  {
+    "args": [
+      {
+        "string": 0
+      },
+      "string"
+    ],
+    "fn": "constExpression",
+    "result": {
+      "index": 0,
+      "kind": "string"
+    }
+  },
+  {
+    "args": [
+      9,
+      "utinyint"
+    ],
+    "fn": "constExpression",
+    "result": {
+      "kind": "const",
+      "type": "utinyint",
+      "value": 9
+    }
+  },
+  {
+    "args": [
+      {
+        "string": 0
+      },
+      "string"
+    ],
+    "fn": "constExpression",
+    "result": {
+      "index": 0,
+      "kind": "string"
+    }
+  },
+  {
+    "args": [
+      300,
+      "usmallint"
+    ],
+    "fn": "constExpression",
+    "result": {
+      "kind": "const",
+      "type": "usmallint",
+      "value": 300
+    }
+  },
+  {
+    "args": [
+      0,
+      0,
+      4
+    ],
+    "fn": "checkStringFits",
+    "result": []
+  },
+  {
+    "args": [
+      1,
+      0,
+      4
+    ],
+    "fn": "checkStringFits",
+    "result": [
+      {
+        "code": "8BS1027",
+        "file": "<project>/limits.8bs",
+        "length": 0,
+        "message": "\"limits\" is 6 characters and does not fit in string<4>",
+        "severity": "error",
+        "start": 0
+      }
+    ]
+  },
+  {
+    "args": [
+      1,
+      1,
+      4
+    ],
+    "fn": "checkStringFits",
+    "result": []
+  }
+]

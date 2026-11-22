@@ -1,0 +1,366 @@
+[
+  {
+    "all": {
+      "types": [],
+      "values": []
+    },
+    "settled": {
+      "types": [],
+      "values": []
+    }
+  },
+  {
+    "all": {
+      "types": [
+        [
+          "RSEL",
+          "utinyint"
+        ],
+        [
+          "KEEP",
+          "utinyint"
+        ]
+      ],
+      "values": [
+        [
+          "RSEL",
+          8
+        ],
+        [
+          "KEEP",
+          55
+        ]
+      ]
+    },
+    "settled": {
+      "types": [
+        [
+          "RSEL",
+          "utinyint"
+        ],
+        [
+          "KEEP",
+          "utinyint"
+        ]
+      ],
+      "values": [
+        [
+          "RSEL",
+          8
+        ],
+        [
+          "KEEP",
+          55
+        ]
+      ]
+    }
+  },
+  {
+    "all": {
+      "types": [],
+      "values": []
+    },
+    "settled": {
+      "types": [],
+      "values": []
+    }
+  },
+  {
+    "all": {
+      "types": [
+        [
+          "LIST_A_ADDRESS",
+          "usmallint"
+        ],
+        [
+          "LIST_B_ADDRESS",
+          "usmallint"
+        ],
+        [
+          "END_ADDRESS",
+          "usmallint"
+        ],
+        [
+          "INDEX_ADDRESS",
+          "usmallint"
+        ],
+        [
+          "LIVE_PAGE_ADDRESS",
+          "usmallint"
+        ],
+        [
+          "COMMIT_PAGE_ADDRESS",
+          "usmallint"
+        ],
+        [
+          "COMMIT_END_ADDRESS",
+          "usmallint"
+        ],
+        [
+          "FRAME_A_ADDRESS",
+          "usmallint"
+        ],
+        [
+          "FRAME_B_ADDRESS",
+          "usmallint"
+        ]
+      ],
+      "values": [
+        [
+          "LIST_A_ADDRESS",
+          512
+        ],
+        [
+          "LIST_B_ADDRESS",
+          768
+        ],
+        [
+          "END_ADDRESS",
+          764
+        ],
+        [
+          "INDEX_ADDRESS",
+          765
+        ],
+        [
+          "LIVE_PAGE_ADDRESS",
+          767
+        ],
+        [
+          "COMMIT_PAGE_ADDRESS",
+          1020
+        ],
+        [
+          "COMMIT_END_ADDRESS",
+          1021
+        ],
+        [
+          "FRAME_A_ADDRESS",
+          1024
+        ],
+        [
+          "FRAME_B_ADDRESS",
+          1280
+        ]
+      ]
+    },
+    "settled": {
+      "types": [
+        [
+          "LIST_A_ADDRESS",
+          "usmallint"
+        ],
+        [
+          "LIST_B_ADDRESS",
+          "usmallint"
+        ],
+        [
+          "END_ADDRESS",
+          "usmallint"
+        ],
+        [
+          "INDEX_ADDRESS",
+          "usmallint"
+        ],
+        [
+          "LIVE_PAGE_ADDRESS",
+          "usmallint"
+        ],
+        [
+          "COMMIT_PAGE_ADDRESS",
+          "usmallint"
+        ],
+        [
+          "COMMIT_END_ADDRESS",
+          "usmallint"
+        ],
+        [
+          "FRAME_A_ADDRESS",
+          "usmallint"
+        ],
+        [
+          "FRAME_B_ADDRESS",
+          "usmallint"
+        ]
+      ],
+      "values": [
+        [
+          "LIST_A_ADDRESS",
+          512
+        ],
+        [
+          "LIST_B_ADDRESS",
+          768
+        ],
+        [
+          "END_ADDRESS",
+          764
+        ],
+        [
+          "INDEX_ADDRESS",
+          765
+        ],
+        [
+          "LIVE_PAGE_ADDRESS",
+          767
+        ],
+        [
+          "COMMIT_PAGE_ADDRESS",
+          1020
+        ],
+        [
+          "COMMIT_END_ADDRESS",
+          1021
+        ],
+        [
+          "FRAME_A_ADDRESS",
+          1024
+        ],
+        [
+          "FRAME_B_ADDRESS",
+          1280
+        ]
+      ]
+    }
+  },
+  {
+    "all": {
+      "types": [
+        [
+          "GHOST_ADDRESS",
+          "usmallint"
+        ],
+        [
+          "PATTERN_ADDRESS",
+          "usmallint"
+        ]
+      ],
+      "values": [
+        [
+          "GHOST_ADDRESS",
+          65535
+        ],
+        [
+          "PATTERN_ADDRESS",
+          63999
+        ]
+      ]
+    },
+    "settled": {
+      "types": [
+        [
+          "GHOST_ADDRESS",
+          "usmallint"
+        ],
+        [
+          "PATTERN_ADDRESS",
+          "usmallint"
+        ]
+      ],
+      "values": [
+        [
+          "GHOST_ADDRESS",
+          65535
+        ],
+        [
+          "PATTERN_ADDRESS",
+          63999
+        ]
+      ]
+    }
+  },
+  {
+    "all": {
+      "types": [
+        [
+          "SCREEN_ADDRESS",
+          "usmallint"
+        ],
+        [
+          "COLOR_ADDRESS",
+          "usmallint"
+        ],
+        [
+          "SPRITE_POINTERS_ADDRESS",
+          "usmallint"
+        ],
+        [
+          "SHAPES_ADDRESS",
+          "usmallint"
+        ],
+        [
+          "BITMAP_ADDRESS",
+          "usmallint"
+        ]
+      ],
+      "values": [
+        [
+          "SCREEN_ADDRESS",
+          57344
+        ],
+        [
+          "COLOR_ADDRESS",
+          55296
+        ],
+        [
+          "SPRITE_POINTERS_ADDRESS",
+          58360
+        ],
+        [
+          "SHAPES_ADDRESS",
+          58368
+        ],
+        [
+          "BITMAP_ADDRESS",
+          57344
+        ]
+      ]
+    },
+    "settled": {
+      "types": [
+        [
+          "SCREEN_ADDRESS",
+          "usmallint"
+        ],
+        [
+          "COLOR_ADDRESS",
+          "usmallint"
+        ],
+        [
+          "SPRITE_POINTERS_ADDRESS",
+          "usmallint"
+        ],
+        [
+          "SHAPES_ADDRESS",
+          "usmallint"
+        ],
+        [
+          "BITMAP_ADDRESS",
+          "usmallint"
+        ]
+      ],
+      "values": [
+        [
+          "SCREEN_ADDRESS",
+          57344
+        ],
+        [
+          "COLOR_ADDRESS",
+          55296
+        ],
+        [
+          "SPRITE_POINTERS_ADDRESS",
+          58360
+        ],
+        [
+          "SHAPES_ADDRESS",
+          58368
+        ],
+        [
+          "BITMAP_ADDRESS",
+          57344
+        ]
+      ]
+    }
+  }
+]

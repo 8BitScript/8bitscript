@@ -1,0 +1,4 @@
+use @8bitscript::c64::border::border;
+
+pub fn main() {
+}

@@ -1,4 +1,4 @@
-//! `cargo xtask roundtrip <dir>`: every `backend-input.json` of a dump tree is
+//! `cargo xtask roundtrip <dir>`: every `backend-input.json` and `linked.json` of a dump tree is
 //! read into the `mos-ir` types and written back; the bytes must match.
 
 use std::collections::BTreeMap;
@@ -9,8 +9,10 @@ use std::path::Path;
 #[derive(Debug, Default)]
 pub struct Report {
     pub lines: Vec<String>,
-    /// `backend-input.json` and module `.ir.json` files read.
+    /// `backend-input.json`, `linked.json` and module `.ir.json` files read.
     pub files: usize,
+    /// Of `files`, the linked programs (`linked.json`).
+    pub linked: usize,
     /// Of `files`, the module IR dumps (`modules/**/*.ir.json`).
     pub module_ir: usize,
     pub ok: usize,
@@ -23,8 +25,8 @@ pub struct Report {
 impl Report {
     pub fn summary(&self) -> String {
         format!(
-            "roundtrip: {} files, {} OK, {} ERROR, {} without backend-input per manifest, {} module-ir",
-            self.files, self.ok, self.errors, self.not_expected, self.module_ir
+            "roundtrip: {} files, {} OK, {} ERROR, {} without backend-input per manifest, {} module-ir, {} linked",
+            self.files, self.ok, self.errors, self.not_expected, self.module_ir, self.linked
         )
     }
 
@@ -36,6 +38,11 @@ impl Report {
         self.errors += 1;
         self.lines
             .push(format!("ERROR {id} backend-input {detail}"));
+    }
+
+    fn linked_error(&mut self, id: &str, detail: &str) {
+        self.errors += 1;
+        self.lines.push(format!("ERROR {id} linked {detail}"));
     }
 
     fn module_ir_error(&mut self, rel: &str, detail: &str) {
@@ -87,6 +94,7 @@ pub fn run(dir: &Path) -> Result<Report, String> {
     let tree = oracle::read_tree(dir)?;
     let mut report = Report::default();
     let mut builds: BTreeMap<&str, (Option<&Path>, Option<&Path>)> = BTreeMap::new();
+    let mut linked: Vec<(&str, &Path)> = Vec::new();
     for (rel, file) in &tree {
         if rel.contains("/modules/") && rel.ends_with(".ir.json") {
             report.files += 1;
@@ -107,7 +115,19 @@ pub fn run(dir: &Path) -> Result<Report, String> {
         match rel.rsplit('/').next().unwrap_or(rel) {
             "backend-input.json" => entry.0 = Some(file.path.as_path()),
             "manifest.json" => entry.1 = Some(file.path.as_path()),
+            "linked.json" => linked.push((file.id.as_str(), file.path.as_path())),
             _ => {}
+        }
+    }
+    for (id, path) in linked {
+        report.files += 1;
+        report.linked += 1;
+        match fs::read_to_string(path)
+            .map_err(|e| format!("cannot read: {e}"))
+            .and_then(|text| mos_ir::roundtrip_linked(&text))
+        {
+            Ok(()) => report.ok += 1,
+            Err(detail) => report.linked_error(id, &detail),
         }
     }
     for (id, (input, manifest)) in builds {
@@ -159,7 +179,31 @@ mod tests {
         let report = run(&fixtures()).unwrap();
         assert_eq!(report.errors, 0, "{:?}", report.lines);
         assert!(report.files >= 3);
+        assert_eq!(report.linked, 1, "the fixture tree holds one linked.json");
+        assert!(report.summary().ends_with(", 1 linked"));
         assert_eq!(report.exit_code(), 0);
+    }
+
+    #[test]
+    fn a_bad_linked_file_is_one_error_line() {
+        let dir = scratch("linked");
+        write(&dir.join("p/c64/linked.json"), "{}");
+        let report = run(&dir).unwrap();
+        assert_eq!((report.files, report.linked, report.ok), (1, 1, 0));
+        // the folder also has no backend-input.json and no manifest.json
+        assert_eq!(report.errors, 2);
+        assert!(
+            report
+                .lines
+                .iter()
+                .any(|l| l.starts_with("ERROR p/c64 linked "))
+        );
+        let good = fixtures().join("hello-world-c64/linked.json");
+        write(
+            &dir.join("q/c64/linked.json"),
+            &fs::read_to_string(good).unwrap(),
+        );
+        assert_eq!(run(&dir).unwrap().ok, 1);
     }
 
     #[test]
@@ -172,7 +216,7 @@ mod tests {
         let text = text.replacen("\"debug\"", "\"surprise\": 1,\n  \"debug\"", 1);
         fs::write(build.join("backend-input.json"), text).unwrap();
         // files of other stages are not read
-        fs::write(build.join("linked.json"), "not json").unwrap();
+        fs::write(build.join("diagnostics.json"), "not json").unwrap();
         let report = run(&dir).unwrap();
         assert_eq!(report.errors, 1);
         assert_eq!((report.files, report.ok), (1, 0));
@@ -241,7 +285,7 @@ mod tests {
     fn a_build_folder_without_backend_input_is_an_error_unless_the_manifest_says_so() {
         let dir = scratch("manifest");
         // no manifest at all
-        write(&dir.join("a/c64/linked.json"), "{}");
+        write(&dir.join("a/c64/diagnostics.json"), "{}");
         // manifest lists the stage but the file is gone
         write(
             &dir.join("b/c64/manifest.json"),

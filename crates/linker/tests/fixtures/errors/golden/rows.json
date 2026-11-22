@@ -1,0 +1,299 @@
+[
+  {
+    "args": [
+      0,
+      "__none",
+      "__missing",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "namespaceFound": false
+    }
+  },
+  {
+    "args": [
+      0,
+      "__none",
+      "__missing",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "namespaceFound": false
+    }
+  },
+  {
+    "args": [
+      1,
+      "__none",
+      "__missing",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "namespaceFound": false
+    }
+  },
+  {
+    "args": [
+      1,
+      "__none",
+      "__missing",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "namespaceFound": false
+    }
+  },
+  {
+    "args": [
+      0,
+      "shared"
+    ],
+    "fn": "globalNamed",
+    "result": {
+      "address": null,
+      "exported": true,
+      "init": 0,
+      "length": 6,
+      "name": "shared",
+      "start": 93,
+      "type": "utinyint",
+      "volatile": false
+    }
+  },
+  {
+    "args": [
+      0,
+      "shared"
+    ],
+    "fn": "isImportedName",
+    "result": false
+  },
+  {
+    "args": [
+      0,
+      "shared"
+    ],
+    "fn": "isStringName",
+    "result": false
+  },
+  {
+    "args": [
+      0,
+      "main"
+    ],
+    "fn": "globalNamed",
+    "result": null
+  },
+  {
+    "args": [
+      0,
+      "main"
+    ],
+    "fn": "isImportedName",
+    "result": false
+  },
+  {
+    "args": [
+      0,
+      "main"
+    ],
+    "fn": "isStringName",
+    "result": false
+  },
+  {
+    "args": [
+      0,
+      "open"
+    ],
+    "fn": "globalNamed",
+    "result": null
+  },
+  {
+    "args": [
+      0,
+      "open"
+    ],
+    "fn": "isImportedName",
+    "result": true
+  },
+  {
+    "args": [
+      0,
+      "open"
+    ],
+    "fn": "isStringName",
+    "result": false
+  },
+  {
+    "args": [
+      0,
+      "p"
+    ],
+    "fn": "globalNamed",
+    "result": null
+  },
+  {
+    "args": [
+      0,
+      "p"
+    ],
+    "fn": "isImportedName",
+    "result": false
+  },
+  {
+    "args": [
+      0,
+      "p"
+    ],
+    "fn": "isStringName",
+    "result": true
+  },
+  {
+    "args": [
+      0,
+      "__missing"
+    ],
+    "fn": "globalNamed",
+    "result": null
+  },
+  {
+    "args": [
+      0,
+      "__missing"
+    ],
+    "fn": "isImportedName",
+    "result": false
+  },
+  {
+    "args": [
+      0,
+      "__missing"
+    ],
+    "fn": "isStringName",
+    "result": false
+  },
+  {
+    "args": [
+      1,
+      "open"
+    ],
+    "fn": "globalNamed",
+    "result": null
+  },
+  {
+    "args": [
+      1,
+      "open"
+    ],
+    "fn": "isImportedName",
+    "result": false
+  },
+  {
+    "args": [
+      1,
+      "open"
+    ],
+    "fn": "isStringName",
+    "result": false
+  },
+  {
+    "args": [
+      1,
+      "other"
+    ],
+    "fn": "globalNamed",
+    "result": null
+  },
+  {
+    "args": [
+      1,
+      "other"
+    ],
+    "fn": "isImportedName",
+    "result": false
+  },
+  {
+    "args": [
+      1,
+      "other"
+    ],
+    "fn": "isStringName",
+    "result": false
+  },
+  {
+    "args": [
+      1,
+      "secret"
+    ],
+    "fn": "globalNamed",
+    "result": null
+  },
+  {
+    "args": [
+      1,
+      "secret"
+    ],
+    "fn": "isImportedName",
+    "result": false
+  },
+  {
+    "args": [
+      1,
+      "secret"
+    ],
+    "fn": "isStringName",
+    "result": false
+  },
+  {
+    "args": [
+      1,
+      "p"
+    ],
+    "fn": "globalNamed",
+    "result": null
+  },
+  {
+    "args": [
+      1,
+      "p"
+    ],
+    "fn": "isImportedName",
+    "result": false
+  },
+  {
+    "args": [
+      1,
+      "p"
+    ],
+    "fn": "isStringName",
+    "result": true
+  },
+  {
+    "args": [
+      1,
+      "__missing"
+    ],
+    "fn": "globalNamed",
+    "result": null
+  },
+  {
+    "args": [
+      1,
+      "__missing"
+    ],
+    "fn": "isImportedName",
+    "result": false
+  },
+  {
+    "args": [
+      1,
+      "__missing"
+    ],
+    "fn": "isStringName",
+    "result": false
+  }
+]

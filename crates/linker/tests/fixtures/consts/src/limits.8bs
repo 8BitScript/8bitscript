@@ -1,0 +1,10 @@
+pub const LIMIT: utinyint = 9;
+pub const NAME: string = "limits";
+pub const WIDE: usmallint = 300;
+
+pub mod Palette {
+    const DARK: utinyint = 0;
+    const LIGHT: utinyint = 15;
+    const MIRROR: utinyint = LIMIT;
+    const TITLE: string = "pal";
+}

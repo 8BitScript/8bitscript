@@ -1,0 +1,204 @@
+[
+  {
+    "args": [
+      0,
+      "__none",
+      "__missing",
+      "functions"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "namespaceFound": false
+    }
+  },
+  {
+    "args": [
+      0,
+      "__none",
+      "__missing",
+      "consts"
+    ],
+    "fn": "resolveNamespaceMember",
+    "result": {
+      "namespaceFound": false
+    }
+  },
+  {
+    "args": [
+      0,
+      "marker"
+    ],
+    "fn": "globalNamed",
+    "result": {
+      "address": null,
+      "array": 5,
+      "constant": false,
+      "exported": false,
+      "init": [
+        1,
+        45,
+        0,
+        0,
+        0
+      ],
+      "length": 6,
+      "name": "marker",
+      "start": 8,
+      "stringCapacity": 4,
+      "type": "utinyint",
+      "volatile": false
+    }
+  },
+  {
+    "args": [
+      0,
+      "marker"
+    ],
+    "fn": "isImportedName",
+    "result": false
+  },
+  {
+    "args": [
+      0,
+      "marker"
+    ],
+    "fn": "isStringName",
+    "result": true
+  },
+  {
+    "args": [
+      0,
+      "main"
+    ],
+    "fn": "globalNamed",
+    "result": null
+  },
+  {
+    "args": [
+      0,
+      "main"
+    ],
+    "fn": "isImportedName",
+    "result": false
+  },
+  {
+    "args": [
+      0,
+      "main"
+    ],
+    "fn": "isStringName",
+    "result": false
+  },
+  {
+    "args": [
+      0,
+      "BANNER"
+    ],
+    "fn": "globalNamed",
+    "result": null
+  },
+  {
+    "args": [
+      0,
+      "BANNER"
+    ],
+    "fn": "isImportedName",
+    "result": false
+  },
+  {
+    "args": [
+      0,
+      "BANNER"
+    ],
+    "fn": "isStringName",
+    "result": true
+  },
+  {
+    "args": [
+      0,
+      "p"
+    ],
+    "fn": "globalNamed",
+    "result": null
+  },
+  {
+    "args": [
+      0,
+      "p"
+    ],
+    "fn": "isImportedName",
+    "result": false
+  },
+  {
+    "args": [
+      0,
+      "p"
+    ],
+    "fn": "isStringName",
+    "result": true
+  },
+  {
+    "args": [
+      0,
+      "__missing"
+    ],
+    "fn": "globalNamed",
+    "result": null
+  },
+  {
+    "args": [
+      0,
+      "__missing"
+    ],
+    "fn": "isImportedName",
+    "result": false
+  },
+  {
+    "args": [
+      0,
+      "__missing"
+    ],
+    "fn": "isStringName",
+    "result": false
+  },
+  {
+    "args": [
+      {
+        "string": 0
+      },
+      "string"
+    ],
+    "fn": "constExpression",
+    "result": {
+      "index": 0,
+      "kind": "string"
+    }
+  },
+  {
+    "args": [
+      0,
+      0,
+      4
+    ],
+    "fn": "checkStringFits",
+    "result": [
+      {
+        "code": "8BS1027",
+        "file": "<project>/main.8bs",
+        "length": 0,
+        "message": "\"banner\" is 6 characters and does not fit in string<4>",
+        "severity": "error",
+        "start": 0
+      }
+    ]
+  },
+  {
+    "args": [
+      0,
+      1,
+      4
+    ],
+    "fn": "checkStringFits",
+    "result": []
+  }
+]

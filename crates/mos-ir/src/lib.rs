@@ -10,6 +10,7 @@
 //! (spec section 2.3): sorted keys, two-space indent, JS number text.
 
 mod expr;
+mod linked;
 mod program;
 mod stmt;
 pub mod walk;
@@ -17,6 +18,9 @@ pub mod walk;
 pub use expr::{
     Binop, Call, Cond, Const, Expr, Index, MemoryRead, NamespaceCall, NamespaceConst, PortRead,
     Record, RecordField, Ref, StringByte, StringLength, StringLiteral, Unop,
+};
+pub use linked::{
+    Instance, LinkedProgram, Memory, parse_linked, roundtrip_linked, to_canonical_linked,
 };
 pub use program::{
     ArrayElement, BackendInput, ChrPatch, FrameHook, Function, Global, GlobalInit, Hardware,
@@ -57,6 +61,11 @@ pub fn to_canonical(input: &BackendInput) -> Result<String, String> {
 pub fn roundtrip(text: &str) -> Result<(), String> {
     let input = parse(text)?;
     let again = to_canonical(&input)?;
+    same_text(text, &again)
+}
+
+/// `Ok` when the texts are equal; otherwise the first differing line.
+pub(crate) fn same_text(text: &str, again: &str) -> Result<(), String> {
     if again == text {
         return Ok(());
     }

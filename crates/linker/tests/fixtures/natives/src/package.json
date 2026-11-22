@@ -1,0 +1,7 @@
+{
+  "name": "probe",
+  "private": true,
+  "8bitscript": {
+    "native": ["./native/probe.s"]
+  }
+}

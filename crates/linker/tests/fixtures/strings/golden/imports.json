@@ -1,0 +1,8 @@
+{
+  "imports": [
+    []
+  ],
+  "modules": [
+    "<project>/main.8bs"
+  ]
+}

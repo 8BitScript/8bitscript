@@ -1,0 +1,12 @@
+{
+  "imports": [
+    [
+      1
+    ],
+    []
+  ],
+  "modules": [
+    "<project>/main.8bs",
+    "<project>/limits.8bs"
+  ]
+}

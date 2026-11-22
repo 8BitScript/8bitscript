@@ -1,0 +1,12 @@
+use self::limits::{LIMIT, NAME, WIDE, Palette};
+
+const ALIAS: utinyint = LIMIT;
+const SPACE: utinyint = 32;
+const GREETING: string = "hi";
+
+pub fn main() {
+    let a: utinyint = LIMIT;
+    let b: usmallint = WIDE;
+    let c: utinyint = Palette::DARK;
+    let d: utinyint = Palette::MIRROR;
+}

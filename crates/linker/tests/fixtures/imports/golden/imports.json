@@ -1,0 +1,19 @@
+{
+  "imports": [
+    [
+      1,
+      2,
+      3,
+      3
+    ],
+    [],
+    [],
+    []
+  ],
+  "modules": [
+    "<project>/main.8bs",
+    "<project>/util.8bs",
+    "<project>/other.8bs",
+    "<toolchain>/packages/system/src/index.8bs"
+  ]
+}

@@ -1,0 +1,13 @@
+use self::util::{helper, counter as ticks, Gfx};
+use self::other::{helper as otherHelper};
+use @8bitscript::system::{Memory as M};
+use @8bitscript::system::Video;
+
+pub fn main() {
+    helper();
+    otherHelper();
+    ticks = ticks + 1;
+    Gfx::draw(Gfx::WIDTH);
+    let ram: usmallint = M::RAM;
+    let columns: utinyint = Video::COLUMNS;
+}

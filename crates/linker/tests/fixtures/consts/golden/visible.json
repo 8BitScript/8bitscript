@@ -1,0 +1,191 @@
+[
+  {
+    "all": {
+      "types": [
+        [
+          "ALIAS",
+          "utinyint"
+        ],
+        [
+          "SPACE",
+          "utinyint"
+        ],
+        [
+          "GREETING",
+          "string"
+        ],
+        [
+          "LIMIT",
+          "utinyint"
+        ],
+        [
+          "NAME",
+          "string"
+        ],
+        [
+          "WIDE",
+          "usmallint"
+        ]
+      ],
+      "values": [
+        [
+          "ALIAS",
+          {
+            "pending": {
+              "kind": "ref",
+              "length": 5,
+              "name": "LIMIT",
+              "start": 73,
+              "type": null
+            },
+            "type": "utinyint"
+          }
+        ],
+        [
+          "SPACE",
+          32
+        ],
+        [
+          "GREETING",
+          {
+            "string": 0
+          }
+        ],
+        [
+          "LIMIT",
+          9
+        ],
+        [
+          "NAME",
+          {
+            "string": 0
+          }
+        ],
+        [
+          "WIDE",
+          300
+        ]
+      ]
+    },
+    "settled": {
+      "types": [
+        [
+          "ALIAS",
+          "utinyint"
+        ],
+        [
+          "SPACE",
+          "utinyint"
+        ],
+        [
+          "GREETING",
+          "string"
+        ],
+        [
+          "LIMIT",
+          "utinyint"
+        ],
+        [
+          "NAME",
+          "string"
+        ],
+        [
+          "WIDE",
+          "usmallint"
+        ]
+      ],
+      "values": [
+        [
+          "SPACE",
+          32
+        ],
+        [
+          "GREETING",
+          {
+            "string": 0
+          }
+        ],
+        [
+          "LIMIT",
+          9
+        ],
+        [
+          "NAME",
+          {
+            "string": 0
+          }
+        ],
+        [
+          "WIDE",
+          300
+        ]
+      ]
+    }
+  },
+  {
+    "all": {
+      "types": [
+        [
+          "LIMIT",
+          "utinyint"
+        ],
+        [
+          "NAME",
+          "string"
+        ],
+        [
+          "WIDE",
+          "usmallint"
+        ]
+      ],
+      "values": [
+        [
+          "LIMIT",
+          9
+        ],
+        [
+          "NAME",
+          {
+            "string": 0
+          }
+        ],
+        [
+          "WIDE",
+          300
+        ]
+      ]
+    },
+    "settled": {
+      "types": [
+        [
+          "LIMIT",
+          "utinyint"
+        ],
+        [
+          "NAME",
+          "string"
+        ],
+        [
+          "WIDE",
+          "usmallint"
+        ]
+      ],
+      "values": [
+        [
+          "LIMIT",
+          9
+        ],
+        [
+          "NAME",
+          {
+            "string": 0
+          }
+        ],
+        [
+          "WIDE",
+          300
+        ]
+      ]
+    }
+  }
+]
