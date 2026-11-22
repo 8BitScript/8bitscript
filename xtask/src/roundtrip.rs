@@ -179,7 +179,31 @@ mod tests {
         let report = run(&fixtures()).unwrap();
         assert_eq!(report.errors, 0, "{:?}", report.lines);
         assert!(report.files >= 3);
+        assert_eq!(report.linked, 1, "the fixture tree holds one linked.json");
+        assert!(report.summary().ends_with(", 1 linked"));
         assert_eq!(report.exit_code(), 0);
+    }
+
+    #[test]
+    fn a_bad_linked_file_is_one_error_line() {
+        let dir = scratch("linked");
+        write(&dir.join("p/c64/linked.json"), "{}");
+        let report = run(&dir).unwrap();
+        assert_eq!((report.files, report.linked, report.ok), (1, 1, 0));
+        // the folder also has no backend-input.json and no manifest.json
+        assert_eq!(report.errors, 2);
+        assert!(
+            report
+                .lines
+                .iter()
+                .any(|l| l.starts_with("ERROR p/c64 linked "))
+        );
+        let good = fixtures().join("hello-world-c64/linked.json");
+        write(
+            &dir.join("q/c64/linked.json"),
+            &fs::read_to_string(good).unwrap(),
+        );
+        assert_eq!(run(&dir).unwrap().ok, 1);
     }
 
     #[test]

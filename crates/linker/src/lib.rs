@@ -91,7 +91,11 @@ impl ModuleSide {
     /// One empty side per module of the graph.
     #[must_use]
     pub fn for_graph(graph: &front::graph::LoadedGraph) -> Vec<ModuleSide> {
-        graph.modules.iter().map(|_| ModuleSide::default()).collect()
+        graph
+            .modules
+            .iter()
+            .map(|_| ModuleSide::default())
+            .collect()
     }
 }
 

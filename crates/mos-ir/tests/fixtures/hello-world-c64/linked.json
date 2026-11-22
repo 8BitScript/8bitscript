@@ -1,0 +1,4723 @@
+{
+  "chrPatches": [],
+  "entry": "main",
+  "functions": [
+    {
+      "body": [
+        {
+          "args": [
+            {
+              "kind": "const",
+              "value": 0
+            },
+            {
+              "kind": "const",
+              "value": 0
+            }
+          ],
+          "kind": "call",
+          "length": 15,
+          "name": "screen_blank",
+          "start": 1334,
+          "type": null
+        },
+        {
+          "args": [
+            {
+              "kind": "const",
+              "type": "utinyint",
+              "value": 0
+            },
+            {
+              "index": 0,
+              "kind": "string",
+              "length": 14,
+              "start": 1370,
+              "type": "string"
+            }
+          ],
+          "kind": "call",
+          "length": 30,
+          "name": "text_print",
+          "start": 1355,
+          "type": null
+        },
+        {
+          "args": [],
+          "kind": "call",
+          "length": 21,
+          "name": "text_releaseCursor",
+          "start": 1391,
+          "type": null
+        }
+      ],
+      "component": false,
+      "exported": true,
+      "file": "<toolchain>/packages/examples/hello-world/src/hello-world.8bs",
+      "length": 4,
+      "method": false,
+      "name": "main",
+      "owner": null,
+      "params": [],
+      "returnType": "void",
+      "start": 1321
+    },
+    {
+      "body": [
+        {
+          "kind": "assign",
+          "length": 11,
+          "start": 1243,
+          "target": "borderColor",
+          "value": {
+            "kind": "binop",
+            "left": {
+              "kind": "ref",
+              "length": 6,
+              "name": "border",
+              "start": 1257,
+              "type": "utinyint"
+            },
+            "operator": "&",
+            "right": {
+              "kind": "const",
+              "type": "utinyint",
+              "value": 15
+            },
+            "type": "utinyint"
+          }
+        },
+        {
+          "kind": "assign",
+          "length": 15,
+          "start": 1278,
+          "target": "backgroundColor",
+          "value": {
+            "kind": "binop",
+            "left": {
+              "kind": "ref",
+              "length": 10,
+              "name": "background",
+              "start": 1296,
+              "type": "utinyint"
+            },
+            "operator": "&",
+            "right": {
+              "kind": "const",
+              "type": "utinyint",
+              "value": 15
+            },
+            "type": "utinyint"
+          }
+        }
+      ],
+      "component": false,
+      "exported": false,
+      "file": "<toolchain>/packages/c64/src/screen.8bs",
+      "length": 9,
+      "method": false,
+      "name": "screen_setColors",
+      "owner": null,
+      "params": [
+        {
+          "name": "border",
+          "type": "utinyint"
+        },
+        {
+          "name": "background",
+          "type": "utinyint"
+        }
+      ],
+      "returnType": "void",
+      "start": 1195
+    },
+    {
+      "body": [
+        {
+          "args": [],
+          "kind": "call",
+          "length": 10,
+          "name": "setupVideo",
+          "start": 1750,
+          "type": null
+        },
+        {
+          "else": null,
+          "kind": "if",
+          "length": 81,
+          "start": 1772,
+          "test": {
+            "kind": "binop",
+            "left": {
+              "kind": "ref",
+              "length": 6,
+              "name": "border",
+              "start": 1775,
+              "type": "utinyint"
+            },
+            "operator": "!=",
+            "right": {
+              "kind": "const",
+              "type": "utinyint",
+              "value": 255
+            },
+            "type": "bool"
+          },
+          "then": [
+            {
+              "args": [
+                {
+                  "kind": "ref",
+                  "length": 6,
+                  "name": "border",
+                  "start": 1835,
+                  "type": "utinyint"
+                }
+              ],
+              "kind": "call",
+              "length": 25,
+              "name": "screen_setBorder",
+              "start": 1817,
+              "type": null
+            }
+          ]
+        },
+        {
+          "else": null,
+          "kind": "if",
+          "length": 97,
+          "start": 1862,
+          "test": {
+            "kind": "binop",
+            "left": {
+              "kind": "ref",
+              "length": 10,
+              "name": "background",
+              "start": 1865,
+              "type": "utinyint"
+            },
+            "operator": "!=",
+            "right": {
+              "kind": "const",
+              "type": "utinyint",
+              "value": 255
+            },
+            "type": "bool"
+          },
+          "then": [
+            {
+              "args": [
+                {
+                  "kind": "ref",
+                  "length": 10,
+                  "name": "background",
+                  "start": 1937,
+                  "type": "utinyint"
+                }
+              ],
+              "kind": "call",
+              "length": 33,
+              "name": "screen_setBackground",
+              "start": 1915,
+              "type": null
+            }
+          ]
+        },
+        {
+          "body": [
+            {
+              "array": {
+                "kind": "ref",
+                "length": 9,
+                "name": "screenRam",
+                "start": 2452
+              },
+              "elementType": "utinyint",
+              "index": {
+                "kind": "ref",
+                "length": 1,
+                "name": "i",
+                "start": 2462,
+                "type": "utinyint"
+              },
+              "kind": "storeIndex",
+              "length": 9,
+              "start": 2452,
+              "value": {
+                "kind": "const",
+                "type": "utinyint",
+                "value": 32
+              }
+            },
+            {
+              "array": {
+                "kind": "ref",
+                "length": 9,
+                "name": "screenRam",
+                "start": 2512
+              },
+              "elementType": "utinyint",
+              "index": {
+                "kind": "binop",
+                "left": {
+                  "kind": "ref",
+                  "length": 1,
+                  "name": "i",
+                  "start": 2522,
+                  "type": "utinyint"
+                },
+                "operator": "+",
+                "right": {
+                  "kind": "const",
+                  "type": "utinyint",
+                  "value": 250
+                },
+                "type": "utinyint"
+              },
+              "kind": "storeIndex",
+              "length": 9,
+              "start": 2512,
+              "value": {
+                "kind": "const",
+                "type": "utinyint",
+                "value": 32
+              }
+            },
+            {
+              "array": {
+                "kind": "ref",
+                "length": 9,
+                "name": "screenRam",
+                "start": 2549
+              },
+              "elementType": "utinyint",
+              "index": {
+                "kind": "binop",
+                "left": {
+                  "kind": "ref",
+                  "length": 1,
+                  "name": "i",
+                  "start": 2559,
+                  "type": "utinyint"
+                },
+                "operator": "+",
+                "right": {
+                  "kind": "const",
+                  "type": "usmallint",
+                  "value": 500
+                },
+                "type": "usmallint"
+              },
+              "kind": "storeIndex",
+              "length": 9,
+              "start": 2549,
+              "value": {
+                "kind": "const",
+                "type": "utinyint",
+                "value": 32
+              }
+            },
+            {
+              "array": {
+                "kind": "ref",
+                "length": 9,
+                "name": "screenRam",
+                "start": 2586
+              },
+              "elementType": "utinyint",
+              "index": {
+                "kind": "binop",
+                "left": {
+                  "kind": "ref",
+                  "length": 1,
+                  "name": "i",
+                  "start": 2596,
+                  "type": "utinyint"
+                },
+                "operator": "+",
+                "right": {
+                  "kind": "const",
+                  "type": "usmallint",
+                  "value": 750
+                },
+                "type": "usmallint"
+              },
+              "kind": "storeIndex",
+              "length": 9,
+              "start": 2586,
+              "value": {
+                "kind": "const",
+                "type": "utinyint",
+                "value": 32
+              }
+            }
+          ],
+          "init": {
+            "init": {
+              "kind": "const",
+              "type": "utinyint",
+              "value": 0
+            },
+            "kind": "local",
+            "length": 1,
+            "name": "i",
+            "start": 2416,
+            "type": "utinyint"
+          },
+          "kind": "for",
+          "length": 208,
+          "start": 2412,
+          "test": {
+            "kind": "binop",
+            "left": {
+              "kind": "ref",
+              "length": 1,
+              "name": "i",
+              "start": 2416,
+              "type": "utinyint"
+            },
+            "operator": "<",
+            "right": {
+              "kind": "const",
+              "type": "utinyint",
+              "value": 250
+            },
+            "type": "bool"
+          },
+          "unroll": false,
+          "update": {
+            "kind": "assign",
+            "length": 1,
+            "start": 2416,
+            "target": "i",
+            "value": {
+              "kind": "binop",
+              "left": {
+                "kind": "ref",
+                "length": 1,
+                "name": "i",
+                "start": 2416,
+                "type": "utinyint"
+              },
+              "operator": "+",
+              "right": {
+                "kind": "const",
+                "type": "utinyint",
+                "value": 1
+              },
+              "type": "utinyint"
+            }
+          }
+        }
+      ],
+      "component": false,
+      "exported": false,
+      "file": "<toolchain>/packages/c64/src/screen.8bs",
+      "length": 5,
+      "method": false,
+      "name": "screen_blank",
+      "owner": null,
+      "params": [
+        {
+          "default": {
+            "kind": "const",
+            "value": 0
+          },
+          "name": "border",
+          "type": "utinyint"
+        },
+        {
+          "default": {
+            "kind": "const",
+            "value": 0
+          },
+          "name": "background",
+          "type": "utinyint"
+        }
+      ],
+      "returnType": "void",
+      "start": 1648
+    },
+    {
+      "body": [
+        {
+          "kind": "assign",
+          "length": 15,
+          "start": 2675,
+          "target": "backgroundColor",
+          "value": {
+            "kind": "binop",
+            "left": {
+              "kind": "ref",
+              "length": 10,
+              "name": "background",
+              "start": 2693,
+              "type": "utinyint"
+            },
+            "operator": "&",
+            "right": {
+              "kind": "const",
+              "type": "utinyint",
+              "value": 15
+            },
+            "type": "utinyint"
+          }
+        }
+      ],
+      "component": false,
+      "exported": false,
+      "file": "<toolchain>/packages/c64/src/screen.8bs",
+      "length": 13,
+      "method": false,
+      "name": "screen_setBackground",
+      "owner": null,
+      "params": [
+        {
+          "name": "background",
+          "type": "utinyint"
+        }
+      ],
+      "returnType": "void",
+      "start": 2635
+    },
+    {
+      "body": [
+        {
+          "kind": "assign",
+          "length": 11,
+          "start": 2756,
+          "target": "borderColor",
+          "value": {
+            "kind": "binop",
+            "left": {
+              "kind": "ref",
+              "length": 6,
+              "name": "border",
+              "start": 2770,
+              "type": "utinyint"
+            },
+            "operator": "&",
+            "right": {
+              "kind": "const",
+              "type": "utinyint",
+              "value": 15
+            },
+            "type": "utinyint"
+          }
+        }
+      ],
+      "component": false,
+      "exported": false,
+      "file": "<toolchain>/packages/c64/src/screen.8bs",
+      "length": 9,
+      "method": false,
+      "name": "screen_setBorder",
+      "owner": null,
+      "params": [
+        {
+          "name": "border",
+          "type": "utinyint"
+        }
+      ],
+      "returnType": "void",
+      "start": 2724
+    },
+    {
+      "body": [
+        {
+          "kind": "return",
+          "length": 13,
+          "start": 3268,
+          "value": {
+            "kind": "const",
+            "type": "bool",
+            "value": 0
+          }
+        }
+      ],
+      "component": false,
+      "exported": false,
+      "file": "<toolchain>/packages/c64/src/screen.8bs",
+      "length": 7,
+      "method": false,
+      "name": "screen_resized",
+      "owner": null,
+      "params": [],
+      "returnType": "bool",
+      "start": 3240
+    },
+    {
+      "body": [
+        {
+          "else": null,
+          "kind": "if",
+          "length": 72,
+          "start": 3371,
+          "test": {
+            "kind": "binop",
+            "left": {
+              "kind": "binop",
+              "left": {
+                "kind": "ref",
+                "length": 4,
+                "name": "code",
+                "start": 3374,
+                "type": "utinyint"
+              },
+              "operator": ">=",
+              "right": {
+                "kind": "const",
+                "type": "utinyint",
+                "value": 97
+              },
+              "type": "bool"
+            },
+            "operator": "&&",
+            "right": {
+              "kind": "binop",
+              "left": {
+                "kind": "ref",
+                "length": 4,
+                "name": "code",
+                "start": 3388,
+                "type": "utinyint"
+              },
+              "operator": "<",
+              "right": {
+                "kind": "const",
+                "type": "utinyint",
+                "value": 123
+              },
+              "type": "bool"
+            },
+            "type": "bool"
+          },
+          "then": [
+            {
+              "kind": "return",
+              "length": 17,
+              "start": 3409,
+              "value": {
+                "kind": "binop",
+                "left": {
+                  "kind": "ref",
+                  "length": 4,
+                  "name": "code",
+                  "start": 3416,
+                  "type": "utinyint"
+                },
+                "operator": "-",
+                "right": {
+                  "kind": "const",
+                  "type": "utinyint",
+                  "value": 96
+                },
+                "type": "utinyint"
+              }
+            }
+          ]
+        },
+        {
+          "kind": "return",
+          "length": 12,
+          "start": 3448,
+          "value": {
+            "kind": "ref",
+            "length": 4,
+            "name": "code",
+            "start": 3455,
+            "type": "utinyint"
+          }
+        }
+      ],
+      "component": false,
+      "exported": false,
+      "file": "<toolchain>/packages/c64/src/text.8bs",
+      "length": 17,
+      "method": false,
+      "name": "asciiToScreenCode",
+      "owner": null,
+      "params": [
+        {
+          "name": "code",
+          "type": "utinyint"
+        }
+      ],
+      "returnType": "utinyint",
+      "start": 2926
+    },
+    {
+      "body": [
+        {
+          "init": {
+            "args": [
+              {
+                "kind": "ref",
+                "length": 4,
+                "name": "code",
+                "start": 5827,
+                "type": "utinyint"
+              }
+            ],
+            "kind": "call",
+            "length": 17,
+            "name": "asciiToScreenCode",
+            "start": 5809,
+            "type": "utinyint"
+          },
+          "kind": "local",
+          "length": 6,
+          "name": "screen",
+          "start": 5790,
+          "type": "utinyint"
+        },
+        {
+          "else": null,
+          "kind": "if",
+          "length": 56,
+          "start": 5838,
+          "test": {
+            "kind": "ref",
+            "length": 14,
+            "name": "currentReverse",
+            "start": 5841,
+            "type": "bool"
+          },
+          "then": [
+            {
+              "kind": "assign",
+              "length": 6,
+              "start": 5866,
+              "target": "screen",
+              "value": {
+                "kind": "binop",
+                "left": {
+                  "kind": "ref",
+                  "length": 6,
+                  "name": "screen",
+                  "start": 5875,
+                  "type": "utinyint"
+                },
+                "operator": "+",
+                "right": {
+                  "kind": "const",
+                  "type": "utinyint",
+                  "value": 128
+                },
+                "type": "utinyint"
+              }
+            }
+          ]
+        },
+        {
+          "kind": "return",
+          "length": 14,
+          "start": 5899,
+          "value": {
+            "kind": "ref",
+            "length": 6,
+            "name": "screen",
+            "start": 5906,
+            "type": "utinyint"
+          }
+        }
+      ],
+      "component": false,
+      "exported": false,
+      "file": "<toolchain>/packages/c64/src/text.8bs",
+      "length": 8,
+      "method": false,
+      "name": "toScreen",
+      "owner": null,
+      "params": [
+        {
+          "name": "code",
+          "type": "utinyint"
+        }
+      ],
+      "returnType": "utinyint",
+      "start": 5739
+    },
+    {
+      "body": [
+        {
+          "args": [],
+          "kind": "call",
+          "length": 10,
+          "name": "setupVideo",
+          "start": 5998,
+          "type": null
+        },
+        {
+          "else": null,
+          "kind": "if",
+          "length": 96,
+          "start": 6016,
+          "test": {
+            "kind": "binop",
+            "left": {
+              "kind": "ref",
+              "length": 9,
+              "name": "videoMode",
+              "start": 6019,
+              "type": "utinyint"
+            },
+            "operator": "==",
+            "right": {
+              "kind": "const",
+              "type": "utinyint",
+              "value": 0
+            },
+            "type": "bool"
+          },
+          "then": [
+            {
+              "kind": "assign",
+              "length": 13,
+              "start": 6058,
+              "target": "memoryPointer",
+              "value": {
+                "kind": "const",
+                "type": "utinyint",
+                "value": 134
+              }
+            }
+          ]
+        },
+        {
+          "kind": "assign",
+          "length": 9,
+          "start": 6117,
+          "target": "textColor",
+          "value": {
+            "kind": "ref",
+            "length": 12,
+            "name": "currentColor",
+            "start": 6129,
+            "type": "utinyint"
+          }
+        },
+        {
+          "else": [
+            {
+              "kind": "assign",
+              "length": 11,
+              "start": 6275,
+              "target": "textReverse",
+              "value": {
+                "kind": "const",
+                "type": "utinyint",
+                "value": 0
+              }
+            }
+          ],
+          "kind": "if",
+          "length": 90,
+          "start": 6207,
+          "test": {
+            "kind": "ref",
+            "length": 14,
+            "name": "currentReverse",
+            "start": 6210,
+            "type": "bool"
+          },
+          "then": [
+            {
+              "kind": "assign",
+              "length": 11,
+              "start": 6235,
+              "target": "textReverse",
+              "value": {
+                "kind": "const",
+                "type": "utinyint",
+                "value": 128
+              }
+            }
+          ]
+        }
+      ],
+      "component": false,
+      "exported": false,
+      "file": "<toolchain>/packages/c64/src/text.8bs",
+      "length": 7,
+      "method": false,
+      "name": "prepare",
+      "owner": null,
+      "params": [],
+      "returnType": "void",
+      "start": 5982
+    },
+    {
+      "body": [
+        {
+          "kind": "return",
+          "length": 21,
+          "start": 6913,
+          "value": {
+            "kind": "const",
+            "type": "utinyint",
+            "value": 40
+          }
+        }
+      ],
+      "component": false,
+      "exported": false,
+      "file": "<toolchain>/packages/c64/src/text.8bs",
+      "length": 7,
+      "method": false,
+      "name": "text_columns",
+      "owner": null,
+      "params": [],
+      "returnType": "utinyint",
+      "start": 6881
+    },
+    {
+      "body": [
+        {
+          "kind": "return",
+          "length": 18,
+          "start": 6978,
+          "value": {
+            "kind": "const",
+            "type": "utinyint",
+            "value": 25
+          }
+        }
+      ],
+      "component": false,
+      "exported": false,
+      "file": "<toolchain>/packages/c64/src/text.8bs",
+      "length": 4,
+      "method": false,
+      "name": "text_rows",
+      "owner": null,
+      "params": [],
+      "returnType": "utinyint",
+      "start": 6949
+    },
+    {
+      "body": [
+        {
+          "args": [],
+          "kind": "call",
+          "length": 7,
+          "name": "prepare",
+          "start": 7062,
+          "type": "void"
+        },
+        {
+          "array": {
+            "kind": "ref",
+            "length": 9,
+            "name": "screenRam",
+            "start": 7081
+          },
+          "elementType": "utinyint",
+          "index": {
+            "kind": "ref",
+            "length": 4,
+            "name": "cell",
+            "start": 7091,
+            "type": "usmallint"
+          },
+          "kind": "storeIndex",
+          "length": 9,
+          "start": 7081,
+          "value": {
+            "args": [
+              {
+                "kind": "ref",
+                "length": 4,
+                "name": "code",
+                "start": 7108,
+                "type": "utinyint"
+              }
+            ],
+            "kind": "call",
+            "length": 8,
+            "name": "toScreen",
+            "start": 7099,
+            "type": "utinyint"
+          }
+        }
+      ],
+      "component": false,
+      "exported": false,
+      "file": "<toolchain>/packages/c64/src/text.8bs",
+      "length": 7,
+      "method": false,
+      "name": "text_putChar",
+      "owner": null,
+      "params": [
+        {
+          "name": "cell",
+          "type": "usmallint"
+        },
+        {
+          "name": "code",
+          "type": "utinyint"
+        }
+      ],
+      "returnType": "void",
+      "start": 7011
+    },
+    {
+      "body": [
+        {
+          "array": {
+            "kind": "ref",
+            "length": 8,
+            "name": "colorRam",
+            "start": 7182
+          },
+          "elementType": "utinyint",
+          "index": {
+            "kind": "ref",
+            "length": 4,
+            "name": "cell",
+            "start": 7191,
+            "type": "usmallint"
+          },
+          "kind": "storeIndex",
+          "length": 8,
+          "start": 7182,
+          "value": {
+            "kind": "ref",
+            "length": 5,
+            "name": "color",
+            "start": 7199,
+            "type": "utinyint"
+          }
+        }
+      ],
+      "component": false,
+      "exported": false,
+      "file": "<toolchain>/packages/c64/src/text.8bs",
+      "length": 8,
+      "method": false,
+      "name": "text_putColor",
+      "owner": null,
+      "params": [
+        {
+          "name": "cell",
+          "type": "usmallint"
+        },
+        {
+          "name": "color",
+          "type": "utinyint"
+        }
+      ],
+      "returnType": "void",
+      "start": 7129
+    },
+    {
+      "body": [
+        {
+          "kind": "assign",
+          "length": 12,
+          "start": 7256,
+          "target": "currentColor",
+          "value": {
+            "kind": "ref",
+            "length": 5,
+            "name": "color",
+            "start": 7271,
+            "type": "utinyint"
+          }
+        }
+      ],
+      "component": false,
+      "exported": false,
+      "file": "<toolchain>/packages/c64/src/text.8bs",
+      "length": 8,
+      "method": false,
+      "name": "text_setColor",
+      "owner": null,
+      "params": [
+        {
+          "name": "color",
+          "type": "utinyint"
+        }
+      ],
+      "returnType": "void",
+      "start": 7220
+    },
+    {
+      "body": [
+        {
+          "kind": "assign",
+          "length": 14,
+          "start": 7465,
+          "target": "currentReverse",
+          "value": {
+            "kind": "ref",
+            "length": 2,
+            "name": "on",
+            "start": 7482,
+            "type": "bool"
+          }
+        }
+      ],
+      "component": false,
+      "exported": false,
+      "file": "<toolchain>/packages/c64/src/text.8bs",
+      "length": 10,
+      "method": false,
+      "name": "text_setReverse",
+      "owner": null,
+      "params": [
+        {
+          "name": "on",
+          "type": "bool"
+        }
+      ],
+      "returnType": "void",
+      "start": 7434
+    },
+    {
+      "body": [],
+      "component": false,
+      "exported": false,
+      "file": "<toolchain>/packages/c64/src/text.8bs",
+      "length": 13,
+      "method": false,
+      "name": "text_releaseCursor",
+      "owner": null,
+      "params": [],
+      "returnType": "void",
+      "start": 7938
+    },
+    {
+      "body": [
+        {
+          "args": [],
+          "kind": "call",
+          "length": 7,
+          "name": "prepare",
+          "start": 8014,
+          "type": "void"
+        },
+        {
+          "kind": "asm",
+          "length": 301,
+          "start": 8033,
+          "text": "\n            lda cell\n            sta $0700\n            lda cell+1\n            sta $0701\n            lda s               ; the string's address: its length byte, then the characters\n            sta $0704\n            lda s+1\n            sta $0705\n            jsr __8bs_c64_text_print\n        "
+        }
+      ],
+      "component": false,
+      "exported": false,
+      "file": "<toolchain>/packages/c64/src/text.8bs",
+      "length": 5,
+      "method": false,
+      "name": "text_print",
+      "owner": null,
+      "params": [
+        {
+          "name": "cell",
+          "type": "usmallint"
+        },
+        {
+          "name": "s",
+          "type": "string"
+        }
+      ],
+      "returnType": "void",
+      "start": 7970
+    },
+    {
+      "body": [
+        {
+          "args": [],
+          "kind": "call",
+          "length": 7,
+          "name": "prepare",
+          "start": 8788,
+          "type": "void"
+        },
+        {
+          "kind": "asm",
+          "length": 276,
+          "start": 8807,
+          "text": "\n            lda cell\n            sta $0700\n            lda cell+1\n            sta $0701\n            lda count\n            sta $0704\n            lda count+1\n            sta $0705\n            lda code\n            sta $0706\n            jsr __8bs_c64_text_fill\n        "
+        }
+      ],
+      "component": false,
+      "exported": false,
+      "file": "<toolchain>/packages/c64/src/text.8bs",
+      "length": 4,
+      "method": false,
+      "name": "text_fill",
+      "owner": null,
+      "params": [
+        {
+          "name": "cell",
+          "type": "usmallint"
+        },
+        {
+          "name": "count",
+          "type": "usmallint"
+        },
+        {
+          "name": "code",
+          "type": "utinyint"
+        }
+      ],
+      "returnType": "void",
+      "start": 8722
+    },
+    {
+      "body": [
+        {
+          "args": [],
+          "kind": "call",
+          "length": 7,
+          "name": "prepare",
+          "start": 9630,
+          "type": "void"
+        },
+        {
+          "kind": "asm",
+          "length": 279,
+          "start": 9649,
+          "text": "\n            lda cell\n            sta $0700\n            lda cell+1\n            sta $0701\n            lda value\n            sta $0704\n            lda value+1\n            sta $0705\n            lda width\n            sta $0706\n            jsr __8bs_c64_text_number\n        "
+        }
+      ],
+      "component": false,
+      "exported": false,
+      "file": "<toolchain>/packages/c64/src/text.8bs",
+      "length": 11,
+      "method": false,
+      "name": "text_printNumber",
+      "owner": null,
+      "params": [
+        {
+          "name": "cell",
+          "type": "usmallint"
+        },
+        {
+          "name": "value",
+          "type": "usmallint"
+        },
+        {
+          "name": "width",
+          "type": "utinyint"
+        }
+      ],
+      "returnType": "void",
+      "start": 9556
+    },
+    {
+      "body": [
+        {
+          "else": null,
+          "kind": "if",
+          "length": 37,
+          "start": 14170,
+          "test": {
+            "kind": "ref",
+            "length": 10,
+            "name": "videoReady",
+            "start": 14173,
+            "type": "bool"
+          },
+          "then": [
+            {
+              "kind": "return",
+              "length": 7,
+              "start": 14194,
+              "value": null
+            }
+          ]
+        },
+        {
+          "kind": "assign",
+          "length": 10,
+          "start": 14212,
+          "target": "videoReady",
+          "value": {
+            "kind": "const",
+            "type": "bool",
+            "value": 1
+          }
+        },
+        {
+          "kind": "asm",
+          "length": 27,
+          "start": 14235,
+          "text": "\n        sei\n    "
+        },
+        {
+          "args": [],
+          "kind": "call",
+          "length": 16,
+          "name": "copyCharacterRom",
+          "start": 14267,
+          "type": "void"
+        },
+        {
+          "kind": "assign",
+          "length": 14,
+          "start": 14291,
+          "target": "cia2DirectionA",
+          "value": {
+            "kind": "binop",
+            "left": {
+              "kind": "ref",
+              "length": 14,
+              "name": "cia2DirectionA",
+              "start": 14308,
+              "type": "utinyint"
+            },
+            "operator": "|",
+            "right": {
+              "kind": "const",
+              "type": "utinyint",
+              "value": 3
+            },
+            "type": "utinyint"
+          }
+        },
+        {
+          "kind": "assign",
+          "length": 9,
+          "start": 14335,
+          "target": "cia2PortA",
+          "value": {
+            "kind": "binop",
+            "left": {
+              "kind": "ref",
+              "length": 9,
+              "name": "cia2PortA",
+              "start": 14347,
+              "type": "utinyint"
+            },
+            "operator": "&",
+            "right": {
+              "kind": "const",
+              "type": "utinyint",
+              "value": 252
+            },
+            "type": "utinyint"
+          }
+        },
+        {
+          "kind": "assign",
+          "length": 13,
+          "start": 14379,
+          "target": "memoryPointer",
+          "value": {
+            "kind": "const",
+            "type": "utinyint",
+            "value": 132
+          }
+        },
+        {
+          "kind": "assign",
+          "length": 12,
+          "start": 14432,
+          "target": "spriteEnable",
+          "value": {
+            "kind": "const",
+            "type": "utinyint",
+            "value": 0
+          }
+        }
+      ],
+      "component": false,
+      "exported": true,
+      "file": "<toolchain>/packages/c64/src/index.8bs",
+      "length": 10,
+      "method": false,
+      "name": "setupVideo",
+      "owner": null,
+      "params": [],
+      "returnType": "void",
+      "start": 14151
+    },
+    {
+      "body": [
+        {
+          "kind": "asm",
+          "length": 27,
+          "start": 14898,
+          "text": "\n        sei\n    "
+        },
+        {
+          "kind": "assign",
+          "length": 13,
+          "start": 14930,
+          "target": "processorPort",
+          "value": {
+            "kind": "binop",
+            "left": {
+              "kind": "binop",
+              "left": {
+                "kind": "ref",
+                "length": 13,
+                "name": "processorPort",
+                "start": 14946,
+                "type": "utinyint"
+              },
+              "operator": "&",
+              "right": {
+                "kind": "const",
+                "type": "utinyint",
+                "value": 248
+              },
+              "type": "utinyint"
+            },
+            "operator": "|",
+            "right": {
+              "kind": "const",
+              "type": "utinyint",
+              "value": 2
+            },
+            "type": "utinyint"
+          }
+        },
+        {
+          "body": [
+            {
+              "address": {
+                "kind": "binop",
+                "left": {
+                  "kind": "const",
+                  "type": "usmallint",
+                  "value": 53248
+                },
+                "operator": "+",
+                "right": {
+                  "kind": "ref",
+                  "length": 1,
+                  "name": "i",
+                  "start": 15100,
+                  "type": "usmallint"
+                },
+                "type": "usmallint"
+              },
+              "kind": "memoryWrite",
+              "length": 67,
+              "start": 15069,
+              "value": {
+                "address": {
+                  "kind": "binop",
+                  "left": {
+                    "kind": "const",
+                    "type": "usmallint",
+                    "value": 53248
+                  },
+                  "operator": "+",
+                  "right": {
+                    "kind": "ref",
+                    "length": 1,
+                    "name": "i",
+                    "start": 15133,
+                    "type": "usmallint"
+                  },
+                  "type": "usmallint"
+                },
+                "kind": "memoryRead",
+                "length": 32,
+                "start": 15103,
+                "type": "utinyint"
+              }
+            }
+          ],
+          "init": {
+            "init": {
+              "kind": "const",
+              "type": "utinyint",
+              "value": 0
+            },
+            "kind": "local",
+            "length": 1,
+            "name": "i",
+            "start": 15035,
+            "type": "usmallint"
+          },
+          "kind": "for",
+          "length": 112,
+          "start": 15031,
+          "test": {
+            "kind": "binop",
+            "left": {
+              "kind": "ref",
+              "length": 1,
+              "name": "i",
+              "start": 15035,
+              "type": "usmallint"
+            },
+            "operator": "<",
+            "right": {
+              "kind": "const",
+              "type": "usmallint",
+              "value": 4096
+            },
+            "type": "bool"
+          },
+          "unroll": false,
+          "update": {
+            "kind": "assign",
+            "length": 1,
+            "start": 15035,
+            "target": "i",
+            "value": {
+              "kind": "binop",
+              "left": {
+                "kind": "ref",
+                "length": 1,
+                "name": "i",
+                "start": 15035,
+                "type": "usmallint"
+              },
+              "operator": "+",
+              "right": {
+                "kind": "const",
+                "type": "utinyint",
+                "value": 1
+              },
+              "type": "usmallint"
+            }
+          }
+        },
+        {
+          "kind": "assign",
+          "length": 13,
+          "start": 15148,
+          "target": "processorPort",
+          "value": {
+            "kind": "binop",
+            "left": {
+              "kind": "binop",
+              "left": {
+                "kind": "ref",
+                "length": 13,
+                "name": "processorPort",
+                "start": 15164,
+                "type": "utinyint"
+              },
+              "operator": "&",
+              "right": {
+                "kind": "const",
+                "type": "utinyint",
+                "value": 248
+              },
+              "type": "utinyint"
+            },
+            "operator": "|",
+            "right": {
+              "kind": "const",
+              "type": "utinyint",
+              "value": 5
+            },
+            "type": "utinyint"
+          }
+        },
+        {
+          "else": null,
+          "kind": "if",
+          "length": 67,
+          "start": 15225,
+          "test": {
+            "kind": "ref",
+            "length": 12,
+            "name": "interruptsOn",
+            "start": 15228,
+            "type": "bool"
+          },
+          "then": [
+            {
+              "kind": "asm",
+              "length": 35,
+              "start": 15251,
+              "text": "\n            cli\n        "
+            }
+          ]
+        }
+      ],
+      "component": false,
+      "exported": true,
+      "file": "<toolchain>/packages/c64/src/index.8bs",
+      "length": 16,
+      "method": false,
+      "name": "copyCharacterRom",
+      "owner": null,
+      "params": [],
+      "returnType": "void",
+      "start": 14873
+    },
+    {
+      "body": [
+        {
+          "kind": "return",
+          "length": 46,
+          "start": 16292,
+          "value": {
+            "kind": "binop",
+            "left": {
+              "kind": "binop",
+              "left": {
+                "kind": "ref",
+                "length": 6,
+                "name": "raster",
+                "start": 16299,
+                "type": "utinyint"
+              },
+              "operator": "<",
+              "right": {
+                "kind": "const",
+                "type": "utinyint",
+                "value": 128
+              },
+              "type": "bool"
+            },
+            "operator": "&&",
+            "right": {
+              "kind": "binop",
+              "left": {
+                "kind": "binop",
+                "left": {
+                  "kind": "ref",
+                  "length": 8,
+                  "name": "control1",
+                  "start": 16316,
+                  "type": "utinyint"
+                },
+                "operator": "&",
+                "right": {
+                  "kind": "const",
+                  "type": "utinyint",
+                  "value": 128
+                },
+                "type": "utinyint"
+              },
+              "operator": "==",
+              "right": {
+                "kind": "const",
+                "type": "utinyint",
+                "value": 0
+              },
+              "type": "bool"
+            },
+            "type": "bool"
+          }
+        }
+      ],
+      "component": false,
+      "exported": false,
+      "file": "<toolchain>/packages/c64/src/index.8bs",
+      "length": 15,
+      "method": false,
+      "name": "rasterInTopHalf",
+      "owner": null,
+      "params": [],
+      "returnType": "bool",
+      "start": 16186
+    },
+    {
+      "body": [
+        {
+          "init": {
+            "kind": "const",
+            "type": "bool",
+            "value": 0
+          },
+          "kind": "local",
+          "length": 3,
+          "name": "pal",
+          "start": 16390,
+          "type": "bool"
+        },
+        {
+          "body": [],
+          "kind": "while",
+          "length": 31,
+          "start": 16413,
+          "test": {
+            "args": [],
+            "kind": "call",
+            "length": 15,
+            "name": "rasterInTopHalf",
+            "start": 16419,
+            "type": "bool"
+          }
+        },
+        {
+          "body": [],
+          "kind": "while",
+          "length": 32,
+          "start": 16449,
+          "test": {
+            "argument": {
+              "args": [],
+              "kind": "call",
+              "length": 15,
+              "name": "rasterInTopHalf",
+              "start": 16456,
+              "type": "bool"
+            },
+            "kind": "unop",
+            "operator": "!",
+            "type": "bool"
+          }
+        },
+        {
+          "body": [],
+          "kind": "while",
+          "length": 31,
+          "start": 16508,
+          "test": {
+            "args": [],
+            "kind": "call",
+            "length": 15,
+            "name": "rasterInTopHalf",
+            "start": 16514,
+            "type": "bool"
+          }
+        },
+        {
+          "body": [
+            {
+              "else": null,
+              "kind": "if",
+              "length": 77,
+              "start": 16579,
+              "test": {
+                "kind": "binop",
+                "left": {
+                  "kind": "binop",
+                  "left": {
+                    "kind": "binop",
+                    "left": {
+                      "kind": "ref",
+                      "length": 8,
+                      "name": "control1",
+                      "start": 16583,
+                      "type": "utinyint"
+                    },
+                    "operator": "&",
+                    "right": {
+                      "kind": "const",
+                      "type": "utinyint",
+                      "value": 128
+                    },
+                    "type": "utinyint"
+                  },
+                  "operator": "!=",
+                  "right": {
+                    "kind": "const",
+                    "type": "utinyint",
+                    "value": 0
+                  },
+                  "type": "bool"
+                },
+                "operator": "&&",
+                "right": {
+                  "kind": "binop",
+                  "left": {
+                    "kind": "ref",
+                    "length": 6,
+                    "name": "raster",
+                    "start": 16608,
+                    "type": "utinyint"
+                  },
+                  "operator": ">=",
+                  "right": {
+                    "kind": "const",
+                    "type": "utinyint",
+                    "value": 32
+                  },
+                  "type": "bool"
+                },
+                "type": "bool"
+              },
+              "then": [
+                {
+                  "kind": "assign",
+                  "length": 3,
+                  "start": 16635,
+                  "target": "pal",
+                  "value": {
+                    "kind": "const",
+                    "type": "bool",
+                    "value": 1
+                  }
+                }
+              ]
+            }
+          ],
+          "kind": "while",
+          "length": 118,
+          "start": 16544,
+          "test": {
+            "argument": {
+              "args": [],
+              "kind": "call",
+              "length": 15,
+              "name": "rasterInTopHalf",
+              "start": 16551,
+              "type": "bool"
+            },
+            "kind": "unop",
+            "operator": "!",
+            "type": "bool"
+          }
+        },
+        {
+          "else": null,
+          "kind": "if",
+          "length": 42,
+          "start": 16667,
+          "test": {
+            "kind": "ref",
+            "length": 3,
+            "name": "pal",
+            "start": 16670,
+            "type": "bool"
+          },
+          "then": [
+            {
+              "kind": "return",
+              "length": 19,
+              "start": 16684,
+              "value": {
+                "kind": "const",
+                "type": "utinyint",
+                "value": 0
+              }
+            }
+          ]
+        },
+        {
+          "kind": "return",
+          "length": 20,
+          "start": 16714,
+          "value": {
+            "kind": "const",
+            "type": "utinyint",
+            "value": 1
+          }
+        }
+      ],
+      "component": false,
+      "exported": true,
+      "file": "<toolchain>/packages/c64/src/index.8bs",
+      "length": 12,
+      "method": false,
+      "name": "detectRegion",
+      "owner": null,
+      "params": [],
+      "returnType": "utinyint",
+      "start": 16349
+    },
+    {
+      "body": [
+        {
+          "kind": "asm",
+          "length": 27,
+          "start": 17674,
+          "text": "\n        sei\n    "
+        },
+        {
+          "kind": "assign",
+          "length": 13,
+          "start": 17706,
+          "target": "processorPort",
+          "value": {
+            "kind": "binop",
+            "left": {
+              "kind": "ref",
+              "length": 13,
+              "name": "processorPort",
+              "start": 17722,
+              "type": "utinyint"
+            },
+            "operator": "&",
+            "right": {
+              "kind": "const",
+              "type": "utinyint",
+              "value": 254
+            },
+            "type": "utinyint"
+          }
+        }
+      ],
+      "component": false,
+      "exported": true,
+      "file": "<toolchain>/packages/c64/src/index.8bs",
+      "length": 9,
+      "method": false,
+      "name": "bankIoOut",
+      "owner": null,
+      "params": [],
+      "returnType": "void",
+      "start": 17656
+    },
+    {
+      "body": [
+        {
+          "kind": "assign",
+          "length": 13,
+          "start": 17771,
+          "target": "processorPort",
+          "value": {
+            "kind": "binop",
+            "left": {
+              "kind": "ref",
+              "length": 13,
+              "name": "processorPort",
+              "start": 17787,
+              "type": "utinyint"
+            },
+            "operator": "|",
+            "right": {
+              "kind": "const",
+              "type": "utinyint",
+              "value": 1
+            },
+            "type": "utinyint"
+          }
+        },
+        {
+          "else": null,
+          "kind": "if",
+          "length": 67,
+          "start": 17813,
+          "test": {
+            "kind": "ref",
+            "length": 12,
+            "name": "interruptsOn",
+            "start": 17816,
+            "type": "bool"
+          },
+          "then": [
+            {
+              "kind": "asm",
+              "length": 35,
+              "start": 17839,
+              "text": "\n            cli\n        "
+            }
+          ]
+        }
+      ],
+      "component": false,
+      "exported": true,
+      "file": "<toolchain>/packages/c64/src/index.8bs",
+      "length": 8,
+      "method": false,
+      "name": "bankIoIn",
+      "owner": null,
+      "params": [],
+      "returnType": "void",
+      "start": 17754
+    },
+    {
+      "body": [
+        {
+          "args": [],
+          "kind": "call",
+          "length": 9,
+          "name": "bankIoOut",
+          "start": 18011,
+          "type": "void"
+        },
+        {
+          "address": {
+            "kind": "ref",
+            "length": 7,
+            "name": "address",
+            "start": 18042,
+            "type": "usmallint"
+          },
+          "kind": "memoryWrite",
+          "length": 29,
+          "start": 18028,
+          "value": {
+            "kind": "ref",
+            "length": 5,
+            "name": "value",
+            "start": 18051,
+            "type": "utinyint"
+          }
+        },
+        {
+          "args": [],
+          "kind": "call",
+          "length": 8,
+          "name": "bankIoIn",
+          "start": 18063,
+          "type": "void"
+        }
+      ],
+      "component": false,
+      "exported": true,
+      "file": "<toolchain>/packages/c64/src/index.8bs",
+      "length": 12,
+      "method": false,
+      "name": "writeUnderIo",
+      "owner": null,
+      "params": [
+        {
+          "name": "address",
+          "type": "usmallint"
+        },
+        {
+          "name": "value",
+          "type": "utinyint"
+        }
+      ],
+      "returnType": "void",
+      "start": 17955
+    },
+    {
+      "body": [
+        {
+          "args": [],
+          "kind": "call",
+          "length": 9,
+          "name": "bankIoOut",
+          "start": 18180,
+          "type": "void"
+        },
+        {
+          "init": {
+            "address": {
+              "kind": "ref",
+              "length": 7,
+              "name": "address",
+              "start": 18232,
+              "type": "usmallint"
+            },
+            "kind": "memoryRead",
+            "length": 21,
+            "start": 18219,
+            "type": "utinyint"
+          },
+          "kind": "local",
+          "length": 5,
+          "name": "value",
+          "start": 18201,
+          "type": "utinyint"
+        },
+        {
+          "args": [],
+          "kind": "call",
+          "length": 8,
+          "name": "bankIoIn",
+          "start": 18246,
+          "type": "void"
+        },
+        {
+          "kind": "return",
+          "length": 13,
+          "start": 18262,
+          "value": {
+            "kind": "ref",
+            "length": 5,
+            "name": "value",
+            "start": 18269,
+            "type": "utinyint"
+          }
+        }
+      ],
+      "component": false,
+      "exported": true,
+      "file": "<toolchain>/packages/c64/src/index.8bs",
+      "length": 11,
+      "method": false,
+      "name": "readUnderIo",
+      "owner": null,
+      "params": [
+        {
+          "name": "address",
+          "type": "usmallint"
+        }
+      ],
+      "returnType": "utinyint",
+      "start": 18130
+    }
+  ],
+  "functionsByOutput": {
+    "asciiToScreenCode": {
+      "body": [
+        {
+          "else": null,
+          "kind": "if",
+          "length": 72,
+          "start": 3371,
+          "test": {
+            "kind": "binop",
+            "left": {
+              "kind": "binop",
+              "left": {
+                "kind": "ref",
+                "length": 4,
+                "name": "code",
+                "start": 3374,
+                "type": "utinyint"
+              },
+              "operator": ">=",
+              "right": {
+                "kind": "const",
+                "type": "utinyint",
+                "value": 97
+              },
+              "type": "bool"
+            },
+            "operator": "&&",
+            "right": {
+              "kind": "binop",
+              "left": {
+                "kind": "ref",
+                "length": 4,
+                "name": "code",
+                "start": 3388,
+                "type": "utinyint"
+              },
+              "operator": "<",
+              "right": {
+                "kind": "const",
+                "type": "utinyint",
+                "value": 123
+              },
+              "type": "bool"
+            },
+            "type": "bool"
+          },
+          "then": [
+            {
+              "kind": "return",
+              "length": 17,
+              "start": 3409,
+              "value": {
+                "kind": "binop",
+                "left": {
+                  "kind": "ref",
+                  "length": 4,
+                  "name": "code",
+                  "start": 3416,
+                  "type": "utinyint"
+                },
+                "operator": "-",
+                "right": {
+                  "kind": "const",
+                  "type": "utinyint",
+                  "value": 96
+                },
+                "type": "utinyint"
+              }
+            }
+          ]
+        },
+        {
+          "kind": "return",
+          "length": 12,
+          "start": 3448,
+          "value": {
+            "kind": "ref",
+            "length": 4,
+            "name": "code",
+            "start": 3455,
+            "type": "utinyint"
+          }
+        }
+      ],
+      "component": false,
+      "exported": false,
+      "file": "<toolchain>/packages/c64/src/text.8bs",
+      "length": 17,
+      "method": false,
+      "name": "asciiToScreenCode",
+      "owner": null,
+      "params": [
+        {
+          "name": "code",
+          "type": "utinyint"
+        }
+      ],
+      "returnType": "utinyint",
+      "start": 2926
+    },
+    "bankIoIn": {
+      "body": [
+        {
+          "kind": "assign",
+          "length": 13,
+          "start": 17771,
+          "target": "processorPort",
+          "value": {
+            "kind": "binop",
+            "left": {
+              "kind": "ref",
+              "length": 13,
+              "name": "processorPort",
+              "start": 17787,
+              "type": "utinyint"
+            },
+            "operator": "|",
+            "right": {
+              "kind": "const",
+              "type": "utinyint",
+              "value": 1
+            },
+            "type": "utinyint"
+          }
+        },
+        {
+          "else": null,
+          "kind": "if",
+          "length": 67,
+          "start": 17813,
+          "test": {
+            "kind": "ref",
+            "length": 12,
+            "name": "interruptsOn",
+            "start": 17816,
+            "type": "bool"
+          },
+          "then": [
+            {
+              "kind": "asm",
+              "length": 35,
+              "start": 17839,
+              "text": "\n            cli\n        "
+            }
+          ]
+        }
+      ],
+      "component": false,
+      "exported": true,
+      "file": "<toolchain>/packages/c64/src/index.8bs",
+      "length": 8,
+      "method": false,
+      "name": "bankIoIn",
+      "owner": null,
+      "params": [],
+      "returnType": "void",
+      "start": 17754
+    },
+    "bankIoOut": {
+      "body": [
+        {
+          "kind": "asm",
+          "length": 27,
+          "start": 17674,
+          "text": "\n        sei\n    "
+        },
+        {
+          "kind": "assign",
+          "length": 13,
+          "start": 17706,
+          "target": "processorPort",
+          "value": {
+            "kind": "binop",
+            "left": {
+              "kind": "ref",
+              "length": 13,
+              "name": "processorPort",
+              "start": 17722,
+              "type": "utinyint"
+            },
+            "operator": "&",
+            "right": {
+              "kind": "const",
+              "type": "utinyint",
+              "value": 254
+            },
+            "type": "utinyint"
+          }
+        }
+      ],
+      "component": false,
+      "exported": true,
+      "file": "<toolchain>/packages/c64/src/index.8bs",
+      "length": 9,
+      "method": false,
+      "name": "bankIoOut",
+      "owner": null,
+      "params": [],
+      "returnType": "void",
+      "start": 17656
+    },
+    "copyCharacterRom": {
+      "body": [
+        {
+          "kind": "asm",
+          "length": 27,
+          "start": 14898,
+          "text": "\n        sei\n    "
+        },
+        {
+          "kind": "assign",
+          "length": 13,
+          "start": 14930,
+          "target": "processorPort",
+          "value": {
+            "kind": "binop",
+            "left": {
+              "kind": "binop",
+              "left": {
+                "kind": "ref",
+                "length": 13,
+                "name": "processorPort",
+                "start": 14946,
+                "type": "utinyint"
+              },
+              "operator": "&",
+              "right": {
+                "kind": "const",
+                "type": "utinyint",
+                "value": 248
+              },
+              "type": "utinyint"
+            },
+            "operator": "|",
+            "right": {
+              "kind": "const",
+              "type": "utinyint",
+              "value": 2
+            },
+            "type": "utinyint"
+          }
+        },
+        {
+          "body": [
+            {
+              "address": {
+                "kind": "binop",
+                "left": {
+                  "kind": "const",
+                  "type": "usmallint",
+                  "value": 53248
+                },
+                "operator": "+",
+                "right": {
+                  "kind": "ref",
+                  "length": 1,
+                  "name": "i",
+                  "start": 15100,
+                  "type": "usmallint"
+                },
+                "type": "usmallint"
+              },
+              "kind": "memoryWrite",
+              "length": 67,
+              "start": 15069,
+              "value": {
+                "address": {
+                  "kind": "binop",
+                  "left": {
+                    "kind": "const",
+                    "type": "usmallint",
+                    "value": 53248
+                  },
+                  "operator": "+",
+                  "right": {
+                    "kind": "ref",
+                    "length": 1,
+                    "name": "i",
+                    "start": 15133,
+                    "type": "usmallint"
+                  },
+                  "type": "usmallint"
+                },
+                "kind": "memoryRead",
+                "length": 32,
+                "start": 15103,
+                "type": "utinyint"
+              }
+            }
+          ],
+          "init": {
+            "init": {
+              "kind": "const",
+              "type": "utinyint",
+              "value": 0
+            },
+            "kind": "local",
+            "length": 1,
+            "name": "i",
+            "start": 15035,
+            "type": "usmallint"
+          },
+          "kind": "for",
+          "length": 112,
+          "start": 15031,
+          "test": {
+            "kind": "binop",
+            "left": {
+              "kind": "ref",
+              "length": 1,
+              "name": "i",
+              "start": 15035,
+              "type": "usmallint"
+            },
+            "operator": "<",
+            "right": {
+              "kind": "const",
+              "type": "usmallint",
+              "value": 4096
+            },
+            "type": "bool"
+          },
+          "unroll": false,
+          "update": {
+            "kind": "assign",
+            "length": 1,
+            "start": 15035,
+            "target": "i",
+            "value": {
+              "kind": "binop",
+              "left": {
+                "kind": "ref",
+                "length": 1,
+                "name": "i",
+                "start": 15035,
+                "type": "usmallint"
+              },
+              "operator": "+",
+              "right": {
+                "kind": "const",
+                "type": "utinyint",
+                "value": 1
+              },
+              "type": "usmallint"
+            }
+          }
+        },
+        {
+          "kind": "assign",
+          "length": 13,
+          "start": 15148,
+          "target": "processorPort",
+          "value": {
+            "kind": "binop",
+            "left": {
+              "kind": "binop",
+              "left": {
+                "kind": "ref",
+                "length": 13,
+                "name": "processorPort",
+                "start": 15164,
+                "type": "utinyint"
+              },
+              "operator": "&",
+              "right": {
+                "kind": "const",
+                "type": "utinyint",
+                "value": 248
+              },
+              "type": "utinyint"
+            },
+            "operator": "|",
+            "right": {
+              "kind": "const",
+              "type": "utinyint",
+              "value": 5
+            },
+            "type": "utinyint"
+          }
+        },
+        {
+          "else": null,
+          "kind": "if",
+          "length": 67,
+          "start": 15225,
+          "test": {
+            "kind": "ref",
+            "length": 12,
+            "name": "interruptsOn",
+            "start": 15228,
+            "type": "bool"
+          },
+          "then": [
+            {
+              "kind": "asm",
+              "length": 35,
+              "start": 15251,
+              "text": "\n            cli\n        "
+            }
+          ]
+        }
+      ],
+      "component": false,
+      "exported": true,
+      "file": "<toolchain>/packages/c64/src/index.8bs",
+      "length": 16,
+      "method": false,
+      "name": "copyCharacterRom",
+      "owner": null,
+      "params": [],
+      "returnType": "void",
+      "start": 14873
+    },
+    "detectRegion": {
+      "body": [
+        {
+          "init": {
+            "kind": "const",
+            "type": "bool",
+            "value": 0
+          },
+          "kind": "local",
+          "length": 3,
+          "name": "pal",
+          "start": 16390,
+          "type": "bool"
+        },
+        {
+          "body": [],
+          "kind": "while",
+          "length": 31,
+          "start": 16413,
+          "test": {
+            "args": [],
+            "kind": "call",
+            "length": 15,
+            "name": "rasterInTopHalf",
+            "start": 16419,
+            "type": "bool"
+          }
+        },
+        {
+          "body": [],
+          "kind": "while",
+          "length": 32,
+          "start": 16449,
+          "test": {
+            "argument": {
+              "args": [],
+              "kind": "call",
+              "length": 15,
+              "name": "rasterInTopHalf",
+              "start": 16456,
+              "type": "bool"
+            },
+            "kind": "unop",
+            "operator": "!",
+            "type": "bool"
+          }
+        },
+        {
+          "body": [],
+          "kind": "while",
+          "length": 31,
+          "start": 16508,
+          "test": {
+            "args": [],
+            "kind": "call",
+            "length": 15,
+            "name": "rasterInTopHalf",
+            "start": 16514,
+            "type": "bool"
+          }
+        },
+        {
+          "body": [
+            {
+              "else": null,
+              "kind": "if",
+              "length": 77,
+              "start": 16579,
+              "test": {
+                "kind": "binop",
+                "left": {
+                  "kind": "binop",
+                  "left": {
+                    "kind": "binop",
+                    "left": {
+                      "kind": "ref",
+                      "length": 8,
+                      "name": "control1",
+                      "start": 16583,
+                      "type": "utinyint"
+                    },
+                    "operator": "&",
+                    "right": {
+                      "kind": "const",
+                      "type": "utinyint",
+                      "value": 128
+                    },
+                    "type": "utinyint"
+                  },
+                  "operator": "!=",
+                  "right": {
+                    "kind": "const",
+                    "type": "utinyint",
+                    "value": 0
+                  },
+                  "type": "bool"
+                },
+                "operator": "&&",
+                "right": {
+                  "kind": "binop",
+                  "left": {
+                    "kind": "ref",
+                    "length": 6,
+                    "name": "raster",
+                    "start": 16608,
+                    "type": "utinyint"
+                  },
+                  "operator": ">=",
+                  "right": {
+                    "kind": "const",
+                    "type": "utinyint",
+                    "value": 32
+                  },
+                  "type": "bool"
+                },
+                "type": "bool"
+              },
+              "then": [
+                {
+                  "kind": "assign",
+                  "length": 3,
+                  "start": 16635,
+                  "target": "pal",
+                  "value": {
+                    "kind": "const",
+                    "type": "bool",
+                    "value": 1
+                  }
+                }
+              ]
+            }
+          ],
+          "kind": "while",
+          "length": 118,
+          "start": 16544,
+          "test": {
+            "argument": {
+              "args": [],
+              "kind": "call",
+              "length": 15,
+              "name": "rasterInTopHalf",
+              "start": 16551,
+              "type": "bool"
+            },
+            "kind": "unop",
+            "operator": "!",
+            "type": "bool"
+          }
+        },
+        {
+          "else": null,
+          "kind": "if",
+          "length": 42,
+          "start": 16667,
+          "test": {
+            "kind": "ref",
+            "length": 3,
+            "name": "pal",
+            "start": 16670,
+            "type": "bool"
+          },
+          "then": [
+            {
+              "kind": "return",
+              "length": 19,
+              "start": 16684,
+              "value": {
+                "kind": "const",
+                "type": "utinyint",
+                "value": 0
+              }
+            }
+          ]
+        },
+        {
+          "kind": "return",
+          "length": 20,
+          "start": 16714,
+          "value": {
+            "kind": "const",
+            "type": "utinyint",
+            "value": 1
+          }
+        }
+      ],
+      "component": false,
+      "exported": true,
+      "file": "<toolchain>/packages/c64/src/index.8bs",
+      "length": 12,
+      "method": false,
+      "name": "detectRegion",
+      "owner": null,
+      "params": [],
+      "returnType": "utinyint",
+      "start": 16349
+    },
+    "main": {
+      "body": [
+        {
+          "args": [
+            {
+              "kind": "const",
+              "value": 0
+            },
+            {
+              "kind": "const",
+              "value": 0
+            }
+          ],
+          "kind": "call",
+          "length": 15,
+          "name": "screen_blank",
+          "start": 1334,
+          "type": null
+        },
+        {
+          "args": [
+            {
+              "kind": "const",
+              "type": "utinyint",
+              "value": 0
+            },
+            {
+              "index": 0,
+              "kind": "string",
+              "length": 14,
+              "start": 1370,
+              "type": "string"
+            }
+          ],
+          "kind": "call",
+          "length": 30,
+          "name": "text_print",
+          "start": 1355,
+          "type": null
+        },
+        {
+          "args": [],
+          "kind": "call",
+          "length": 21,
+          "name": "text_releaseCursor",
+          "start": 1391,
+          "type": null
+        }
+      ],
+      "component": false,
+      "exported": true,
+      "file": "<toolchain>/packages/examples/hello-world/src/hello-world.8bs",
+      "length": 4,
+      "method": false,
+      "name": "main",
+      "owner": null,
+      "params": [],
+      "returnType": "void",
+      "start": 1321
+    },
+    "prepare": {
+      "body": [
+        {
+          "args": [],
+          "kind": "call",
+          "length": 10,
+          "name": "setupVideo",
+          "start": 5998,
+          "type": null
+        },
+        {
+          "else": null,
+          "kind": "if",
+          "length": 96,
+          "start": 6016,
+          "test": {
+            "kind": "binop",
+            "left": {
+              "kind": "ref",
+              "length": 9,
+              "name": "videoMode",
+              "start": 6019,
+              "type": "utinyint"
+            },
+            "operator": "==",
+            "right": {
+              "kind": "const",
+              "type": "utinyint",
+              "value": 0
+            },
+            "type": "bool"
+          },
+          "then": [
+            {
+              "kind": "assign",
+              "length": 13,
+              "start": 6058,
+              "target": "memoryPointer",
+              "value": {
+                "kind": "const",
+                "type": "utinyint",
+                "value": 134
+              }
+            }
+          ]
+        },
+        {
+          "kind": "assign",
+          "length": 9,
+          "start": 6117,
+          "target": "textColor",
+          "value": {
+            "kind": "ref",
+            "length": 12,
+            "name": "currentColor",
+            "start": 6129,
+            "type": "utinyint"
+          }
+        },
+        {
+          "else": [
+            {
+              "kind": "assign",
+              "length": 11,
+              "start": 6275,
+              "target": "textReverse",
+              "value": {
+                "kind": "const",
+                "type": "utinyint",
+                "value": 0
+              }
+            }
+          ],
+          "kind": "if",
+          "length": 90,
+          "start": 6207,
+          "test": {
+            "kind": "ref",
+            "length": 14,
+            "name": "currentReverse",
+            "start": 6210,
+            "type": "bool"
+          },
+          "then": [
+            {
+              "kind": "assign",
+              "length": 11,
+              "start": 6235,
+              "target": "textReverse",
+              "value": {
+                "kind": "const",
+                "type": "utinyint",
+                "value": 128
+              }
+            }
+          ]
+        }
+      ],
+      "component": false,
+      "exported": false,
+      "file": "<toolchain>/packages/c64/src/text.8bs",
+      "length": 7,
+      "method": false,
+      "name": "prepare",
+      "owner": null,
+      "params": [],
+      "returnType": "void",
+      "start": 5982
+    },
+    "rasterInTopHalf": {
+      "body": [
+        {
+          "kind": "return",
+          "length": 46,
+          "start": 16292,
+          "value": {
+            "kind": "binop",
+            "left": {
+              "kind": "binop",
+              "left": {
+                "kind": "ref",
+                "length": 6,
+                "name": "raster",
+                "start": 16299,
+                "type": "utinyint"
+              },
+              "operator": "<",
+              "right": {
+                "kind": "const",
+                "type": "utinyint",
+                "value": 128
+              },
+              "type": "bool"
+            },
+            "operator": "&&",
+            "right": {
+              "kind": "binop",
+              "left": {
+                "kind": "binop",
+                "left": {
+                  "kind": "ref",
+                  "length": 8,
+                  "name": "control1",
+                  "start": 16316,
+                  "type": "utinyint"
+                },
+                "operator": "&",
+                "right": {
+                  "kind": "const",
+                  "type": "utinyint",
+                  "value": 128
+                },
+                "type": "utinyint"
+              },
+              "operator": "==",
+              "right": {
+                "kind": "const",
+                "type": "utinyint",
+                "value": 0
+              },
+              "type": "bool"
+            },
+            "type": "bool"
+          }
+        }
+      ],
+      "component": false,
+      "exported": false,
+      "file": "<toolchain>/packages/c64/src/index.8bs",
+      "length": 15,
+      "method": false,
+      "name": "rasterInTopHalf",
+      "owner": null,
+      "params": [],
+      "returnType": "bool",
+      "start": 16186
+    },
+    "readUnderIo": {
+      "body": [
+        {
+          "args": [],
+          "kind": "call",
+          "length": 9,
+          "name": "bankIoOut",
+          "start": 18180,
+          "type": "void"
+        },
+        {
+          "init": {
+            "address": {
+              "kind": "ref",
+              "length": 7,
+              "name": "address",
+              "start": 18232,
+              "type": "usmallint"
+            },
+            "kind": "memoryRead",
+            "length": 21,
+            "start": 18219,
+            "type": "utinyint"
+          },
+          "kind": "local",
+          "length": 5,
+          "name": "value",
+          "start": 18201,
+          "type": "utinyint"
+        },
+        {
+          "args": [],
+          "kind": "call",
+          "length": 8,
+          "name": "bankIoIn",
+          "start": 18246,
+          "type": "void"
+        },
+        {
+          "kind": "return",
+          "length": 13,
+          "start": 18262,
+          "value": {
+            "kind": "ref",
+            "length": 5,
+            "name": "value",
+            "start": 18269,
+            "type": "utinyint"
+          }
+        }
+      ],
+      "component": false,
+      "exported": true,
+      "file": "<toolchain>/packages/c64/src/index.8bs",
+      "length": 11,
+      "method": false,
+      "name": "readUnderIo",
+      "owner": null,
+      "params": [
+        {
+          "name": "address",
+          "type": "usmallint"
+        }
+      ],
+      "returnType": "utinyint",
+      "start": 18130
+    },
+    "screen_blank": {
+      "body": [
+        {
+          "args": [],
+          "kind": "call",
+          "length": 10,
+          "name": "setupVideo",
+          "start": 1750,
+          "type": null
+        },
+        {
+          "else": null,
+          "kind": "if",
+          "length": 81,
+          "start": 1772,
+          "test": {
+            "kind": "binop",
+            "left": {
+              "kind": "ref",
+              "length": 6,
+              "name": "border",
+              "start": 1775,
+              "type": "utinyint"
+            },
+            "operator": "!=",
+            "right": {
+              "kind": "const",
+              "type": "utinyint",
+              "value": 255
+            },
+            "type": "bool"
+          },
+          "then": [
+            {
+              "args": [
+                {
+                  "kind": "ref",
+                  "length": 6,
+                  "name": "border",
+                  "start": 1835,
+                  "type": "utinyint"
+                }
+              ],
+              "kind": "call",
+              "length": 25,
+              "name": "screen_setBorder",
+              "start": 1817,
+              "type": null
+            }
+          ]
+        },
+        {
+          "else": null,
+          "kind": "if",
+          "length": 97,
+          "start": 1862,
+          "test": {
+            "kind": "binop",
+            "left": {
+              "kind": "ref",
+              "length": 10,
+              "name": "background",
+              "start": 1865,
+              "type": "utinyint"
+            },
+            "operator": "!=",
+            "right": {
+              "kind": "const",
+              "type": "utinyint",
+              "value": 255
+            },
+            "type": "bool"
+          },
+          "then": [
+            {
+              "args": [
+                {
+                  "kind": "ref",
+                  "length": 10,
+                  "name": "background",
+                  "start": 1937,
+                  "type": "utinyint"
+                }
+              ],
+              "kind": "call",
+              "length": 33,
+              "name": "screen_setBackground",
+              "start": 1915,
+              "type": null
+            }
+          ]
+        },
+        {
+          "body": [
+            {
+              "array": {
+                "kind": "ref",
+                "length": 9,
+                "name": "screenRam",
+                "start": 2452
+              },
+              "elementType": "utinyint",
+              "index": {
+                "kind": "ref",
+                "length": 1,
+                "name": "i",
+                "start": 2462,
+                "type": "utinyint"
+              },
+              "kind": "storeIndex",
+              "length": 9,
+              "start": 2452,
+              "value": {
+                "kind": "const",
+                "type": "utinyint",
+                "value": 32
+              }
+            },
+            {
+              "array": {
+                "kind": "ref",
+                "length": 9,
+                "name": "screenRam",
+                "start": 2512
+              },
+              "elementType": "utinyint",
+              "index": {
+                "kind": "binop",
+                "left": {
+                  "kind": "ref",
+                  "length": 1,
+                  "name": "i",
+                  "start": 2522,
+                  "type": "utinyint"
+                },
+                "operator": "+",
+                "right": {
+                  "kind": "const",
+                  "type": "utinyint",
+                  "value": 250
+                },
+                "type": "utinyint"
+              },
+              "kind": "storeIndex",
+              "length": 9,
+              "start": 2512,
+              "value": {
+                "kind": "const",
+                "type": "utinyint",
+                "value": 32
+              }
+            },
+            {
+              "array": {
+                "kind": "ref",
+                "length": 9,
+                "name": "screenRam",
+                "start": 2549
+              },
+              "elementType": "utinyint",
+              "index": {
+                "kind": "binop",
+                "left": {
+                  "kind": "ref",
+                  "length": 1,
+                  "name": "i",
+                  "start": 2559,
+                  "type": "utinyint"
+                },
+                "operator": "+",
+                "right": {
+                  "kind": "const",
+                  "type": "usmallint",
+                  "value": 500
+                },
+                "type": "usmallint"
+              },
+              "kind": "storeIndex",
+              "length": 9,
+              "start": 2549,
+              "value": {
+                "kind": "const",
+                "type": "utinyint",
+                "value": 32
+              }
+            },
+            {
+              "array": {
+                "kind": "ref",
+                "length": 9,
+                "name": "screenRam",
+                "start": 2586
+              },
+              "elementType": "utinyint",
+              "index": {
+                "kind": "binop",
+                "left": {
+                  "kind": "ref",
+                  "length": 1,
+                  "name": "i",
+                  "start": 2596,
+                  "type": "utinyint"
+                },
+                "operator": "+",
+                "right": {
+                  "kind": "const",
+                  "type": "usmallint",
+                  "value": 750
+                },
+                "type": "usmallint"
+              },
+              "kind": "storeIndex",
+              "length": 9,
+              "start": 2586,
+              "value": {
+                "kind": "const",
+                "type": "utinyint",
+                "value": 32
+              }
+            }
+          ],
+          "init": {
+            "init": {
+              "kind": "const",
+              "type": "utinyint",
+              "value": 0
+            },
+            "kind": "local",
+            "length": 1,
+            "name": "i",
+            "start": 2416,
+            "type": "utinyint"
+          },
+          "kind": "for",
+          "length": 208,
+          "start": 2412,
+          "test": {
+            "kind": "binop",
+            "left": {
+              "kind": "ref",
+              "length": 1,
+              "name": "i",
+              "start": 2416,
+              "type": "utinyint"
+            },
+            "operator": "<",
+            "right": {
+              "kind": "const",
+              "type": "utinyint",
+              "value": 250
+            },
+            "type": "bool"
+          },
+          "unroll": false,
+          "update": {
+            "kind": "assign",
+            "length": 1,
+            "start": 2416,
+            "target": "i",
+            "value": {
+              "kind": "binop",
+              "left": {
+                "kind": "ref",
+                "length": 1,
+                "name": "i",
+                "start": 2416,
+                "type": "utinyint"
+              },
+              "operator": "+",
+              "right": {
+                "kind": "const",
+                "type": "utinyint",
+                "value": 1
+              },
+              "type": "utinyint"
+            }
+          }
+        }
+      ],
+      "component": false,
+      "exported": false,
+      "file": "<toolchain>/packages/c64/src/screen.8bs",
+      "length": 5,
+      "method": false,
+      "name": "screen_blank",
+      "owner": null,
+      "params": [
+        {
+          "default": {
+            "kind": "const",
+            "value": 0
+          },
+          "name": "border",
+          "type": "utinyint"
+        },
+        {
+          "default": {
+            "kind": "const",
+            "value": 0
+          },
+          "name": "background",
+          "type": "utinyint"
+        }
+      ],
+      "returnType": "void",
+      "start": 1648
+    },
+    "screen_resized": {
+      "body": [
+        {
+          "kind": "return",
+          "length": 13,
+          "start": 3268,
+          "value": {
+            "kind": "const",
+            "type": "bool",
+            "value": 0
+          }
+        }
+      ],
+      "component": false,
+      "exported": false,
+      "file": "<toolchain>/packages/c64/src/screen.8bs",
+      "length": 7,
+      "method": false,
+      "name": "screen_resized",
+      "owner": null,
+      "params": [],
+      "returnType": "bool",
+      "start": 3240
+    },
+    "screen_setBackground": {
+      "body": [
+        {
+          "kind": "assign",
+          "length": 15,
+          "start": 2675,
+          "target": "backgroundColor",
+          "value": {
+            "kind": "binop",
+            "left": {
+              "kind": "ref",
+              "length": 10,
+              "name": "background",
+              "start": 2693,
+              "type": "utinyint"
+            },
+            "operator": "&",
+            "right": {
+              "kind": "const",
+              "type": "utinyint",
+              "value": 15
+            },
+            "type": "utinyint"
+          }
+        }
+      ],
+      "component": false,
+      "exported": false,
+      "file": "<toolchain>/packages/c64/src/screen.8bs",
+      "length": 13,
+      "method": false,
+      "name": "screen_setBackground",
+      "owner": null,
+      "params": [
+        {
+          "name": "background",
+          "type": "utinyint"
+        }
+      ],
+      "returnType": "void",
+      "start": 2635
+    },
+    "screen_setBorder": {
+      "body": [
+        {
+          "kind": "assign",
+          "length": 11,
+          "start": 2756,
+          "target": "borderColor",
+          "value": {
+            "kind": "binop",
+            "left": {
+              "kind": "ref",
+              "length": 6,
+              "name": "border",
+              "start": 2770,
+              "type": "utinyint"
+            },
+            "operator": "&",
+            "right": {
+              "kind": "const",
+              "type": "utinyint",
+              "value": 15
+            },
+            "type": "utinyint"
+          }
+        }
+      ],
+      "component": false,
+      "exported": false,
+      "file": "<toolchain>/packages/c64/src/screen.8bs",
+      "length": 9,
+      "method": false,
+      "name": "screen_setBorder",
+      "owner": null,
+      "params": [
+        {
+          "name": "border",
+          "type": "utinyint"
+        }
+      ],
+      "returnType": "void",
+      "start": 2724
+    },
+    "screen_setColors": {
+      "body": [
+        {
+          "kind": "assign",
+          "length": 11,
+          "start": 1243,
+          "target": "borderColor",
+          "value": {
+            "kind": "binop",
+            "left": {
+              "kind": "ref",
+              "length": 6,
+              "name": "border",
+              "start": 1257,
+              "type": "utinyint"
+            },
+            "operator": "&",
+            "right": {
+              "kind": "const",
+              "type": "utinyint",
+              "value": 15
+            },
+            "type": "utinyint"
+          }
+        },
+        {
+          "kind": "assign",
+          "length": 15,
+          "start": 1278,
+          "target": "backgroundColor",
+          "value": {
+            "kind": "binop",
+            "left": {
+              "kind": "ref",
+              "length": 10,
+              "name": "background",
+              "start": 1296,
+              "type": "utinyint"
+            },
+            "operator": "&",
+            "right": {
+              "kind": "const",
+              "type": "utinyint",
+              "value": 15
+            },
+            "type": "utinyint"
+          }
+        }
+      ],
+      "component": false,
+      "exported": false,
+      "file": "<toolchain>/packages/c64/src/screen.8bs",
+      "length": 9,
+      "method": false,
+      "name": "screen_setColors",
+      "owner": null,
+      "params": [
+        {
+          "name": "border",
+          "type": "utinyint"
+        },
+        {
+          "name": "background",
+          "type": "utinyint"
+        }
+      ],
+      "returnType": "void",
+      "start": 1195
+    },
+    "setupVideo": {
+      "body": [
+        {
+          "else": null,
+          "kind": "if",
+          "length": 37,
+          "start": 14170,
+          "test": {
+            "kind": "ref",
+            "length": 10,
+            "name": "videoReady",
+            "start": 14173,
+            "type": "bool"
+          },
+          "then": [
+            {
+              "kind": "return",
+              "length": 7,
+              "start": 14194,
+              "value": null
+            }
+          ]
+        },
+        {
+          "kind": "assign",
+          "length": 10,
+          "start": 14212,
+          "target": "videoReady",
+          "value": {
+            "kind": "const",
+            "type": "bool",
+            "value": 1
+          }
+        },
+        {
+          "kind": "asm",
+          "length": 27,
+          "start": 14235,
+          "text": "\n        sei\n    "
+        },
+        {
+          "args": [],
+          "kind": "call",
+          "length": 16,
+          "name": "copyCharacterRom",
+          "start": 14267,
+          "type": "void"
+        },
+        {
+          "kind": "assign",
+          "length": 14,
+          "start": 14291,
+          "target": "cia2DirectionA",
+          "value": {
+            "kind": "binop",
+            "left": {
+              "kind": "ref",
+              "length": 14,
+              "name": "cia2DirectionA",
+              "start": 14308,
+              "type": "utinyint"
+            },
+            "operator": "|",
+            "right": {
+              "kind": "const",
+              "type": "utinyint",
+              "value": 3
+            },
+            "type": "utinyint"
+          }
+        },
+        {
+          "kind": "assign",
+          "length": 9,
+          "start": 14335,
+          "target": "cia2PortA",
+          "value": {
+            "kind": "binop",
+            "left": {
+              "kind": "ref",
+              "length": 9,
+              "name": "cia2PortA",
+              "start": 14347,
+              "type": "utinyint"
+            },
+            "operator": "&",
+            "right": {
+              "kind": "const",
+              "type": "utinyint",
+              "value": 252
+            },
+            "type": "utinyint"
+          }
+        },
+        {
+          "kind": "assign",
+          "length": 13,
+          "start": 14379,
+          "target": "memoryPointer",
+          "value": {
+            "kind": "const",
+            "type": "utinyint",
+            "value": 132
+          }
+        },
+        {
+          "kind": "assign",
+          "length": 12,
+          "start": 14432,
+          "target": "spriteEnable",
+          "value": {
+            "kind": "const",
+            "type": "utinyint",
+            "value": 0
+          }
+        }
+      ],
+      "component": false,
+      "exported": true,
+      "file": "<toolchain>/packages/c64/src/index.8bs",
+      "length": 10,
+      "method": false,
+      "name": "setupVideo",
+      "owner": null,
+      "params": [],
+      "returnType": "void",
+      "start": 14151
+    },
+    "text_columns": {
+      "body": [
+        {
+          "kind": "return",
+          "length": 21,
+          "start": 6913,
+          "value": {
+            "kind": "const",
+            "type": "utinyint",
+            "value": 40
+          }
+        }
+      ],
+      "component": false,
+      "exported": false,
+      "file": "<toolchain>/packages/c64/src/text.8bs",
+      "length": 7,
+      "method": false,
+      "name": "text_columns",
+      "owner": null,
+      "params": [],
+      "returnType": "utinyint",
+      "start": 6881
+    },
+    "text_fill": {
+      "body": [
+        {
+          "args": [],
+          "kind": "call",
+          "length": 7,
+          "name": "prepare",
+          "start": 8788,
+          "type": "void"
+        },
+        {
+          "kind": "asm",
+          "length": 276,
+          "start": 8807,
+          "text": "\n            lda cell\n            sta $0700\n            lda cell+1\n            sta $0701\n            lda count\n            sta $0704\n            lda count+1\n            sta $0705\n            lda code\n            sta $0706\n            jsr __8bs_c64_text_fill\n        "
+        }
+      ],
+      "component": false,
+      "exported": false,
+      "file": "<toolchain>/packages/c64/src/text.8bs",
+      "length": 4,
+      "method": false,
+      "name": "text_fill",
+      "owner": null,
+      "params": [
+        {
+          "name": "cell",
+          "type": "usmallint"
+        },
+        {
+          "name": "count",
+          "type": "usmallint"
+        },
+        {
+          "name": "code",
+          "type": "utinyint"
+        }
+      ],
+      "returnType": "void",
+      "start": 8722
+    },
+    "text_print": {
+      "body": [
+        {
+          "args": [],
+          "kind": "call",
+          "length": 7,
+          "name": "prepare",
+          "start": 8014,
+          "type": "void"
+        },
+        {
+          "kind": "asm",
+          "length": 301,
+          "start": 8033,
+          "text": "\n            lda cell\n            sta $0700\n            lda cell+1\n            sta $0701\n            lda s               ; the string's address: its length byte, then the characters\n            sta $0704\n            lda s+1\n            sta $0705\n            jsr __8bs_c64_text_print\n        "
+        }
+      ],
+      "component": false,
+      "exported": false,
+      "file": "<toolchain>/packages/c64/src/text.8bs",
+      "length": 5,
+      "method": false,
+      "name": "text_print",
+      "owner": null,
+      "params": [
+        {
+          "name": "cell",
+          "type": "usmallint"
+        },
+        {
+          "name": "s",
+          "type": "string"
+        }
+      ],
+      "returnType": "void",
+      "start": 7970
+    },
+    "text_printNumber": {
+      "body": [
+        {
+          "args": [],
+          "kind": "call",
+          "length": 7,
+          "name": "prepare",
+          "start": 9630,
+          "type": "void"
+        },
+        {
+          "kind": "asm",
+          "length": 279,
+          "start": 9649,
+          "text": "\n            lda cell\n            sta $0700\n            lda cell+1\n            sta $0701\n            lda value\n            sta $0704\n            lda value+1\n            sta $0705\n            lda width\n            sta $0706\n            jsr __8bs_c64_text_number\n        "
+        }
+      ],
+      "component": false,
+      "exported": false,
+      "file": "<toolchain>/packages/c64/src/text.8bs",
+      "length": 11,
+      "method": false,
+      "name": "text_printNumber",
+      "owner": null,
+      "params": [
+        {
+          "name": "cell",
+          "type": "usmallint"
+        },
+        {
+          "name": "value",
+          "type": "usmallint"
+        },
+        {
+          "name": "width",
+          "type": "utinyint"
+        }
+      ],
+      "returnType": "void",
+      "start": 9556
+    },
+    "text_putChar": {
+      "body": [
+        {
+          "args": [],
+          "kind": "call",
+          "length": 7,
+          "name": "prepare",
+          "start": 7062,
+          "type": "void"
+        },
+        {
+          "array": {
+            "kind": "ref",
+            "length": 9,
+            "name": "screenRam",
+            "start": 7081
+          },
+          "elementType": "utinyint",
+          "index": {
+            "kind": "ref",
+            "length": 4,
+            "name": "cell",
+            "start": 7091,
+            "type": "usmallint"
+          },
+          "kind": "storeIndex",
+          "length": 9,
+          "start": 7081,
+          "value": {
+            "args": [
+              {
+                "kind": "ref",
+                "length": 4,
+                "name": "code",
+                "start": 7108,
+                "type": "utinyint"
+              }
+            ],
+            "kind": "call",
+            "length": 8,
+            "name": "toScreen",
+            "start": 7099,
+            "type": "utinyint"
+          }
+        }
+      ],
+      "component": false,
+      "exported": false,
+      "file": "<toolchain>/packages/c64/src/text.8bs",
+      "length": 7,
+      "method": false,
+      "name": "text_putChar",
+      "owner": null,
+      "params": [
+        {
+          "name": "cell",
+          "type": "usmallint"
+        },
+        {
+          "name": "code",
+          "type": "utinyint"
+        }
+      ],
+      "returnType": "void",
+      "start": 7011
+    },
+    "text_putColor": {
+      "body": [
+        {
+          "array": {
+            "kind": "ref",
+            "length": 8,
+            "name": "colorRam",
+            "start": 7182
+          },
+          "elementType": "utinyint",
+          "index": {
+            "kind": "ref",
+            "length": 4,
+            "name": "cell",
+            "start": 7191,
+            "type": "usmallint"
+          },
+          "kind": "storeIndex",
+          "length": 8,
+          "start": 7182,
+          "value": {
+            "kind": "ref",
+            "length": 5,
+            "name": "color",
+            "start": 7199,
+            "type": "utinyint"
+          }
+        }
+      ],
+      "component": false,
+      "exported": false,
+      "file": "<toolchain>/packages/c64/src/text.8bs",
+      "length": 8,
+      "method": false,
+      "name": "text_putColor",
+      "owner": null,
+      "params": [
+        {
+          "name": "cell",
+          "type": "usmallint"
+        },
+        {
+          "name": "color",
+          "type": "utinyint"
+        }
+      ],
+      "returnType": "void",
+      "start": 7129
+    },
+    "text_releaseCursor": {
+      "body": [],
+      "component": false,
+      "exported": false,
+      "file": "<toolchain>/packages/c64/src/text.8bs",
+      "length": 13,
+      "method": false,
+      "name": "text_releaseCursor",
+      "owner": null,
+      "params": [],
+      "returnType": "void",
+      "start": 7938
+    },
+    "text_rows": {
+      "body": [
+        {
+          "kind": "return",
+          "length": 18,
+          "start": 6978,
+          "value": {
+            "kind": "const",
+            "type": "utinyint",
+            "value": 25
+          }
+        }
+      ],
+      "component": false,
+      "exported": false,
+      "file": "<toolchain>/packages/c64/src/text.8bs",
+      "length": 4,
+      "method": false,
+      "name": "text_rows",
+      "owner": null,
+      "params": [],
+      "returnType": "utinyint",
+      "start": 6949
+    },
+    "text_setColor": {
+      "body": [
+        {
+          "kind": "assign",
+          "length": 12,
+          "start": 7256,
+          "target": "currentColor",
+          "value": {
+            "kind": "ref",
+            "length": 5,
+            "name": "color",
+            "start": 7271,
+            "type": "utinyint"
+          }
+        }
+      ],
+      "component": false,
+      "exported": false,
+      "file": "<toolchain>/packages/c64/src/text.8bs",
+      "length": 8,
+      "method": false,
+      "name": "text_setColor",
+      "owner": null,
+      "params": [
+        {
+          "name": "color",
+          "type": "utinyint"
+        }
+      ],
+      "returnType": "void",
+      "start": 7220
+    },
+    "text_setReverse": {
+      "body": [
+        {
+          "kind": "assign",
+          "length": 14,
+          "start": 7465,
+          "target": "currentReverse",
+          "value": {
+            "kind": "ref",
+            "length": 2,
+            "name": "on",
+            "start": 7482,
+            "type": "bool"
+          }
+        }
+      ],
+      "component": false,
+      "exported": false,
+      "file": "<toolchain>/packages/c64/src/text.8bs",
+      "length": 10,
+      "method": false,
+      "name": "text_setReverse",
+      "owner": null,
+      "params": [
+        {
+          "name": "on",
+          "type": "bool"
+        }
+      ],
+      "returnType": "void",
+      "start": 7434
+    },
+    "toScreen": {
+      "body": [
+        {
+          "init": {
+            "args": [
+              {
+                "kind": "ref",
+                "length": 4,
+                "name": "code",
+                "start": 5827,
+                "type": "utinyint"
+              }
+            ],
+            "kind": "call",
+            "length": 17,
+            "name": "asciiToScreenCode",
+            "start": 5809,
+            "type": "utinyint"
+          },
+          "kind": "local",
+          "length": 6,
+          "name": "screen",
+          "start": 5790,
+          "type": "utinyint"
+        },
+        {
+          "else": null,
+          "kind": "if",
+          "length": 56,
+          "start": 5838,
+          "test": {
+            "kind": "ref",
+            "length": 14,
+            "name": "currentReverse",
+            "start": 5841,
+            "type": "bool"
+          },
+          "then": [
+            {
+              "kind": "assign",
+              "length": 6,
+              "start": 5866,
+              "target": "screen",
+              "value": {
+                "kind": "binop",
+                "left": {
+                  "kind": "ref",
+                  "length": 6,
+                  "name": "screen",
+                  "start": 5875,
+                  "type": "utinyint"
+                },
+                "operator": "+",
+                "right": {
+                  "kind": "const",
+                  "type": "utinyint",
+                  "value": 128
+                },
+                "type": "utinyint"
+              }
+            }
+          ]
+        },
+        {
+          "kind": "return",
+          "length": 14,
+          "start": 5899,
+          "value": {
+            "kind": "ref",
+            "length": 6,
+            "name": "screen",
+            "start": 5906,
+            "type": "utinyint"
+          }
+        }
+      ],
+      "component": false,
+      "exported": false,
+      "file": "<toolchain>/packages/c64/src/text.8bs",
+      "length": 8,
+      "method": false,
+      "name": "toScreen",
+      "owner": null,
+      "params": [
+        {
+          "name": "code",
+          "type": "utinyint"
+        }
+      ],
+      "returnType": "utinyint",
+      "start": 5739
+    },
+    "writeUnderIo": {
+      "body": [
+        {
+          "args": [],
+          "kind": "call",
+          "length": 9,
+          "name": "bankIoOut",
+          "start": 18011,
+          "type": "void"
+        },
+        {
+          "address": {
+            "kind": "ref",
+            "length": 7,
+            "name": "address",
+            "start": 18042,
+            "type": "usmallint"
+          },
+          "kind": "memoryWrite",
+          "length": 29,
+          "start": 18028,
+          "value": {
+            "kind": "ref",
+            "length": 5,
+            "name": "value",
+            "start": 18051,
+            "type": "utinyint"
+          }
+        },
+        {
+          "args": [],
+          "kind": "call",
+          "length": 8,
+          "name": "bankIoIn",
+          "start": 18063,
+          "type": "void"
+        }
+      ],
+      "component": false,
+      "exported": true,
+      "file": "<toolchain>/packages/c64/src/index.8bs",
+      "length": 12,
+      "method": false,
+      "name": "writeUnderIo",
+      "owner": null,
+      "params": [
+        {
+          "name": "address",
+          "type": "usmallint"
+        },
+        {
+          "name": "value",
+          "type": "utinyint"
+        }
+      ],
+      "returnType": "void",
+      "start": 17955
+    }
+  },
+  "globals": [
+    {
+      "address": null,
+      "exported": false,
+      "init": 1,
+      "length": 12,
+      "name": "currentColor",
+      "start": 5050,
+      "type": "utinyint",
+      "volatile": false
+    },
+    {
+      "address": null,
+      "exported": false,
+      "init": 0,
+      "length": 14,
+      "name": "currentReverse",
+      "start": 5133,
+      "type": "bool",
+      "volatile": false
+    },
+    {
+      "address": 1794,
+      "exported": false,
+      "init": 0,
+      "length": 9,
+      "name": "textColor",
+      "start": 5446,
+      "type": "utinyint",
+      "volatile": true
+    },
+    {
+      "address": 1795,
+      "exported": false,
+      "init": 0,
+      "length": 11,
+      "name": "textReverse",
+      "start": 5498,
+      "type": "utinyint",
+      "volatile": true
+    },
+    {
+      "address": 1,
+      "exported": true,
+      "init": 0,
+      "length": 13,
+      "name": "processorPort",
+      "start": 3015,
+      "type": "utinyint",
+      "volatile": true
+    },
+    {
+      "address": 53248,
+      "array": 16,
+      "constant": false,
+      "exported": true,
+      "init": null,
+      "length": 15,
+      "name": "spritePositions",
+      "start": 3368,
+      "type": "utinyint",
+      "volatile": false
+    },
+    {
+      "address": 53264,
+      "exported": true,
+      "init": 0,
+      "length": 11,
+      "name": "spriteXHigh",
+      "start": 3492,
+      "type": "utinyint",
+      "volatile": true
+    },
+    {
+      "address": 53265,
+      "exported": true,
+      "init": 0,
+      "length": 8,
+      "name": "control1",
+      "start": 3826,
+      "type": "utinyint",
+      "volatile": true
+    },
+    {
+      "address": 53266,
+      "exported": true,
+      "init": 0,
+      "length": 6,
+      "name": "raster",
+      "start": 3958,
+      "type": "utinyint",
+      "volatile": true
+    },
+    {
+      "address": 53269,
+      "exported": true,
+      "init": 0,
+      "length": 12,
+      "name": "spriteEnable",
+      "start": 4061,
+      "type": "utinyint",
+      "volatile": true
+    },
+    {
+      "address": 53270,
+      "exported": true,
+      "init": 0,
+      "length": 8,
+      "name": "control2",
+      "start": 4239,
+      "type": "utinyint",
+      "volatile": true
+    },
+    {
+      "address": 53271,
+      "exported": true,
+      "init": 0,
+      "length": 13,
+      "name": "spriteExpandY",
+      "start": 4370,
+      "type": "utinyint",
+      "volatile": true
+    },
+    {
+      "address": 53277,
+      "exported": true,
+      "init": 0,
+      "length": 13,
+      "name": "spriteExpandX",
+      "start": 4430,
+      "type": "utinyint",
+      "volatile": true
+    },
+    {
+      "address": 53272,
+      "exported": true,
+      "init": 0,
+      "length": 13,
+      "name": "memoryPointer",
+      "start": 4979,
+      "type": "utinyint",
+      "volatile": true
+    },
+    {
+      "address": 53273,
+      "exported": true,
+      "init": 0,
+      "length": 15,
+      "name": "interruptStatus",
+      "start": 5472,
+      "type": "utinyint",
+      "volatile": true
+    },
+    {
+      "address": 53274,
+      "exported": true,
+      "init": 0,
+      "length": 13,
+      "name": "interruptMask",
+      "start": 5534,
+      "type": "utinyint",
+      "volatile": true
+    },
+    {
+      "address": 53275,
+      "exported": true,
+      "init": 0,
+      "length": 14,
+      "name": "spritePriority",
+      "start": 5791,
+      "type": "utinyint",
+      "volatile": true
+    },
+    {
+      "address": 53276,
+      "exported": true,
+      "init": 0,
+      "length": 16,
+      "name": "spriteMulticolor",
+      "start": 5999,
+      "type": "utinyint",
+      "volatile": true
+    },
+    {
+      "address": 53278,
+      "exported": true,
+      "init": 0,
+      "length": 15,
+      "name": "spriteCollision",
+      "start": 6263,
+      "type": "utinyint",
+      "volatile": true
+    },
+    {
+      "address": 53279,
+      "exported": true,
+      "init": 0,
+      "length": 25,
+      "name": "spriteBackgroundCollision",
+      "start": 6325,
+      "type": "utinyint",
+      "volatile": true
+    },
+    {
+      "address": 53280,
+      "exported": true,
+      "init": 0,
+      "length": 11,
+      "name": "borderColor",
+      "start": 6676,
+      "type": "utinyint",
+      "volatile": true
+    },
+    {
+      "address": 53281,
+      "exported": true,
+      "init": 0,
+      "length": 15,
+      "name": "backgroundColor",
+      "start": 6734,
+      "type": "utinyint",
+      "volatile": true
+    },
+    {
+      "address": 53282,
+      "exported": true,
+      "init": 0,
+      "length": 16,
+      "name": "backgroundColor1",
+      "start": 6796,
+      "type": "utinyint",
+      "volatile": true
+    },
+    {
+      "address": 53283,
+      "exported": true,
+      "init": 0,
+      "length": 16,
+      "name": "backgroundColor2",
+      "start": 6859,
+      "type": "utinyint",
+      "volatile": true
+    },
+    {
+      "address": 53284,
+      "exported": true,
+      "init": 0,
+      "length": 16,
+      "name": "backgroundColor3",
+      "start": 6922,
+      "type": "utinyint",
+      "volatile": true
+    },
+    {
+      "address": 53285,
+      "exported": true,
+      "init": 0,
+      "length": 18,
+      "name": "spriteSharedColor0",
+      "start": 6985,
+      "type": "utinyint",
+      "volatile": true
+    },
+    {
+      "address": 53286,
+      "exported": true,
+      "init": 0,
+      "length": 18,
+      "name": "spriteSharedColor1",
+      "start": 7050,
+      "type": "utinyint",
+      "volatile": true
+    },
+    {
+      "address": 53287,
+      "array": 8,
+      "constant": false,
+      "exported": true,
+      "init": null,
+      "length": 12,
+      "name": "spriteColors",
+      "start": 7115,
+      "type": "utinyint",
+      "volatile": false
+    },
+    {
+      "address": 54272,
+      "array": 25,
+      "constant": false,
+      "exported": true,
+      "init": null,
+      "length": 12,
+      "name": "sidRegisters",
+      "start": 7927,
+      "type": "utinyint",
+      "volatile": false
+    },
+    {
+      "address": 54297,
+      "exported": true,
+      "init": 0,
+      "length": 7,
+      "name": "paddleX",
+      "start": 8296,
+      "type": "utinyint",
+      "volatile": true
+    },
+    {
+      "address": 54298,
+      "exported": true,
+      "init": 0,
+      "length": 7,
+      "name": "paddleY",
+      "start": 8350,
+      "type": "utinyint",
+      "volatile": true
+    },
+    {
+      "address": 54299,
+      "exported": true,
+      "init": 0,
+      "length": 16,
+      "name": "voice3Oscillator",
+      "start": 8404,
+      "type": "utinyint",
+      "volatile": true
+    },
+    {
+      "address": 54300,
+      "exported": true,
+      "init": 0,
+      "length": 14,
+      "name": "voice3Envelope",
+      "start": 8467,
+      "type": "utinyint",
+      "volatile": true
+    },
+    {
+      "address": 56320,
+      "exported": true,
+      "init": 0,
+      "length": 9,
+      "name": "cia1PortA",
+      "start": 9346,
+      "type": "utinyint",
+      "volatile": true
+    },
+    {
+      "address": 56321,
+      "exported": true,
+      "init": 0,
+      "length": 9,
+      "name": "cia1PortB",
+      "start": 9402,
+      "type": "utinyint",
+      "volatile": true
+    },
+    {
+      "address": 56322,
+      "exported": true,
+      "init": 0,
+      "length": 14,
+      "name": "cia1DirectionA",
+      "start": 9458,
+      "type": "utinyint",
+      "volatile": true
+    },
+    {
+      "address": 56323,
+      "exported": true,
+      "init": 0,
+      "length": 14,
+      "name": "cia1DirectionB",
+      "start": 9519,
+      "type": "utinyint",
+      "volatile": true
+    },
+    {
+      "address": 56333,
+      "exported": true,
+      "init": 0,
+      "length": 20,
+      "name": "cia1InterruptControl",
+      "start": 9580,
+      "type": "utinyint",
+      "volatile": true
+    },
+    {
+      "address": 56576,
+      "exported": true,
+      "init": 0,
+      "length": 9,
+      "name": "cia2PortA",
+      "start": 10303,
+      "type": "utinyint",
+      "volatile": true
+    },
+    {
+      "address": 56578,
+      "exported": true,
+      "init": 0,
+      "length": 14,
+      "name": "cia2DirectionA",
+      "start": 10359,
+      "type": "utinyint",
+      "volatile": true
+    },
+    {
+      "address": 56589,
+      "exported": true,
+      "init": 0,
+      "length": 20,
+      "name": "cia2InterruptControl",
+      "start": 10420,
+      "type": "utinyint",
+      "volatile": true
+    },
+    {
+      "address": null,
+      "exported": true,
+      "init": 0,
+      "length": 9,
+      "name": "videoMode",
+      "start": 11336,
+      "type": "utinyint",
+      "volatile": false
+    },
+    {
+      "address": null,
+      "exported": true,
+      "init": 0,
+      "length": 12,
+      "name": "interruptsOn",
+      "start": 11727,
+      "type": "bool",
+      "volatile": false
+    },
+    {
+      "address": null,
+      "exported": false,
+      "init": 0,
+      "length": 10,
+      "name": "videoReady",
+      "start": 14117,
+      "type": "bool",
+      "volatile": false
+    },
+    {
+      "address": 57088,
+      "exported": true,
+      "init": 0,
+      "length": 9,
+      "name": "reuStatus",
+      "start": 19472,
+      "type": "utinyint",
+      "volatile": true
+    },
+    {
+      "address": 57089,
+      "exported": true,
+      "init": 0,
+      "length": 10,
+      "name": "reuCommand",
+      "start": 19528,
+      "type": "utinyint",
+      "volatile": true
+    },
+    {
+      "address": 57090,
+      "exported": true,
+      "init": 0,
+      "length": 16,
+      "name": "reuC64AddressLow",
+      "start": 19585,
+      "type": "utinyint",
+      "volatile": true
+    },
+    {
+      "address": 57091,
+      "exported": true,
+      "init": 0,
+      "length": 17,
+      "name": "reuC64AddressHigh",
+      "start": 19648,
+      "type": "utinyint",
+      "volatile": true
+    },
+    {
+      "address": 57092,
+      "exported": true,
+      "init": 0,
+      "length": 13,
+      "name": "reuAddressLow",
+      "start": 19712,
+      "type": "utinyint",
+      "volatile": true
+    },
+    {
+      "address": 57093,
+      "exported": true,
+      "init": 0,
+      "length": 14,
+      "name": "reuAddressHigh",
+      "start": 19772,
+      "type": "utinyint",
+      "volatile": true
+    },
+    {
+      "address": 57094,
+      "exported": true,
+      "init": 0,
+      "length": 7,
+      "name": "reuBank",
+      "start": 19833,
+      "type": "utinyint",
+      "volatile": true
+    },
+    {
+      "address": 57095,
+      "exported": true,
+      "init": 0,
+      "length": 12,
+      "name": "reuLengthLow",
+      "start": 19887,
+      "type": "utinyint",
+      "volatile": true
+    },
+    {
+      "address": 57096,
+      "exported": true,
+      "init": 0,
+      "length": 13,
+      "name": "reuLengthHigh",
+      "start": 19946,
+      "type": "utinyint",
+      "volatile": true
+    },
+    {
+      "address": 57097,
+      "exported": true,
+      "init": 0,
+      "length": 16,
+      "name": "reuInterruptMask",
+      "start": 20006,
+      "type": "utinyint",
+      "volatile": true
+    },
+    {
+      "address": 57098,
+      "exported": true,
+      "init": 0,
+      "length": 17,
+      "name": "reuAddressControl",
+      "start": 20069,
+      "type": "utinyint",
+      "volatile": true
+    },
+    {
+      "address": 57344,
+      "array": 1000,
+      "constant": false,
+      "exported": true,
+      "init": null,
+      "length": 9,
+      "name": "screenRam",
+      "start": 4210,
+      "type": "utinyint",
+      "volatile": false
+    },
+    {
+      "address": 55296,
+      "array": 1000,
+      "constant": false,
+      "exported": true,
+      "init": null,
+      "length": 8,
+      "name": "colorRam",
+      "start": 4335,
+      "type": "utinyint",
+      "volatile": false
+    },
+    {
+      "address": 58360,
+      "array": 8,
+      "constant": false,
+      "exported": true,
+      "init": null,
+      "length": 14,
+      "name": "spritePointers",
+      "start": 4483,
+      "type": "utinyint",
+      "volatile": false
+    },
+    {
+      "address": 58368,
+      "array": 7104,
+      "constant": false,
+      "exported": true,
+      "init": null,
+      "length": 12,
+      "name": "spriteShapes",
+      "start": 4623,
+      "type": "utinyint",
+      "volatile": false
+    },
+    {
+      "address": 57344,
+      "array": 8000,
+      "constant": false,
+      "exported": true,
+      "init": null,
+      "length": 9,
+      "name": "bitmapRam",
+      "start": 4886,
+      "type": "utinyint",
+      "volatile": false
+    }
+  ],
+  "imports": [],
+  "memory": {
+    "data": 13,
+    "variables": 5
+  },
+  "nativeSources": [
+    "<toolchain>/packages/c64/native/6502/raster.s",
+    "<toolchain>/packages/c64/native/6502/multiplex.s",
+    "<toolchain>/packages/c64/native/6502/text.s"
+  ],
+  "strings": [
+    {
+      "bytes": [
+        72,
+        101,
+        108,
+        108,
+        111,
+        32,
+        87,
+        111,
+        114,
+        108,
+        100,
+        33
+      ],
+      "text": "Hello World!"
+    }
+  ]
+}

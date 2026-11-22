@@ -72,13 +72,18 @@ pub fn tested_facts(graph: &LoadedGraph) -> Vec<String> {
         syntax::walk(ast, &mut |n, _| {
             if let Some(raw) = raw_of(n) {
                 if let Some(rest) = raw.strip_prefix("#fact(") {
-                    let end = rest.chars().next_back().map_or(0, |c| rest.len() - c.len_utf8());
+                    let end = rest
+                        .chars()
+                        .next_back()
+                        .map_or(0, |c| rest.len() - c.len_utf8());
                     keys.insert(rest[..end].to_string());
                 }
             }
             if let NodeKind::MemberExpression { object, property } = &n.kind {
-                if let (NodeKind::Identifier { name, .. }, NodeKind::Identifier { name: member, .. }) =
-                    (&object.kind, &property.kind)
+                if let (
+                    NodeKind::Identifier { name, .. },
+                    NodeKind::Identifier { name: member, .. },
+                ) = (&object.kind, &property.kind)
                 {
                     if let Some(ns) = namespaces.get(name) {
                         if let Some(key) = by_const.get(&format!("{ns}.{member}")) {
@@ -214,7 +219,8 @@ fn settle(side: &mut ModuleSide, slot: &Slot, value: f64) {
     match &slot.namespace {
         Some(ns) => {
             if let Some(ns) = side.namespaces.get_mut(ns) {
-                ns.consts.insert(slot.key.clone(), ConstValue::Number(value));
+                ns.consts
+                    .insert(slot.key.clone(), ConstValue::Number(value));
             }
         }
         None => {
@@ -267,10 +273,16 @@ pub fn resolve_pending_consts(
                         let (code, message) = if binding.is_some() {
                             (
                                 codes::NOT_COMPILABLE,
-                                format!("'{}' is not a const, so it cannot initialize a const", r.name),
+                                format!(
+                                    "'{}' is not a const, so it cannot initialize a const",
+                                    r.name
+                                ),
                             )
                         } else {
-                            (codes::UNRESOLVED_NAME, format!("cannot find name '{}'", r.name))
+                            (
+                                codes::UNRESOLVED_NAME,
+                                format!("cannot find name '{}'", r.name),
+                            )
                         };
                         diagnostics.push(diagnostic(
                             code,
@@ -287,8 +299,13 @@ pub fn resolve_pending_consts(
                 } else if let Expr::NamespaceConst(nc) = &expr {
                     // A member still pending waits for another pass; a namespace or member that
                     // does not exist is left to the rewrite below, which reports it.
-                    let result =
-                        resolve_namespace_member(sides, m, &nc.namespace, &nc.member, Table::Consts);
+                    let result = resolve_namespace_member(
+                        sides,
+                        m,
+                        &nc.namespace,
+                        &nc.member,
+                        Table::Consts,
+                    );
                     if result.namespace_found
                         && result.member_found
                         && matches!(&result.value, Some(MemberValue::Const(v)) if v.is_pending())
@@ -301,8 +318,15 @@ pub fn resolve_pending_consts(
                 let visible = visible_consts(sides, m, true);
                 sides[m].const_values = visible.values;
                 sides[m].const_types = visible.types;
-                let value =
-                    resolve_initialiser(&mut expr, &slot.ty, &scopes[m], m, sides, graph, diagnostics)?;
+                let value = resolve_initialiser(
+                    &mut expr,
+                    &slot.ty,
+                    &scopes[m],
+                    m,
+                    sides,
+                    graph,
+                    diagnostics,
+                )?;
                 settle(&mut sides[m], &slot, value);
                 progress = true;
             }
@@ -361,7 +385,10 @@ pub fn resolve_initialiser(
                 at(
                     diagnostics,
                     codes::NOT_COMPILABLE,
-                    format!("'{}' is a string const; it cannot initialize a {g_type}", r.name),
+                    format!(
+                        "'{}' is a string const; it cannot initialize a {g_type}",
+                        r.name
+                    ),
                 );
                 return Ok(0.0);
             }
@@ -369,10 +396,16 @@ pub fn resolve_initialiser(
                 let (code, message) = if scope.has(&r.name) {
                     (
                         codes::NOT_COMPILABLE,
-                        format!("'{}' is not a const, so it cannot initialize a global: an initializer is a literal or a const", r.name),
+                        format!(
+                            "'{}' is not a const, so it cannot initialize a global: an initializer is a literal or a const",
+                            r.name
+                        ),
                     )
                 } else {
-                    (codes::UNRESOLVED_NAME, format!("cannot find name '{}'", r.name))
+                    (
+                        codes::UNRESOLVED_NAME,
+                        format!("cannot find name '{}'", r.name),
+                    )
                 };
                 at(diagnostics, code, message);
                 return Ok(0.0);

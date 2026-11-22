@@ -5,15 +5,23 @@ mod common;
 use common::{
     TREES, assert_rows, bind_json, imports_json, namespace_rows, natives_json, prepare, rename_json,
 };
-use linker::imports::{Table, assign_output_names, resolve_namespace_member};
 use linker::ModuleSide;
+use linker::imports::{Table, assign_output_names, resolve_namespace_member};
 
 #[test]
 fn the_graph_matches() {
     for tree in TREES {
         let l = common::load(tree);
-        assert_eq!(l.text(natives_json(&l)), l.golden("natives.json"), "{tree}: natives");
-        assert_eq!(l.text(imports_json(&l)), l.golden("imports.json"), "{tree}: imports");
+        assert_eq!(
+            l.text(natives_json(&l)),
+            l.golden("natives.json"),
+            "{tree}: natives"
+        );
+        assert_eq!(
+            l.text(imports_json(&l)),
+            l.golden("imports.json"),
+            "{tree}: imports"
+        );
     }
 }
 
@@ -30,7 +38,11 @@ fn bind_imports_matches() {
 fn output_names_match() {
     for tree in TREES {
         let (l, renamed) = prepare(tree);
-        assert_eq!(renamed, l.has_golden("rename.json"), "{tree}: rename only without errors");
+        assert_eq!(
+            renamed,
+            l.has_golden("rename.json"),
+            "{tree}: rename only without errors"
+        );
         if renamed {
             assert_eq!(l.text(rename_json(&l)), l.golden("rename.json"), "{tree}");
         }

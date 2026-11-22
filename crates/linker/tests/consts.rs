@@ -47,7 +47,10 @@ fn complete_calls_match() {
         if renamed {
             assert_rows(&l, &complete_call_rows(&l), &["completeCall"]);
         } else {
-            assert!(l.golden_rows("completeCall") == l.text(serde_json::json!([])), "{tree}");
+            assert!(
+                l.golden_rows("completeCall") == l.text(serde_json::json!([])),
+                "{tree}"
+            );
         }
     }
 }
@@ -66,7 +69,10 @@ fn no_pending_const_needs_no_rewrite() {
     let (mut l, renamed) = prepare("strings");
     assert!(!renamed); // the 6-char literal is an error, so the names were never assigned
     let mut diagnostics = Vec::new();
-    assert_eq!(resolve_pending_consts(&l.graph, &mut l.sides, &mut diagnostics), Ok(()));
+    assert_eq!(
+        resolve_pending_consts(&l.graph, &mut l.sides, &mut diagnostics),
+        Ok(())
+    );
     assert!(diagnostics.is_empty());
 }
 
@@ -86,10 +92,21 @@ fn an_initialiser_naming_a_string_const_is_refused() {
     let scope = Scope::default();
     // `GREETING` is a string const of module 0.
     let mut expr = reference("GREETING");
-    let got = resolve_initialiser(&mut expr, "utinyint", &scope, 0, &mut l.sides, &l.graph, &mut diagnostics);
+    let got = resolve_initialiser(
+        &mut expr,
+        "utinyint",
+        &scope,
+        0,
+        &mut l.sides,
+        &l.graph,
+        &mut diagnostics,
+    );
     assert_eq!(got, Ok(0.0));
     assert_eq!(diagnostics.len(), 1);
-    assert_eq!(diagnostics[0].message, "'GREETING' is a string const; it cannot initialize a utinyint");
+    assert_eq!(
+        diagnostics[0].message,
+        "'GREETING' is a string const; it cannot initialize a utinyint"
+    );
     assert_eq!((diagnostics[0].start, diagnostics[0].length), (3, 4));
 }
 
@@ -98,7 +115,15 @@ fn an_initialiser_naming_nothing_is_unresolved() {
     let (mut l, _) = prepare("consts");
     let mut diagnostics = Vec::new();
     let mut expr = reference("nope");
-    let got = resolve_initialiser(&mut expr, "utinyint", &Scope::default(), 0, &mut l.sides, &l.graph, &mut diagnostics);
+    let got = resolve_initialiser(
+        &mut expr,
+        "utinyint",
+        &Scope::default(),
+        0,
+        &mut l.sides,
+        &l.graph,
+        &mut diagnostics,
+    );
     assert_eq!(got, Ok(0.0));
     assert_eq!(diagnostics[0].message, "cannot find name 'nope'");
     // The same name bound in the scope is a name that is not a const.
@@ -106,9 +131,21 @@ fn an_initialiser_naming_nothing_is_unresolved() {
     let mut scope = Scope::default();
     linker::scope::bind_local(&mut scope, "nope");
     let mut expr = reference("nope");
-    let got = resolve_initialiser(&mut expr, "utinyint", &scope, 0, &mut l.sides, &l.graph, &mut diagnostics);
+    let got = resolve_initialiser(
+        &mut expr,
+        "utinyint",
+        &scope,
+        0,
+        &mut l.sides,
+        &l.graph,
+        &mut diagnostics,
+    );
     assert_eq!(got, Ok(0.0));
-    assert!(diagnostics[0].message.contains("is not a const, so it cannot initialize a global"));
+    assert!(
+        diagnostics[0]
+            .message
+            .contains("is not a const, so it cannot initialize a global")
+    );
 }
 
 #[test]
@@ -116,7 +153,15 @@ fn a_const_initialiser_reaches_the_rewrite_stub() {
     let (mut l, _) = prepare("consts");
     let mut diagnostics = Vec::new();
     let mut expr = reference("LIMIT");
-    let got = resolve_initialiser(&mut expr, "utinyint", &Scope::default(), 0, &mut l.sides, &l.graph, &mut diagnostics);
+    let got = resolve_initialiser(
+        &mut expr,
+        "utinyint",
+        &Scope::default(),
+        0,
+        &mut l.sides,
+        &l.graph,
+        &mut diagnostics,
+    );
     assert_eq!(got, Err(Unported));
 }
 
@@ -128,8 +173,15 @@ fn array_access_reaches_the_rewrite_stub() {
     let mut index = Expr::Const(Const { value: 0, ty: None });
     let mut element = None;
     let got = rewrite_array_access(
-        &mut array, &mut index, &mut element, &Scope::default(), 0, &mut l.sides, &l.graph,
-        &mut diagnostics, false,
+        &mut array,
+        &mut index,
+        &mut element,
+        &Scope::default(),
+        0,
+        &mut l.sides,
+        &l.graph,
+        &mut diagnostics,
+        false,
     );
     assert_eq!(got, Err(Unported));
 }
@@ -160,7 +212,14 @@ fn param(name: &str, default: Option<i64>) -> Param {
 fn call(args: usize) -> Call {
     Call {
         name: "f".to_string(),
-        args: (0..args).map(|i| Expr::Const(Const { value: i as i64, ty: None })).collect(),
+        args: (0..args)
+            .map(|i| {
+                Expr::Const(Const {
+                    value: i as i64,
+                    ty: None,
+                })
+            })
+            .collect(),
         ty: jsnum::Nullable::Null,
         start: Some(10),
         length: Some(2),
@@ -173,7 +232,10 @@ fn a_call_is_filled_from_the_defaults_and_typed() {
     let mut callees = IndexMap::new();
     callees.insert(
         "f".to_string(),
-        Callee { params: vec![param("a", None), param("b", Some(7)), param("c", Some(8))], return_type: "utinyint".to_string() },
+        Callee {
+            params: vec![param("a", None), param("b", Some(7)), param("c", Some(8))],
+            return_type: "utinyint".to_string(),
+        },
     );
     let mut c = call(1);
     let mut found = Vec::new();
@@ -198,7 +260,13 @@ fn a_call_is_filled_from_the_defaults_and_typed() {
 
     // One parameter, no default: the singular.
     let mut one = IndexMap::new();
-    one.insert("f".to_string(), Callee { params: vec![param("a", None)], return_type: "void".to_string() });
+    one.insert(
+        "f".to_string(),
+        Callee {
+            params: vec![param("a", None)],
+            return_type: "void".to_string(),
+        },
+    );
     let mut c = call(2);
     let mut found = Vec::new();
     complete_call(&mut c, None, Some(&one), "x.8bs", &mut found);

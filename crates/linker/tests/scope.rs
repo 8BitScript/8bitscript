@@ -9,13 +9,21 @@ use linker::scope::{Scope, bind_local, child_scope};
 fn lookups_match() {
     for tree in TREES {
         let (l, _) = prepare(tree);
-        assert_rows(&l, &scope_rows(&l), &["globalNamed", "isImportedName", "isStringName"]);
+        assert_rows(
+            &l,
+            &scope_rows(&l),
+            &["globalNamed", "isImportedName", "isStringName"],
+        );
     }
 }
 
 #[test]
 fn a_child_scope_is_a_copy() {
-    let mut parent = Scope::new([("a".to_string(), "a_out".to_string())].into_iter().collect());
+    let mut parent = Scope::new(
+        [("a".to_string(), "a_out".to_string())]
+            .into_iter()
+            .collect(),
+    );
     assert_eq!(parent.bound, None);
     let mut child = child_scope(&parent);
     assert_eq!(child.bound.as_ref().map(|b| b.len()), Some(0));

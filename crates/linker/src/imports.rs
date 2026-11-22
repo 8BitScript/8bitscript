@@ -99,7 +99,12 @@ pub fn bind_imports(
         let file = file_of(graph, m);
         for (i, imp) in ir_of(graph, m).imports.iter().enumerate() {
             // Resolution already failed and was reported.
-            let Some(target) = graph.import_modules.get(m).and_then(|v| v.get(i)).copied().flatten()
+            let Some(target) = graph
+                .import_modules
+                .get(m)
+                .and_then(|v| v.get(i))
+                .copied()
+                .flatten()
             else {
                 continue;
             };
@@ -116,7 +121,10 @@ pub fn bind_imports(
                 };
                 let side = &sides[m];
                 if side.decls.contains_key(&spec.local)
-                    || side.bindings.as_ref().is_some_and(|b| b.contains_key(&spec.local))
+                    || side
+                        .bindings
+                        .as_ref()
+                        .is_some_and(|b| b.contains_key(&spec.local))
                     || side
                         .namespace_bindings
                         .as_ref()
@@ -293,7 +301,11 @@ pub fn rewrite_array_access(
             codes::NOT_COMPILABLE,
             format!(
                 "'{name}' is not an array: {} needs an array<T, N>",
-                if store { "assigning to an element" } else { "indexing" }
+                if store {
+                    "assigning to an element"
+                } else {
+                    "indexing"
+                }
             ),
         );
         return Ok(());
@@ -303,7 +315,9 @@ pub fn rewrite_array_access(
     if store && g.constant == Some(true) {
         at(
             codes::ASSIGN_TO_CONST,
-            format!("'{name}' is a const array — data in the program, not RAM — and cannot be assigned to"),
+            format!(
+                "'{name}' is a const array — data in the program, not RAM — and cannot be assigned to"
+            ),
         );
     }
     if let Expr::Const(c) = index {

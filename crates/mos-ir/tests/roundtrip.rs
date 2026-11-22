@@ -3,7 +3,9 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use mos_ir::{Expr, Stmt, parse, roundtrip, to_canonical};
+use mos_ir::{
+    Expr, Stmt, parse, parse_linked, roundtrip, roundtrip_linked, to_canonical, to_canonical_linked,
+};
 
 fn fixtures() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures")
@@ -249,4 +251,22 @@ fn absent_and_null_stay_apart() {
     // `else` is required (may be null): an absent one reads as null, so the
     // rewrite adds a key the dump did not have and the round trip fails.
     assert!(roundtrip(&with_body(body)).is_err());
+}
+
+#[test]
+fn the_linked_fixture_round_trips_byte_for_byte() {
+    let text = fs::read_to_string(fixtures().join("hello-world-c64/linked.json")).unwrap();
+    let program = parse_linked(&text).unwrap();
+    assert_eq!(to_canonical_linked(&program).unwrap(), text);
+    assert_eq!(roundtrip_linked(&text), Ok(()));
+    assert_eq!(program.entry, "main");
+    assert_eq!(program.functions.len(), program.functions_by_output.len());
+}
+
+#[test]
+fn a_linked_program_with_an_unknown_field_is_rejected() {
+    let text = fs::read_to_string(fixtures().join("hello-world-c64/linked.json")).unwrap();
+    let text = text.replacen("\"entry\"", "\"surprise\": 1,\n  \"entry\"", 1);
+    assert!(parse_linked(&text).unwrap_err().contains("surprise"));
+    assert!(roundtrip_linked("{").is_err());
 }

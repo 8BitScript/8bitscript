@@ -15,7 +15,9 @@ use linker::consts::{Callee, Visible, check_string_fits, visible_consts};
 use linker::imports::{
     MemberValue, Table, assign_output_names, bind_imports, resolve_namespace_member,
 };
-use linker::scope::{Scope, bind_local, child_scope, global_named, is_imported_name, is_string_name};
+use linker::scope::{
+    Scope, bind_local, child_scope, global_named, is_imported_name, is_string_name,
+};
 use linker::{ConstValue, ModuleSide, ir_of};
 use mos_ir::{Expr, IrString, StringLiteral};
 use serde_json::{Map, Value, json};
@@ -45,7 +47,9 @@ fn copy_tree(from: &Path, to: &Path) {
 }
 
 pub fn fixture(tree: &str) -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures").join(tree)
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures")
+        .join(tree)
 }
 
 /// One tree, loaded: the graph, the diagnostics so far and the linker's side tables.
@@ -65,7 +69,11 @@ pub fn load(tree: &str) -> Loaded {
     copy_tree(&fixture(tree).join("src"), &dir);
     let scratch = Scratch(dir.clone());
     let project = canonical(&dir.to_string_lossy());
-    let toolchain = canonical(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").to_string_lossy());
+    let toolchain = canonical(
+        &Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .to_string_lossy(),
+    );
     let entry = format!("{project}/main.8bs");
     let text = fs::read_to_string(&entry).unwrap();
     let mut link = LinkOptions::default();
@@ -94,7 +102,9 @@ impl Loaded {
 
     /// `hasError(diagnostics)`.
     pub fn errored(&self) -> bool {
-        self.diagnostics.iter().any(|d| d.severity != Severity::Warning)
+        self.diagnostics
+            .iter()
+            .any(|d| d.severity != Severity::Warning)
     }
 
     /// `assignOutputNames`, when nothing failed; whether it ran.
@@ -154,7 +164,9 @@ impl Loaded {
 fn tokenize(value: Value, roots: &oracle::Roots) -> Value {
     match value {
         Value::String(s) => Value::String(oracle::tokenize_path(&s, roots)),
-        Value::Array(items) => Value::Array(items.into_iter().map(|v| tokenize(v, roots)).collect()),
+        Value::Array(items) => {
+            Value::Array(items.into_iter().map(|v| tokenize(v, roots)).collect())
+        }
         Value::Object(map) => Value::Object(
             map.into_iter()
                 .map(|(k, v)| (k, tokenize(v, roots)))
@@ -240,9 +252,7 @@ pub fn rename_json(l: &Loaded) -> Value {
 }
 
 pub fn visible_json(l: &Loaded) -> Value {
-    let one = |v: Visible| {
-        json!({ "values": pairs(&v.values, const_json), "types": pairs(&v.types, |t| json!(t)) })
-    };
+    let one = |v: Visible| json!({ "values": pairs(&v.values, const_json), "types": pairs(&v.types, |t| json!(t)) });
     Value::Array(
         (0..l.sides.len())
             .map(|m| {
@@ -434,16 +444,30 @@ pub fn complete_call_rows(l: &Loaded) -> Vec<Value> {
             for call in found_calls {
                 let args = call["args"].clone();
                 let triple = Value::Array(
-                    args.as_array().unwrap().iter().cloned().cycle().take(args.as_array().unwrap().len() * 3).collect(),
+                    args.as_array()
+                        .unwrap()
+                        .iter()
+                        .cloned()
+                        .cycle()
+                        .take(args.as_array().unwrap().len() * 3)
+                        .collect(),
                 );
                 for variant in [args.clone(), json!([]), triple] {
                     let mut input = call.clone();
                     input["args"] = variant;
-                    let Expr::Call(mut done) = serde_json::from_value::<Expr>(input.clone()).unwrap() else {
+                    let Expr::Call(mut done) =
+                        serde_json::from_value::<Expr>(input.clone()).unwrap()
+                    else {
                         panic!("not a call");
                     };
                     let mut found = Vec::new();
-                    linker::consts::complete_call(&mut done, None, Some(&callees), l.file_of(m), &mut found);
+                    linker::consts::complete_call(
+                        &mut done,
+                        None,
+                        Some(&callees),
+                        l.file_of(m),
+                        &mut found,
+                    );
                     rows.push(row(
                         "completeCall",
                         json!([m, input]),
@@ -475,6 +499,11 @@ pub fn prepare(tree: &str) -> (Loaded, bool) {
 pub fn assert_rows(l: &Loaded, rows: &[Value], fn_names: &[&str]) {
     for name in fn_names {
         let got: Vec<Value> = rows.iter().filter(|r| r["fn"] == *name).cloned().collect();
-        assert_eq!(l.text(Value::Array(got)), l.golden_rows(name), "{}: {name}", l.tree);
+        assert_eq!(
+            l.text(Value::Array(got)),
+            l.golden_rows(name),
+            "{}: {name}",
+            l.tree
+        );
     }
 }
