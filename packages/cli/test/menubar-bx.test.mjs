@@ -84,7 +84,7 @@ pub fn main() {
 
 const BX = {
   'bar.8bs': BAR,
-  'Bar.8bx': `use self::bar::bar;
+  'MenuBar.8bx': `use self::bar::bar;
 pub component MenuBar(row: utinyint, width: utinyint) {
     bar::begin(row, width);
     <slot />;
@@ -100,7 +100,7 @@ pub fn draw() {
     </MenuBar>;
 }
 `,
-  'main.8bs': `use self::Bar::draw;
+  'main.8bs': `use self::MenuBar::draw;
 pub fn main() {
     draw();
 }
