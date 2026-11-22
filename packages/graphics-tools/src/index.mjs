@@ -187,6 +187,7 @@ export function encodePng(width, height, rgba) {
  * @returns {Uint8Array[]} each frame is RGBA of frameW*frameH pixels
  */
 export function sliceFrames(rgba, width, height, frameW, frameH) {
+  if (frameW === 0 || frameH === 0) return [];
   const cols = Math.floor(width / frameW);
   const rows = Math.floor(height / frameH);
   const frames = [];

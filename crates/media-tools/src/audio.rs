@@ -101,7 +101,7 @@ fn samples_from_pcm(
     let mut out = Vec::new();
     let supported = (format == 3 && bits == 32) || bits == 8 || bits == 16;
     if channels == 0 && supported {
-        // The JS never leaves its loop for zero channels.
+        // A WAV with zero channels reads no samples; the JS throws the same message.
         return Err("WAV has zero channels".to_string());
     }
     if format == 3 && bits == 32 {

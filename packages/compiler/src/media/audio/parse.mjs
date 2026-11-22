@@ -256,10 +256,12 @@ function parseOrder(c) {
   const open = c.expect(MediaTokenKind.Punctuation, '{', "'{'");
   diagnostics.push(...open.diagnostics);
   while (!c.done() && c.at().text !== '}') {
+    const before = c.at();
     const n = parseName(c);
     diagnostics.push(...n.diagnostics);
     if (n.name) names.push(n.name);
     c.eat(MediaTokenKind.Punctuation, ',');
+    if (c.at() === before) break;
   }
   const close = c.expect(MediaTokenKind.Punctuation, '}', "'}'");
   diagnostics.push(...close.diagnostics);
