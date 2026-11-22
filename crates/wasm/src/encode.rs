@@ -38,64 +38,6 @@ pub mod external_kind {
 /// A function type's own tag byte, ahead of its param/result vectors.
 const FUNC_TYPE_TAG: u8 = 0x60;
 
-/// A block/loop/if's own result shape.
-pub mod block_type {
-    pub const EMPTY: u8 = 0x40;
-    pub const I32: u8 = 0x7f;
-}
-
-/// Instruction opcodes.
-pub mod opcode {
-    pub const UNREACHABLE: u8 = 0x00;
-    pub const END: u8 = 0x0b;
-    pub const BLOCK: u8 = 0x02;
-    pub const LOOP: u8 = 0x03;
-    pub const IF: u8 = 0x04;
-    pub const ELSE: u8 = 0x05;
-    pub const BR: u8 = 0x0c;
-    pub const BR_IF: u8 = 0x0d;
-    pub const RETURN: u8 = 0x0f;
-    pub const CALL: u8 = 0x10;
-    pub const DROP: u8 = 0x1a;
-    pub const LOCAL_GET: u8 = 0x20;
-    pub const LOCAL_SET: u8 = 0x21;
-    pub const I32_CONST: u8 = 0x41;
-    pub const I32_EQZ: u8 = 0x45;
-    pub const I32_EQ: u8 = 0x46;
-    pub const I32_NE: u8 = 0x47;
-    pub const I32_LT_S: u8 = 0x48;
-    pub const I32_LT_U: u8 = 0x49;
-    pub const I32_GT_S: u8 = 0x4a;
-    pub const I32_GT_U: u8 = 0x4b;
-    pub const I32_LE_S: u8 = 0x4c;
-    pub const I32_LE_U: u8 = 0x4d;
-    pub const I32_GE_S: u8 = 0x4e;
-    pub const I32_GE_U: u8 = 0x4f;
-    pub const I32_ADD: u8 = 0x6a;
-    pub const I32_SUB: u8 = 0x6b;
-    pub const I32_MUL: u8 = 0x6c;
-    pub const I32_DIV_U: u8 = 0x6e;
-    pub const I32_REM_U: u8 = 0x70;
-    pub const I32_AND: u8 = 0x71;
-    pub const I32_OR: u8 = 0x72;
-    pub const I32_XOR: u8 = 0x73;
-    pub const I32_SHL: u8 = 0x74;
-    pub const I32_SHR_U: u8 = 0x76;
-    pub const I32_LOAD8_U: u8 = 0x2d;
-    pub const I32_LOAD16_U: u8 = 0x2f;
-    pub const I32_STORE8: u8 = 0x3a;
-    pub const I32_STORE16: u8 = 0x3b;
-    pub const SELECT: u8 = 0x1b;
-    pub const GLOBAL_GET: u8 = 0x23;
-    pub const GLOBAL_SET: u8 = 0x24;
-}
-
-/// A global's mutability flag.
-pub mod mutability {
-    pub const CONST: u8 = 0x00;
-    pub const VAR: u8 = 0x01;
-}
-
 /// `Number.isInteger`.
 fn is_integer(v: f64) -> bool {
     v.is_finite() && v.fract() == 0.0
@@ -163,7 +105,7 @@ pub fn signed_leb128(value: f64) -> Result<Vec<u8>, WasmError> {
 /// A count (unsigned LEB128) followed by every item's own bytes, concatenated.
 #[must_use]
 pub fn vector(items: &[Vec<u8>]) -> Vec<u8> {
-    let mut out = leb_f64(items.len() as f64);
+    let mut out = unsigned_leb128(items.len() as f64).expect("a length is a non-negative integer");
     for item in items {
         out.extend_from_slice(item);
     }
@@ -174,16 +116,68 @@ pub fn vector(items: &[Vec<u8>]) -> Vec<u8> {
 #[must_use]
 pub fn encode_name(name: &str) -> Vec<u8> {
     let bytes = name.as_bytes();
-    let mut out = leb_f64(bytes.len() as f64);
+    let mut out = unsigned_leb128(bytes.len() as f64).expect("a length is a non-negative integer");
     out.extend_from_slice(bytes);
     out
+}
+
+/// A block/loop/if's own result shape.
+pub mod block_type {
+    pub const EMPTY: u8 = 0x40;
+    pub const I32: u8 = 0x7f;
+}
+
+/// Instruction opcodes.
+pub mod opcode {
+    pub const UNREACHABLE: u8 = 0x00;
+    pub const END: u8 = 0x0b;
+    pub const BLOCK: u8 = 0x02;
+    pub const LOOP: u8 = 0x03;
+    pub const IF: u8 = 0x04;
+    pub const ELSE: u8 = 0x05;
+    pub const BR: u8 = 0x0c;
+    pub const BR_IF: u8 = 0x0d;
+    pub const RETURN: u8 = 0x0f;
+    pub const CALL: u8 = 0x10;
+    pub const DROP: u8 = 0x1a;
+    pub const LOCAL_GET: u8 = 0x20;
+    pub const LOCAL_SET: u8 = 0x21;
+    pub const I32_CONST: u8 = 0x41;
+    pub const I32_EQZ: u8 = 0x45;
+    pub const I32_EQ: u8 = 0x46;
+    pub const I32_NE: u8 = 0x47;
+    pub const I32_LT_S: u8 = 0x48;
+    pub const I32_LT_U: u8 = 0x49;
+    pub const I32_GT_S: u8 = 0x4a;
+    pub const I32_GT_U: u8 = 0x4b;
+    pub const I32_LE_S: u8 = 0x4c;
+    pub const I32_LE_U: u8 = 0x4d;
+    pub const I32_GE_S: u8 = 0x4e;
+    pub const I32_GE_U: u8 = 0x4f;
+    pub const I32_ADD: u8 = 0x6a;
+    pub const I32_SUB: u8 = 0x6b;
+    pub const I32_MUL: u8 = 0x6c;
+    pub const I32_DIV_U: u8 = 0x6e;
+    pub const I32_REM_U: u8 = 0x70;
+    pub const I32_AND: u8 = 0x71;
+    pub const I32_OR: u8 = 0x72;
+    pub const I32_XOR: u8 = 0x73;
+    pub const I32_SHL: u8 = 0x74;
+    pub const I32_SHR_U: u8 = 0x76;
+    pub const I32_LOAD8_U: u8 = 0x2d;
+    pub const I32_LOAD16_U: u8 = 0x2f;
+    pub const I32_STORE8: u8 = 0x3a;
+    pub const I32_STORE16: u8 = 0x3b;
+    pub const SELECT: u8 = 0x1b;
+    pub const GLOBAL_GET: u8 = 0x23;
+    pub const GLOBAL_SET: u8 = 0x24;
 }
 
 /// `memory.copy`: the 0xFC prefix, sub-opcode 10, then the two memory indices.
 #[must_use]
 pub fn memory_copy() -> Vec<u8> {
     let mut out = vec![0xfc];
-    out.extend(leb_f64(10.0));
+    out.extend(unsigned_leb128(10.0).expect("10 is a non-negative integer"));
     out.extend([0x00, 0x00]);
     out
 }
@@ -206,9 +200,15 @@ pub fn active_data_segment(offset: f64, bytes: &[u8]) -> Result<Vec<u8>, WasmErr
     let mut out = vec![0x00, opcode::I32_CONST];
     out.extend(signed_leb128(offset)?);
     out.push(opcode::END);
-    out.extend(leb_f64(bytes.len() as f64));
+    out.extend(unsigned_leb128(bytes.len() as f64)?);
     out.extend_from_slice(bytes);
     Ok(out)
+}
+
+/// A global's mutability flag.
+pub mod mutability {
+    pub const CONST: u8 = 0x00;
+    pub const VAR: u8 = 0x01;
 }
 
 /// One function type: the tag, the param vector, the result vector.
@@ -264,7 +264,7 @@ pub fn limits(min: f64, max: Option<f64>, shared: Option<bool>) -> Result<Vec<u8
 #[must_use]
 pub fn section(id: u8, content: &[u8]) -> Vec<u8> {
     let mut out = vec![id];
-    out.extend(leb_f64(content.len() as f64));
+    out.extend(unsigned_leb128(content.len() as f64).expect("a length is a non-negative integer"));
     out.extend_from_slice(content);
     out
 }
