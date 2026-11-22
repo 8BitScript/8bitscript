@@ -129,6 +129,29 @@ jobs:
           grep -m 40 ERROR "$RUNNER_TEMP/compare.txt" || true
           tail -n 1 "$RUNNER_TEMP/compare.txt"
           exit "$status"
+      # The native backend reads each package's own 6502 sources from the
+      # toolchain checkout, so the packages must be installed.
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 26
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build the native backend from the dump
+        run: |
+          games=()
+          for dir in "$RUNNER_TEMP"/games/*; do
+            games+=(--game "$(basename "$dir")=$dir")
+          done
+          cargo xtask pilot "$RUNNER_TEMP/dump-a" --out "$RUNNER_TEMP/pilot" --toolchain "$GITHUB_WORKSPACE" "${games[@]}" 2>&1 | tail -n 5
+          exit "${PIPESTATUS[0]}"
+      - name: Compare the backend stages with the JS dump
+        run: |
+          status=0
+          cargo xtask compare "$RUNNER_TEMP/dump-a" "$RUNNER_TEMP/pilot" --stages link,bytes,size-report,error --divergences oracle/divergences.toml > "$RUNNER_TEMP/pilot-compare.txt" || status=$?
+          grep -m 40 ERROR "$RUNNER_TEMP/pilot-compare.txt" || true
+          tail -n 1 "$RUNNER_TEMP/pilot-compare.txt"
+          exit "$status"
 
   # Fails the pull request when packages/ or editors/ changed and no
   # .changeset/*.md came with them. The version bot only opens a release

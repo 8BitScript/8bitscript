@@ -3,4 +3,5 @@
 pub mod corpus_tap;
 pub mod front;
 pub mod front_dump;
+pub mod pilot;
 pub mod tap;

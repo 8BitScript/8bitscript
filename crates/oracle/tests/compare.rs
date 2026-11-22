@@ -2,7 +2,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use oracle::{
-    Options, Roots, canonical_json, compare, glob_match, hex_dump, parse_hex, tokenize_path,
+    Options, Roots, canonical_json, compare, detokenize_path, glob_match, hex_dump, parse_hex,
+    tokenize_path,
 };
 use serde_json::json;
 
@@ -216,6 +217,13 @@ fn hex_roundtrip_and_tokens_and_glob() {
     );
     assert_eq!(tokenize_path("/r/pj", &roots), "<project>");
     assert_eq!(tokenize_path("/r/tcx/y", &roots), "/r/tcx/y");
+    assert_eq!(
+        detokenize_path("<toolchain>/packages/x", &roots),
+        "/r/tc/packages/x"
+    );
+    assert_eq!(detokenize_path("<project>", &roots), "/r/pj");
+    assert_eq!(detokenize_path("<projectx/y", &roots), "<projectx/y");
+    assert_eq!(detokenize_path("/abs/y", &roots), "/abs/y");
     assert!(glob_match("vegas-nights/*/c64", "vegas-nights/slots/c64"));
     assert!(glob_match("*", ""));
     assert!(glob_match("a?c", "abc") && !glob_match("a?c", "ac"));

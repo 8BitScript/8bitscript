@@ -22,7 +22,7 @@ use crate::build::Counters;
 use crate::provenance::{Provenance, SourceSpan};
 use crate::startup::multiply::MultiplyCells;
 use crate::types::{resolve_integer_type, storage_bytes};
-use allocator::LocalAllocator;
+pub use allocator::LocalAllocator;
 
 /// A function's calling interface (`FunctionSite`, `index.ts:~108`).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
