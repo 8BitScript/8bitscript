@@ -56,3 +56,11 @@ test('brightness averages opaque pixels and bitmask downsamples ink', () => {
   assert.equal(bits.length, 1);
   assert.ok(bits[0] !== 0);
 });
+
+test('sliceFrames returns no frames for a frame width or height of 0', () => {
+  const rgba = new Uint8Array(4 * 4 * 4);
+  assert.deepEqual(sliceFrames(rgba, 4, 4, 0, 2), []);
+  assert.deepEqual(sliceFrames(rgba, 4, 4, 2, 0), []);
+  assert.deepEqual(sliceFrames(rgba, 4, 4, 0, 0), []);
+  assert.equal(sliceFrames(rgba, 4, 4, 2, 2).length, 4);
+});

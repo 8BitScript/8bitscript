@@ -74,8 +74,8 @@ fn note_names_span_c0_to_b6() {
     assert_eq!(note_value("c4"), None);
 }
 
-// media: R7.5: parseOrder: JS never advances past a token that is not a
-// name (`order { 5 }`) and loops forever; Rust stops at the first such token.
+// parseOrder stops at the first token that is not a name (`order { 5 }`), as
+// the JS does; the fixture rows in media-audio.json compare the diagnostics.
 #[test]
 fn an_order_with_a_non_name_token_terminates() {
     let text = "song s { order { 5 } }";

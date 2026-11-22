@@ -84,6 +84,8 @@ add('song loop bad word', song('loop maybe'));
 add('song loop missing', song('loop }'));
 add('song order', song(`order { a, b } ${pat} pattern b length 2 { }`));
 add('song order trailing comma', song(`order { a, } ${pat}`));
+add('song order non-name token', song('order { 5 }'));
+add('song order non-name after name', song(`order { a 5 b } ${pat}`));
 add('song order empty', song(`order { } ${pat}`));
 add('song order repeats', song(`order { a a a } ${pat}`));
 add('song order unknown pattern', song(`order { a z } ${pat}`));

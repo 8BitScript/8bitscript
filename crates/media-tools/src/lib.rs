@@ -11,11 +11,6 @@
 //!   ("unexpected end of file") messages match Node exactly.
 //! - [`audio::decode_flac`] returns [`audio::AudioError`] `{ message, code }`
 //!   because the JS error carries `code = 'FLAC_NEEDS_FFMPEG'`.
-//! - A WAV with zero channels (in a sample format that reads samples) is an
-//!   error here; accepted: JS does not terminate.
-//! - [`png::slice_frames`] with a frame width or height of 0 returns no
-//!   frames; accepted: JS does not terminate (the media check rejects a
-//!   size below 1, so it is unreachable from the compiler).
 
 // The JS walks flat byte arrays in steps of 4; keep that shape.
 #![allow(clippy::chunks_exact_to_as_chunks)]

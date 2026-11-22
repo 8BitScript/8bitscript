@@ -81,6 +81,12 @@ test('analyze() on a media file is the media front end, not the .8bs scanner', (
   assert.deepEqual(aud, []);
 });
 
+test('an order list with a token that is not a name terminates', () => {
+  const diags = analyze('song s { order { 5 } }\n', 't.8ba');
+  assert.ok(diags.length > 0);
+  assert.ok(diags.length < 20);
+});
+
 test('a missing sample fallback is 8BS2205', () => {
   const diags = analyze(`sample blip { source "./blip.wav" }\n`, 't.8ba');
   assert.ok(diags.some((d) => d.code === Codes.AUD_MISSING_FALLBACK));

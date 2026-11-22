@@ -30,6 +30,7 @@ function findChunk(bytes, id) {
 }
 
 function samplesFromPcm(data, bits, channels, format) {
+  if (channels === 0 && ((format === 3 && bits === 32) || bits === 8 || bits === 16)) throw new Error('WAV has zero channels');
   const out = [];
   if (format === 3 && bits === 32) {
     const view = new DataView(data.buffer, data.byteOffset, data.byteLength);

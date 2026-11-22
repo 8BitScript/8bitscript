@@ -539,8 +539,7 @@ fn parse_order(c: &mut Cursor) -> Order {
             names.push(n.name);
         }
         c.eat(Some(MediaTokenKind::Punctuation), Some(","));
-        // The JS never advances past a token that is not a name (`order { 5 }`)
-        // and loops forever; here the loop stops at the first such token.
+        // Stop at the first token that is not a name (`order { 5 }`), as the JS does.
         if c.pos == before {
             break;
         }

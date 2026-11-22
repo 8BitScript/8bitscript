@@ -2,9 +2,8 @@
 //
 // `tokenize` and `parse` keep the signatures and result shapes of
 // `lexer/index.mjs` and `parser/index.mjs`, so a caller swaps the import and
-// nothing else. The module is built from `crates/front-wasm` and committed;
-// it is compiled and instantiated synchronously on the first call. Nothing
-// imports this file until the new syntax lands.
+// nothing else. The module is built from `crates/front-wasm` and committed.
+// Wraps front.wasm. Imported by compiler/index.mjs, intellisense and the CLI's migrate.
 import { readFileSync } from 'node:fs';
 
 export const TokenKind = {
