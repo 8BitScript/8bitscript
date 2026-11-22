@@ -72,9 +72,9 @@ use crate::lower::{
     ArrayInfo, Binding, FunctionSite, LowerOptions, ParamBinding, SiteParam, lower,
 };
 use crate::machine::{
-    BORROWS_ZERO_PAGE, RASTER_MACHINES, SizePart, SizeReportEntry, chrget_zp_holes, clear_ram,
-    collect_string_indexes, copy_to_ram, directive_bytes, find_call_cycle, function_size_entries,
-    lda_imm, rts, sta_zp, zp_budgets,
+    BORROWS_ZERO_PAGE, RASTER_MACHINES, SizePart, SizeReportEntry, ZP_BUDGET_MACHINES,
+    chrget_zp_holes, clear_ram, collect_string_indexes, copy_to_ram, directive_bytes,
+    find_call_cycle, function_size_entries, lda_imm, rts, sta_zp, zp_budgets,
 };
 use crate::native::{assemble_native, referenced_labels};
 use crate::startup::commodore::{
@@ -157,7 +157,13 @@ fn label_directive(name: &str) -> Directive {
 }
 
 /// `Object.keys(ZP_BUDGETS).join(', ')`, in the JS key order.
-const ZP_BUDGET_MACHINES: &str = "pet, c64, vic20, c128, cx16, mega65, atari8, nes, plus4, oric, apple2, bbc, atari5200, lynx, pce, supervision, atari2600, atari7800";
+fn zp_budget_machine_list() -> String {
+    ZP_BUDGET_MACHINES
+        .iter()
+        .map(|m| m.as_str())
+        .collect::<Vec<_>>()
+        .join(", ")
+}
 
 /// One lowered function (`loweredFunctions` entries).
 struct LoweredFunction {
@@ -201,7 +207,8 @@ pub fn build(input: &BackendInput, roots: &oracle::Roots) -> Result<BuildOutput,
     let Some((machine, (polite, owned))) = budgets else {
         return refuse(format!(
             "the {} is not a target this backend builds yet: it has no zero-page budget on the sheet, so there is nowhere to put a program's globals. The native 6502 backend is being brought up one machine at a time — {} so far",
-            input.machine, ZP_BUDGET_MACHINES
+            input.machine,
+            zp_budget_machine_list()
         ));
     };
     let machine_name = machine.as_str();
