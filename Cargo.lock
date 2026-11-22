@@ -190,7 +190,10 @@ dependencies = [
  "front-replay",
  "indexmap",
  "jsnum",
+ "lower",
  "media-tools",
+ "mos-ir",
+ "resolver",
  "serde",
  "serde_json",
 ]
