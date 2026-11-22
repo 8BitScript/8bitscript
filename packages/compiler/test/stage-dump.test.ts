@@ -87,7 +87,8 @@ test('the web build emits wasm-input, bytes and size-report in order, with equal
     assert.deepEqual(rec.stages(), ['wasm-input', 'bytes', 'size-report']);
     assert.deepEqual([...dumped.bytes], [...plain.bytes]);
     const input = rec.events[0].value as Record<string, unknown>;
-    assert.deepEqual(Object.keys(input).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)), ['entry', 'functions', 'globals', 'remarks', 'strings']);
+    assert.deepEqual(Object.keys(input).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)), ['entry', 'functions', 'globals', 'options', 'remarks', 'strings']);
+    assert.deepEqual(input.options, { report: true, reserved: null, allowPinnedScalars: false, reservedRanges: [] });
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }

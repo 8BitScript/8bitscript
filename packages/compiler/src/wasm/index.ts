@@ -249,7 +249,7 @@ async function buildModule(ir: IrProgram, options: BuildOptions): Promise<BuildR
   // prune) and mos/index.ts's identical call right after its own
   // equivalent check.
   const { functions, globals, remarks } = optimizeReachable(ir);
-  if (dump) dump('wasm-input', { entry: ir.entry, functions, globals, strings: ir.strings ?? [], remarks });
+  if (dump) dump('wasm-input', { entry: ir.entry, functions, globals, strings: ir.strings ?? [], remarks, options: { report: Boolean(options.report), reserved: options.reserved ?? null, allowPinnedScalars: Boolean(options.allowPinnedScalars), reservedRanges: options.reservedRanges ?? [] } });
 
   // Every non-pinned scalar global gets a wasm global-section entry,
   // addressed by declaration order — no allocator, no budget, unlike the
