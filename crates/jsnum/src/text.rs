@@ -43,17 +43,27 @@ pub fn hex_upper(v: i64, width: usize) -> String {
     format!("{body:0>width$}")
 }
 
-/// `Number.parseInt(text, radix)` for a radix from 2 to 36: an optional sign,
-/// then the longest prefix of digits valid in `radix`; no digit is NaN.
-/// Radix 10 and the power-of-two radixes 2, 8 and 16 are correctly rounded,
-/// as V8 does; other radixes accumulate in `f64`, which is V8's approximation
-/// for long inputs.
+/// `Number.parseInt(text, radix)` for a radix from 2 to 36: skips leading
+/// JavaScript whitespace, takes an optional sign, an optional `0x` or `0X`
+/// when the radix is 16, then the longest prefix of digits valid in `radix`;
+/// no digit is NaN. Radix 10 and the power-of-two radixes 2, 4, 8, 16 and 32
+/// are correctly rounded, as V8 rounds them. Any other radix folds in `f64`,
+/// where V8 accumulates in `u32` chunks, so a long input can differ in the
+/// last bits (recorded in `oracle/divergences.toml`).
 #[must_use]
 pub fn parse_int(digits: &str, radix: u32) -> f64 {
     use num_traits::ToPrimitive;
-    let (negative, body) = match digits.strip_prefix('-') {
+    let text = digits.trim_start_matches(is_js_whitespace);
+    let (negative, body) = match text.strip_prefix('-') {
         Some(rest) => (true, rest),
-        None => (false, digits.strip_prefix('+').unwrap_or(digits)),
+        None => (false, text.strip_prefix('+').unwrap_or(text)),
+    };
+    let body = if radix == 16 {
+        body.strip_prefix("0x")
+            .or_else(|| body.strip_prefix("0X"))
+            .unwrap_or(body)
+    } else {
+        body
     };
     let end = body
         .find(|c: char| c.to_digit(radix).is_none())
@@ -64,7 +74,7 @@ pub fn parse_int(digits: &str, radix: u32) -> f64 {
     }
     let value = match radix {
         10 => valid.parse::<f64>().unwrap_or(f64::NAN),
-        2 | 8 | 16 => num_bigint::BigUint::parse_bytes(valid.as_bytes(), radix)
+        2 | 4 | 8 | 16 | 32 => num_bigint::BigUint::parse_bytes(valid.as_bytes(), radix)
             .and_then(|n| n.to_f64())
             .unwrap_or(f64::NAN),
         _ => valid.chars().fold(0.0, |acc, c| {

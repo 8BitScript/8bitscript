@@ -225,7 +225,7 @@ fn parse_int_rows() {
 /// Values from Node: `Number.parseInt(digits, radix)`.
 #[test]
 fn parse_int_long_and_partial_inputs() {
-    let rows: [(&str, u32, &str); 9] = [
+    let rows: [(&str, u32, &str); 15] = [
         (
             "1234567890123456789012345678901234567890",
             10,
@@ -251,6 +251,20 @@ fn parse_int_long_and_partial_inputs() {
         ("+ff", 16, "255"),
         ("12z", 10, "12"),
         ("z", 10, "NaN"),
+        (" 12", 10, "12"),
+        ("\t\n -0x1f", 16, "-31"),
+        ("0X1F", 16, "31"),
+        ("0x1f", 10, "0"),
+        (
+            "13210321032103210321032103210321032103210",
+            4,
+            "2.289847728917121e+24",
+        ),
+        (
+            "1v0123456789abcdefghijklmnopqrstuvabcdefg",
+            32,
+            "3.163711529383985e+60",
+        ),
     ];
     for (d, r, want) in rows {
         assert_eq!(number_to_string(jsnum::parse_int(d, r)), want, "{d} {r}");

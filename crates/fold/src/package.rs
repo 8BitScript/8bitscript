@@ -79,7 +79,8 @@ fn resolve(dir: &str) -> PathBuf {
 
 /// The nearest package.json at or above `dir`, parsed, or `None` when there
 /// is none up to the filesystem root. The error text of a package.json that
-/// cannot be read or parsed is this side's own wording, not V8's.
+/// cannot be read is Node's for ENOENT, EACCES and EISDIR; a parse failure
+/// gets the nearest V8 wording.
 #[must_use]
 pub fn nearest_package(dir: &str) -> Option<NearestPackage> {
     let mut current = resolve(dir);
