@@ -415,13 +415,13 @@ pub fn string_bytes<'a>(node: &Expr, ctx: &'a Ctx) -> Option<&'a [u8]> {
 /// What `foldExpr` returns for a statement: the statement, or an expression a call statement became.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Folded {
-    Stmt(Stmt),
-    Expr(Expr),
+    Stmt(Box<Stmt>),
+    Expr(Box<Expr>),
 }
 
 enum CallFolded {
-    Call(Call),
-    Expr(Expr),
+    Call(Box<Call>),
+    Expr(Box<Expr>),
 }
 
 fn fold_exprs(exprs: &mut [Expr], ctx: &mut Ctx, functions: &[Function]) -> Result<(), Unported> {
@@ -437,19 +437,22 @@ fn fold_call(call: &Call, ctx: &mut Ctx, functions: &[Function]) -> Result<CallF
     fold_exprs(&mut out.args, ctx, functions)?;
     if let Some(evaluated) = const_eval_call(&out, ctx, functions)? {
         let ty = out.ty.as_option().map_or("utinyint", String::as_str);
-        return Ok(CallFolded::Expr(const_expr(evaluated as i64, Some(ty))));
+        return Ok(CallFolded::Expr(Box::new(const_expr(
+            evaluated as i64,
+            Some(ty),
+        ))));
     }
     if let Some(forwarded) = forward_expr_call(&out, ctx, functions)? {
-        return Ok(CallFolded::Expr(forwarded));
+        return Ok(CallFolded::Expr(Box::new(forwarded)));
     }
-    Ok(CallFolded::Call(out))
+    Ok(CallFolded::Call(Box::new(out)))
 }
 
 pub fn fold_expr(node: &Expr, ctx: &mut Ctx, functions: &[Function]) -> Result<Expr, Unported> {
     if let Expr::Call(call) = node {
         return Ok(match fold_call(call, ctx, functions)? {
-            CallFolded::Call(call) => Expr::Call(call),
-            CallFolded::Expr(expr) => expr,
+            CallFolded::Call(call) => Expr::Call(*call),
+            CallFolded::Expr(expr) => *expr,
         });
     }
     let mut out = node.clone();
@@ -497,6 +500,7 @@ pub fn fold_expr(node: &Expr, ctx: &mut Ctx, functions: &[Function]) -> Result<E
     {
         return Ok(const_expr(bytes.len() as i64, Some(&s.ty)));
     }
+    // A fractional index is left unfolded; JS folds on `bytes[1.5]` (undefined).
     if let Expr::StringByte(s) = &out
         && let Some(bytes) = string_bytes(&s.string, ctx)
         && let Some(index) = const_value(&s.index)
@@ -539,7 +543,7 @@ pub fn fold_expr(node: &Expr, ctx: &mut Ctx, functions: &[Function]) -> Result<E
 pub fn fold_stmt(node: &Stmt, ctx: &mut Ctx, functions: &[Function]) -> Result<Folded, Unported> {
     if let Stmt::Call(call) = node {
         return Ok(match fold_call(call, ctx, functions)? {
-            CallFolded::Call(call) => Folded::Stmt(Stmt::Call(call)),
+            CallFolded::Call(call) => Folded::Stmt(Box::new(Stmt::Call(*call))),
             CallFolded::Expr(expr) => Folded::Expr(expr),
         });
     }
@@ -572,7 +576,7 @@ pub fn fold_stmt(node: &Stmt, ctx: &mut Ctx, functions: &[Function]) -> Result<F
                 && !matches!(**init, Stmt::Local(_))
                 && let Folded::Stmt(folded) = fold_stmt(init, ctx, functions)?
             {
-                f.init = Nullable::Value(Box::new(folded));
+                f.init = Nullable::Value(folded);
             }
         }
         Stmt::MemoryRead(m) => *m.address = fold_expr(&m.address, ctx, functions)?,
@@ -587,7 +591,7 @@ pub fn fold_stmt(node: &Stmt, ctx: &mut Ctx, functions: &[Function]) -> Result<F
         | Stmt::StringCopy(_)
         | Stmt::PortRead(_) => {}
     }
-    Ok(Folded::Stmt(out))
+    Ok(Folded::Stmt(Box::new(out)))
 }
 
 /// How a statement ended in `evalStmt`.

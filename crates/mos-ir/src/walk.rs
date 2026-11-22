@@ -179,7 +179,7 @@ fn both<'a>(a: &'a Expr, b: &'a Expr, f: &mut impl FnMut(Node<'a>) -> Flow) -> F
     then(flow, || visit_expr(b, f))
 }
 
-/// IR builders for the tests of every module that walks the IR (the `mos` and `optimize` tests use them).
+/// IR builders for the tests of every module that walks the IR (the `mos` tests use them; `optimize` builds its IR from JSON).
 #[doc(hidden)]
 pub mod testkit {
     use crate::{Function, Stmt};

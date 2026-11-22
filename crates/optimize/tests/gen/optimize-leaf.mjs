@@ -233,6 +233,11 @@ for (const type of ['utinyint', 'usmallint', 'umediumint', 'uint', 'u8', 'u16', 
     synthetic('wrapUnsigned', [value, type], () => m.wrapUnsigned(value, type));
   }
 }
+for (const [index, strings] of [[0, []], [3, []], [3, [{ text: 'a', bytes: [97] }]], [-1, [{ text: 'a', bytes: [97] }]]]) {
+  const expr = { kind: 'string', index, type: 'string' };
+  const ctx = { strings };
+  synthetic('stringBytes', [expr, ctx], () => m.stringBytes(expr, ctx));
+}
 
 mkdirSync(join(here, '..', 'fixtures'), { recursive: true });
 writeFileSync(join(here, '..', 'fixtures', 'leaf.json'), `${JSON.stringify(rows)}\n`);

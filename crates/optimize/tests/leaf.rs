@@ -138,33 +138,31 @@ fn every_row_matches_js() {
             .entry(row["fn"].as_str().unwrap().to_string())
             .or_default() += 1;
     }
-    for name in [
-        "collectAssigned",
-        "collectBoundNames",
-        "containsStringByte",
-        "nodeCount",
-        "containsJump",
-        "containsReturn",
-        "alwaysReturns",
-        "isNumericConst",
-        "isCompileTimeArg",
-        "isSideEffectFree",
-        "constValue",
-        "reduceMultiply",
-        "reduceDivide",
-        "reduceModulo",
-        "wrapUnsigned",
-        "stringBytes",
-        "referencesNames",
-        "asmNames",
-        "bindsName",
-        "matchCountedFor",
-    ] {
-        assert!(
-            counts.get(name).copied().unwrap_or(0) > 0,
-            "no rows for {name}"
-        );
-    }
+    let expected = [
+        ("alwaysReturns", 300),
+        ("asmNames", 44),
+        ("bindsName", 300),
+        ("collectAssigned", 300),
+        ("collectBoundNames", 300),
+        ("constValue", 1598),
+        ("containsJump", 300),
+        ("containsReturn", 300),
+        ("containsStringByte", 300),
+        ("isCompileTimeArg", 300),
+        ("isNumericConst", 300),
+        ("isSideEffectFree", 300),
+        ("matchCountedFor", 300),
+        ("nodeCount", 300),
+        ("reduceDivide", 80),
+        ("reduceModulo", 74),
+        ("reduceMultiply", 642),
+        ("referencesNames", 300),
+        ("stringBytes", 304),
+        ("wrapUnsigned", 374),
+    ];
+    assert_eq!(rows.len(), 7016);
+    let got: Vec<(&str, usize)> = counts.iter().map(|(name, n)| (name.as_str(), *n)).collect();
+    assert_eq!(got, expected);
 }
 
 #[test]
