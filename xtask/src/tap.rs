@@ -153,22 +153,24 @@ pub fn run(base: &Path, only: Option<&str>, replay: Replayer) -> Result<Report, 
     Ok(report)
 }
 
+/// Replays `dir` with the real ports (the front end's with `front`), checking the `--fn` name.
+pub fn replay_dir(dir: &Path, only: Option<&str>, front: bool) -> Result<Report, String> {
+    if let Some(name) = only.filter(|name| front && !crate::front::NAMES.contains(name)) {
+        return Err(format!("`{name}` is not a tapped front end function"));
+    }
+    if front {
+        run(dir, only, &crate::front::replay)
+    } else {
+        run(dir, only, &mos::tap::replay)
+    }
+}
+
 /// The command: replay with the real ports, print, return the exit code.
 pub fn command(args: &[String]) -> Result<u8, String> {
     let front = args.iter().any(|a| a == "--front");
     let rest: Vec<String> = args.iter().filter(|a| *a != "--front").cloned().collect();
     let (dir, only) = parse_args(&rest)?;
-    if let Some(name) = only
-        .as_deref()
-        .filter(|name| front && !crate::front::NAMES.contains(name))
-    {
-        return Err(format!("`{name}` is not a tapped front end function"));
-    }
-    let report = if front {
-        run(&dir, only.as_deref(), &crate::front::replay)?
-    } else {
-        run(&dir, only.as_deref(), &mos::tap::replay)?
-    };
+    let report = replay_dir(&dir, only.as_deref(), front)?;
     for line in &report.lines {
         println!("{line}");
     }
