@@ -45,7 +45,7 @@ fn statement_span(node: &Stmt) -> Option<(i64, i64)> {
         Stmt::While(n) => Some((n.start, n.length)),
         Stmt::PortWrite(n) => Some((n.start, n.length)),
         Stmt::StringCopy(n) => Some((n.start, n.length)),
-        Stmt::NamespaceCall(n) => Some((n.start, n.length)),
+        Stmt::NamespaceCall(n) => n.start.map(|s| (s, n.length.unwrap_or(0))),
         Stmt::PortRead(n) => Some((n.start, n.length)),
     }
 }
@@ -1964,8 +1964,8 @@ mod tests {
             member: "m".into(),
             args: vec![],
             ty: Nullable::Absent,
-            start: 0,
-            length: 0,
+            start: Some(0),
+            length: Some(0),
         });
         let (r, _) = run(&mut o, |l| l.statement(&ns));
         assert!(

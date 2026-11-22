@@ -172,8 +172,11 @@ pub struct NamespaceCall {
     pub args: Vec<Expr>,
     #[serde(rename = "type", default, skip_serializing_if = "Nullable::is_absent")]
     pub ty: Nullable<String>,
-    pub start: i64,
-    pub length: i64,
+    /// Absent on the calls media elaboration synthesizes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub start: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub length: Option<i64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
