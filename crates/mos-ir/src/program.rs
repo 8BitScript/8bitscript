@@ -115,7 +115,9 @@ pub struct Function {
     pub body: Vec<Stmt>,
     pub start: i64,
     pub length: i64,
-    pub file: String,
+    /// Set by the linker; lowering and media binds leave it off.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub file: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

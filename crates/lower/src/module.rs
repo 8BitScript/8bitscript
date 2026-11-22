@@ -509,8 +509,8 @@ impl Lowering {
                 member: member.to_string(),
                 args,
                 ty: Nullable::Absent,
-                start: i64::from(node.start),
-                length: i64::from(node.length),
+                start: Some(i64::from(node.start)),
+                length: Some(i64::from(node.length)),
             })
         };
 

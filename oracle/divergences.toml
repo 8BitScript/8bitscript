@@ -37,3 +37,4 @@
 #     FLAC_NEEDS_FFMPEG code survives.
 #   - a WAV with zero channels is an error, and slice_frames with a frame
 #     size of 0 returns no frames; accepted: JS does not terminate.
+# media: elaborate: loadMachineMedia: a third-party machine package whose "8bitscript".media module is not one of the seven in `media::machines` gets default lowering in Rust; JS runs its module. No corpus module is affected.

@@ -8,6 +8,7 @@ pub mod elaborate;
 pub mod graphics;
 pub mod kinds;
 pub mod lexer;
+pub mod lower_default;
 pub mod machine;
 pub mod machines;
 pub mod tap;
