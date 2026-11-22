@@ -22,12 +22,12 @@ pub enum NearestPackage {
     Failed { path: String, error: String },
 }
 
-/// Node's text for a failed `readFileSync` of the common cases; anything else
-/// keeps the OS wording.
-fn read_error(error: &std::io::Error) -> String {
+/// Node's text for a failed `readFileSync` of the common cases (the path is
+/// quoted for `ENOENT` and `EACCES`); anything else keeps the OS wording.
+fn read_error(error: &std::io::Error, path: &str) -> String {
     match error.raw_os_error() {
-        Some(2) => "ENOENT: no such file or directory, open".to_string(),
-        Some(13) => "EACCES: permission denied, open".to_string(),
+        Some(2) => format!("ENOENT: no such file or directory, open '{path}'"),
+        Some(13) => format!("EACCES: permission denied, open '{path}'"),
         Some(21) => "EISDIR: illegal operation on a directory, read".to_string(),
         _ => error.to_string(),
     }
@@ -79,7 +79,8 @@ fn resolve(dir: &str) -> PathBuf {
 
 /// The nearest package.json at or above `dir`, parsed, or `None` when there
 /// is none up to the filesystem root. The error text of a package.json that
-/// cannot be read or parsed is this side's own wording, not V8's.
+/// cannot be read is Node's for ENOENT, EACCES and EISDIR; a parse failure
+/// gets the nearest V8 wording.
 #[must_use]
 pub fn nearest_package(dir: &str) -> Option<NearestPackage> {
     let mut current = resolve(dir);
@@ -88,7 +89,7 @@ pub fn nearest_package(dir: &str) -> Option<NearestPackage> {
         let path = candidate.to_string_lossy().into_owned();
         if candidate.exists() {
             let parsed = fs::read(&candidate)
-                .map_err(|e| read_error(&e))
+                .map_err(|e| read_error(&e, &path))
                 .and_then(|bytes| {
                     let text = String::from_utf8_lossy(&bytes);
                     Json::parse(&text)
@@ -99,5 +100,29 @@ pub fn nearest_package(dir: &str) -> Option<NearestPackage> {
             });
         }
         current = current.parent()?.to_path_buf();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::read_error;
+
+    #[test]
+    fn read_error_names_the_path_like_node() {
+        let e = std::io::Error::from_raw_os_error(2);
+        assert_eq!(
+            read_error(&e, "/a/package.json"),
+            "ENOENT: no such file or directory, open '/a/package.json'"
+        );
+        let e = std::io::Error::from_raw_os_error(13);
+        assert_eq!(
+            read_error(&e, "/a/package.json"),
+            "EACCES: permission denied, open '/a/package.json'"
+        );
+        let e = std::io::Error::from_raw_os_error(21);
+        assert_eq!(
+            read_error(&e, "/a/package.json"),
+            "EISDIR: illegal operation on a directory, read"
+        );
     }
 }
