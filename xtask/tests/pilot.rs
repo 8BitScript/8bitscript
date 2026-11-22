@@ -39,7 +39,8 @@ fn fixture() -> Value {
 
 fn run(name: &str, input: &Value) -> (Scratch, PathBuf, xtask::pilot::Summary) {
     let js = scratch(&format!("{name}-js"));
-    let build = js.0.join("t/main/c64");
+    let id = format!("t/main/{}", input["machine"].as_str().unwrap());
+    let build = js.0.join(&id);
     fs::create_dir_all(&build).unwrap();
     fs::write(
         build.join("backend-input.json"),
@@ -49,7 +50,7 @@ fn run(name: &str, input: &Value) -> (Scratch, PathBuf, xtask::pilot::Summary) {
     let out = scratch(&format!("{name}-out"));
     let toolchain = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
     let summary = xtask::pilot::run(&js.0, &out.0, &toolchain, &BTreeMap::new()).unwrap();
-    let dir = out.0.join("t/main/c64");
+    let dir = out.0.join(&id);
     // Keep `js` alive through `out`'s lifetime by leaking nothing: the caller only needs `out`.
     drop(js);
     (out, dir, summary)
@@ -82,11 +83,66 @@ fn a_missing_entry_writes_error_txt() {
     assert!(!dir.join("bytes.hex").exists());
 }
 
+fn refusal(name: &str, input: &Value) -> String {
+    let (_out, dir, summary) = run(name, input);
+    assert_eq!((summary.built, summary.refused), (0, 1));
+    fs::read_to_string(dir.join("error.txt")).unwrap()
+}
+
 #[test]
-fn a_cartridge_startup_driver_is_refused() {
+fn a_recursive_call_is_refused() {
     let mut input = fixture();
-    input["hardware"]["build"]["startup"] = Value::String("cart-8k".to_string());
-    let (_out, dir, _) = run("cart", &input);
-    let text = fs::read_to_string(dir.join("error.txt")).unwrap();
-    assert!(text.starts_with("this c64 build asks for the 'cart-8k' cartridge start-up driver"));
+    input["functions"][0]["body"] = serde_json::json!([
+        {"kind": "call", "args": [], "name": "main", "type": null, "start": 0, "length": 4}
+    ]);
+    assert_eq!(
+        refusal("recursion", &input),
+        "recursion isn't lowered yet: main -> main calls itself, directly or through another function\n"
+    );
+}
+
+#[test]
+fn a_pruned_frame_hook_is_refused() {
+    let mut input = fixture();
+    input["frameHook"] = serde_json::json!({"name": "tick", "used": true});
+    let text = refusal("hook", &input);
+    assert!(
+        text.starts_with("the c64's frame runtime calls tick() after every hardware frame"),
+        "{text}"
+    );
+}
+
+#[test]
+fn a_rom_image_array_without_a_ram_window_is_refused() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../crates/mos-ir/tests/fixtures/kinds-nes/backend-input.json");
+    let mut input: Value = serde_json::from_str(&fs::read_to_string(path).unwrap()).unwrap();
+    let defsym = input["hardware"]["build"]["defsym"]
+        .as_object_mut()
+        .unwrap();
+    defsym.remove("__bss_origin");
+    defsym.remove("__bss_ceiling");
+    let text = refusal("bss", &input);
+    assert!(
+        text.contains("is a mutable array and the nes's image is a ROM")
+            && text.contains("names no RAM window"),
+        "{text}"
+    );
+}
+
+#[test]
+fn the_corpus_run_dumps_with_node_and_compares_native_stages_only() {
+    let args = xtask::pilot::node_dump_args(Path::new("/s/dump"));
+    let text: Vec<_> = args.iter().map(|a| a.to_string_lossy()).collect();
+    assert_eq!(
+        text,
+        ["scripts/oracle/corpus.mjs", "--dump", "--out", "/s/dump"]
+    );
+    let opts = xtask::pilot::compare_options("toml".to_string());
+    assert_eq!(
+        opts.stages.unwrap(),
+        ["link", "bytes", "size-report", "error"]
+    );
+    assert_eq!(opts.exclude, ["*/web", "*/release/*.wasm"]);
+    assert_eq!(opts.divergences, "toml");
 }

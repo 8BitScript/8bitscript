@@ -148,7 +148,7 @@ jobs:
       - name: Compare the backend stages with the JS dump
         run: |
           status=0
-          cargo xtask compare "$RUNNER_TEMP/dump-a" "$RUNNER_TEMP/pilot" --stages link,bytes,size-report,error --divergences oracle/divergences.toml > "$RUNNER_TEMP/pilot-compare.txt" || status=$?
+          cargo xtask compare "$RUNNER_TEMP/dump-a" "$RUNNER_TEMP/pilot" --stages link,bytes,size-report,error --exclude '*/web' --exclude '*/release/*.wasm' --divergences oracle/divergences.toml > "$RUNNER_TEMP/pilot-compare.txt" || status=$?
           grep -m 40 ERROR "$RUNNER_TEMP/pilot-compare.txt" || true
           tail -n 1 "$RUNNER_TEMP/pilot-compare.txt"
           exit "$status"

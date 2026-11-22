@@ -178,7 +178,7 @@ fn read_native(paths: &[String], roots: &oracle::Roots) -> Result<Vec<NativeSour
         let path = oracle::detokenize_path(tokenized, roots);
         let text = std::fs::read(&path)
             .map(|b| String::from_utf8_lossy(&b).into_owned())
-            .map_err(|e| BuildError::from(format!("{path}: {e}")))?;
+            .map_err(|_| BuildError::from(format!("cannot read {tokenized}")))?;
         sources.push(NativeSource { path, text });
     }
     Ok(sources)
@@ -188,35 +188,22 @@ fn read_native(paths: &[String], roots: &oracle::Roots) -> Result<Vec<NativeSour
 ///
 /// # Errors
 /// The JS `error` text of the first refusal.
+///
+/// # Panics
+/// When `input` names a machine with no zero-page budget or a hardware sheet with no
+/// `defsym.__load_address`: the backend-input producer owns those refusals.
 #[allow(clippy::too_many_lines)]
 pub fn build(input: &BackendInput, roots: &oracle::Roots) -> Result<BuildOutput, BuildError> {
     let mut c = Counters::default();
     let machine: Machine = serde_json::from_value(serde_json::Value::String(input.machine.clone()))
-        .map_err(|_| BuildError::from(format!("unknown machine '{}'", input.machine)))?;
+        .expect("the backend input names a known machine");
     let machine_name = machine.as_str();
     let defsym = &input.hardware.build.defsym;
-    let Some((polite, owned)) = zp_budgets(machine) else {
-        return refuse(format!(
-            "the {machine_name} is not a target this backend builds yet: it has no zero-page budget on the sheet, so there is nowhere to put a program's globals"
-        ));
-    };
-    let Some(&load_address) = defsym.get("__load_address") else {
-        return refuse(format!(
-            "the {machine_name} hardware sheet is missing defsym.__load_address, the address its .prg loads at and the BASIC stub's SYS jumps into"
-        ));
-    };
-    if let Some(driver) = input
-        .hardware
-        .build
-        .startup
-        .as_deref()
-        .filter(|d| d.starts_with("cart-"))
-    {
-        return refuse(format!(
-            "this {machine_name} build asks for the '{driver}' cartridge start-up driver, and the native 6502 backend has none: it builds the one shape the machine's disk media has, loaded at ${}. Pick a media value that loads rather than one that plugs in",
-            hex_upper(load_address, 0)
-        ));
-    }
+    let (polite, owned) =
+        zp_budgets(machine).expect("the backend input names a machine with a zero-page budget");
+    let load_address = *defsym
+        .get("__load_address")
+        .expect("the backend input's hardware sheet has defsym.__load_address");
     if !input.functions.iter().any(|f| f.name == input.entry) {
         return refuse(format!(
             "the linked entry point '{}' names no function in ir.functions",
@@ -907,6 +894,18 @@ pub fn build(input: &BackendInput, roots: &oracle::Roots) -> Result<BuildOutput,
 
     let mut body = prelude.bytes.clone();
     body.extend_from_slice(&linked.bytes);
+    if machine == Machine::Nes {
+        // image-nes.ts checks the load address and the end of the program before it reads any
+        // native source, so those refusals come first.
+        if let Err(message) =
+            crate::image::nes::check_fit(load_address, body.len(), prelude.code_start)
+        {
+            return Err(BuildError {
+                message,
+                link: Some(Box::new(linked)),
+            });
+        }
+    }
     let extras = ImageExtras {
         native_sources: if machine == Machine::Nes {
             match read_native(&input.native_sources, roots) {

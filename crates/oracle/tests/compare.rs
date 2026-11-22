@@ -61,6 +61,25 @@ fn identical_dirs_have_no_errors() {
 }
 
 #[test]
+fn an_excluded_id_is_not_compared() {
+    let (a, b) = (scratch("excl-a"), scratch("excl-b"));
+    fixture(&a, 0xa9, 5);
+    fixture(&b, 0xa5, 5);
+    let all = compare(&a, &b, &opts("")).unwrap();
+    assert_eq!(all.errors, 1);
+    let skipped = compare(
+        &a,
+        &b,
+        &Options {
+            exclude: vec!["*/pet".to_string()],
+            ..opts("")
+        },
+    )
+    .unwrap();
+    assert_eq!((skipped.errors, skipped.files), (0, 0));
+}
+
+#[test]
 fn flipped_byte_is_one_error_with_offset() {
     let (a, b) = (scratch("flip-a"), scratch("flip-b"));
     fixture(&a, 0xa9, 5);

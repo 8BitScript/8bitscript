@@ -49,20 +49,8 @@
 # optimize: R2.1: fold_call, fold_expr and eval_expr (call arguments) (`evaluated as i64`, `value as i64`): an evaluated number that JS keeps as an f64 becomes an IR integer with a saturating `as i64`, so NaN becomes 0 and a fraction is cut; `1 << -1` on an unsigned type folds to 0.5 in JS and to 0 here. Reachable only through a folded constant expression the corpus does not contain; the linked-ir compare is the check once the stage is wired.
 # optimize: R7.8: fold_stmt, the `for` arm: an init that folds to an expression instead of a statement is kept as it was; JS replaces it. Callers: optimizeBody and optimizeStatement. Unreachable: foldExpr turns only a call statement into an expression, and no `for` init is a call statement.
 # optimize: R2.1: fold_expr (StringByte) and eval_expr (StringByte), the `index.fract() == 0.0` guard: JS reads `bytes[1.5]` as undefined and folds the node anyway; Rust leaves a fractional index unfolded and gives no value. Reachable only when the index folds to a fraction, such as `1 << -1` (the same f64 case as above); no corpus program has one.
-
-[[divergence]]
-id = "D-mos-web-bytes"
-corpus = "*/web"
-stage = "bytes"
-pointer = "*"
-reason = "The web target builds wasm, not 6502: its bytes come from wasm::build, a later unit; the native pilot writes no dump for a build without backend-input."
-
-[[divergence]]
-id = "D-mos-wasm-release-bytes"
-corpus = "*/release/*.wasm"
-stage = "bytes"
-pointer = "*"
-reason = "A wasm release output is built by wasm::build, a later unit; the native pilot writes no dump for a build without backend-input."
-
 # optimize: R7.8: site_body: a callee that is not void and has no final return statement, or a call with fewer arguments than the callee has parameters, makes JS throw or read undefined; Rust returns None. Unreachable: site_body has three callers, hoistValueCall (optimize.mjs:1088, through findValueCall and singleCallerCallee(call, ctx, true) at :1039), inlineSingleCaller (:1123, from optimizeStatement :1286 after singleCallerCallee(call, ctx, false)) and optimizeStatement (:1293 after singleCallerCallee(call, ctx, true) at :1291); singleCallerCallee returns null unless the argument count equals the parameter count (:906) and, for a value callee, unless the body ends in a return with a value (:910-:913), and a void callee has no value to read.
+# mos: R7.8: build (array globals), a length below 1 (`usize::try_from(array).unwrap_or(0)`): JS `new Array(g.array)` throws a RangeError for a negative length. Unreachable: the only producers of an array global are ir/index.mjs arrayGlobal (:682), whose length comes from resolveArrayType (templates/index.mjs:48) and is refused unless it is an integer in 1..MAX_ARRAY_LENGTH, and ir/index.mjs's string variable (:555), whose length is a capacity checked to 1..MAX_STRING_LENGTH plus one.
+# mos: R7.8: build (array globals), an init that is neither null nor a list of numbers (the `Some(_)` arm refuses where JS reads `init.some` of a non-array and throws a TypeError). Unreachable: the same two producers, arrayGlobal (ir/index.mjs:682, init is null or the list its element loop builds) and the string variable (:555, init is the list from `new Array(capacity + 1)`); the linker (linker/index.mjs:1336-:1340) only rewrites list elements and a scalar global's own init, and a scalar global has no `array`.
+# mos: R7.8: build, a machine with no zero-page budget, no defsym.__load_address or a name the backend does not know (JS reads undefined; Rust panics with the reason). Unreachable from this unit: the backend input is produced after the resolver has built the hardware sheet, and a later unit owns the refusals before it.
 # optimize: R7.8: writes_of (stringCopy): the target is counted as written only when it is a ref; JS reads `target.name`, which is undefined for any other node and adds nothing. Same result, no panic. Unreachable: writes_of has two callers, siteBody (optimize.mjs:979) and restIsInert (:1054), both passing a callee body taken from the linked function list; no linked stringCopy has a target that is not a ref (the 393 writesOf fixture rows over synthetic and corpus programs match).

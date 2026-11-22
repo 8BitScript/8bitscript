@@ -6,7 +6,7 @@ mod wasm;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-const USAGE: &str = "usage: cargo xtask compare <js-dir> <other-dir> [--stages a,b] [--corpus <glob>] [--divergences <file>]\n       cargo xtask roundtrip <dump-dir>\n       cargo xtask wasm [--out <file> | --check]\n       cargo xtask tap <dir> [--front] [--fn <name>]\n       cargo xtask corpus-tap <out-dir> [--front] [--fn <name>]... [--jobs N]\n       cargo xtask front-dump <out> --toolchain <dir> [--game <id>=<dir>]... [--builds <tap dir>] [--release-of <js dump dir>]\n       cargo xtask pilot <js-dir> --out <dir> [--toolchain <dir>] [--game <id>=<dir>]...";
+const USAGE: &str = "usage: cargo xtask compare <js-dir> <other-dir> [--stages a,b] [--corpus <glob>] [--exclude <glob>]... [--divergences <file>]\n       cargo xtask roundtrip <dump-dir>\n       cargo xtask wasm [--out <file> | --check]\n       cargo xtask tap <dir> [--front] [--fn <name>]\n       cargo xtask corpus-tap <out-dir> [--front] [--fn <name>]... [--jobs N]\n       cargo xtask front-dump <out> --toolchain <dir> [--game <id>=<dir>]... [--builds <tap dir>] [--release-of <js dump dir>]\n       cargo xtask pilot <js-dir> --out <dir> [--toolchain <dir>] [--game <id>=<dir>]...";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -88,6 +88,7 @@ fn compare(args: &[String]) -> Result<u8, String> {
                 opts.stages = Some(v.split(',').map(str::to_string).collect());
             }
             "--corpus" => opts.corpus = Some(value("--corpus")?),
+            "--exclude" => opts.exclude.push(value("--exclude")?),
             "--divergences" => divergences = Some(PathBuf::from(value("--divergences")?)),
             flag if flag.starts_with("--") => {
                 return Err(format!("unknown option `{flag}`\n{USAGE}"));

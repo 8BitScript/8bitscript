@@ -145,6 +145,33 @@ pub fn command(args: &[String]) -> Result<u8, String> {
     Ok(u8::from(summary.built + summary.refused == 0))
 }
 
+/// The arguments `node` gets to dump the JS corpus (no tap) into `dump`.
+#[must_use]
+pub fn node_dump_args(dump: &Path) -> Vec<std::ffi::OsString> {
+    vec![
+        "scripts/oracle/corpus.mjs".into(),
+        "--dump".into(),
+        "--out".into(),
+        dump.as_os_str().to_owned(),
+    ]
+}
+
+/// The compare of the backend stages: the web and wasm release outputs are left out, since
+/// wasm comes in a later port step and the pilot builds native images only.
+#[must_use]
+pub fn compare_options(divergences: String) -> oracle::Options {
+    oracle::Options {
+        stages: Some(
+            ["link", "bytes", "size-report", "error"]
+                .map(str::to_string)
+                .to_vec(),
+        ),
+        exclude: vec!["*/web".to_string(), "*/release/*.wasm".to_string()],
+        divergences,
+        ..oracle::Options::default()
+    }
+}
+
 /// `--corpus <scratch>`: dumps the JS corpus into `<scratch>/dump` (no tap), builds it into
 /// `<scratch>/rust` and compares the backend stages, in one process.
 fn check_corpus(
@@ -165,8 +192,7 @@ fn check_corpus(
         }
     }
     let status = std::process::Command::new("node")
-        .args(["scripts/oracle/corpus.mjs", "--dump", "--out"])
-        .arg(&dump)
+        .args(node_dump_args(&dump))
         .current_dir(toolchain)
         .status()
         .map_err(|e| format!("cannot run node: {e}"))?;
@@ -180,15 +206,8 @@ fn check_corpus(
         summary.built, summary.refused
     );
     let file = Path::new(env!("CARGO_MANIFEST_DIR")).join("../oracle/divergences.toml");
-    let opts = oracle::Options {
-        stages: Some(
-            ["link", "bytes", "size-report", "error"]
-                .map(str::to_string)
-                .to_vec(),
-        ),
-        divergences: fs::read_to_string(&file).map_err(|e| format!("{}: {e}", file.display()))?,
-        ..oracle::Options::default()
-    };
+    let opts =
+        compare_options(fs::read_to_string(&file).map_err(|e| format!("{}: {e}", file.display()))?);
     let report = oracle::compare(&dump, &rust, &opts)?;
     for line in report.lines.iter().take(60) {
         println!("{line}");
