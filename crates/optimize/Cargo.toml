@@ -1,0 +1,16 @@
+[package]
+name = "optimize"
+description = "Pre-lowering IR rewrites of the linker, ported from linker/optimize.mjs"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+diagnostics = { path = "../diagnostics" }
+indexmap = { version = "2", features = ["serde"] }
+jsnum = { path = "../jsnum" }
+mos-ir = { path = "../mos-ir" }
+sema = { path = "../sema" }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["float_roundtrip"] }

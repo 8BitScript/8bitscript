@@ -142,13 +142,17 @@ fn bad_input_is_an_error() {
 }
 
 #[test]
-fn the_binary_replays_with_the_real_stubs() {
+fn the_binary_replays_with_the_real_functions() {
     let base = dir("binary");
     write(
         &base,
         "p/main/c64",
         "1-0.jsonl",
-        &[json!({"seq": 0, "fn": "allocate", "args": [], "result": {}})],
+        &[json!({
+            "seq": 0, "fn": "allocate",
+            "args": [[], {"zpOrigin": 2, "zpCeiling": 10}],
+            "result": {"ok": true, "globals": [], "zpUsed": 0},
+        })],
     );
     let out = Command::new(env!("CARGO_BIN_EXE_xtask"))
         .args(["tap", base.to_str().unwrap()])
@@ -157,7 +161,7 @@ fn the_binary_replays_with_the_real_stubs() {
     assert_eq!(out.status.code(), Some(0));
     assert_eq!(
         String::from_utf8_lossy(&out.stdout).trim(),
-        "tap: 1 calls, 0 ERROR, 1 SKIP"
+        "tap: 1 calls, 0 ERROR, 0 SKIP"
     );
     let usage = Command::new(env!("CARGO_BIN_EXE_xtask"))
         .arg("tap")
