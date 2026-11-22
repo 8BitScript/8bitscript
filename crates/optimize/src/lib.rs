@@ -1594,6 +1594,10 @@ pub fn site_body(
     ctx: &mut Ctx,
     functions: &[Function],
 ) -> Option<SiteBody> {
+    // JS reads an argument the call lacks as undefined and throws; refuse before any side effect.
+    if call.args.len() < func.params.len() {
+        return None;
+    }
     let bound = bound_names(func);
     let mut free = IndexSet::new();
     collect_names(func.body.as_slice(), &mut free);
@@ -1612,9 +1616,6 @@ pub fn site_body(
     }
     let params = &func.params;
     let args = &call.args;
-    if args.len() < params.len() {
-        return None;
-    }
     let mut statements = Vec::new();
     let mut bindings = IndexMap::new();
     for (param, arg) in params.iter().zip(args) {
@@ -1846,16 +1847,19 @@ pub fn rest_is_inert(
     match statement {
         Stmt::Local(s) => again(&s.init),
         Stmt::Assign(s) => again(&s.value),
+        Stmt::Call(s) if std::ptr::eq(s, call) => true,
         Stmt::Call(s) => s.args.iter().all(again),
         Stmt::MemoryWrite(s) => again(&s.address) && again(&s.value),
         Stmt::StoreIndex(s) => again(&s.array) && again(&s.index) && again(&s.value),
         Stmt::Return(s) => s.value.as_ref().is_none_or(again),
         Stmt::If(s) => again(&s.test),
         Stmt::While(s) => again(&s.test),
-        // A for's init and update are statements, which are never pure expressions.
+        // A for's init and update are statements, never pure expressions; only the found call
+        // statement itself is inert (JS `node === call`).
         Stmt::For(s) => {
-            s.init.as_option().is_none()
-                && s.update.as_option().is_none()
+            let is_call = |part: &Stmt| matches!(part, Stmt::Call(c) if std::ptr::eq(c, call));
+            s.init.as_option().is_none_or(|init| is_call(init))
+                && s.update.as_option().is_none_or(|update| is_call(update))
                 && s.test.as_option().is_none_or(again)
         }
         Stmt::MemoryRead(s) => again(&s.address),

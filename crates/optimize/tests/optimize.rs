@@ -521,11 +521,52 @@ fn every_row_matches_js() {
                 "{fn_name}: {}",
                 row["args"]
             ),
-            None => *blocked.entry(fn_name).or_default() += 1,
+            None => {
+                // JS answered, so the skip cannot hide a row where JS had nothing to say.
+                assert!(
+                    !row["result"].is_null(),
+                    "{fn_name}: blocked row with a null JS result: {}",
+                    row["args"]
+                );
+                *blocked.entry(fn_name).or_default() += 1;
+            }
         }
     }
     let got: Vec<(&str, usize)> = counts.iter().map(|(n, c)| (n.as_str(), *c)).collect();
     assert_eq!(got, EXPECTED);
     let got: Vec<(&str, usize)> = blocked.iter().map(|(n, c)| (n.as_str(), *c)).collect();
     assert_eq!(got, BLOCKED);
+}
+
+/// JS `restIsInert` treats the found call itself as inert wherever it stands, including as a
+/// `for` init or update statement; any other statement there is not a pure expression.
+#[test]
+fn rest_is_inert_for_init_and_update() {
+    let progs = programs();
+    let p = &progs[0];
+    let callee = &p.functions[0];
+    let ctx = make_ctx(
+        p,
+        &json!({
+            "inlining": [], "unrolling": false, "callerBound": [], "zpNames": [],
+            "currentFn": null, "consumed": [], "retired": []
+        }),
+    );
+    let stmt = |init: Value, update: Value| -> Stmt {
+        parse(&json!({"kind": "for", "init": init, "test": null, "update": update, "body": []}))
+    };
+    let call_stmt = |name: &str| json!({"kind": "call", "name": name, "args": []});
+    let found_in_init = stmt(call_stmt("f"), Value::Null);
+    let Stmt::For(f) = &found_in_init else { unreachable!() };
+    let Some(Stmt::Call(found)) = f.init.as_option().map(|s| &**s) else { unreachable!() };
+    assert!(rest_is_inert(&found_in_init, found, callee, &ctx, &p.functions));
+
+    let found_in_update = stmt(Value::Null, call_stmt("f"));
+    let Stmt::For(f) = &found_in_update else { unreachable!() };
+    let Some(Stmt::Call(found)) = f.update.as_option().map(|s| &**s) else { unreachable!() };
+    assert!(rest_is_inert(&found_in_update, found, callee, &ctx, &p.functions));
+
+    // Another call statement as the init is not the found call.
+    let other = stmt(call_stmt("g"), Value::Null);
+    assert!(!rest_is_inert(&other, found, callee, &ctx, &p.functions));
 }
