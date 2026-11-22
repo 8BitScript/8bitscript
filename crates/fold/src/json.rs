@@ -25,6 +25,8 @@ enum Walk<'a> {
     Object(indexmap::map::Iter<'a, String, Json>),
 }
 
+/// The manual `Drop` frees nested values with a heap stack, so deep nesting
+/// does not overflow the call stack when a value is dropped.
 impl Drop for Json {
     fn drop(&mut self) {
         let mut stack: Vec<Json> = Vec::new();
