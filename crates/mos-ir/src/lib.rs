@@ -12,6 +12,7 @@
 mod expr;
 mod program;
 mod stmt;
+pub mod walk;
 
 pub use expr::{
     Binop, Call, Cond, Const, Expr, Index, MemoryRead, NamespaceCall, NamespaceConst, PortRead,
