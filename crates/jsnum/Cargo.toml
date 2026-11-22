@@ -8,6 +8,8 @@ publish.workspace = true
 
 [dependencies]
 serde = "1"
+num-bigint = "0.4"
+num-traits = "0.2"
 
 [dev-dependencies]
 serde = { version = "1", features = ["derive"] }

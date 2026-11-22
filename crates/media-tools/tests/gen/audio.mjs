@@ -85,6 +85,10 @@ decodeRow('err-no-data', wavBytes({ data: null }));
 decodeRow('err-24-bit', wavBytes({ bits: 24, data: [1, 2, 3, 4, 5, 6] }));
 decodeRow('err-32-bit-int', wavBytes({ bits: 32, data: [1, 2, 3, 4] }));
 decodeRow('err-4-bit', wavBytes({ bits: 4, data: [1, 2] }));
+decodeRow('0-channels-8bit', wavBytes({ bits: 8, channels: 0, data: [1, 2, 3] }));
+decodeRow('0-channels-16bit', wavBytes({ bits: 16, channels: 0, data: i16(1, 2) }));
+decodeRow('0-channels-float32', wavBytes({ format: 3, bits: 32, channels: 0, data: f32(0.5) }));
+decodeRow('0-channels-24bit-keeps-its-error', wavBytes({ bits: 24, channels: 0, data: [1, 2, 3] }));
 decodeRow('err-fmt-14-bytes-bits-0', wavBytes({ fmtBody: Buffer.alloc(14), data: [1, 2] }));
 
 // encodeWav output is a WAV too

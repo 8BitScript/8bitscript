@@ -223,7 +223,7 @@ fn wav(channels: u16, bits: u16, data: &[u8]) -> Vec<u8> {
     out
 }
 
-// Accepted deviation: the JS never leaves its loop for zero channels.
+// A WAV with zero channels is an error in both implementations.
 #[test]
 fn wav_with_zero_channels_is_an_error() {
     assert_eq!(

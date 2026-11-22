@@ -161,6 +161,11 @@ for (const [w, h, fw, fh] of [[8, 4, 4, 4], [7, 5, 3, 2], [4, 4, 4, 4], [4, 4, 8
   const a = pattern(w, h);
   rows.push({ fn: 'sliceFrames', args: [[...a], w, h, fw, fh], result: sliceFrames(a, w, h, fw, fh).map((f) => [...f]) });
 }
+// a zero frame width or height has no frames (the JS used to loop forever)
+for (const [fw, fh] of [[0, 2], [2, 0], [0, 0]]) {
+  const a = new Uint8Array(4 * 4 * 4).fill(9);
+  rows.push({ fn: 'sliceFrames', args: [[...a], 4, 4, fw, fh], result: sliceFrames(a, 4, 4, fw, fh).map((f) => [...f]) });
+}
 for (const [w, h, few, maxColors, alphaEvery] of [[8, 8, 0, 4, 4], [8, 8, 0, 16, 3], [6, 6, 3, 8, 5], [4, 4, 0, 1, 1], [4, 4, 0, 0, 1], [16, 16, 0, 300, 100], [5, 5, 2, 2, 7], [8, 8, 0, 255, 100]]) {
   const a = pattern(w, h, { few, alphaEvery });
   const q = quantize(a, maxColors);
