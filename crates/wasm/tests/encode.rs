@@ -24,7 +24,11 @@ fn bytes(v: &Value) -> Vec<u8> {
         .collect()
 }
 
+/// JSON has no NaN: the gen writes it as `null`.
 fn num(v: &Value) -> f64 {
+    if v.is_null() {
+        return f64::NAN;
+    }
     v.as_f64().expect("number")
 }
 
@@ -76,7 +80,7 @@ fn run(row: &Value) -> Result<Vec<u8>, WasmError> {
 fn every_row_matches_js() {
     let fx: Value = serde_json::from_str(include_str!("fixtures/wasm-encode.json")).expect("parse");
     let rows = fx["rows"].as_array().expect("rows");
-    assert_eq!(rows.len(), 50);
+    assert_eq!(rows.len(), 52);
     let mut thrown = 0;
     for row in rows {
         let want = &row["result"];
@@ -89,7 +93,7 @@ fn every_row_matches_js() {
             }
         }
     }
-    assert_eq!(thrown, 5);
+    assert_eq!(thrown, 7);
 }
 
 /// `(NAME, m::NAME)` for each listed constant.
@@ -127,19 +131,19 @@ fn constants_match_js() {
             ),
         ),
     ];
-    for (name, mut rust) in tables {
-        let js = consts[name].as_object().expect("table");
-        let mut want: Vec<(String, u8)> = js
+    for (name, rust) in tables {
+        // `[name, value]` pairs in JS declaration order; compared in that order, unsorted.
+        let want: Vec<(String, u8)> = consts[name]
+            .as_array()
+            .expect("table")
             .iter()
-            .map(|(k, v)| {
+            .map(|pair| {
                 (
-                    upper_snake(k),
-                    u8::try_from(v.as_u64().expect("n")).expect("u8"),
+                    upper_snake(pair[0].as_str().expect("name")),
+                    u8::try_from(pair[1].as_u64().expect("n")).expect("u8"),
                 )
             })
             .collect();
-        want.sort();
-        rust.sort_unstable();
         let rust: Vec<(String, u8)> = rust.into_iter().map(|(k, v)| (k.to_string(), v)).collect();
         assert_eq!(want, rust, "{name}");
     }
