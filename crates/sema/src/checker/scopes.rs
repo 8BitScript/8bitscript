@@ -287,6 +287,8 @@ impl<'a> Walker<'a, '_> {
             | NodeKind::ComponentDeclaration { params, body, .. } => {
                 self.visit_function(scope, params, body.as_deref());
             }
+            NodeKind::TestDecl { body, .. } => self.visit_function(scope, &[], Some(body)),
+            NodeKind::Assert { test, .. } => self.visit_expression(scope, Some(test)),
             NodeKind::NamespaceDeclaration { name, members, .. } => {
                 let found = name
                     .as_deref()

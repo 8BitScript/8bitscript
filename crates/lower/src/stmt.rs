@@ -85,6 +85,14 @@ impl Lowering {
         }) = node
         {
             for statement in body {
+                // An assert lowers to several statements, flat in the body.
+                if matches!(
+                    statement.kind,
+                    NodeKind::Assert { .. } | NodeKind::Fail { .. }
+                ) {
+                    out.extend(self.test_macro(statement));
+                    continue;
+                }
                 if let Some(lowered) = self.statement(Some(statement)) {
                     out.push(lowered);
                 }
@@ -403,6 +411,19 @@ impl Lowering {
             }
             NodeKind::BlockStatement { .. } => {
                 let body = self.block(Some(node));
+                Some(Stmt::Block(Block {
+                    body,
+                    origin: None,
+                    start: Some(start),
+                    length: Some(length),
+                }))
+            }
+            // Not in a block (the body of an `if` without braces): one scope for its statements.
+            NodeKind::Assert { .. } | NodeKind::Fail { .. } => {
+                let body = self.test_macro(node);
+                if body.is_empty() {
+                    return None;
+                }
                 Some(Stmt::Block(Block {
                     body,
                     origin: None,
