@@ -46,6 +46,7 @@ fn statement_span(node: &Stmt) -> Option<(i64, i64)> {
         Stmt::PortWrite(n) => Some((n.start, n.length)),
         Stmt::StringCopy(n) => Some((n.start, n.length)),
         Stmt::NamespaceCall(n) => n.start.map(|s| (s, n.length.unwrap_or(0))),
+        Stmt::PortRead(n) => Some((n.start, n.length)),
     }
 }
 
@@ -70,6 +71,7 @@ fn statement_kind(node: &Stmt) -> &'static str {
         Stmt::PortWrite(_) => "portWrite",
         Stmt::StringCopy(_) => "stringCopy",
         Stmt::NamespaceCall(_) => "namespaceCall",
+        Stmt::PortRead(_) => "portRead",
     }
 }
 
@@ -842,7 +844,7 @@ impl Lowerer<'_> {
                 Ok(None)
             }
             Stmt::PortWrite(_) => Err("port.write is Z80 / SM83 port I/O — this 6502 has none; use memory.write for a memory-mapped register".to_string()),
-            Stmt::NamespaceCall(_) => Err(format!(
+            Stmt::NamespaceCall(_) | Stmt::PortRead(_) => Err(format!(
                 "no instruction-selection rule yet for the '{}' statement — it lands in a later milestone",
                 statement_kind(node)
             )),
@@ -1969,6 +1971,30 @@ mod tests {
         assert!(
             r.unwrap_err()
                 .starts_with("no instruction-selection rule yet for the 'namespaceCall' statement")
+        );
+        // A discarded port.read has no rule; the backend names the statement kind.
+        let read = mos_ir::PortRead {
+            port: Box::new(konst(1)),
+            ty: "utinyint".into(),
+            start: 0,
+            length: 0,
+        };
+        let (r, _) = run(&mut o, |l| l.statement(&Stmt::PortRead(read)));
+        assert_eq!(
+            r.unwrap_err(),
+            "no instruction-selection rule yet for the 'portRead' statement — it lands in a later milestone"
+        );
+        // A port.write in value position has no rule either.
+        let write = Expr::PortWrite(Box::new(mos_ir::PortWrite {
+            port: konst(1),
+            value: konst(2),
+            start: 0,
+            length: 0,
+        }));
+        let (r, _) = run(&mut o, |l| l.expr(&write));
+        assert_eq!(
+            r.unwrap_err(),
+            "no instruction-selection rule yet for the 'portWrite' expression — it lands in a later milestone"
         );
     }
 

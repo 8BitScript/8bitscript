@@ -115,9 +115,20 @@ pub struct Function {
     pub body: Vec<Stmt>,
     pub start: i64,
     pub length: i64,
-    /// Set by the linker; lowering and media binds leave it off.
+    /// Set by the linker; lowering leaves it off.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub file: Option<String>,
+    /// The template globals a stateful component's body reads and writes, per field.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub state: Option<Vec<StateField>>,
+}
+
+/// One entry of a function's `state` list: a state field and the module-level global holding it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct StateField {
+    pub field: String,
+    pub global: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
