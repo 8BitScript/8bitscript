@@ -149,6 +149,14 @@ test('stageFile and stageText map each stage, and refuse an unknown stage or a m
   assert.equal(stageFile('linked-ir'), 'linked.json');
   assert.equal(stageFile('bytes'), 'bytes.hex');
   assert.equal(stageFile('error'), 'error.txt');
+  assert.equal(stageFile('debug'), 'debug.json');
+  assert.equal(stageFile('listing'), 'listing.json');
+  assert.equal(stageFile('remarks'), 'remarks.json');
+  const debugMap = { format: '8bitscript-debug', version: 1, target: 'c64', modules: ['/r/pj/main.8bs'], symbols: [], instructions: [{ address: 2049, size: 1, source: null }] };
+  assert.equal(stageText('debug', debugMap, roots), canonicalJson(debugMap, roots));
+  assert.equal(JSON.parse(stageText('debug', debugMap, roots)).format, '8bitscript-debug');
+  assert.equal(stageText('listing', [{ address: 2049, assembly: 'rts' }], roots), canonicalJson([{ address: 2049, assembly: 'rts' }], roots));
+  assert.equal(stageText('remarks', [], roots), '[]\n');
   assert.throws(() => stageFile('tokens'), /needs the module path/);
   assert.throws(() => stageFile('nope'), /unknown stage 'nope'/);
   assert.equal(stageText('bytes', [1, 2], roots), '01 02\n');
