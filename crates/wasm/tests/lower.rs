@@ -1,6 +1,6 @@
 //! Replays `fixtures/wasm-lower.json` (made by `gen/wasm-lower.mjs` in Node).
 
-use mos_ir::Expr;
+use mos_ir::{Expr, Stmt};
 use serde_json::Value;
 use wasm::WasmError;
 use wasm::encode::opcode;
@@ -32,9 +32,10 @@ fn check(want: &Value, got: Result<Vec<u8>, WasmError>, what: &str) {
 fn i32_const_matches_js() {
     let rows = fixture()["i32Const"].clone();
     let rows = rows.as_array().expect("rows");
-    assert_eq!(rows.len(), 15);
+    assert_eq!(rows.len(), 20);
     for row in rows {
-        let n = row["args"][0].as_f64().expect("n");
+        // JSON has no NaN: the gen writes it as `null`.
+        let n = row["args"][0].as_f64().unwrap_or(f64::NAN);
         check(&row["result"], i32_const(n), &row.to_string());
     }
 }
@@ -155,4 +156,130 @@ fn every_expr_kind_has_a_type_reading() {
     ));
     assert!(rd(r#"{"kind":"string","index":0,"type":"int"}"#));
     assert!(!rd(r#"{"kind":"record","fields":[],"start":0,"length":0}"#));
+}
+
+fn u32_of(v: &Value) -> u32 {
+    u32::try_from(v.as_u64().expect("u32")).expect("u32")
+}
+
+fn pairs(v: &Value) -> Vec<(String, &Value)> {
+    v.as_array()
+        .expect("entries")
+        .iter()
+        .map(|e| (e[0].as_str().expect("name").to_string(), &e[1]))
+        .collect()
+}
+
+fn options_of(ctx: &Value, row: &Value) -> LowerOptions {
+    LowerOptions {
+        params: row["params"]
+            .as_array()
+            .expect("params")
+            .iter()
+            .map(|p| LowerParam {
+                name: p["name"].as_str().expect("name").to_string(),
+                ty: p["type"].as_str().expect("type").to_string(),
+            })
+            .collect(),
+        globals: pairs(&ctx["globals"])
+            .into_iter()
+            .map(|(k, v)| (k, u32_of(v)))
+            .collect(),
+        functions: pairs(&ctx["functions"])
+            .into_iter()
+            .map(|(k, v)| {
+                (
+                    k,
+                    FunctionInfo {
+                        index: u32_of(&v["index"]),
+                        param_count: u32_of(&v["paramCount"]),
+                        returns_value: v["returnsValue"].as_bool().expect("bool"),
+                    },
+                )
+            })
+            .collect(),
+        strings: ctx["strings"]
+            .as_array()
+            .expect("strings")
+            .iter()
+            .map(u32_of)
+            .collect(),
+        arrays: pairs(&ctx["arrays"])
+            .into_iter()
+            .map(|(k, v)| {
+                (
+                    k,
+                    ArrayInfo {
+                        address: u32_of(&v["address"]),
+                        element_width: u32_of(&v["elementWidth"]),
+                        mutable: v["mutable"].as_bool().expect("bool"),
+                    },
+                )
+            })
+            .collect(),
+        pinned: pairs(&ctx["pinned"])
+            .into_iter()
+            .map(|(k, v)| {
+                (
+                    k,
+                    PinnedInfo {
+                        address: u32_of(&v["address"]),
+                        width: u32_of(&v["width"]),
+                    },
+                )
+            })
+            .collect(),
+        wait_frame_index: ctx["waitFrameIndex"]
+            .as_u64()
+            .map(|n| u32_of(&Value::from(n))),
+    }
+}
+
+/// Replays `fixture()[key]`: same bytes and local count, or the same error. Returns (lowered, refused).
+fn replay(key: &str) -> (usize, usize) {
+    let fx = fixture();
+    let ctxs = fx["corpusCtxs"].as_array().expect("ctxs");
+    let rows = fx[key].as_array().expect("rows");
+    let (mut ok, mut refused) = (0, 0);
+    for row in rows {
+        let body: Vec<Stmt> = serde_json::from_value(row["body"].clone()).expect("body");
+        let ctx = &ctxs[usize::try_from(row["ctx"].as_u64().expect("ctx")).expect("ctx")];
+        let got = lower(&body, options_of(ctx, row)).expect("no range error escapes lower");
+        let want = &row["result"];
+        match got {
+            LowerOutcome::Ok(result) => {
+                ok += 1;
+                assert_eq!(want["ok"].as_bool(), Some(true), "{row}");
+                assert_eq!(bytes(&want["code"]), result.code, "{row}");
+                assert_eq!(
+                    want["localCount"].as_u64(),
+                    Some(u64::from(result.local_count)),
+                    "{row}"
+                );
+            }
+            LowerOutcome::Failure(failure) => {
+                refused += 1;
+                assert_eq!(want["ok"].as_bool(), Some(false), "{row}");
+                assert_eq!(
+                    want["error"].as_str(),
+                    Some(failure.error.as_str()),
+                    "{row}"
+                );
+            }
+        }
+    }
+    assert_eq!(ok + refused, rows.len());
+    (ok, refused)
+}
+
+/// Every function of every corpus `wasm-input` dump.
+#[test]
+fn lower_matches_js_on_the_corpus() {
+    assert_eq!(replay("corpus"), (548, 0));
+}
+
+/// Hand-made bodies for the paths the corpus does not reach.
+#[test]
+fn lower_matches_js_on_synthetic_bodies() {
+    assert_eq!(replay("synthetic"), (136, 112));
 }

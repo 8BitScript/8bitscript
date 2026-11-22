@@ -14,13 +14,13 @@ const run = (fn, ...args) => {
   } catch (error) {
     result = { throw: error.message };
   }
-  // JSON has no undefined: a trailing/absent argument is null.
-  rows.push({ fn, args: args.map((a) => (a === undefined ? null : a)), result });
+  // JSON has no undefined or NaN: both are written as null (no row passes an undefined first argument).
+  rows.push({ fn, args: args.map((a) => (a === undefined || Number.isNaN(a) ? null : a)), result });
 };
 
-const unsigned = [0, 1, 127, 128, 255, 2 ** 31, 2 ** 32 - 1, 2 ** 53 - 1, -1, 1.5];
+const unsigned = [0, 1, 127, 128, 255, 2 ** 31, 2 ** 32 - 1, 2 ** 53 - 1, -1, 1.5, NaN];
 for (const v of unsigned) run('unsignedLEB128', v);
-const signed = [0, 1, -1, 63, -63, 64, -64, 127, -127, 128, -128, 2 ** 31 - 1, -(2 ** 31), 2 ** 31, 2 ** 32 - 1, 1.5];
+const signed = [0, 1, -1, 63, -63, 64, -64, 127, -127, 128, -128, 2 ** 31 - 1, -(2 ** 31), 2 ** 31, 2 ** 32 - 1, 1.5, NaN];
 for (const v of signed) run('signedLEB128', v);
 run('limits', 1);
 run('limits', 1, 2);
@@ -45,9 +45,12 @@ run('assembleModule', []);
 run('assembleModule', [[1, 1, 0], [3, 2, 1, 0]]);
 run('memoryCopy');
 
+// Each table as [name, value] pairs in declaration order, so the Rust test can check the order.
+const table = (t) => Object.entries(t);
 const consts = {
-  ValType: e.ValType, SectionId: e.SectionId, ExternalKind: e.ExternalKind, BlockType: e.BlockType,
-  Opcode: e.Opcode, Mutability: e.Mutability, MODULE_HEADER: [...e.MODULE_HEADER],
+  ValType: table(e.ValType), SectionId: table(e.SectionId), ExternalKind: table(e.ExternalKind),
+  BlockType: table(e.BlockType), Opcode: table(e.Opcode), Mutability: table(e.Mutability),
+  MODULE_HEADER: [...e.MODULE_HEADER],
 };
 
 const dir = fileURLToPath(new URL('../fixtures/', import.meta.url));
