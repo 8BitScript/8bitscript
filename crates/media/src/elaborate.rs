@@ -356,6 +356,7 @@ fn bind_function(
         start: 0,
         length: utf16_len(name) as i64,
         file: None,
+        state: None,
     }
 }
 

@@ -454,8 +454,8 @@ impl Lowering {
                 args: lowered_args,
                 // Unknown here: only the linker can say what the namespace's member returns.
                 ty: Nullable::Null,
-                start,
-                length,
+                start: Some(start),
+                length: Some(length),
             }));
         }
         let NodeKind::Identifier {
