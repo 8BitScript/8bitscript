@@ -1,5 +1,5 @@
 //! Statements and declarations (`parser/index.mjs:96-243, 436-715`, syntax
-//! spec 6 `Stmt`) with the new-syntax checks E3, E4, E12, E16-E19, E21.
+//! spec 6 `Stmt`) with the new-syntax checks E3, E4, E16-E19, E21.
 
 use syntax::{Node, NodeKind, TokenKind};
 
