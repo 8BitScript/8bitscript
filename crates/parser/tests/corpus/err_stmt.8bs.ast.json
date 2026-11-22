@@ -28,27 +28,10 @@
           "start": 36,
           "type": "BlockStatement"
         },
-        "decorators": [
-          {
-            "args": [],
-            "length": 7,
-            "name": "test",
-            "start": 21,
-            "type": "Decorator"
-          }
-        ],
-        "exported": false,
-        "length": 9,
-        "name": {
-          "length": 1,
-          "name": "t",
-          "start": 32,
-          "type": "Identifier"
-        },
-        "params": [],
-        "returnType": null,
-        "start": 29,
-        "type": "FunctionDeclaration"
+        "length": 17,
+        "name": "t",
+        "start": 21,
+        "type": "TestDecl"
       },
       {
         "body": {
@@ -310,22 +293,6 @@
     {
       "code": "8BS1101",
       "file": "t",
-      "length": 7,
-      "message": "tests come with '8bs test'",
-      "severity": "error",
-      "start": 21
-    },
-    {
-      "code": "8BS1101",
-      "file": "t",
-      "length": 12,
-      "message": "tests come with '8bs test'",
-      "severity": "error",
-      "start": 39
-    },
-    {
-      "code": "8BS1101",
-      "file": "t",
       "length": 3,
       "message": "inner attributes are not supported",
       "severity": "error",
@@ -450,6 +417,14 @@
       "message": "expected an expression, found 'else'",
       "severity": "error",
       "start": 231
+    },
+    {
+      "code": "8BS1101",
+      "file": "t",
+      "length": 12,
+      "message": "'#[cfg(test)]' goes on a top-level 'mod'",
+      "severity": "error",
+      "start": 39
     }
   ]
 }

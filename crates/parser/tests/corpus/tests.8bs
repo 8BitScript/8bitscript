@@ -1,0 +1,20 @@
+fn main() {}
+
+#[test]
+fn adds_two_numbers() {
+    let a = 1 + 1;
+}
+
+#[test("a named test")]
+fn named() {}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn first() {}
+
+    #[test("second one")]
+    fn second() {
+        let x = 2;
+    }
+}
