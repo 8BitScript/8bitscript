@@ -3,7 +3,8 @@
 //   node crates/mos/tests/gen/machine.mjs
 // Most helpers are module-private in index.ts, so the script copies the file
 // next to the original with an `export` line appended, imports the copy and
-// deletes it. index.ts itself is never edited.
+// deletes it. index.ts itself is never edited. The copy carries the export
+// line because these functions are not exported by index.ts.
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
