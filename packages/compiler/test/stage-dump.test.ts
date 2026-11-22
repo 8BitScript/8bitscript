@@ -175,9 +175,76 @@ test('mos stages: size-report only with report, and a plain build with debug and
       const result = await buildMos(linked.ir as IrProgram, { machine: 'c64', hardware, frameRate: 60, report, debug: true, remarks: true, sources: linked.sources, outFile, dump: rec.dump });
       assert.ok(result.ok);
       assert.equal(rec.stages().includes('size-report'), report);
+      assert.deepEqual(rec.stages(), ['backend-input', 'link', 'bytes', ...(report ? ['size-report'] : []), 'debug', 'listing', 'remarks']);
+      const map = rec.events.at(-3)?.value as { format: string; version: number; target: string; modules: string[]; instructions: { size: number; source: { file: string; line: number } | null }[] };
+      assert.equal(map.format, '8bitscript-debug');
+      assert.equal(map.version, 1);
+      assert.equal(map.target, 'c64');
+      assert.ok(map.modules.length > 0);
+      assert.ok(map.instructions.length > 0);
+      assert.ok(map.instructions.some((i) => i.source !== null && i.source.line > 0 && i.source.file.length > 0));
+      const lines = rec.events.at(-2)?.value as { address: number; bytes: number[]; text: string }[];
+      assert.ok(Array.isArray(lines) && lines.length > 0);
+      assert.ok(lines.every((l) => typeof l.address === 'number' && typeof l.text === 'string' && Array.isArray(l.bytes)));
+      assert.deepEqual(rec.events.at(-1)?.value, []);
       const input = rec.events[0].value as { report: boolean; debug: boolean; remarks: boolean };
       assert.deepEqual([input.report, input.debug, input.remarks], [report, true, true]);
     }
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+const UNROLL = 'pub fn main() {\n    let mut sum: utinyint = 0;\n    #[unroll]\n    for i: utinyint in 0..4 {\n        sum = sum + i;\n    }\n}\n';
+
+async function buildUnroll(extra: { debug?: boolean; remarks?: boolean }) {
+  const resolved = resolveHardware(loadCatalog('c64'), {});
+  assert.ok(resolved.ok);
+  const hardware = resolved.hardware as unknown as BuildOptions['hardware'];
+  const file = '/x/main.8bs';
+  const linked = link(UNROLL, file, { machine: 'c64', facts: resolved.hardware.facts });
+  assert.deepEqual(linked.diagnostics, []);
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-stage-dump-'));
+  try {
+    const rec = recorder();
+    const result = await buildMos(linked.ir as IrProgram, { machine: 'c64', hardware, frameRate: 60, sources: linked.sources, outFile: join(scratch, 'u.prg'), dump: rec.dump, ...extra });
+    assert.ok(result.ok);
+    return rec;
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+}
+
+test('remarks only: the remarks stage carries the unroll remark and no debug or listing stage appears', async () => {
+  const rec = await buildUnroll({ remarks: true });
+  assert.deepEqual(rec.stages(), ['backend-input', 'link', 'bytes', 'remarks']);
+  const remarks = rec.events.at(-1)?.value as { code: string; severity: string; message: string }[];
+  assert.equal(remarks.length, 1);
+  assert.equal(remarks[0].code, '8BS9001');
+  assert.equal(remarks[0].severity, 'remark');
+  assert.match(remarks[0].message, /4 copies/);
+});
+
+test('debug only: debug and listing stages appear with content and no remarks stage', async () => {
+  const rec = await buildUnroll({ debug: true });
+  assert.deepEqual(rec.stages(), ['backend-input', 'link', 'bytes', 'debug', 'listing']);
+  const map = rec.events.at(-2)?.value as { format: string; instructions: unknown[] };
+  assert.equal(map.format, '8bitscript-debug');
+  assert.ok(map.instructions.length > 0);
+  assert.ok((rec.events.at(-1)?.value as unknown[]).length > 0);
+});
+
+test('mos build without debug and remarks emits neither stage', async () => {
+  const resolved = resolveHardware(loadCatalog('c64'), {});
+  assert.ok(resolved.ok);
+  const hardware = resolved.hardware as unknown as BuildOptions['hardware'];
+  const linked = link(HELLO, FILE, { machine: 'c64', facts: resolved.hardware.facts });
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-stage-dump-'));
+  try {
+    const rec = recorder();
+    const result = await buildMos(linked.ir as IrProgram, { machine: 'c64', hardware, frameRate: 60, outFile: join(scratch, 'p.prg'), dump: rec.dump });
+    assert.ok(result.ok);
+    assert.deepEqual(rec.stages(), ['backend-input', 'link', 'bytes']);
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }
