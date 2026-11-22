@@ -1,0 +1,170 @@
+{
+  "ast": {
+    "body": [
+      {
+        "body": {
+          "body": [],
+          "length": 2,
+          "start": 10,
+          "type": "BlockStatement"
+        },
+        "exported": false,
+        "length": 12,
+        "name": {
+          "length": 4,
+          "name": "main",
+          "start": 3,
+          "type": "Identifier"
+        },
+        "params": [],
+        "returnType": null,
+        "start": 0,
+        "type": "FunctionDeclaration"
+      },
+      {
+        "body": {
+          "body": [
+            {
+              "exported": false,
+              "immutable": true,
+              "initializer": {
+                "left": {
+                  "length": 1,
+                  "radix": 10,
+                  "raw": "1",
+                  "start": 58,
+                  "type": "IntegerLiteral",
+                  "value": 1
+                },
+                "length": 5,
+                "operator": "+",
+                "right": {
+                  "length": 1,
+                  "radix": 10,
+                  "raw": "1",
+                  "start": 62,
+                  "type": "IntegerLiteral",
+                  "value": 1
+                },
+                "start": 58,
+                "type": "BinaryExpression"
+              },
+              "kind": "let",
+              "length": 14,
+              "name": {
+                "length": 1,
+                "name": "a",
+                "start": 54,
+                "type": "Identifier"
+              },
+              "start": 50,
+              "type": "VariableDeclaration",
+              "typeAnnotation": null
+            }
+          ],
+          "length": 22,
+          "start": 44,
+          "type": "BlockStatement"
+        },
+        "length": 52,
+        "name": "adds two numbers",
+        "start": 14,
+        "type": "TestDecl"
+      },
+      {
+        "body": {
+          "body": [],
+          "length": 2,
+          "start": 103,
+          "type": "BlockStatement"
+        },
+        "length": 37,
+        "name": "a named test",
+        "start": 68,
+        "type": "TestDecl"
+      },
+      {
+        "decorators": [
+          {
+            "args": [
+              {
+                "length": 4,
+                "name": "test",
+                "start": 113,
+                "type": "Identifier"
+              }
+            ],
+            "length": 12,
+            "name": "cfg",
+            "start": 107,
+            "type": "Decorator"
+          }
+        ],
+        "exported": false,
+        "length": 113,
+        "members": [
+          {
+            "body": {
+              "body": [],
+              "length": 2,
+              "start": 159,
+              "type": "BlockStatement"
+            },
+            "length": 25,
+            "name": "first",
+            "start": 136,
+            "type": "TestDecl"
+          },
+          {
+            "body": {
+              "body": [
+                {
+                  "exported": false,
+                  "immutable": true,
+                  "initializer": {
+                    "length": 1,
+                    "radix": 10,
+                    "raw": "2",
+                    "start": 223,
+                    "type": "IntegerLiteral",
+                    "value": 2
+                  },
+                  "kind": "let",
+                  "length": 10,
+                  "name": {
+                    "length": 1,
+                    "name": "x",
+                    "start": 219,
+                    "type": "Identifier"
+                  },
+                  "start": 215,
+                  "type": "VariableDeclaration",
+                  "typeAnnotation": null
+                }
+              ],
+              "length": 26,
+              "start": 205,
+              "type": "BlockStatement"
+            },
+            "length": 64,
+            "name": "second one",
+            "start": 167,
+            "type": "TestDecl"
+          }
+        ],
+        "name": {
+          "length": 5,
+          "name": "tests",
+          "start": 124,
+          "type": "Identifier"
+        },
+        "start": 120,
+        "type": "NamespaceDeclaration"
+      }
+    ],
+    "length": 234,
+    "start": 0,
+    "type": "Program"
+  },
+  "diagnostics": []
+}
