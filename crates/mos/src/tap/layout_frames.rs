@@ -50,8 +50,11 @@ pub fn replay(record: &Value, _counters: &mut Counters) -> Replay {
         Ok(n) => n,
         Err(e) => return bad(2, e),
     };
-    let (Some(origin), Some(ceiling)) = (origin.as_i64(), ceiling.as_i64()) else {
-        return bad(3, "origin or ceiling is not an integer".into());
+    let Some(origin) = origin.as_i64() else {
+        return bad(3, "origin is not an integer".into());
+    };
+    let Some(ceiling) = ceiling.as_i64() else {
+        return bad(4, "ceiling is not an integer".into());
     };
     let holes: Vec<ZpHole> = match input(5) {
         None | Some(Value::Null) => Vec::new(),
@@ -155,6 +158,7 @@ mod tests {
             (2, json!([["f", 5]]), "/args/2"),
             (2, json!([[5, { "bytes": 1 }]]), "/args/2"),
             (3, json!("x"), "/args/3"),
+            (4, json!("x"), "/args/4"),
         ] {
             let mut bad = args(row);
             bad[index] = value;

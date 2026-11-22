@@ -1,6 +1,7 @@
 //! Tap replay for `buildDataSection` (`mos/data.ts`): the JS call
 //! `buildDataSection(strings, arrays, usedIndexes?)` and the directive list it
-//! returns. An absent `usedIndexes` is recorded as `null`.
+//! returns. A call with two arguments is recorded with only two `args`; only an
+//! explicit `undefined` third argument is recorded as `null`.
 
 use indexmap::IndexSet;
 use serde_json::{Value, json};
