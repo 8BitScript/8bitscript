@@ -101,6 +101,9 @@ pub(crate) struct Parser<'a> {
     pub(crate) use_skipped: bool,
     /// Parsing a `.8bx` file.
     pub(crate) bx: bool,
+    /// Inside a test function, a `#[cfg(test)]` module or a `*.test.8bs` file, where
+    /// `assert!` and `panic!` are statements.
+    pub(crate) test_scope: bool,
 }
 
 pub(crate) fn tok_end(t: &Token) -> u32 {
@@ -157,6 +160,7 @@ impl<'a> Parser<'a> {
             eof: 0,
             use_skipped: false,
             bx: false,
+            test_scope: file.ends_with(".test.8bs"),
         }
     }
 

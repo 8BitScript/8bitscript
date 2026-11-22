@@ -240,10 +240,13 @@ fn check_functions(
     // `HALF = 2` on a const, or `Table[0] = 2` on a const array (whose elements are data in the
     // program): checked in the walk below; either way the name is the span.
     let visit_function = |function: &Node, diagnostics: &mut Vec<Diagnostic>| {
-        let NodeKind::FunctionDeclaration { body: fn_body, .. } = &function.kind else {
-            return;
+        let fn_body = match &function.kind {
+            NodeKind::FunctionDeclaration { body, .. } => body.as_deref(),
+            // A test is a function with no parameters.
+            NodeKind::TestDecl { body, .. } => Some(&**body),
+            _ => return,
         };
-        let Some(fn_body) = fn_body.as_deref() else {
+        let Some(fn_body) = fn_body else {
             return; // a function whose body is still being typed
         };
         // Locals count with parameters here: function-scoped, an approximation of the block
@@ -353,10 +356,15 @@ fn check_functions(
     };
     for node in body {
         match &node.kind {
-            NodeKind::FunctionDeclaration { .. } => visit_function(node, diagnostics),
+            NodeKind::FunctionDeclaration { .. } | NodeKind::TestDecl { .. } => {
+                visit_function(node, diagnostics);
+            }
             NodeKind::NamespaceDeclaration { members, .. } => {
                 for member in members.iter().flatten() {
-                    if matches!(member.kind, NodeKind::FunctionDeclaration { .. }) {
+                    if matches!(
+                        member.kind,
+                        NodeKind::FunctionDeclaration { .. } | NodeKind::TestDecl { .. }
+                    ) {
                         visit_function(member, diagnostics);
                     }
                 }

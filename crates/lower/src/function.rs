@@ -12,6 +12,7 @@ use sema::templates::{parameter_types, resolve_array_type, resolve_scalar_type};
 use syntax::{Node, NodeKind};
 
 use crate::module::{ArrayDesc, Lowering, ModuleIr, int, name_of};
+use crate::tests::{TestLowering, TestSidecar, TestState};
 
 impl Lowering {
     /// `function(node, { mangledName })`: lower one function declaration and add it to
@@ -217,18 +218,39 @@ pub struct Lowered {
     pub diagnostics: Vec<Diagnostic>,
     /// Set when a namespace member `VariableDeclaration` had no name (JS reports or throws).
     pub skipped_unnamed_member: bool,
+    /// The sidecar of a test build ([`lower_tests`]); `None` for a normal one.
+    pub tests: Option<TestSidecar>,
 }
 
 /// Lower a parsed program to IR (`lower(ast, file, source)`).
 #[must_use]
 pub fn lower(ast: &Node, file: &str, source: Option<&str>) -> Lowered {
+    lower_with(ast, file, source, None)
+}
+
+/// Lower a parsed program for a test build: its `TestDecl`s become `__test_<k>` functions, its
+/// asserts the `__8bs_test_fail<W>` shapes, and the sidecar says what each one was. `first`
+/// is where the numbering starts, so it runs on from the modules lowered before this one.
+#[must_use]
+pub fn lower_tests(ast: &Node, file: &str, source: Option<&str>, first: TestLowering) -> Lowered {
+    lower_with(ast, file, source, Some(first))
+}
+
+fn lower_with(
+    ast: &Node,
+    file: &str,
+    source: Option<&str>,
+    first: Option<TestLowering>,
+) -> Lowered {
     let mut lowering = Lowering::new(file);
     lowering.source = source.map(str::to_string);
+    lowering.tests = first.map(TestState::new);
     let ir = lowering.program(ast);
     Lowered {
         ir,
         diagnostics: lowering.diagnostics,
         skipped_unnamed_member: lowering.skipped_unnamed_member,
+        tests: lowering.tests.map(|t| t.sidecar),
     }
 }
 

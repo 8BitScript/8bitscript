@@ -244,6 +244,8 @@ pub struct Lowering {
     pub last_wide: Option<f64>,
     /// Set when a namespace member `VariableDeclaration` had no name (JS reports or throws).
     pub skipped_unnamed_member: bool,
+    /// Set only for a test build: the numbering and the sidecar records.
+    pub tests: Option<crate::tests::TestState>,
 }
 
 impl Lowering {
@@ -347,6 +349,7 @@ impl Lowering {
             match &node.kind {
                 NodeKind::VariableDeclaration { .. } => self.global(node),
                 NodeKind::FunctionDeclaration { .. } => self.function(node, None),
+                NodeKind::TestDecl { .. } if self.tests.is_some() => self.test_declaration(node),
                 NodeKind::NamespaceDeclaration { .. } => self.namespace_declaration(node),
                 NodeKind::ImportDeclaration { .. } => self.import(node),
                 _ => self.report(
@@ -670,6 +673,7 @@ impl Lowering {
                             .report(member, "a mod const is initialized by a literal or a const"),
                     }
                 }
+                NodeKind::TestDecl { .. } if self.tests.is_some() => self.test_declaration(member),
                 // A declaration whose name the parser could not read: it said so.
                 // R7.8: skipped with no diagnostic; the flag lets a replay tell a JS throw here.
                 NodeKind::VariableDeclaration { name: None, .. } => {

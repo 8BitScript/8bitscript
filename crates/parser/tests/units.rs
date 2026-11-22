@@ -113,7 +113,100 @@ fn e11_match_in_expression() {
 
 #[test]
 fn e12_macros() {
-    exact("assert!(a);", &["tests come with '8bs test'"]);
+    // A macro where a value is wanted is still E12.
+    exact("let a = assert!(a);", &["tests come with '8bs test'"]);
+}
+
+const E12_MACRO: &str = "tests come with '8bs test'";
+
+fn macros_of(text: &str) -> Vec<(String, Option<String>)> {
+    let parsed = parse_text(text);
+    nodes(&parsed.ast)
+        .into_iter()
+        .filter_map(|n| match &n.kind {
+            syntax::NodeKind::Assert { message, .. } => {
+                Some(("Assert".to_string(), message.clone()))
+            }
+            syntax::NodeKind::Fail { message } => Some(("Fail".to_string(), message.clone())),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn macros_parse_to_assert_and_fail_in_tests() {
+    clean("#[test]\nfn t() { assert!(1 < 2); assert!(true, \"m\"); }");
+    clean("#[test]\nfn t() { assert_eq!(1, 2); assert_ne!(1, 2, \"m\"); }");
+    clean("#[test]\nfn t() { panic!(); panic!(\"boom\"); }");
+    assert_eq!(
+        macros_of("#[test]\nfn t() { assert!(a); assert!(b, \"m\"); panic!(\"x\"); panic!(); }"),
+        [
+            ("Assert".to_string(), None),
+            ("Assert".to_string(), Some("m".to_string())),
+            ("Fail".to_string(), Some("x".to_string())),
+            ("Fail".to_string(), None),
+        ]
+    );
+}
+
+#[test]
+fn assert_eq_is_an_equality_assert() {
+    let t = tree("#[test]\nfn t() { assert_eq!(a, b); }");
+    let text = t.to_string();
+    assert!(text.contains(r#""type":"Assert""#), "{text}");
+    assert!(text.contains(r#""operator":"==""#), "{text}");
+    let t = tree("#[test]\nfn t() { assert_ne!(a, b); }");
+    assert!(t.to_string().contains(r#""operator":"!=""#));
+}
+
+#[test]
+fn macro_shapes() {
+    exact(
+        "#[test]\nfn t() { assert!(); }",
+        &["'assert!' takes a condition and an optional message"],
+    );
+    exact(
+        "#[test]\nfn t() { assert_eq!(1); }",
+        &["'assert_eq!' takes two values and an optional message"],
+    );
+    exact(
+        "#[test]\nfn t() { panic!(1, 2); }",
+        &["'panic!' takes an optional message"],
+    );
+    exact(
+        "#[test]\nfn t() { assert!(a, b); }",
+        &["the message of 'assert!' is a string literal"],
+    );
+}
+
+#[test]
+fn macros_outside_a_test_are_reported() {
+    exact("fn f() { assert!(a); }", &[E12_MACRO]);
+    exact("assert!(a);", &[E12_MACRO]);
+    exact("fn f() { if (a) { panic!(\"x\"); } }", &[E12_MACRO]);
+    clean("#[cfg(test)]\nmod tests { fn helper() { assert!(a); } }");
+}
+
+#[test]
+fn macros_in_a_test_file_are_legal_anywhere() {
+    let text = "fn helper() { assert!(a); }";
+    let lexed = lexer::tokenize(text, "a.test.8bs", &lexer::Options::default());
+    let parsed = parser::parse(
+        &lexed.tokens,
+        text,
+        "a.test.8bs",
+        &parser::Options::default(),
+    );
+    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+}
+
+#[test]
+fn a_function_named_assert_stays_a_call() {
+    clean("fn assert(a: bool) {}\nfn f() { assert(true); }");
+    assert_eq!(
+        macros_of("fn assert(a: bool) {}\nfn f() { assert(true); }"),
+        []
+    );
 }
 
 const M1: &str = "'#[test]' goes on a top-level 'fn' or a 'fn' inside '#[cfg(test)] mod'";
