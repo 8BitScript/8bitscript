@@ -1,12 +1,12 @@
-//! Port of `packages/compiler/src/linker/optimize.mjs:1-666`: the leaf passes of the
-//! pre-lowering IR rewrites. The functions the rest of the file calls (`substitute_bindings`,
-//! `forward_expr_call`, `site_count`, `optimize_statement`) are stubs that return `Unported`.
+//! Port of `packages/compiler/src/linker/optimize.mjs:1-1213`: the leaf passes and the inlining
+//! passes of the pre-lowering IR rewrites. `optimize_statement` is still a stub that returns
+//! `Unported`.
 
 use diagnostics::Diagnostic;
 use indexmap::{IndexMap, IndexSet};
 use jsnum::{Nullable, to_int32};
 use mos_ir::walk::{Flow, Node, visit_body, visit_expr, visit_stmt};
-use mos_ir::{Asm, Binop, Call, Const, Expr, For, Function, IrString, Stmt};
+use mos_ir::{Asm, Binop, Block, Call, Const, Expr, For, Function, IrString, Local, Stmt};
 use sema::types::{resolve_integer_type, storage_bytes};
 use serde::Serialize;
 use serde_json::Value;
@@ -739,7 +739,7 @@ pub fn const_eval_call(
     if return_type != "void" && return_type != "bool" && storage_bytes(return_type) != 1 {
         return Ok(None);
     }
-    if site_count(&call.name, ctx, functions, &mut IndexSet::new())? > 1 {
+    if site_count(&call.name, ctx, functions, &mut IndexSet::new()) > 1 {
         return Ok(None);
     }
     let params = &func.params;
@@ -839,7 +839,7 @@ pub fn propagate_const_locals(
         // The rest goes round again: a value that was a variable a moment ago
         // may now fold — an address into a literal, a call into its result.
         let bindings = IndexMap::from([(local.name.clone(), value)]);
-        let substituted = optimize_body(&substitute_bindings(rest, &bindings)?, ctx, functions)?;
+        let substituted = optimize_body(&substitute_bindings(rest, &bindings), ctx, functions)?;
         let mut out = statements[..i].to_vec();
         out.extend(substituted);
         return Ok(out);
@@ -904,31 +904,1163 @@ pub fn match_counted_for(statement: &For, max_unroll: f64) -> Option<CountedFor>
     })
 }
 
-/// Stub: `substituteBindings` (`:667`) belongs to a later unit.
-pub fn substitute_bindings(
-    _body: &[Stmt],
-    _bindings: &IndexMap<String, Expr>,
-) -> Result<Vec<Stmt>, Unported> {
-    Err(Unported)
+// ---- the generic rewrites `mapDeep` does over untyped objects ----------------------------------
+//
+// A visitor over `&mut` IR in the order of `mos_ir::walk` (spec fact F5). `stmt` and `expr` run on
+// a node before its children and answer whether to go into them: a node a visitor replaced is
+// not walked again (`mapDeep` does not recurse into what `fn` returned).
+
+trait Rewrite {
+    fn stmt(&mut self, _stmt: &mut Stmt) -> bool {
+        true
+    }
+    fn expr(&mut self, _expr: &mut Expr) -> bool {
+        true
+    }
 }
 
-/// Stub: `forwardExprCall` (`:758`) belongs to a later unit.
+fn rewrite_body(body: &mut [Stmt], v: &mut impl Rewrite) {
+    for stmt in body {
+        rewrite_stmt(stmt, v);
+    }
+}
+
+fn rewrite_exprs(exprs: &mut [Expr], v: &mut impl Rewrite) {
+    for expr in exprs {
+        rewrite_expr(expr, v);
+    }
+}
+
+fn rewrite_stmt(stmt: &mut Stmt, v: &mut impl Rewrite) {
+    if !v.stmt(stmt) {
+        return;
+    }
+    match stmt {
+        Stmt::Asm(_) | Stmt::Break(_) | Stmt::Continue(_) | Stmt::WaitFrame(_) => {}
+        Stmt::Assign(s) => rewrite_expr(&mut s.value, v),
+        Stmt::Block(s) => rewrite_body(&mut s.body, v),
+        Stmt::Call(s) => rewrite_exprs(&mut s.args, v),
+        Stmt::For(s) => {
+            if let Nullable::Value(init) = &mut s.init {
+                rewrite_stmt(init, v);
+            }
+            if let Nullable::Value(test) = &mut s.test {
+                rewrite_expr(test, v);
+            }
+            if let Nullable::Value(update) = &mut s.update {
+                rewrite_stmt(update, v);
+            }
+            rewrite_body(&mut s.body, v);
+        }
+        Stmt::If(s) => {
+            rewrite_expr(&mut s.test, v);
+            rewrite_body(&mut s.then, v);
+            if let Some(arm) = &mut s.r#else {
+                rewrite_body(arm, v);
+            }
+        }
+        Stmt::Local(s) => rewrite_expr(&mut s.init, v),
+        Stmt::MemoryRead(s) => rewrite_expr(&mut s.address, v),
+        Stmt::MemoryWrite(s) => {
+            rewrite_expr(&mut s.address, v);
+            rewrite_expr(&mut s.value, v);
+        }
+        Stmt::Return(s) => {
+            if let Some(value) = &mut s.value {
+                rewrite_expr(value, v);
+            }
+        }
+        Stmt::StoreIndex(s) => {
+            rewrite_expr(&mut s.array, v);
+            rewrite_expr(&mut s.index, v);
+            rewrite_expr(&mut s.value, v);
+        }
+        Stmt::While(s) => {
+            rewrite_expr(&mut s.test, v);
+            rewrite_body(&mut s.body, v);
+        }
+        Stmt::PortWrite(s) => {
+            rewrite_expr(&mut s.port, v);
+            rewrite_expr(&mut s.value, v);
+        }
+        Stmt::StringCopy(s) => {
+            rewrite_expr(&mut s.target, v);
+            rewrite_expr(&mut s.source, v);
+        }
+        Stmt::NamespaceCall(s) => rewrite_exprs(&mut s.args, v),
+        Stmt::PortRead(s) => rewrite_expr(&mut s.port, v),
+    }
+}
+
+fn rewrite_expr(expr: &mut Expr, v: &mut impl Rewrite) {
+    if !v.expr(expr) {
+        return;
+    }
+    match expr {
+        Expr::Const(_) | Expr::Ref(_) | Expr::String(_) | Expr::NamespaceConst(_) => {}
+        Expr::Binop(e) => {
+            rewrite_expr(&mut e.left, v);
+            rewrite_expr(&mut e.right, v);
+        }
+        Expr::Call(e) => rewrite_exprs(&mut e.args, v),
+        Expr::Index(e) => {
+            rewrite_expr(&mut e.array, v);
+            rewrite_expr(&mut e.index, v);
+        }
+        Expr::MemoryRead(e) => rewrite_expr(&mut e.address, v),
+        Expr::StringByte(e) => {
+            rewrite_expr(&mut e.string, v);
+            rewrite_expr(&mut e.index, v);
+        }
+        Expr::StringLength(e) => rewrite_expr(&mut e.string, v),
+        Expr::Unop(e) => rewrite_expr(&mut e.argument, v),
+        Expr::Cond(e) => {
+            rewrite_expr(&mut e.test, v);
+            rewrite_expr(&mut e.consequent, v);
+            rewrite_expr(&mut e.alternate, v);
+        }
+        Expr::PortRead(e) => rewrite_expr(&mut e.port, v),
+        Expr::PortWrite(e) => {
+            rewrite_expr(&mut e.port, v);
+            rewrite_expr(&mut e.value, v);
+        }
+        Expr::NamespaceCall(e) => rewrite_exprs(&mut e.args, v),
+        Expr::Record(e) => {
+            for field in &mut e.fields {
+                rewrite_expr(&mut field.value, v);
+            }
+        }
+    }
+}
+
+/// Every `ref` named in `bindings` becomes a copy of its binding.
+struct Substitute<'a>(&'a IndexMap<String, Expr>);
+
+impl Rewrite for Substitute<'_> {
+    fn expr(&mut self, expr: &mut Expr) -> bool {
+        if let Expr::Ref(r) = &*expr
+            && let Some(value) = self.0.get(&r.name)
+        {
+            *expr = value.clone();
+            return false;
+        }
+        true
+    }
+}
+
+/// Every name a callee binds is renamed: refs, locals (marked `inlined`) and assignment targets.
+struct Rename<'a>(&'a IndexMap<String, String>);
+
+impl Rewrite for Rename<'_> {
+    fn stmt(&mut self, stmt: &mut Stmt) -> bool {
+        match stmt {
+            Stmt::Local(local) => {
+                if let Some(name) = self.0.get(&local.name) {
+                    local.name.clone_from(name);
+                    local.inlined = Some(true);
+                }
+            }
+            Stmt::Assign(assign) => {
+                if let Some(name) = self.0.get(&assign.target) {
+                    assign.target.clone_from(name);
+                }
+            }
+            _ => {}
+        }
+        true
+    }
+
+    fn expr(&mut self, expr: &mut Expr) -> bool {
+        if let Expr::Ref(r) = expr
+            && let Some(name) = self.0.get(&r.name)
+        {
+            r.name.clone_from(name);
+        }
+        true
+    }
+}
+
+/// The `n`th call expression of a walk (counted in `mos_ir::walk` order) becomes `with`.
+struct ReplaceCall<'a> {
+    target: usize,
+    seen: usize,
+    with: &'a Expr,
+}
+
+impl Rewrite for ReplaceCall<'_> {
+    fn expr(&mut self, expr: &mut Expr) -> bool {
+        if matches!(expr, Expr::Call(_)) {
+            let hit = self.seen == self.target;
+            self.seen += 1;
+            if hit {
+                *expr = self.with.clone();
+                return false;
+            }
+        }
+        true
+    }
+}
+
+pub fn substitute_bindings(body: &[Stmt], bindings: &IndexMap<String, Expr>) -> Vec<Stmt> {
+    let mut out = body.to_vec();
+    rewrite_body(&mut out, &mut Substitute(bindings));
+    out
+}
+
+/// `substituteBindings` over a call node (the wrapped call of a forwarder).
+fn substitute_call(call: &Call, bindings: &IndexMap<String, Expr>) -> Call {
+    let mut out = call.clone();
+    rewrite_exprs(&mut out.args, &mut Substitute(bindings));
+    out
+}
+
+/// A function a call names, through the context's name table.
+fn function_named<'a>(ctx: &Ctx, functions: &'a [Function], name: &str) -> Option<&'a Function> {
+    ctx.functions_by_name
+        .get(name)
+        .and_then(|&index| functions.get(index))
+}
+
+/// The `type` field of an expression, when it has one.
+fn expr_type(expr: &Expr) -> Option<&str> {
+    match expr {
+        Expr::Binop(e) => e.ty.as_deref(),
+        Expr::Call(e) => e.ty.as_option().map(String::as_str),
+        Expr::Const(e) => e.ty.as_deref(),
+        Expr::Index(e) => e.ty.as_deref(),
+        Expr::MemoryRead(e) => Some(&e.ty),
+        Expr::Ref(e) => e.ty.as_option().map(String::as_str),
+        Expr::String(e) => e.ty.as_option().map(String::as_str),
+        Expr::StringByte(e) => Some(&e.ty),
+        Expr::StringLength(e) => Some(&e.ty),
+        Expr::Unop(e) => e.ty.as_deref(),
+        Expr::Cond(e) => e.ty.as_option().map(String::as_str),
+        Expr::PortRead(e) => Some(&e.ty),
+        Expr::NamespaceCall(e) => e.ty.as_option().map(String::as_str),
+        Expr::NamespaceConst(e) => e.ty.as_option().map(String::as_str),
+        Expr::Record(_) | Expr::PortWrite(_) => None,
+    }
+}
+
+fn stmt_kind(stmt: &Stmt) -> &'static str {
+    match stmt {
+        Stmt::Asm(_) => "asm",
+        Stmt::Assign(_) => "assign",
+        Stmt::Block(_) => "block",
+        Stmt::Break(_) => "break",
+        Stmt::Call(_) => "call",
+        Stmt::Continue(_) => "continue",
+        Stmt::For(_) => "for",
+        Stmt::If(_) => "if",
+        Stmt::Local(_) => "local",
+        Stmt::MemoryRead(_) => "memoryRead",
+        Stmt::MemoryWrite(_) => "memoryWrite",
+        Stmt::Return(_) => "return",
+        Stmt::StoreIndex(_) => "storeIndex",
+        Stmt::WaitFrame(_) => "waitFrame",
+        Stmt::While(_) => "while",
+        Stmt::PortWrite(_) => "portWrite",
+        Stmt::StringCopy(_) => "stringCopy",
+        Stmt::NamespaceCall(_) => "namespaceCall",
+        Stmt::PortRead(_) => "portRead",
+    }
+}
+
+fn expr_kind(expr: &Expr) -> &'static str {
+    match expr {
+        Expr::Binop(_) => "binop",
+        Expr::Call(_) => "call",
+        Expr::Const(_) => "const",
+        Expr::Index(_) => "index",
+        Expr::MemoryRead(_) => "memoryRead",
+        Expr::Ref(_) => "ref",
+        Expr::String(_) => "string",
+        Expr::StringByte(_) => "stringByte",
+        Expr::StringLength(_) => "stringLength",
+        Expr::Unop(_) => "unop",
+        Expr::Cond(_) => "cond",
+        Expr::PortRead(_) => "portRead",
+        Expr::NamespaceCall(_) => "namespaceCall",
+        Expr::NamespaceConst(_) => "namespaceConst",
+        Expr::Record(_) => "record",
+        Expr::PortWrite(_) => "portWrite",
+    }
+}
+
+/// The one call a forwarder's body consists of (`forwardedCall`): `wrapped` is the call,
+/// `constants` how many of its arguments are literals, `used` which parameters it passes on.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Forwarded<'a> {
+    pub wrapped: &'a Call,
+    pub constants: usize,
+    pub used: IndexSet<String>,
+}
+
+/// The one call a forwarder's body consists of, when it is one: a call whose every argument is
+/// one of the function's own parameters (each at most once) or a numeric constant, as the body's
+/// only statement (`void`) or as the value of its only `return`.
+pub fn forwarded_call(func: &Function) -> Option<Forwarded<'_>> {
+    let [only] = func.body.as_slice() else {
+        return None;
+    };
+    let return_type = func.return_type.as_str();
+    let wrapped = match only {
+        Stmt::Call(call) => {
+            if return_type != "void" {
+                return None;
+            }
+            call
+        }
+        Stmt::Return(r) => {
+            let Some(Expr::Call(call)) = &r.value else {
+                return None;
+            };
+            let ty = call.ty.as_option().map_or(return_type, String::as_str);
+            if return_type == "void" || ty != return_type {
+                return None;
+            }
+            call
+        }
+        _ => return None,
+    };
+    if wrapped.name == func.name {
+        return None;
+    }
+    let params: IndexSet<&str> = func.params.iter().map(|p| p.name.as_str()).collect();
+    let mut used = IndexSet::new();
+    let mut constants = 0;
+    for arg in &wrapped.args {
+        match arg {
+            _ if is_numeric_const(arg) => constants += 1,
+            Expr::Ref(r) if params.contains(r.name.as_str()) && !used.contains(&r.name) => {
+                used.insert(r.name.clone());
+            }
+            _ => return None,
+        }
+    }
+    Some(Forwarded {
+        wrapped,
+        constants,
+        used,
+    })
+}
+
+/// The call a site of a forwarder becomes: the wrapped call with the site's arguments in the
+/// forwarded parameters' places. `None` when the rewrite would change what runs or what it costs.
+pub fn forward_call(
+    call: &Call,
+    func: &Function,
+    forwarded: &Forwarded<'_>,
+    ctx: &Ctx,
+    functions: &[Function],
+) -> Option<Call> {
+    let params = &func.params;
+    let args = &call.args;
+    if params.len() != args.len() {
+        return None;
+    }
+    let Forwarded {
+        wrapped,
+        constants,
+        used,
+    } = forwarded;
+    let mut bindings = IndexMap::new();
+    for (param, arg) in params.iter().zip(args) {
+        if !used.contains(&param.name) && !is_side_effect_free(arg) {
+            return None;
+        }
+        bindings.insert(param.name.clone(), arg.clone());
+    }
+    let order = wrapped.args.iter().filter_map(|arg| match arg {
+        Expr::Ref(r) => Some(params.iter().position(|p| p.name == r.name)),
+        _ => None,
+    });
+    let reordered = order
+        .enumerate()
+        .any(|(position, index)| index != Some(position));
+    if reordered && args.iter().any(|arg| !is_side_effect_free(arg)) {
+        return None;
+    }
+    if *constants > 0 {
+        let sites = site_count(&call.name, ctx, functions, &mut IndexSet::new());
+        if (*constants as i64) * (sites as i64 - 1) > used.len() as i64 {
+            return None;
+        }
+    }
+    let mut rewritten = substitute_call(wrapped, &bindings);
+    if !rewritten.ty.is_value() {
+        rewritten.ty = Nullable::Value(func.return_type.clone());
+    }
+    Some(rewritten)
+}
+
+/// A non-void forwarder in expression position — `return f(x);` — is `f(x)` where it was called.
 pub fn forward_expr_call(
-    _call: &Call,
-    _ctx: &mut Ctx,
-    _functions: &[Function],
+    call: &Call,
+    ctx: &mut Ctx,
+    functions: &[Function],
 ) -> Result<Option<Expr>, Unported> {
-    Err(Unported)
+    let Some(func) = function_named(ctx, functions, &call.name) else {
+        return Ok(None);
+    };
+    if ctx.inlining.contains(&call.name) {
+        return Ok(None);
+    }
+    if !matches!(func.body.first(), Some(Stmt::Return(_))) {
+        return Ok(None);
+    }
+    let Some(forwarded) = forwarded_call(func) else {
+        return Ok(None);
+    };
+    let Some(rewritten) = forward_call(call, func, &forwarded, ctx, functions) else {
+        return Ok(None);
+    };
+    ctx.inlining.insert(call.name.clone());
+    let folded = fold_expr(&Expr::Call(rewritten), ctx, functions);
+    ctx.inlining.shift_remove(&call.name);
+    folded.map(Some)
 }
 
-/// Stub: `siteCount` (`:930`) belongs to a later unit.
+// ---- rule 9: a single caller ----------------------------------------------------------------
+
+pub fn contains_kind(node: &(impl IrValue + ?Sized), kind: &str) -> bool {
+    some(node, |n| match n {
+        Node::Stmt(s) => stmt_kind(s) == kind,
+        Node::Expr(e) => expr_kind(e) == kind,
+    })
+}
+
+pub fn count_returns(node: &(impl IrValue + ?Sized)) -> usize {
+    let mut n = 0;
+    node.walk(&mut |node| {
+        if matches!(node, Node::Stmt(Stmt::Return(_))) {
+            n += 1;
+        }
+        Flow::Continue
+    });
+    n
+}
+
+/// Every name a body reads or writes as a variable: refs, assignment targets, locals.
+pub fn collect_names(node: &(impl IrValue + ?Sized), out: &mut IndexSet<String>) {
+    node.walk(&mut |n| {
+        match n {
+            Node::Expr(Expr::Ref(r)) => {
+                out.insert(r.name.clone());
+            }
+            Node::Stmt(Stmt::Local(l)) => {
+                out.insert(l.name.clone());
+            }
+            Node::Stmt(Stmt::Assign(a)) => {
+                out.insert(a.target.clone());
+            }
+            _ => {}
+        }
+        Flow::Continue
+    });
+}
+
+/// The names a function binds itself: its parameters and every local in its body.
+pub fn bound_names(func: &Function) -> IndexSet<String> {
+    let mut out: IndexSet<String> = func.params.iter().map(|p| p.name.clone()).collect();
+    collect_bound_names(func.body.as_slice(), &mut out);
+    out
+}
+
+/// A name not in `taken`, built from `name`; it is added to `taken`.
+pub fn fresh_name(name: &str, taken: &mut IndexSet<String>) -> String {
+    let mut out = name.to_string();
+    let mut n = 2;
+    while taken.contains(&out) {
+        out = format!("{name}_{n}");
+        n += 1;
+    }
+    taken.insert(out.clone());
+    out
+}
+
+/// Every variable a function writes, itself or through anything it calls: assignment targets and
+/// string copies. A variable at a hardware address counts as written by any body.
+pub fn writes_of(func: &Function, ctx: &Ctx, functions: &[Function]) -> IndexSet<String> {
+    fn visit(
+        root: &Function,
+        f: &Function,
+        ctx: &Ctx,
+        functions: &[Function],
+        out: &mut IndexSet<String>,
+        seen: &mut IndexSet<String>,
+    ) {
+        if !seen.insert(f.name.clone()) {
+            return;
+        }
+        // The function's own writes by name, parameters and locals included; a callee's only for
+        // what it does not bind itself — its locals are its own, whatever they happen to be called.
+        let mut own = IndexSet::new();
+        collect_assigned(f.body.as_slice(), &mut own);
+        let mut callees = Vec::new();
+        visit_body(&f.body, &mut |n| {
+            if let Node::Stmt(Stmt::StringCopy(copy)) = n
+                && let Expr::Ref(target) = &copy.target
+            {
+                own.insert(target.name.clone());
+            }
+            if let Some(call) = n.as_call() {
+                callees.push(call.name.clone());
+            }
+            Flow::Continue
+        });
+        for name in callees {
+            if let Some(callee) = function_named(ctx, functions, &name) {
+                visit(root, callee, ctx, functions, out, seen);
+            }
+        }
+        let bound = if std::ptr::eq(f, root) {
+            IndexSet::new()
+        } else {
+            bound_names(f)
+        };
+        for name in own {
+            if !bound.contains(&name) {
+                out.insert(name);
+            }
+        }
+    }
+    let mut out = ctx.addressed.clone();
+    visit(func, func, ctx, functions, &mut out, &mut IndexSet::new());
+    out
+}
+
+/// Whether `func`, or anything it calls, has a node `test` accepts.
+pub fn reachable_has(
+    func: &Function,
+    ctx: &Ctx,
+    functions: &[Function],
+    test: &mut dyn FnMut(Node<'_>) -> bool,
+) -> bool {
+    fn visit(
+        f: &Function,
+        ctx: &Ctx,
+        functions: &[Function],
+        seen: &mut IndexSet<String>,
+        test: &mut dyn FnMut(Node<'_>) -> bool,
+    ) -> bool {
+        if !seen.insert(f.name.clone()) {
+            return false;
+        }
+        visit_body(&f.body, &mut |n| {
+            if test(n) {
+                return Flow::Stop;
+            }
+            if let Some(call) = n.as_call()
+                && let Some(callee) = function_named(ctx, functions, &call.name)
+                && visit(callee, ctx, functions, seen, test)
+            {
+                return Flow::Stop;
+            }
+            Flow::Continue
+        }) == Flow::Stop
+    }
+    visit(func, ctx, functions, &mut IndexSet::new(), test)
+}
+
+/// Rename the names a callee binds (its parameters, its locals) everywhere in `body`.
+pub fn rename_bound(body: &[Stmt], renames: &IndexMap<String, String>) -> Vec<Stmt> {
+    let mut out = body.to_vec();
+    rewrite_body(&mut out, &mut Rename(renames));
+    out
+}
+
+/// The callee a call has exactly one live site of, when its body can stand where the call is:
+/// not recursive, not empty, no `asm6502`, and — the `return` rule — a void body with a `return`
+/// anywhere stays a call, while a non-void body must end in its only `return`.
+pub fn single_caller_callee<'a>(
+    call: &Call,
+    ctx: &Ctx,
+    functions: &'a [Function],
+    want_value: bool,
+) -> Option<&'a Function> {
+    let func = function_named(ctx, functions, &call.name)?;
+    if ctx.inlining.contains(&call.name) {
+        return None;
+    }
+    // Inside an unrolled copy every site is one of N; inside a forwarder the sites are the
+    // forwarder's, and rule 8 puts this call at each of them. The running function is the one
+    // the name table holds under `current_fn`.
+    if ctx.unrolling_string_copy {
+        return None;
+    }
+    if let Some(current) = ctx
+        .current_fn
+        .as_deref()
+        .and_then(|name| function_named(ctx, functions, name))
+        && forwarded_call(current).is_some()
+    {
+        return None;
+    }
+    let body = &func.body;
+    if body.is_empty() || contains_kind(body.as_slice(), "asm") {
+        return None;
+    }
+    if func.params.len() != call.args.len() {
+        return None;
+    }
+    let return_type = func.return_type.as_str();
+    if want_value {
+        if return_type == "void" {
+            return None;
+        }
+        let Some(Stmt::Return(last)) = body.last() else {
+            return None;
+        };
+        if last.value.is_none() || count_returns(body.as_slice()) != 1 {
+            return None;
+        }
+    } else if return_type != "void" || contains_return(body.as_slice()) {
+        return None;
+    }
+    if ctx.consumed.contains(&call.name) || ctx.retired.contains(&call.name) {
+        return None;
+    }
+    if site_count(&call.name, ctx, functions, &mut IndexSet::new()) != 1 {
+        return None;
+    }
+    Some(func)
+}
+
+/// How many places a function is called from once every forwarder of it has been written out: a
+/// forwarder's own sites are the wrapped function's. Counted over the bodies as they stand.
 pub fn site_count(
-    _name: &str,
-    _ctx: &Ctx,
-    _functions: &[Function],
-    _seen: &mut IndexSet<String>,
-) -> Result<usize, Unported> {
-    Err(Unported)
+    name: &str,
+    ctx: &Ctx,
+    functions: &[Function],
+    seen: &mut IndexSet<String>,
+) -> usize {
+    if seen.contains(name) {
+        return 2;
+    }
+    seen.insert(name.to_string());
+    let mut n = 0;
+    for &index in ctx.functions_by_name.values() {
+        let Some(func) = functions.get(index) else {
+            continue;
+        };
+        // A body written into its one caller stands in for that copy until the caller's own
+        // optimized body is stored; after that it is counted there, and the original is on its
+        // way out.
+        if ctx.retired.contains(&func.name) {
+            continue;
+        }
+        let direct = count_calls_in(func.body.as_slice(), name);
+        if direct == 0 {
+            continue;
+        }
+        n += match forwarded_call(func) {
+            Some(forwarded) if forwarded.wrapped.name == name => {
+                site_count(&func.name, ctx, functions, seen)
+            }
+            _ => direct,
+        };
+    }
+    n
+}
+
+pub fn count_calls_in(body: &[Stmt], name: &str) -> usize {
+    let mut n = 0;
+    visit_body(body, &mut |node| {
+        if node.as_call().is_some_and(|call| call.name == name) {
+            n += 1;
+        }
+        Flow::Continue
+    });
+    n
+}
+
+/// What `siteBody` builds: the callee's body made to stand at a call site.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SiteBody {
+    pub statements: Vec<Stmt>,
+    pub returned: Option<Expr>,
+    pub locals: IndexMap<String, Option<String>>,
+    pub free: IndexSet<String>,
+}
+
+/// The callee's body, made to stand at the call site: its own names made fresh so nothing in the
+/// caller is shadowed, each parameter either the argument itself or a local holding it. `None`
+/// when a name the body reads without binding is one the caller binds, or a string or array
+/// argument would need a local.
+pub fn site_body(
+    call: &Call,
+    func: &Function,
+    ctx: &mut Ctx,
+    functions: &[Function],
+) -> Option<SiteBody> {
+    // JS reads an argument the call lacks as undefined and throws; refuse before any side effect.
+    if call.args.len() < func.params.len() {
+        return None;
+    }
+    let bound = bound_names(func);
+    let mut free = IndexSet::new();
+    collect_names(func.body.as_slice(), &mut free);
+    for name in &bound {
+        free.shift_remove(name);
+    }
+    if free.iter().any(|name| ctx.caller_bound.contains(name)) {
+        return None;
+    }
+    let assigned = writes_of(func, ctx, functions);
+    let mut renames = IndexMap::new();
+    for name in &bound {
+        let fresh = fresh_name(name, &mut ctx.taken);
+        ctx.zp_names.insert(fresh.clone());
+        renames.insert(name.clone(), fresh);
+    }
+    let params = &func.params;
+    let args = &call.args;
+    let mut statements = Vec::new();
+    let mut bindings = IndexMap::new();
+    for (param, arg) in params.iter().zip(args) {
+        let renamed = renames
+            .get(&param.name)
+            .cloned()
+            .unwrap_or_else(|| param.name.clone());
+        let plain_read = match arg {
+            Expr::Ref(r) if !assigned.contains(&r.name) => Some(&r.name),
+            _ => None,
+        };
+        // A read of the caller's own local or parameter is a zero-page read, as the parameter's
+        // was; a global is an absolute read, one byte more at every use, so it is copied into a
+        // local once — the store the call made — and read from there. An array is its address
+        // either way.
+        let zero_page =
+            plain_read.is_some_and(|name| ctx.zp_names.contains(name) || param.ty == "array");
+        if (is_compile_time_arg(arg) || zero_page) && !assigned.contains(&param.name) {
+            bindings.insert(renamed, arg.clone());
+        } else if param.ty == "string" || param.ty == "array" || expr_type(arg) == Some("string") {
+            // A string or an array is a pointer the backends only hold in a parameter slot or a
+            // global; there is no local to copy it into.
+            return None;
+        } else {
+            statements.push(Stmt::Local(Local {
+                name: renamed,
+                ty: param.ty.clone(),
+                init: arg.clone(),
+                inlined: Some(true),
+                start: None,
+                length: None,
+            }));
+        }
+    }
+    let mut body = substitute_bindings(&rename_bound(&func.body, &renames), &bindings);
+    let mut returned = None;
+    if func.return_type != "void" {
+        // The caller guarantees a last `return`; a body without one gives no value.
+        if let Some(Stmt::Return(last)) = body.pop() {
+            returned = last.value;
+        }
+    }
+    let mut locals = IndexMap::new();
+    for statement in &body {
+        if let Stmt::Local(local) = statement {
+            locals.insert(local.name.clone(), Some(local.ty.clone()));
+        }
+    }
+    ctx.consumed.insert(func.name.clone());
+    statements.extend(body);
+    Some(SiteBody {
+        statements,
+        returned,
+        locals,
+        free,
+    })
+}
+
+/// The first single-caller call in a statement's expressions (not in the statement lists control
+/// flow owns, nor a `for`'s `local` init), children before the call itself.
+pub fn find_value_call<'a>(
+    statement: &'a Stmt,
+    ctx: &Ctx,
+    functions: &[Function],
+) -> Option<&'a Call> {
+    let container = match statement {
+        Stmt::Call(call) => Some(call),
+        _ => None,
+    };
+    find_value_call_stmt(statement, ctx, functions, container)
+}
+
+/// The statement's own expressions in order; a `for`'s init and update are statements of their own.
+fn find_value_call_stmt<'a>(
+    statement: &'a Stmt,
+    ctx: &Ctx,
+    functions: &[Function],
+    container: Option<&Call>,
+) -> Option<&'a Call> {
+    let search = |expr: &'a Expr| find_value_call_expr(expr, ctx, functions, container);
+    let nested = |inner: &'a Stmt| {
+        find_value_call_stmt(inner, ctx, functions, container).or_else(|| match inner {
+            Stmt::Call(call)
+                if !container.is_some_and(|c| std::ptr::eq(c, call))
+                    && single_caller_callee(call, ctx, functions, true).is_some() =>
+            {
+                Some(call)
+            }
+            _ => None,
+        })
+    };
+    match statement {
+        Stmt::Local(s) => search(&s.init),
+        Stmt::Assign(s) => search(&s.value),
+        Stmt::Call(s) => s.args.iter().find_map(search),
+        Stmt::MemoryRead(s) => search(&s.address),
+        Stmt::MemoryWrite(s) => search(&s.address).or_else(|| search(&s.value)),
+        Stmt::StoreIndex(s) => search(&s.array)
+            .or_else(|| search(&s.index))
+            .or_else(|| search(&s.value)),
+        Stmt::Return(s) => s.value.as_ref().and_then(search),
+        Stmt::If(s) => search(&s.test),
+        Stmt::While(s) => search(&s.test),
+        Stmt::For(s) => {
+            let init = match s.init.as_option().map(|init| &**init) {
+                Some(Stmt::Local(_)) | None => None,
+                Some(init) => nested(init),
+            };
+            init.or_else(|| s.test.as_option().and_then(search))
+                .or_else(|| {
+                    s.update
+                        .as_option()
+                        .map(|update| &**update)
+                        .and_then(nested)
+                })
+        }
+        Stmt::PortWrite(s) => search(&s.port).or_else(|| search(&s.value)),
+        Stmt::StringCopy(s) => search(&s.target).or_else(|| search(&s.source)),
+        Stmt::NamespaceCall(s) => s.args.iter().find_map(search),
+        Stmt::PortRead(s) => search(&s.port),
+        Stmt::Asm(_) | Stmt::Block(_) | Stmt::Break(_) | Stmt::Continue(_) | Stmt::WaitFrame(_) => {
+            None
+        }
+    }
+}
+
+fn find_value_call_expr<'a>(
+    expr: &'a Expr,
+    ctx: &Ctx,
+    functions: &[Function],
+    container: Option<&Call>,
+) -> Option<&'a Call> {
+    let search = |inner: &'a Expr| find_value_call_expr(inner, ctx, functions, container);
+    let hit = match expr {
+        Expr::Const(_) | Expr::Ref(_) | Expr::String(_) | Expr::NamespaceConst(_) => None,
+        Expr::Binop(e) => search(&e.left).or_else(|| search(&e.right)),
+        Expr::Call(e) => e.args.iter().find_map(search),
+        Expr::Index(e) => search(&e.array).or_else(|| search(&e.index)),
+        Expr::MemoryRead(e) => search(&e.address),
+        Expr::StringByte(e) => search(&e.string).or_else(|| search(&e.index)),
+        Expr::StringLength(e) => search(&e.string),
+        Expr::Unop(e) => search(&e.argument),
+        Expr::Cond(e) => search(&e.test)
+            .or_else(|| search(&e.consequent))
+            .or_else(|| search(&e.alternate)),
+        Expr::PortRead(e) => search(&e.port),
+        Expr::PortWrite(e) => search(&e.port).or_else(|| search(&e.value)),
+        Expr::NamespaceCall(e) => e.args.iter().find_map(search),
+        Expr::Record(e) => e.fields.iter().find_map(|field| search(&field.value)),
+    };
+    if hit.is_some() {
+        return hit;
+    }
+    match expr {
+        Expr::Call(call)
+            if !container.is_some_and(|c| std::ptr::eq(c, call))
+                && single_caller_callee(call, ctx, functions, true).is_some() =>
+        {
+            Some(call)
+        }
+        _ => None,
+    }
+}
+
+/// `statement` with the one call node `target` (a node of `statement`, found by identity)
+/// replaced by `replacement`.
+pub fn replace_node(statement: &Stmt, target: &Call, replacement: &Expr) -> Stmt {
+    let mut ordinal = 0;
+    let mut found = None;
+    visit_stmt(statement, &mut |node| {
+        if let Node::Expr(Expr::Call(call)) = node {
+            if std::ptr::eq(call, target) {
+                found = Some(ordinal);
+                return Flow::Stop;
+            }
+            ordinal += 1;
+        }
+        Flow::Continue
+    });
+    let mut out = statement.clone();
+    if let Some(target) = found {
+        rewrite_stmt(
+            &mut out,
+            &mut ReplaceCall {
+                target,
+                seen: 0,
+                with: replacement,
+            },
+        );
+    }
+    out
+}
+
+/// Whether the rest of `statement`, with `call` taken out, would run the same before the callee's
+/// body as after it: only constants, reads, and arithmetic on them — no other call, no hardware or
+/// array read — and no read of a variable the callee writes.
+pub fn rest_is_inert(
+    statement: &Stmt,
+    call: &Call,
+    func: &Function,
+    ctx: &Ctx,
+    functions: &[Function],
+) -> bool {
+    fn inert(expr: &Expr, call: &Call, assigned: &IndexSet<String>, stores: bool) -> bool {
+        let again = |inner: &Expr| inert(inner, call, assigned, stores);
+        match expr {
+            Expr::Call(c) => std::ptr::eq(c, call),
+            Expr::Ref(r) => {
+                !assigned.contains(&r.name)
+                    && !(stores && r.ty.as_option().map(String::as_str) == Some("string"))
+            }
+            Expr::Index(e) => !stores && again(&e.index),
+            Expr::Const(_) | Expr::String(_) | Expr::NamespaceConst(_) => true,
+            Expr::Binop(e) => again(&e.left) && again(&e.right),
+            Expr::Unop(e) => again(&e.argument),
+            Expr::StringByte(e) => again(&e.string) && again(&e.index),
+            Expr::StringLength(e) => again(&e.string),
+            _ => false,
+        }
+    }
+    let assigned = writes_of(func, ctx, functions);
+    let stores = reachable_has(func, ctx, functions, &mut |node| {
+        matches!(
+            node,
+            Node::Stmt(Stmt::StoreIndex(_) | Stmt::MemoryWrite(_) | Stmt::StringCopy(_))
+        )
+    });
+    let again = |expr: &Expr| inert(expr, call, &assigned, stores);
+    match statement {
+        Stmt::Local(s) => again(&s.init),
+        Stmt::Assign(s) => again(&s.value),
+        Stmt::Call(s) if std::ptr::eq(s, call) => true,
+        Stmt::Call(s) => s.args.iter().all(again),
+        Stmt::MemoryWrite(s) => again(&s.address) && again(&s.value),
+        Stmt::StoreIndex(s) => again(&s.array) && again(&s.index) && again(&s.value),
+        Stmt::Return(s) => s.value.as_ref().is_none_or(again),
+        Stmt::If(s) => again(&s.test),
+        Stmt::While(s) => again(&s.test),
+        // A for's init and update are statements, never pure expressions; only the found call
+        // statement itself is inert (JS `node === call`).
+        Stmt::For(s) => {
+            let is_call = |part: &Stmt| matches!(part, Stmt::Call(c) if std::ptr::eq(c, call));
+            s.init.as_option().is_none_or(|init| is_call(init))
+                && s.update.as_option().is_none_or(|update| is_call(update))
+                && s.test.as_option().is_none_or(again)
+        }
+        Stmt::MemoryRead(s) => again(&s.address),
+        Stmt::PortWrite(s) => again(&s.port) && again(&s.value),
+        Stmt::PortRead(s) => again(&s.port),
+        Stmt::StringCopy(s) => again(&s.target) && again(&s.source),
+        Stmt::NamespaceCall(s) => s.args.iter().all(again),
+        Stmt::Asm(_) | Stmt::Block(_) | Stmt::Break(_) | Stmt::Continue(_) | Stmt::WaitFrame(_) => {
+            true
+        }
+    }
+}
+
+/// Statement kinds whose expressions run once, in order, right where they stand.
+fn hoistable(statement: &Stmt) -> bool {
+    matches!(
+        statement,
+        Stmt::Local(_)
+            | Stmt::Assign(_)
+            | Stmt::Call(_)
+            | Stmt::MemoryWrite(_)
+            | Stmt::StoreIndex(_)
+            | Stmt::Return(_)
+            | Stmt::If(_)
+    )
+}
+
+fn origin_block(origin: &str, body: Vec<Stmt>) -> Stmt {
+    Stmt::Block(Block {
+        body,
+        origin: Some(origin.to_string()),
+        start: None,
+        length: None,
+    })
+}
+
+/// Rule 9 for a value: the first single-caller call in `statement` whose body can run ahead of it
+/// is that body, then the statement reading the returned expression where the call was. `let r =
+/// f(x)` whose value is one of f's own locals keeps that local as `r` — no copy.
+pub fn hoist_value_call(
+    statement: &Stmt,
+    ctx: &mut Ctx,
+    functions: &[Function],
+) -> Result<Option<Vec<Stmt>>, Unported> {
+    if !hoistable(statement) {
+        return Ok(None);
+    }
+    let Some(call) = find_value_call(statement, ctx, functions) else {
+        return Ok(None);
+    };
+    let Some(func) = function_named(ctx, functions, &call.name) else {
+        return Ok(None);
+    };
+    if !rest_is_inert(statement, call, func, ctx, functions) {
+        return Ok(None);
+    }
+    let Some(site) = site_body(call, func, ctx, functions) else {
+        return Ok(None);
+    };
+    // A body the caller can read a value from always ends in its `return`; no value, no hoist.
+    let SiteBody {
+        mut statements,
+        returned: Some(returned),
+        locals,
+        ..
+    } = site
+    else {
+        return Ok(None);
+    };
+    let kept_local = match (statement, &returned) {
+        (Stmt::Local(local), Expr::Ref(r))
+            if matches!(&local.init, Expr::Call(c) if std::ptr::eq(c, call))
+                && locals
+                    .get(&r.name)
+                    .is_some_and(|ty| ty.as_deref() == Some(local.ty.as_str())) =>
+        {
+            // The caller's name must be new to the pasted body: not a global it reads, not an
+            // argument it was handed.
+            let mut names = IndexSet::new();
+            collect_names(statements.as_slice(), &mut names);
+            (!names.contains(&local.name)).then(|| (r.name.clone(), local.name.clone()))
+        }
+        _ => None,
+    };
+    let rest = if let Some((from, to)) = kept_local {
+        statements = rename_bound(&statements, &IndexMap::from([(from, to)]));
+        Vec::new()
+    } else {
+        vec![replace_node(statement, call, &returned)]
+    };
+    ctx.inlining.insert(call.name.clone());
+    let inlined = optimize_body(&statements, ctx, functions).and_then(|mut first| {
+        first.extend(optimize_body(&rest, ctx, functions)?);
+        Ok(first)
+    });
+    // A statement that declares nothing the code after it reads can take the callee's locals in a
+    // block of its own, so their zero page is released when it ends — as the callee's frame was.
+    let outcome = inlined.map(|inlined| {
+        if matches!(statement, Stmt::Local(_)) || ctx.inlining.len() > 1 {
+            inlined
+        } else {
+            vec![origin_block(&call.name, inlined)]
+        }
+    });
+    ctx.inlining.shift_remove(&call.name);
+    outcome.map(Some)
+}
+
+/// Rule 9 for a void call statement: the callee's body, in a block of its own.
+pub fn inline_single_caller(
+    statement: &Call,
+    func: &Function,
+    ctx: &mut Ctx,
+    functions: &[Function],
+) -> Result<Option<Vec<Stmt>>, Unported> {
+    let Some(site) = site_body(statement, func, ctx, functions) else {
+        return Ok(None);
+    };
+    ctx.inlining.insert(statement.name.clone());
+    let outcome = optimize_body(&site.statements, ctx, functions).map(|inlined| {
+        if ctx.inlining.len() > 1 {
+            inlined
+        } else {
+            vec![origin_block(&statement.name, inlined)]
+        }
+    });
+    ctx.inlining.shift_remove(&statement.name);
+    outcome.map(Some)
+}
+
+pub fn inline_void_call(
+    statement: &Call,
+    ctx: &mut Ctx,
+    functions: &[Function],
+) -> Result<Option<Vec<Stmt>>, Unported> {
+    let Some(func) = function_named(ctx, functions, &statement.name) else {
+        return Ok(None);
+    };
+    if func.body.is_empty() {
+        if statement.args.iter().any(|arg| !is_side_effect_free(arg)) {
+            return Ok(None);
+        }
+        return Ok(Some(Vec::new()));
+    }
+    if !func.return_type.is_empty() && func.return_type != "void" {
+        return Ok(None);
+    }
+    if ctx.inlining.contains(&statement.name) {
+        return Ok(None);
+    }
+    // Rewrite 8: a void forwarder is the call it wraps, whatever its arguments are — and the
+    // result goes round again, so a forwarder of a forwarder, or of an empty function, or of a
+    // body the rules below inline, ends where a hand-written call would.
+    if let Some(forwarded) = forwarded_call(func)
+        && let Some(rewritten) = forward_call(statement, func, &forwarded, ctx, functions)
+    {
+        ctx.inlining.insert(statement.name.clone());
+        let result = optimize_statement(&Stmt::Call(rewritten), ctx, functions);
+        ctx.inlining.shift_remove(&statement.name);
+        return result.map(Some);
+    }
+    // A `return` inside the body would stop meaning "leave this callee" once the body is pasted
+    // into the caller; a body with a return anywhere stays a real call.
+    if contains_return(func.body.as_slice()) {
+        return Ok(None);
+    }
+    let params = &func.params;
+    let args = &statement.args;
+    if params.len() != args.len() || !args.iter().all(is_compile_time_arg) {
+        return Ok(None);
+    }
+    let param_names: IndexSet<String> = params.iter().map(|p| p.name.clone()).collect();
+    let unused_params = !params.is_empty() && !references_names(func.body.as_slice(), &param_names);
+    let string_copy = contains_string_byte(func.body.as_slice()) || ctx.unrolling_string_copy;
+    // A component is a composition written as a function: when every prop is a compile-time value
+    // the element is its body with those values in.
+    let component = func.component == Some(true);
+    if !params.is_empty() && !string_copy && !unused_params && !component {
+        return Ok(None);
+    }
+    let sites = |ctx: &Ctx| site_count(&statement.name, ctx, functions, &mut IndexSet::new());
+    if unused_params && sites(ctx) > 1 {
+        return Ok(None);
+    }
+    // Inlining a body that more than one place calls writes that body out once per call site: a
+    // win only while the body is smaller than the call it replaces.
+    if node_count(&func.body) > INLINE_DUPLICATE_NODE_LIMIT && sites(ctx) > 1 {
+        return Ok(None);
+    }
+    let bindings: IndexMap<String, Expr> = params
+        .iter()
+        .zip(args)
+        .map(|(param, arg)| (param.name.clone(), arg.clone()))
+        .collect();
+    ctx.inlining.insert(statement.name.clone());
+    let inlined = optimize_body(&substitute_bindings(&func.body, &bindings), ctx, functions)?;
+    ctx.inlining.shift_remove(&statement.name);
+    if !ctx.inlining.is_empty() {
+        return Ok(Some(inlined));
+    }
+    Ok(Some(vec![origin_block(&statement.name, inlined)]))
 }
 
 /// Stub: `optimizeStatement` (`:1214`) belongs to a later unit.
