@@ -324,6 +324,12 @@ pub enum NodeKind {
         name: String,
         args: Vec<Node>,
     },
+    /// A `#[test]` function the parser turned into a test declaration (test
+    /// spec 3.1). `name` is the written name, or the fn name with `_` as a space.
+    TestDecl {
+        name: String,
+        body: Box<Node>,
+    },
 }
 
 impl NodeKind {
@@ -375,6 +381,7 @@ impl NodeKind {
             Self::IndexExpression { .. } => "IndexExpression",
             Self::TypeReference { .. } => "TypeReference",
             Self::Decorator { .. } => "Decorator",
+            Self::TestDecl { .. } => "TestDecl",
         }
     }
 }

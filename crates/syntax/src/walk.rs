@@ -212,6 +212,7 @@ macro_rules! child_fn {
                     Slot::add(type_arguments, &mut out);
                 }
                 NodeKind::Decorator { args, .. } => Slot::add(args, &mut out),
+                NodeKind::TestDecl { body, .. } => Slot::add(body, &mut out),
                 NodeKind::BreakStatement {}
                 | NodeKind::ContinueStatement {}
                 | NodeKind::BxText { .. }

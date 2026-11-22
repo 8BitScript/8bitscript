@@ -18,10 +18,12 @@ mod bx;
 mod expr;
 mod matching;
 mod stmt;
+mod tests;
 mod types;
 
 pub use bx::normalize_bx_text;
 pub use stmt::{MIGRATE_RELEASE, old_syntax_message};
+pub use tests::strip_tests;
 
 use std::collections::HashSet;
 
@@ -63,7 +65,12 @@ pub fn parse(tokens: &[Token], text: &str, file: &str, options: &Options) -> Par
         .collect();
     let mut parser = Parser::new(kept, &units, file);
     parser.bx = options.source_kind == Some(SourceKind::Bx);
-    let body = parser.parse_program();
+    let mut body = parser.parse_program();
+    if parser.too_deep {
+        tests::convert(&mut body, file, &mut Vec::new());
+    } else {
+        tests::convert(&mut body, file, &mut parser.diagnostics);
+    }
     let mut ast = Node::new(0, utf16_len(text), NodeKind::Program { body });
     number_nodes(&mut ast);
     Parsed {
