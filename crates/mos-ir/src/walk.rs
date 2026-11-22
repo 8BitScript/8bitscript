@@ -29,7 +29,7 @@
 //! `port`, `value`; stringCopy `target`, `source`; namespaceCall `args`;
 //! record each field's `value`.
 
-use mos_ir::{Call, Expr, Stmt};
+use crate::{Call, Expr, Stmt};
 
 /// One IR node: a statement or an expression.
 #[derive(Clone, Copy, Debug)]
@@ -179,10 +179,10 @@ fn both<'a>(a: &'a Expr, b: &'a Expr, f: &mut impl FnMut(Node<'a>) -> Flow) -> F
     then(flow, || visit_expr(b, f))
 }
 
-#[cfg(test)]
-pub(crate) mod testkit {
-    //! IR builders for the tests of every module that walks the IR.
-    use mos_ir::{Function, Stmt};
+/// IR builders for the tests of every module that walks the IR (the `mos` tests use them; `optimize` builds its IR from JSON).
+#[doc(hidden)]
+pub mod testkit {
+    use crate::{Function, Stmt};
     use serde_json::{Value, json};
 
     pub fn stmts(value: &Value) -> Vec<Stmt> {
