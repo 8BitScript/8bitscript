@@ -1,0 +1,88 @@
+{
+  "diagnostics": [
+    {
+      "code": "8BS2005",
+      "file": "<project>/main.8bs",
+      "length": 6,
+      "message": "'secret' is not pub in './lib'",
+      "severity": "error",
+      "start": 22
+    },
+    {
+      "code": "8BS2005",
+      "file": "<project>/main.8bs",
+      "length": 7,
+      "message": "'missing' is not pub in './lib'",
+      "severity": "error",
+      "start": 30
+    },
+    {
+      "code": "8BS2006",
+      "file": "<project>/main.8bs",
+      "length": 6,
+      "message": "'shared' is already bound in this module",
+      "severity": "error",
+      "start": 39
+    },
+    {
+      "code": "8BS2006",
+      "file": "<project>/main.8bs",
+      "length": 5,
+      "message": "'open' is already bound in this module",
+      "severity": "error",
+      "start": 64
+    }
+  ],
+  "modules": [
+    {
+      "bindings": [
+        [
+          "open",
+          {
+            "module": 1,
+            "name": "open"
+          }
+        ]
+      ],
+      "decls": [
+        [
+          "shared",
+          true
+        ],
+        [
+          "main",
+          true
+        ]
+      ],
+      "globalsByName": [
+        "shared"
+      ],
+      "namespaceBindings": [],
+      "namespaces": [],
+      "ownConstTypes": [],
+      "ownConsts": []
+    },
+    {
+      "bindings": [],
+      "decls": [
+        [
+          "open",
+          true
+        ],
+        [
+          "other",
+          true
+        ],
+        [
+          "secret",
+          false
+        ]
+      ],
+      "globalsByName": [],
+      "namespaceBindings": [],
+      "namespaces": [],
+      "ownConstTypes": [],
+      "ownConsts": []
+    }
+  ]
+}

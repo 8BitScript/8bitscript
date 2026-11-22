@@ -1,0 +1,28 @@
+{
+  "imports": [
+    [
+      1
+    ],
+    [
+      2,
+      3,
+      4
+    ],
+    [
+      5
+    ],
+    [
+      2
+    ],
+    [],
+    []
+  ],
+  "modules": [
+    "<project>/main.8bs",
+    "<toolchain>/packages/c64/src/border.8bs",
+    "<toolchain>/packages/c64/src/index.8bs",
+    "<toolchain>/packages/c64/src/raster.8bs",
+    "<toolchain>/packages/c64/src/idle.8bs",
+    "<toolchain>/packages/c64/src/geometry.8bs"
+  ]
+}

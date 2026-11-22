@@ -2,15 +2,19 @@
 //! everything it imports, bind the imports, finish every module and load what the IR's imports
 //! name that the token scan missed.
 //!
-//! Left to the linker unit: `nativeSourcesBeside` and the `nativeSources` map (they only collect
-//! file names for the target toolchain) and `imp.module` (a link between finished modules).
+//! The `nativeSources` map (file names for the target toolchain) and `imp.module` (a link between
+//! finished modules) come back in `LoadedGraph`: `native_sources`, and `import_modules[m][i]` for
+//! `modules[m].ir.imports[i]`.
 
 use std::collections::{HashMap, HashSet};
+
+use indexmap::IndexMap;
 
 use diagnostics::codes::{NOT_COMPILABLE, UNRESOLVED_RELATIVE_IMPORT};
 use diagnostics::{Diagnostic, Severity, diagnostic};
 use i18n::CatalogResolution;
 use resolver::imports::find_imports;
+use resolver::package::{NativeSources, native_sources_beside};
 use resolver::specifier::Resolution;
 use sema::binder::bind_imports;
 use sema::binder::types::{Bound, ModuleId};
@@ -43,6 +47,18 @@ fn read(path: &str) -> Option<String> {
     std::fs::read(path)
         .ok()
         .map(|b| String::from_utf8_lossy(&b).into_owned())
+}
+
+/// What `loadGraph` returns, with the module links as indices (rulebook R1.3).
+#[derive(Debug)]
+pub struct LoadedGraph {
+    pub modules: Vec<Module>,
+    pub bounds: Vec<Bound>,
+    /// `import_modules[m][i]`: the module `modules[m].ir.imports[i].module` names, `None` where
+    /// the JS `continue`d before setting it.
+    pub import_modules: Vec<Vec<Option<usize>>>,
+    /// `[...nativeSources.values()]`, in first-insertion order.
+    pub native_sources: Vec<String>,
 }
 
 struct Graph {
@@ -91,7 +107,7 @@ pub fn load_graph(
     diagnostics: &mut Vec<Diagnostic>,
     link: &LinkOptions,
     mut dump: Option<&mut DumpFn<'_>>,
-) -> Result<(Vec<Module>, Vec<Bound>), String> {
+) -> Result<LoadedGraph, String> {
     let mut options = FinishOptions {
         link: link.clone(),
         ..FinishOptions::default()
@@ -115,6 +131,12 @@ pub fn load_graph(
         diagnostics,
         dump.as_deref_mut(),
     );
+    let mut native_sources: IndexMap<String, String> = IndexMap::new();
+    if let NativeSources::Sources(list) = native_sources_beside(entry_file) {
+        for source in list {
+            native_sources.insert(canonical(&source), source);
+        }
+    }
 
     // Pass one: read the graph.
     let mut i = 0;
@@ -203,6 +225,7 @@ pub fn load_graph(
         )?;
     }
 
+    let mut import_modules: Vec<Vec<Option<usize>>> = Vec::new();
     let mut m = 0;
     while m < g.modules.len() {
         let file = g.modules[m].file.clone();
@@ -212,7 +235,10 @@ pub fn load_graph(
             .as_ref()
             .map(|ir| ir.imports.clone())
             .unwrap_or_default();
+        let mut links: Vec<Option<usize>> = Vec::with_capacity(imports.len());
         for imp in imports {
+            links.push(None);
+            let slot = links.len() - 1;
             let (start, length) = (imp.start as u32, imp.length as u32);
             let resolved = resolve_form(
                 &mut options.link.spec,
@@ -303,8 +329,20 @@ pub fn load_graph(
                     dump.as_deref_mut(),
                 )?;
             }
+            links[slot] = g.by_path.get(&canonical(path)).copied();
+            if let Resolution::Resolved(r) = &resolved {
+                for source in r.native.iter().flatten() {
+                    native_sources.insert(canonical(source), source.clone());
+                }
+            }
         }
+        import_modules.push(links);
         m += 1;
     }
-    Ok((g.modules, g.bounds))
+    Ok(LoadedGraph {
+        modules: g.modules,
+        bounds: g.bounds,
+        import_modules,
+        native_sources: native_sources.into_values().collect(),
+    })
 }

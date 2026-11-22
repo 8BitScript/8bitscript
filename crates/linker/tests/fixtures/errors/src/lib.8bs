@@ -1,0 +1,8 @@
+pub fn open() {
+}
+
+pub fn other() {
+}
+
+fn secret() {
+}

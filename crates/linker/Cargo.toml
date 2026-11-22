@@ -1,0 +1,22 @@
+[package]
+name = "linker"
+description = "The linker passes, ported from packages/compiler/src/linker"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+diagnostics = { path = "../diagnostics" }
+fold = { path = "../fold" }
+front = { path = "../front" }
+indexmap = { version = "2", features = ["serde"] }
+jsnum = { path = "../jsnum" }
+lower = { path = "../lower" }
+mos-ir = { path = "../mos-ir" }
+sema = { path = "../sema" }
+syntax = { path = "../syntax" }
+
+[dev-dependencies]
+oracle = { path = "../oracle" }
+serde_json = "1"

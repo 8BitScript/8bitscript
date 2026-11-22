@@ -1,0 +1,150 @@
+{
+  "diagnostics": [],
+  "modules": [
+    {
+      "bindings": [
+        [
+          "LIMIT",
+          {
+            "module": 1,
+            "name": "LIMIT"
+          }
+        ],
+        [
+          "NAME",
+          {
+            "module": 1,
+            "name": "NAME"
+          }
+        ],
+        [
+          "WIDE",
+          {
+            "module": 1,
+            "name": "WIDE"
+          }
+        ]
+      ],
+      "decls": [
+        [
+          "main",
+          true
+        ],
+        [
+          "ALIAS",
+          false
+        ],
+        [
+          "SPACE",
+          false
+        ],
+        [
+          "GREETING",
+          false
+        ]
+      ],
+      "globalsByName": [],
+      "namespaceBindings": [
+        [
+          "Palette",
+          {
+            "module": 1,
+            "name": "Palette"
+          }
+        ]
+      ],
+      "namespaces": [],
+      "ownConstTypes": [
+        [
+          "ALIAS",
+          "utinyint"
+        ],
+        [
+          "SPACE",
+          "utinyint"
+        ],
+        [
+          "GREETING",
+          "string"
+        ]
+      ],
+      "ownConsts": [
+        [
+          "ALIAS",
+          {
+            "pending": {
+              "kind": "ref",
+              "length": 5,
+              "name": "LIMIT",
+              "start": 73,
+              "type": null
+            },
+            "type": "utinyint"
+          }
+        ],
+        [
+          "SPACE",
+          32
+        ],
+        [
+          "GREETING",
+          {
+            "string": 0
+          }
+        ]
+      ]
+    },
+    {
+      "bindings": [],
+      "decls": [
+        [
+          "LIMIT",
+          true
+        ],
+        [
+          "NAME",
+          true
+        ],
+        [
+          "WIDE",
+          true
+        ]
+      ],
+      "globalsByName": [],
+      "namespaceBindings": [],
+      "namespaces": [
+        "Palette"
+      ],
+      "ownConstTypes": [
+        [
+          "LIMIT",
+          "utinyint"
+        ],
+        [
+          "NAME",
+          "string"
+        ],
+        [
+          "WIDE",
+          "usmallint"
+        ]
+      ],
+      "ownConsts": [
+        [
+          "LIMIT",
+          9
+        ],
+        [
+          "NAME",
+          {
+            "string": 0
+          }
+        ],
+        [
+          "WIDE",
+          300
+        ]
+      ]
+    }
+  ]
+}

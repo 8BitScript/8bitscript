@@ -1,0 +1,7 @@
+use @8bitscript::system::{Memory as M, Video};
+
+pub fn main() {
+    let columns: utinyint = Video::COLUMNS;
+    let ram: usmallint = M::RAM;
+    let rows: utinyint = #fact(video::rows);
+}

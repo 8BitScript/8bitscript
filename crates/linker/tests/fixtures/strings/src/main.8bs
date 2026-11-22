@@ -1,0 +1,7 @@
+let mut marker: string<4> = "-";
+const BANNER: string = "banner";
+
+pub fn main() {
+    marker = "ok";
+    marker = "sixsix";
+}

@@ -1,0 +1,13 @@
+pub let mut counter: utinyint = 0;
+
+pub fn helper() {
+    counter = counter + 1;
+}
+
+pub mod Gfx {
+    const WIDTH: utinyint = 8;
+
+    fn draw(x: utinyint) {
+        counter = x;
+    }
+}
