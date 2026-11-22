@@ -4,17 +4,15 @@
 //! A Map is `[[k, v], ...]` in the tap's encoding, so a namespace's `functions`, `consts` and
 //! `constTypes` are written as pairs here.
 //!
-//! Function bodies and call expressions are not lowered yet (R7.12). A module that reaches one is
-//! compared on what those bodies cannot change: its imports, globals and consts, and its
-//! namespaces' names and members (string table slots left out, since function bodies add strings),
-//! not its diagnostics. A differing module part is a `Mismatch`; a matching one is a `Skip`, never
-//! a `Match`. A record whose JS call threw follows R7.11 (see `replay_throw`).
+//! The whole result is compared: functions, bodies and calls are lowered. A record whose JS call
+//! threw follows R7.11 (see `replay_throw`).
 
 use front_replay::{Replay, compare};
-use serde_json::{Map, Value, json};
+use serde_json::{Value, json};
 use syntax::{Node, number_nodes};
 
-use crate::module::{Lowered, ModuleIr, lower_module};
+use crate::function::{Lowered, lower};
+use crate::module::ModuleIr;
 
 fn pairs<V: serde::Serialize>(map: &indexmap::IndexMap<String, V>) -> Value {
     Value::Array(
@@ -65,20 +63,6 @@ pub fn encode(lowered: &Lowered) -> Value {
     })
 }
 
-/// A string-table slot depends on every string the module's function bodies added before it.
-fn without_slots(value: &mut Value) {
-    match value {
-        Value::Object(fields) => {
-            if fields.contains_key("string") {
-                fields.insert("string".to_string(), Value::Null);
-            }
-            fields.values_mut().for_each(without_slots);
-        }
-        Value::Array(items) => items.iter_mut().for_each(without_slots),
-        _ => {}
-    }
-}
-
 /// R2.1: an IR integer past the `i64` range saturates in Rust, so the JS number is read the same
 /// way before the two are compared. (A message that prints the number is not touched.)
 fn saturated(value: &mut Value) {
@@ -96,18 +80,6 @@ fn saturated(value: &mut Value) {
         Value::Array(items) => items.iter_mut().for_each(saturated),
         _ => {}
     }
-}
-
-/// The part of a `lower` result that function bodies cannot change.
-fn module_part(result: &Value) -> Value {
-    let ir = result.get("ir").unwrap_or(&Value::Null);
-    let mut out = Map::new();
-    for key in ["imports", "globals", "consts", "namespaces"] {
-        let mut part = ir.get(key).cloned().unwrap_or(Value::Null);
-        without_slots(&mut part);
-        out.insert(key.to_string(), part);
-    }
-    Value::Object(out)
 }
 
 /// `lower` never throws here, so a record whose JS call threw can only be explained by a
@@ -142,7 +114,7 @@ pub fn replay(record: &Value) -> Replay {
     number_nodes(&mut ast);
     let file = args.get(1).and_then(Value::as_str).unwrap_or("<unknown>");
     let source = args.get(2).and_then(Value::as_str);
-    let lowered = lower_module(&ast, file, source);
+    let lowered = lower(&ast, file, source);
     if record.get("throw").is_some() {
         return replay_throw(record, &lowered);
     }
@@ -150,13 +122,5 @@ pub fn replay(record: &Value) -> Replay {
     saturated(&mut js);
     let js = &js;
     let got = encode(&lowered);
-    if lowered.unported_function || lowered.unported_call {
-        // R7.12: only the module part can be compared (function bodies and calls are lowered
-        // with P3-15), so a match is a Skip, never a Match.
-        return match compare(&module_part(js), &module_part(&got)) {
-            Replay::Match => Replay::Skip,
-            other => other,
-        };
-    }
     compare(js, &got)
 }

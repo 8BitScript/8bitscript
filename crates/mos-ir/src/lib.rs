@@ -19,7 +19,7 @@ pub use expr::{
 };
 pub use program::{
     ArrayElement, BackendInput, ChrPatch, FrameHook, Function, Global, GlobalInit, Hardware,
-    HardwareBuild, IrString, Param, Remark,
+    HardwareBuild, IrString, Param, Remark, StateField,
 };
 pub use stmt::{
     Asm, Assign, Block, Break, Continue, For, If, Local, MemoryWrite, PortWrite, Return, Stmt,

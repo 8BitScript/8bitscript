@@ -123,6 +123,7 @@ pub fn visit_stmt<'a>(stmt: &'a Stmt, f: &mut impl FnMut(Node<'a>) -> Flow) -> F
         Stmt::PortWrite(s) => both(&s.port, &s.value, f),
         Stmt::StringCopy(s) => both(&s.target, &s.source, f),
         Stmt::NamespaceCall(s) => visit_exprs(&s.args, f),
+        Stmt::PortRead(s) => visit_expr(&s.port, f),
     }
 }
 
@@ -151,6 +152,7 @@ pub fn visit_expr<'a>(expr: &'a Expr, f: &mut impl FnMut(Node<'a>) -> Flow) -> F
             then(flow, || visit_expr(&e.alternate, f))
         }
         Expr::PortRead(e) => visit_expr(&e.port, f),
+        Expr::PortWrite(e) => both(&e.port, &e.value, f),
         Expr::NamespaceCall(e) => visit_exprs(&e.args, f),
         Expr::Record(e) => {
             for field in &e.fields {

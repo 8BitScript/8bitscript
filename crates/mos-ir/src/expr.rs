@@ -22,6 +22,8 @@ pub enum Expr {
     NamespaceCall(NamespaceCall),
     NamespaceConst(NamespaceConst),
     Record(Record),
+    /// A `port.write(...)` in value position: the same node as the statement; no backend lowers it.
+    PortWrite(Box<crate::stmt::PortWrite>),
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
