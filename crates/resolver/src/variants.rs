@@ -370,7 +370,7 @@ pub fn choose_variant(
     None
 }
 
-/// `chooseModule` (`index.mjs:325`): the file a relative or alias specifier means.
+/// `chooseModule` (`index.mjs:296`): the file a relative or alias specifier means.
 #[must_use]
 pub fn choose_module(specifier: &str, target: &str, options: &Options) -> Option<Chosen> {
     let tags = tags_of(options);
@@ -388,17 +388,64 @@ pub fn choose_module(specifier: &str, target: &str, options: &Options) -> Option
         }
     }
     if hits.len() < 2 {
-        return hits.into_iter().next().map(|(_, chosen)| chosen);
+        let folded = folded_extensions(target);
+        if folded.len() < 2 {
+            return hits.into_iter().next().map(|(_, chosen)| chosen);
+        }
+        return Some(ambiguous(specifier, target, &folded));
     }
-    let names: Vec<String> = hits
+    let exts: Vec<&str> = hits.iter().map(|(ext, _)| *ext).collect();
+    Some(ambiguous(specifier, target, &exts))
+}
+
+fn ascii_lower(s: &str) -> String {
+    s.to_ascii_lowercase()
+}
+
+/// `foldedExtensions` (`index.mjs`): the source extensions that name a file beside `target` once
+/// case is folded (a read of the directory, so it sees `Mark.8bx` for `./mark` on any file system).
+fn folded_extensions(target: &str) -> Vec<&'static str> {
+    let dir = dirname(target);
+    let name = basename(target);
+    let fold = ascii_lower(name);
+    let Ok(read) = fs::read_dir(dir) else {
+        return Vec::new();
+    };
+    let prefix = format!("{fold}.");
+    let mut stems: Vec<String> = Vec::new();
+    for entry in read.filter_map(Result::ok) {
+        let e = entry.file_name().to_string_lossy().into_owned();
+        if ascii_lower(&e).starts_with(&prefix) {
+            // ASCII lowering keeps byte length, so the slice is on a char boundary.
+            let stem = e[..name.len()].to_string();
+            if !stems.contains(&stem) {
+                stems.push(stem);
+            }
+        }
+    }
+    SOURCE_EXTENSIONS
         .iter()
-        .map(|(ext, _)| format!("{}{ext}", basename(target)))
+        .copied()
+        .filter(|ext| {
+            stems.iter().any(|stem| {
+                let sep = if dir.ends_with('/') { "" } else { "/" };
+                let file = format!("{dir}{sep}{stem}{ext}");
+                exists(&file) || !variants_present(&file).is_empty()
+            })
+        })
+        .collect()
+}
+
+fn ambiguous(specifier: &str, target: &str, exts: &[&str]) -> Chosen {
+    let names: Vec<String> = exts
+        .iter()
+        .map(|ext| format!("{}{ext}", basename(target)))
         .collect();
-    Some(Chosen::Failed {
+    Chosen::Failed {
         code: codes::AMBIGUOUS_IMPORT,
         message: format!(
             "'{specifier}' names more than one file ({}) — keep one, or write the extension in a string path to choose",
             names.join(", ")
         ),
-    })
+    }
 }

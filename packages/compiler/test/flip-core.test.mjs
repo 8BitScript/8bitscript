@@ -170,6 +170,19 @@ test('resolver: none found is 8BS2004, two or more is 8BS2217', () => {
   assert.equal(resolveSpecifier('./both.8bx', from).path, join(root, 'both.8bx'));
 });
 
+test('resolver: names that differ only in case are ambiguous on every file system', () => {
+  const root = tree({ 'main.8bs': '', 'Mark.8bx': '', 'mark.8bg': '' });
+  const found = resolveSpecifier('./mark', join(root, 'main.8bs'), PATH);
+  assert.equal(found.code, '8BS2217');
+  assert.match(found.message, /mark\.8bx, mark\.8bg/);
+  const twins = tree({ 'main.8bs': '', 'Twin.c64.8bs': '', 'twin.8bx': '' });
+  const twin = resolveSpecifier('./twin', join(twins, 'main.8bs'), { ...PATH, machine: 'c64' });
+  assert.equal(twin.code, '8BS2217');
+  assert.match(twin.message, /twin\.8bs, twin\.8bx/);
+  const one = tree({ 'main.8bs': '', 'Geo.8bs': '' });
+  assert.notEqual(resolveSpecifier('./geo', join(one, 'main.8bs'), PATH)?.code, '8BS2217');
+});
+
 test('resolver: a specifier that is not a module name is left alone', () => {
   const root = tree({ 'main.8bs': '' });
   assert.equal(resolveSpecifier('./data.json', join(root, 'main.8bs')), null);
