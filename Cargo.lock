@@ -81,6 +81,7 @@ dependencies = [
  "jsnum",
  "lexer",
  "lower",
+ "media",
  "parser",
  "resolver",
  "sema",
@@ -514,7 +515,9 @@ name = "xtask"
 version = "0.0.0"
 dependencies = [
  "bx",
+ "diagnostics",
  "fold",
+ "front",
  "front-replay",
  "i18n",
  "lower",
@@ -525,6 +528,7 @@ dependencies = [
  "resolver",
  "sema",
  "serde_json",
+ "syntax",
 ]
 
 [[package]]

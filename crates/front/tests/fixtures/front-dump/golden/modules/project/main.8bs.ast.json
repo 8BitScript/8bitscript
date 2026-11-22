@@ -1,0 +1,47 @@
+{
+  "body": [
+    {
+      "length": 25,
+      "source": {
+        "length": 12,
+        "start": 4,
+        "type": "StringLiteral",
+        "value": "./Window"
+      },
+      "specifiers": [
+        {
+          "length": 6,
+          "name": "Window",
+          "start": 18,
+          "type": "Identifier"
+        }
+      ],
+      "start": 0,
+      "type": "ImportDeclaration",
+      "usePath": true
+    },
+    {
+      "body": {
+        "body": [],
+        "length": 3,
+        "start": 41,
+        "type": "BlockStatement"
+      },
+      "exported": true,
+      "length": 17,
+      "name": {
+        "length": 4,
+        "name": "main",
+        "start": 34,
+        "type": "Identifier"
+      },
+      "params": [],
+      "returnType": null,
+      "start": 27,
+      "type": "FunctionDeclaration"
+    }
+  ],
+  "length": 45,
+  "start": 0,
+  "type": "Program"
+}

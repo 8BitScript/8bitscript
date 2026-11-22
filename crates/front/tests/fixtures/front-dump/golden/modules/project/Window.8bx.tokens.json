@@ -1,0 +1,275 @@
+[
+  {
+    "kind": "comment",
+    "length": 91,
+    "start": 0,
+    "text": "// A slotted component: two lets before the slot, and a parameter default. The fold reports"
+  },
+  {
+    "kind": "comment",
+    "length": 96,
+    "start": 92,
+    "text": "// each let's initializer once, and the default three times (the whole, the opening half and the"
+  },
+  {
+    "kind": "comment",
+    "length": 41,
+    "start": 189,
+    "text": "// closing half each carry a copy of it)."
+  },
+  {
+    "kind": "keyword",
+    "length": 3,
+    "start": 231,
+    "text": "pub"
+  },
+  {
+    "kind": "keyword",
+    "length": 9,
+    "start": 235,
+    "text": "component"
+  },
+  {
+    "kind": "identifier",
+    "length": 6,
+    "start": 245,
+    "text": "Window"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 251,
+    "text": "("
+  },
+  {
+    "kind": "identifier",
+    "length": 5,
+    "start": 252,
+    "text": "width"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 257,
+    "text": ":"
+  },
+  {
+    "kind": "type",
+    "length": 4,
+    "start": 259,
+    "text": "uint"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 264,
+    "text": "="
+  },
+  {
+    "kind": "compileTime",
+    "length": 7,
+    "start": 266,
+    "text": "#frames"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 273,
+    "text": "("
+  },
+  {
+    "denominator": 1000,
+    "isDecimal": true,
+    "kind": "number",
+    "length": 5,
+    "numerator": 1001,
+    "radix": 10,
+    "start": 274,
+    "text": "1.001",
+    "value": 1.001
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 279,
+    "text": ","
+  },
+  {
+    "kind": "identifier",
+    "length": 7,
+    "start": 281,
+    "text": "seconds"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 288,
+    "text": ")"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 289,
+    "text": ")"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 291,
+    "text": "{"
+  },
+  {
+    "kind": "keyword",
+    "length": 3,
+    "start": 297,
+    "text": "let"
+  },
+  {
+    "kind": "identifier",
+    "length": 1,
+    "start": 301,
+    "text": "a"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 302,
+    "text": ":"
+  },
+  {
+    "kind": "type",
+    "length": 4,
+    "start": 304,
+    "text": "uint"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 309,
+    "text": "="
+  },
+  {
+    "kind": "compileTime",
+    "length": 7,
+    "start": 311,
+    "text": "#frames"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 318,
+    "text": "("
+  },
+  {
+    "denominator": 1000,
+    "isDecimal": true,
+    "kind": "number",
+    "length": 5,
+    "numerator": 1001,
+    "radix": 10,
+    "start": 319,
+    "text": "1.001",
+    "value": 1.001
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 324,
+    "text": ","
+  },
+  {
+    "kind": "identifier",
+    "length": 7,
+    "start": 326,
+    "text": "seconds"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 333,
+    "text": ")"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 334,
+    "text": ";"
+  },
+  {
+    "kind": "keyword",
+    "length": 3,
+    "start": 340,
+    "text": "let"
+  },
+  {
+    "kind": "identifier",
+    "length": 1,
+    "start": 344,
+    "text": "b"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 345,
+    "text": ":"
+  },
+  {
+    "kind": "type",
+    "length": 4,
+    "start": 347,
+    "text": "uint"
+  },
+  {
+    "kind": "operator",
+    "length": 1,
+    "start": 352,
+    "text": "="
+  },
+  {
+    "denominator": 10,
+    "isDecimal": true,
+    "kind": "number",
+    "length": 3,
+    "numerator": 15,
+    "radix": 10,
+    "start": 354,
+    "text": "1.5",
+    "value": 1.5
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 357,
+    "text": ";"
+  },
+  {
+    "kind": "bxTagOpen",
+    "length": 1,
+    "start": 363,
+    "text": "<"
+  },
+  {
+    "kind": "identifier",
+    "length": 4,
+    "start": 364,
+    "text": "slot"
+  },
+  {
+    "kind": "bxSelfClose",
+    "length": 2,
+    "start": 369,
+    "text": "/>"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 371,
+    "text": ";"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 373,
+    "text": "}"
+  }
+]

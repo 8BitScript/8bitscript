@@ -1,0 +1,86 @@
+[
+  {
+    "kind": "keyword",
+    "length": 3,
+    "start": 0,
+    "text": "use"
+  },
+  {
+    "kind": "keyword",
+    "length": 4,
+    "start": 4,
+    "text": "self"
+  },
+  {
+    "kind": "operator",
+    "length": 2,
+    "start": 8,
+    "text": "::"
+  },
+  {
+    "kind": "identifier",
+    "length": 6,
+    "start": 10,
+    "text": "Window"
+  },
+  {
+    "kind": "operator",
+    "length": 2,
+    "start": 16,
+    "text": "::"
+  },
+  {
+    "kind": "identifier",
+    "length": 6,
+    "start": 18,
+    "text": "Window"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 24,
+    "text": ";"
+  },
+  {
+    "kind": "keyword",
+    "length": 3,
+    "start": 27,
+    "text": "pub"
+  },
+  {
+    "kind": "keyword",
+    "length": 2,
+    "start": 31,
+    "text": "fn"
+  },
+  {
+    "kind": "identifier",
+    "length": 4,
+    "start": 34,
+    "text": "main"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 38,
+    "text": "("
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 39,
+    "text": ")"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 41,
+    "text": "{"
+  },
+  {
+    "kind": "punctuation",
+    "length": 1,
+    "start": 43,
+    "text": "}"
+  }
+]

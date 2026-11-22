@@ -9,8 +9,10 @@ use std::path::Path;
 #[derive(Debug, Default)]
 pub struct Report {
     pub lines: Vec<String>,
-    /// `backend-input.json` files read.
+    /// `backend-input.json` and module `.ir.json` files read.
     pub files: usize,
+    /// Of `files`, the module IR dumps (`modules/**/*.ir.json`).
+    pub module_ir: usize,
     pub ok: usize,
     pub errors: usize,
     /// Build folders whose `manifest.json` lists no `backend-input` stage
@@ -21,8 +23,8 @@ pub struct Report {
 impl Report {
     pub fn summary(&self) -> String {
         format!(
-            "roundtrip: {} files, {} OK, {} ERROR, {} without backend-input per manifest",
-            self.files, self.ok, self.errors, self.not_expected
+            "roundtrip: {} files, {} OK, {} ERROR, {} without backend-input per manifest, {} module-ir",
+            self.files, self.ok, self.errors, self.not_expected, self.module_ir
         )
     }
 
@@ -34,6 +36,11 @@ impl Report {
         self.errors += 1;
         self.lines
             .push(format!("ERROR {id} backend-input {detail}"));
+    }
+
+    fn module_ir_error(&mut self, rel: &str, detail: &str) {
+        self.errors += 1;
+        self.lines.push(format!("ERROR {rel} module-ir {detail}"));
     }
 }
 
@@ -47,6 +54,23 @@ fn manifest_expects(path: &Path) -> Result<bool, String> {
         .and_then(serde_json::Value::as_array)
         .ok_or("manifest.json has no stages array")?;
     Ok(stages.iter().any(|s| s.as_str() == Some("backend-input")))
+}
+
+/// A module IR dump read into `lower::module::ModuleIr` and written back canonically.
+fn module_ir_roundtrip(text: &str) -> Result<(), String> {
+    let ir: lower::module::ModuleIr = serde_json::from_str(text).map_err(|e| e.to_string())?;
+    let value = serde_json::to_value(&ir).map_err(|e| e.to_string())?;
+    let again = oracle::canonical_json(&value);
+    if again == text {
+        return Ok(());
+    }
+    let line = again
+        .lines()
+        .zip(text.lines())
+        .position(|(a, b)| a != b)
+        .unwrap_or_else(|| again.lines().count().min(text.lines().count()))
+        + 1;
+    Err(format!("bytes differ at line {line}"))
 }
 
 /// Round-trips every `backend-input` file under `dir`, and checks that every
@@ -64,7 +88,19 @@ pub fn run(dir: &Path) -> Result<Report, String> {
     let mut report = Report::default();
     let mut builds: BTreeMap<&str, (Option<&Path>, Option<&Path>)> = BTreeMap::new();
     for (rel, file) in &tree {
-        if file.id == "fe" || file.id.starts_with("fe/") {
+        if rel.contains("/modules/") && rel.ends_with(".ir.json") {
+            report.files += 1;
+            report.module_ir += 1;
+            match fs::read_to_string(&file.path)
+                .map_err(|e| format!("cannot read: {e}"))
+                .and_then(|text| module_ir_roundtrip(&text))
+            {
+                Ok(()) => report.ok += 1,
+                Err(detail) => report.module_ir_error(rel, &detail),
+            }
+        }
+        // `fe/` is the front end's own dumps; a file at the root (`sha256.txt`) belongs to no build.
+        if file.id.is_empty() || file.id == "fe" || file.id.starts_with("fe/") {
             continue;
         }
         let entry = builds.entry(file.id.as_str()).or_default();
@@ -161,6 +197,29 @@ mod tests {
         let report = run(&dir).unwrap();
         assert_eq!(report.errors, 1);
         assert!(report.lines[0].contains("bytes differ at line"));
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn module_ir_dumps_round_trip_and_a_stray_field_is_an_error() {
+        let dir = scratch("module-ir");
+        let golden = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../crates/front/tests/fixtures/front-dump/golden/modules/project");
+        let text = fs::read_to_string(golden.join("Window.8bx.ir.json")).unwrap();
+        write(&dir.join("p/c64/modules/project/Window.8bx.ir.json"), &text);
+        write(&dir.join("sha256.txt"), "0\n");
+        let report = run(&dir).unwrap();
+        assert_eq!((report.module_ir, report.ok), (1, 1), "{:?}", report.lines);
+        let bad = text.replacen("\"consts\"", "\"surprise\": 1,\n  \"consts\"", 1);
+        write(&dir.join("p/c64/modules/project/Window.8bx.ir.json"), &bad);
+        let report = run(&dir).unwrap();
+        assert!(
+            report.lines.iter().any(|l| l
+                .starts_with("ERROR p/c64/modules/project/Window.8bx.ir.json module-ir ")
+                && l.contains("surprise")),
+            "{:?}",
+            report.lines
+        );
         let _ = fs::remove_dir_all(&dir);
     }
 

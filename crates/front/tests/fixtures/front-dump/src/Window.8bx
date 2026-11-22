@@ -1,0 +1,8 @@
+// A slotted component: two lets before the slot, and a parameter default. The fold reports
+// each let's initializer once, and the default three times (the whole, the opening half and the
+// closing half each carry a copy of it).
+pub component Window(width: uint = #frames(1.001, seconds)) {
+    let a: uint = #frames(1.001, seconds);
+    let b: uint = 1.5;
+    <slot />;
+}

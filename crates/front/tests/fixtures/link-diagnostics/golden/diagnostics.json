@@ -1,0 +1,26 @@
+[
+  {
+    "code": "8BS1101",
+    "file": "<project>/main.8bs",
+    "length": 1,
+    "message": "expected '::', found ';'",
+    "severity": "error",
+    "start": 17
+  },
+  {
+    "code": "8BS1101",
+    "file": "<project>/main.8bs",
+    "length": 1,
+    "message": "expected an imported name, found ';'",
+    "severity": "error",
+    "start": 17
+  },
+  {
+    "code": "8BS3001",
+    "file": "<project>/main.8bs",
+    "length": 18,
+    "message": "import specifier './thing.txt' is not linkable yet: only './file.8bs', './file.8bx', './file.8bg' or './file.8ba' paths, project import aliases ('@lib/…' from 8bitscript.config.ts), bare package names, and package subpaths ('@scope/name/thing') are specified",
+    "severity": "error",
+    "start": 0
+  }
+]

@@ -43,3 +43,10 @@
 #     FLAC_NEEDS_FFMPEG code survives.
 #   - a WAV with zero channels is an error, and slice_frames with a frame
 #     size of 0 returns no frames; accepted: JS does not terminate.
+#
+# front: R1.10/R0.4: crates/front/src/module.rs finish_module pre_elaboration: a definer that
+#   finishes before a module that imports it is shown to that module's `elaborateBx` by its
+#   JS tree after its own elaboration and fold, so a shared default value is already fold-
+#   rewritten there; Rust keeps the pre-elaboration snapshot (R1.10) and sees the unrewritten
+#   value. No corpus module reaches it (the `module-ir` compare is clean over 20918 files);
+#   a fix needs the finished tree kept per module beside the snapshot.
