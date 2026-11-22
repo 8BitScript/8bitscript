@@ -363,6 +363,7 @@ pub fn resolve_initialiser(
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Result<f64, Unported> {
     let file = file_of(graph, module);
+    // Before the rewrite the expression still has its own span.
     let (start, length) = span_of(expr);
     let at = |diagnostics: &mut Vec<Diagnostic>, code: &str, message: String| {
         diagnostics.push(diagnostic(
@@ -413,30 +414,53 @@ pub fn resolve_initialiser(
     if diagnostics.len() > before {
         return Ok(0.0);
     }
-    let Expr::Const(c) = &*expr else {
+    Ok(check_initialiser(expr, g_type, file, diagnostics))
+}
+
+/// The half of `resolveInitialiser` after the rewrite. JS reads `expr.start` when it reports, and
+/// the rewrite drops the span of a const it inlines, so a report here is at 0 + 0 for a const and
+/// at the expression's own span otherwise.
+pub fn check_initialiser(
+    expr: &Expr,
+    g_type: &str,
+    file: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> f64 {
+    let (start, length) = span_of(expr);
+    let mut at = |code: &str, message: String| {
+        diagnostics.push(diagnostic(
+            code,
+            message,
+            file,
+            span(start),
+            span(length),
+            Severity::Error,
+        ));
+    };
+    let Expr::Const(c) = expr else {
         at(
-            diagnostics,
             codes::NOT_COMPILABLE,
             "an initializer is a literal or a const".to_string(),
         );
-        return Ok(0.0);
+        return 0.0;
     };
     let range = if g_type == "bool" {
         Some((0, 1))
     } else {
         resolve_integer_type(g_type).map(|t| (t.min, t.max))
     };
-    if let Some((min, max)) = range
-        && (c.value < min || c.value > max)
-    {
+    // JS throws on the bounds of a type that is not an integer type (R7.8, recorded).
+    let Some((min, max)) = range else {
+        return 0.0;
+    };
+    if c.value < min || c.value > max {
         at(
-            diagnostics,
             codes::VALUE_OUT_OF_RANGE,
             format!("{} does not fit in {g_type} ({min}..{max})", c.value),
         );
-        return Ok(0.0);
+        return 0.0;
     }
-    Ok(c.value as f64)
+    c.value as f64
 }
 
 /// `constExpression`: a const's inlined value as an IR expression: a string slot, or a number

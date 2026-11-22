@@ -9,7 +9,8 @@ use common::{
 use diagnostics::Severity;
 use indexmap::IndexMap;
 use linker::consts::{
-    Callee, complete_call, const_expression, resolve_initialiser, resolve_pending_consts,
+    Callee, check_initialiser, complete_call, const_expression, resolve_initialiser,
+    resolve_pending_consts,
 };
 use linker::imports::rewrite_array_access;
 use linker::scope::Scope;
@@ -278,4 +279,149 @@ fn a_call_is_filled_from_the_defaults_and_typed() {
     assert_eq!(c.ty, jsnum::Nullable::Null);
     complete_call(&mut c, None, None, "x.8bs", &mut found);
     assert!(found.is_empty());
+}
+
+#[test]
+fn a_report_after_the_rewrite_is_at_the_span_the_rewrite_left() {
+    // An inlined const has no span of its own (JS deletes start and length), so the range
+    // report lands at 0 + 0.
+    let mut diagnostics = Vec::new();
+    let big = Expr::Const(Const {
+        value: 300,
+        ty: None,
+    });
+    assert_eq!(
+        check_initialiser(&big, "utinyint", "f.8bs", &mut diagnostics),
+        0.0
+    );
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(
+        diagnostics[0].message,
+        "300 does not fit in utinyint (0..255)"
+    );
+    assert_eq!((diagnostics[0].start, diagnostics[0].length), (0, 0));
+    // An expression that is still not a const keeps the span it had.
+    let mut diagnostics = Vec::new();
+    let left = reference("X");
+    assert_eq!(
+        check_initialiser(&left, "utinyint", "f.8bs", &mut diagnostics),
+        0.0
+    );
+    assert_eq!(
+        diagnostics[0].message,
+        "an initializer is a literal or a const"
+    );
+    assert_eq!((diagnostics[0].start, diagnostics[0].length), (3, 4));
+    // A value in range is the value, and a type with no bounds is a no-op result.
+    let mut diagnostics = Vec::new();
+    let nine = Expr::Const(Const { value: 9, ty: None });
+    assert_eq!(
+        check_initialiser(&nine, "utinyint", "f.8bs", &mut diagnostics),
+        9.0
+    );
+    assert_eq!(
+        check_initialiser(&nine, "string", "f.8bs", &mut diagnostics),
+        0.0
+    );
+    assert!(diagnostics.is_empty());
+}
+
+fn pending(expr: Expr) -> ConstValue {
+    ConstValue::Pending {
+        pending: Box::new(expr),
+        ty: "utinyint".to_string(),
+    }
+}
+
+/// The consts fixture with every pending const replaced by the ones a test names, so nothing
+/// reaches the rewrite stub unless the test wants it to.
+fn only_pending(l: &mut common::Loaded, own: Vec<(&str, Expr)>) {
+    for side in &mut l.sides {
+        side.own_consts.retain(|_, v| !v.is_pending());
+        for ns in side.namespaces.values_mut() {
+            ns.consts.retain(|_, v| !v.is_pending());
+        }
+    }
+    for (name, expr) in own {
+        l.sides[0]
+            .own_consts
+            .insert(name.to_string(), pending(expr));
+    }
+}
+
+#[test]
+fn a_pending_const_naming_nothing_is_unresolved() {
+    let (mut l, _) = prepare("consts");
+    only_pending(&mut l, vec![("BAD", reference("ghost"))]);
+    let mut diagnostics = Vec::new();
+    assert_eq!(
+        resolve_pending_consts(&l.graph, &mut l.sides, &mut diagnostics),
+        Ok(())
+    );
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0].message, "cannot find name 'ghost'");
+    assert_eq!((diagnostics[0].start, diagnostics[0].length), (3, 4));
+    assert_eq!(l.sides[0].own_consts["BAD"], ConstValue::Number(0.0));
+}
+
+#[test]
+fn a_pending_const_naming_an_import_that_is_not_a_const_is_refused() {
+    let (mut l, _) = prepare("consts");
+    only_pending(&mut l, vec![("BAD", reference("LIMIT"))]);
+    // `LIMIT` stays bound in module 0 but its target no longer holds a const of that name.
+    let target = l.sides[0].bindings.as_ref().unwrap()["LIMIT"].module;
+    l.sides[target].own_consts.shift_remove("LIMIT");
+    let mut diagnostics = Vec::new();
+    assert_eq!(
+        resolve_pending_consts(&l.graph, &mut l.sides, &mut diagnostics),
+        Ok(())
+    );
+    assert_eq!(
+        diagnostics[0].message,
+        "'LIMIT' is not a const, so it cannot initialize a const"
+    );
+}
+
+#[test]
+fn a_pending_const_waits_for_the_one_it_names() {
+    let (mut l, _) = prepare("consts");
+    // `FIRST` names `SECOND`, which is still pending on the first pass and unresolved on its
+    // own. `FIRST` is only looked at once `SECOND` has a value, and then it reaches the stub.
+    only_pending(
+        &mut l,
+        vec![
+            ("FIRST", reference("SECOND")),
+            ("SECOND", reference("ghost")),
+        ],
+    );
+    let mut diagnostics = Vec::new();
+    assert_eq!(
+        resolve_pending_consts(&l.graph, &mut l.sides, &mut diagnostics),
+        Err(Unported)
+    );
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0].message, "cannot find name 'ghost'");
+    assert_eq!(l.sides[0].own_consts["SECOND"], ConstValue::Number(0.0));
+}
+
+#[test]
+fn consts_that_name_each_other_are_a_cycle() {
+    let (mut l, _) = prepare("consts");
+    only_pending(&mut l, vec![("A", reference("B")), ("B", reference("A"))]);
+    let mut diagnostics = Vec::new();
+    assert_eq!(
+        resolve_pending_consts(&l.graph, &mut l.sides, &mut diagnostics),
+        Ok(())
+    );
+    let messages: Vec<&str> = diagnostics.iter().map(|d| d.message.as_str()).collect();
+    assert_eq!(
+        messages,
+        [
+            "'A' is a const whose value depends on itself, through the consts it names",
+            "'B' is a const whose value depends on itself, through the consts it names",
+        ]
+    );
+    assert_eq!((diagnostics[0].start, diagnostics[0].length), (3, 4));
+    assert_eq!(l.sides[0].own_consts["A"], ConstValue::Number(0.0));
+    assert_eq!(l.sides[0].own_consts["B"], ConstValue::Number(0.0));
 }
