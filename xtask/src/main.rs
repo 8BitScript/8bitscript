@@ -1,4 +1,4 @@
-//! Repo automation entry point: `compare`, `roundtrip` and `wasm`.
+//! Repo automation entry point: `compare`, `roundtrip`, `wasm`, `tap` and `corpus-tap`.
 
 mod roundtrip;
 mod wasm;
@@ -6,7 +6,7 @@ mod wasm;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-const USAGE: &str = "usage: cargo xtask compare <js-dir> <other-dir> [--stages a,b] [--corpus <glob>] [--divergences <file>]\n       cargo xtask roundtrip <dump-dir>\n       cargo xtask wasm [--out <file> | --check]\n       cargo xtask tap <dir> [--fn <name>]\n       cargo xtask front-dump <out> --toolchain <dir> [--game <id>=<dir>]... [--builds <tap dir>] [--release-of <js dump dir>]";
+const USAGE: &str = "usage: cargo xtask compare <js-dir> <other-dir> [--stages a,b] [--corpus <glob>] [--divergences <file>]\n       cargo xtask roundtrip <dump-dir>\n       cargo xtask wasm [--out <file> | --check]\n       cargo xtask tap <dir> [--front] [--fn <name>]\n       cargo xtask corpus-tap <out-dir> [--front] [--fn <name>]... [--jobs N]\n       cargo xtask front-dump <out> --toolchain <dir> [--game <id>=<dir>]... [--builds <tap dir>] [--release-of <js dump dir>]";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -26,6 +26,13 @@ fn main() -> ExitCode {
             }
         },
         Some("tap") => match xtask::tap::command(&args[1..]) {
+            Ok(code) => ExitCode::from(code),
+            Err(message) => {
+                eprintln!("xtask: {message}");
+                ExitCode::from(2)
+            }
+        },
+        Some("corpus-tap") => match xtask::corpus_tap::command(&args[1..]) {
             Ok(code) => ExitCode::from(code),
             Err(message) => {
                 eprintln!("xtask: {message}");
