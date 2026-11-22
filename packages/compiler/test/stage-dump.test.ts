@@ -175,9 +175,29 @@ test('mos stages: size-report only with report, and a plain build with debug and
       const result = await buildMos(linked.ir as IrProgram, { machine: 'c64', hardware, frameRate: 60, report, debug: true, remarks: true, sources: linked.sources, outFile, dump: rec.dump });
       assert.ok(result.ok);
       assert.equal(rec.stages().includes('size-report'), report);
+      assert.deepEqual(rec.stages(), ['backend-input', 'link', 'bytes', ...(report ? ['size-report'] : []), 'debug', 'listing', 'remarks']);
+      assert.deepEqual(rec.events.at(-3)?.value, result.debugMap);
+      assert.deepEqual(rec.events.at(-2)?.value, result.listing);
+      assert.deepEqual(rec.events.at(-1)?.value, result.remarks);
       const input = rec.events[0].value as { report: boolean; debug: boolean; remarks: boolean };
       assert.deepEqual([input.report, input.debug, input.remarks], [report, true, true]);
     }
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+test('mos build without debug and remarks emits neither stage', async () => {
+  const resolved = resolveHardware(loadCatalog('c64'), {});
+  assert.ok(resolved.ok);
+  const hardware = resolved.hardware as unknown as BuildOptions['hardware'];
+  const linked = link(HELLO, FILE, { machine: 'c64', facts: resolved.hardware.facts });
+  const scratch = await mkdtemp(join(tmpdir(), '8bs-stage-dump-'));
+  try {
+    const rec = recorder();
+    const result = await buildMos(linked.ir as IrProgram, { machine: 'c64', hardware, frameRate: 60, outFile: join(scratch, 'p.prg'), dump: rec.dump });
+    assert.ok(result.ok);
+    assert.deepEqual(rec.stages(), ['backend-input', 'link', 'bytes']);
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }
