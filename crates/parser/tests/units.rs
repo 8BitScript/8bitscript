@@ -112,11 +112,122 @@ fn e11_match_in_expression() {
 }
 
 #[test]
-fn e12_macros_and_tests() {
-    let text = "tests come with '8bs test'";
-    exact("assert!(a);", &[text]);
-    exact("#[test]\nfn t() {}", &[text]);
-    exact("#[cfg(test)]\nfn t() {}", &[text]);
+fn e12_macros() {
+    exact("assert!(a);", &["tests come with '8bs test'"]);
+}
+
+const M1: &str = "'#[test]' goes on a top-level 'fn' or a 'fn' inside '#[cfg(test)] mod'";
+const M2: &str = "a test function takes no parameters and returns nothing";
+const M3: &str = "'#[cfg(test)]' goes on a top-level 'mod'";
+const M4: &str = "'#[test]' takes one string: the test's name";
+const M5: &str = "a test function is not 'pub'";
+const M6: &str = "a test function takes no other attributes";
+
+fn test_decls(text: &str) -> Vec<(String, u32, u32)> {
+    let parsed = parse_text(text);
+    nodes(&parsed.ast)
+        .into_iter()
+        .filter_map(|n| match &n.kind {
+            syntax::NodeKind::TestDecl { name, .. } => Some((name.clone(), n.start, n.length)),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn test_functions_become_test_declarations() {
+    clean("#[test]\nfn t() {}");
+    assert_eq!(
+        test_decls("#[test]\nfn adds_two() {}"),
+        [("adds two".to_string(), 0, 24)]
+    );
+    assert_eq!(
+        test_decls("#[test(\"named\")]\nfn t() { }"),
+        [("named".to_string(), 0, 27)]
+    );
+    clean("#[test(\"named\")]\nfn t() {}");
+    clean("#[cfg(test)]\nmod tests { #[test] fn a() {} #[test] fn b() {} }");
+    assert_eq!(
+        test_decls("#[cfg(test)]\nmod tests { #[test] fn a_b() {} }").len(),
+        1
+    );
+}
+
+#[test]
+fn m1_test_on_anything_else() {
+    exact("#[test]\nlet x = 1;", &[M1]);
+    exact("#[test]\nmod m { fn f() {} }", &[M1]);
+    exact("mod m { #[test] fn f() {} }", &[M1]);
+    exact("fn f() {\n#[test]\nlet x = 1;\n}", &[M1]);
+    assert!(test_decls("mod m { #[test] fn f() {} }").is_empty());
+}
+
+#[test]
+fn m2_parameters_or_return_type() {
+    exact("#[test]\nfn t(a: u8) {}", &[M2]);
+    exact("#[test]\nfn t() -> u8 { return 1; }", &[M2]);
+    assert!(test_decls("#[test]\nfn t(a: u8) {}").is_empty());
+}
+
+#[test]
+fn m3_cfg_test_elsewhere() {
+    exact("#[cfg(test)]\nfn t() {}", &[M3]);
+    exact("#[cfg(test)]\nlet x = 1;", &[M3]);
+    exact("mod m { #[cfg(test)] fn f() {} }", &[M3]);
+    exact("#[cfg(test)]\nmod tests { #[cfg(test)] fn f() {} }", &[M3]);
+}
+
+#[test]
+fn m4_test_takes_one_string() {
+    exact("#[test(1)]\nfn t() {}", &[M4]);
+    exact("#[test(\"a\", \"b\")]\nfn t() {}", &[M4]);
+    exact("#[test(a)]\nfn t() {}", &[M4]);
+}
+
+#[test]
+fn m5_test_is_not_pub() {
+    exact("#[test]\npub fn t() {}", &[M5]);
+}
+
+#[test]
+fn m6_no_other_attributes() {
+    exact("#[test]\n#[inline]\nfn t() {}", &[M6]);
+    exact("#[cfg(test)]\n#[test]\nfn t() {}", &[M6]);
+}
+
+#[test]
+fn test_checks_run_in_the_order_m6_m4_m2_m5() {
+    exact("#[test(1)]\n#[inline]\npub fn t(a: u8) {}", &[M6]);
+    exact("#[test(1)]\npub fn t(a: u8) {}", &[M4]);
+    exact("#[test]\npub fn t(a: u8) {}", &[M2]);
+}
+
+#[test]
+fn test_message_spans_are_the_attribute() {
+    let parsed = parse_text("let a = 1;\n#[test]\nfn t(a: u8) {}");
+    assert_eq!(parsed.diagnostics.len(), 1);
+    let d = &parsed.diagnostics[0];
+    assert_eq!((d.start, d.length), (11, 7));
+}
+
+#[test]
+fn test_stays_an_ordinary_word() {
+    clean("let test = 1;");
+    clean("test(x);");
+    clean("fn test() {}");
+}
+
+#[test]
+fn strip_tests_removes_tests_and_test_mods() {
+    let mut parsed = parse_text(
+        "fn keep() {}\n#[test]\nfn a() {}\n#[cfg(test)]\nmod tests { #[test] fn x() {} }\nmod real { fn f() {} }",
+    );
+    parser::strip_tests(&mut parsed.ast);
+    let syntax::NodeKind::Program { body } = &parsed.ast.kind else {
+        panic!("not a program");
+    };
+    let kinds: Vec<&str> = body.iter().map(|n| n.type_name()).collect();
+    assert_eq!(kinds, ["FunctionDeclaration", "NamespaceDeclaration"]);
 }
 
 #[test]
