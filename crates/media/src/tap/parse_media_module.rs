@@ -1,5 +1,8 @@
 //! Tap replay for `parseMediaModule` (`packages/compiler/src/media/index.mjs`).
 //!
+//! The call reads nothing from disk, so a record replays whether or not the path roots are known:
+//! a path token in `file` or in a diagnostic comes back unchanged.
+//!
 //! `args` is `[file, text, diagnostics, sourceKind]` as they were before the call. `result` is
 //! the module `{file, text, tokens, ast: null, bound, media}`, with `bound` an empty
 //! `{symbols, diagnostics, imports}`. `after` is the diagnostics array the call appended to.
@@ -9,7 +12,7 @@ use serde_json::{Value, json};
 
 use crate::{MediaModule, parse_media_module};
 use diagnostics::Diagnostic;
-use resolver::tap::roots::{missing_root, roots, tokenize, untokenize};
+use resolver::tap::roots::{roots, tokenize, untokenize};
 
 /// The module as the JS builds it: the port's fields plus `ast: null` and an empty `bound`.
 #[must_use]
@@ -38,9 +41,6 @@ pub fn run(
 #[must_use]
 pub fn replay(record: &Value) -> Replay {
     let roots = roots();
-    if missing_root(record, &roots) {
-        return Replay::Skip;
-    }
     let Some(args) = record
         .get("args")
         .map(|a| untokenize(a, &roots))
