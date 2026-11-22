@@ -369,13 +369,24 @@ pub fn resolve_conditional_entry(
 
     for branch_machine in keys_in_order(entry) {
         let value = &entry[branch_machine];
-        // `{ ...options, machine: branchMachine }` shares the options object: swap the machine in
-        // and back out.
-        let saved = options.base.machine.replace(branch_machine.to_string());
+        // `{ ...options, machine: branchMachine }` is a copy that shares the catalog options
+        // object: what the branch prepares on an existing one reaches the caller, a catalog
+        // options object it creates stays on the copy.
+        let had_catalog_options = options.i18n.is_some();
+        let mut branch = options.clone();
+        branch.base.machine = Some(branch_machine.to_string());
         let mut copy = seen.clone();
-        let resolved =
-            resolve_entry_value(specifier, package_dir, value, options, &mut copy, native);
-        options.base.machine = saved;
+        let resolved = resolve_entry_value(
+            specifier,
+            package_dir,
+            value,
+            &mut branch,
+            &mut copy,
+            native,
+        );
+        if had_catalog_options {
+            options.i18n = branch.i18n;
+        }
         let resolved = resolved?;
         if let Some(code) = resolved.code() {
             return Ok(Resolution::failed(
@@ -437,5 +448,38 @@ mod tests {
         assert_eq!(package_dir_in_checkout("/c", "@8bitscript/"), None);
         assert_eq!(package_dir_in_checkout("/c", "@8bitscript/a/b"), None);
         assert_eq!(package_dir_in_checkout("/nope", "@8bitscript/c64"), None);
+    }
+
+    #[test]
+    fn conditional_entry_leaves_the_callers_catalog_options_alone() {
+        let base = fs::canonicalize(std::env::temp_dir()).unwrap();
+        let root = base.join(format!("resolver-conditional-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let i18n_dir = root.join("proj/src/i18n");
+        fs::create_dir_all(&i18n_dir).unwrap();
+        fs::write(
+            i18n_dir.join("en.8bs"),
+            "pub mod Game {\n    const NAME: string = \"x\";\n}\n",
+        )
+        .unwrap();
+        fs::create_dir_all(root.join("proj/pkg")).unwrap();
+        let package_dir = root.join("proj/pkg").to_string_lossy().into_owned();
+        let entry: IndexMap<String, Json> = IndexMap::from([(
+            "c64".to_string(),
+            Json::String(i18n::CATALOG_SPECIFIER.to_string()),
+        )]);
+
+        // No catalog options on the caller: the branch builds them on its copy only.
+        let mut options = SpecifierOptions::default();
+        let before = options.clone();
+        let mut seen = IndexSet::new();
+        let resolved =
+            resolve_conditional_entry("pkg", &package_dir, &entry, &mut options, &mut seen, &[]);
+        let _ = fs::remove_dir_all(&root);
+        let resolved = resolved.unwrap();
+        assert_eq!(resolved.code(), None, "{:?}", resolved.message());
+        assert_eq!(options, before);
+        assert!(options.i18n.is_none());
+        assert_eq!(options.base.machine, None);
     }
 }

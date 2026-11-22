@@ -26,14 +26,9 @@ pub fn replay(record: &Value) -> Replay {
         return Replay::Skip;
     };
     let from_file = args.get(1).and_then(Value::as_str).unwrap_or("");
-    let mut options = match args.get(2) {
-        None | Some(Value::Null) => SpecifierOptions::default(),
-        Some(value) => match SpecifierOptions::from_json(value) {
-            Ok(options) => options,
-            Err(error) => {
-                return Replay::Mismatch("/args/2".into(), Value::Null, json!(error));
-            }
-        },
+    let options = match args.get(2) {
+        None | Some(Value::Null) => Ok(SpecifierOptions::default()),
+        Some(value) => SpecifierOptions::from_json(value),
     };
     let mut seen: IndexSet<String> = args
         .get(3)
@@ -45,7 +40,8 @@ pub fn replay(record: &Value) -> Replay {
                 .collect()
         })
         .unwrap_or_default();
-    let got = resolve_specifier(specifier, from_file, &mut options, &mut seen);
+    let got = options
+        .and_then(|mut options| resolve_specifier(specifier, from_file, &mut options, &mut seen));
     if let Some(thrown) = record.get("throw") {
         return match got {
             Err(error) => compare(thrown, &tokenize(&json!(error), &roots)),

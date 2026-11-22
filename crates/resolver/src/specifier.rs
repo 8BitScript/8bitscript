@@ -164,14 +164,24 @@ impl SpecifierOptions {
     /// The options object of a recorded call.
     ///
     /// # Errors
-    /// The `i18n` member does not have the shape of the catalog options.
+    /// The `i18n` member does not have the shape of the catalog options, or an `importAliases`
+    /// directory is not a string.
     pub fn from_json(v: &Value) -> Result<SpecifierOptions, String> {
         let text = |key: &str| v.get(key).and_then(Value::as_str).map(str::to_string);
-        let import_aliases = v.get("importAliases").and_then(Value::as_object).map(|o| {
-            o.iter()
-                .filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string())))
-                .collect::<IndexMap<_, _>>()
-        });
+        let import_aliases = match v.get("importAliases").and_then(Value::as_object) {
+            None => None,
+            Some(o) => {
+                let mut aliases = IndexMap::new();
+                for (k, v) in o {
+                    // `resolvePath` throws on a directory that is not a string.
+                    let Some(dir) = v.as_str() else {
+                        return Err(format!("importAliases['{k}'] is not a string"));
+                    };
+                    aliases.insert(k.clone(), dir.to_string());
+                }
+                Some(aliases)
+            }
+        };
         let i18n = match v.get("i18n") {
             None | Some(Value::Null) => None,
             Some(value) => Some(
@@ -500,6 +510,14 @@ pub fn resolve_imports(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_non_string_import_alias_is_an_error() {
+        let ok = SpecifierOptions::from_json(&serde_json::json!({"importAliases": {"a": "/x"}}));
+        assert_eq!(ok.unwrap().import_aliases.unwrap()["a"], "/x");
+        let bad = SpecifierOptions::from_json(&serde_json::json!({"importAliases": {"a": 5}}));
+        assert_eq!(bad.unwrap_err(), "importAliases['a'] is not a string");
+    }
 
     #[test]
     fn bare_package_matches_the_regex() {
