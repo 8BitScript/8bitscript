@@ -330,6 +330,18 @@ pub enum NodeKind {
         name: String,
         body: Box<Node>,
     },
+    /// `assert!(test[, "message"])`, and `assert_eq!`/`assert_ne!` with `test` the
+    /// `==`/`!=` of the two operands (test spec 3.1). A statement.
+    Assert {
+        test: Box<Node>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        message: Option<String>,
+    },
+    /// `panic!(["message"])` (test spec 3.1). A statement.
+    Fail {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        message: Option<String>,
+    },
 }
 
 impl NodeKind {
@@ -382,6 +394,8 @@ impl NodeKind {
             Self::TypeReference { .. } => "TypeReference",
             Self::Decorator { .. } => "Decorator",
             Self::TestDecl { .. } => "TestDecl",
+            Self::Assert { .. } => "Assert",
+            Self::Fail { .. } => "Fail",
         }
     }
 }

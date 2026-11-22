@@ -480,7 +480,9 @@ fn entries(n: &Node) -> Vec<(&'static str, &Node)> {
         }
         NodeKind::Decorator { args, .. } => many(&mut out, "args", args),
         NodeKind::TestDecl { body, .. } => out.push(("body", body)),
-        NodeKind::BreakStatement {}
+        NodeKind::Assert { test, .. } => out.push(("test", &**test)),
+        NodeKind::Fail { .. }
+        | NodeKind::BreakStatement {}
         | NodeKind::ContinueStatement {}
         | NodeKind::BxText { .. }
         | NodeKind::AsmBlock { .. }
