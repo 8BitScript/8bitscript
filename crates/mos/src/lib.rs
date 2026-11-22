@@ -15,7 +15,7 @@ pub mod provenance;
 pub mod startup;
 pub mod tap;
 pub mod types;
-pub mod walk;
+pub use mos_ir::walk;
 pub mod zp;
 
 /// The error text a method returns until its unit is ported (R5.7).
