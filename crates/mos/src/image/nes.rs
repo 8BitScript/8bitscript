@@ -62,13 +62,12 @@ fn chr_rom(extras: &ImageExtras) -> Result<Vec<u8>, String> {
     Ok(bytes)
 }
 
-/// iNES header, 32K of PRG-ROM with the code at $8000 and the vectors on top, 8K of CHR-ROM.
-pub fn file(
-    load: i64,
-    body: &[u8],
-    code_start: i64,
-    extras: &ImageExtras,
-) -> Result<Vec<u8>, String> {
+/// The checks `file` makes before it reads any native source (image-nes.ts:157-164): the load
+/// address, the end of the program against the vector table, and the offset the body is copied to.
+///
+/// # Errors
+/// The JS error text of the first check that fails.
+pub fn check_fit(load: i64, body_len: usize, code_start: i64) -> Result<usize, String> {
     if load != PRG_ORIGIN {
         return Err(format!(
             "the NES hardware sheet's defsym.__load_address is ${}, but NROM maps its 32K of PRG-ROM at $8000 — a cartridge cannot be built to load anywhere else",
@@ -76,7 +75,7 @@ pub fn file(
         ));
     }
     let offset = code_start.saturating_sub(PRG_ORIGIN);
-    let end = offset.saturating_add(body.len() as i64);
+    let end = offset.saturating_add(body_len as i64);
     if end > UNUSED_VECTOR_HANDLER - PRG_ORIGIN {
         return Err(format!(
             "the NES program ends at ${}, past the ${} start of the 6502's vector table",
@@ -85,12 +84,17 @@ pub fn file(
         ));
     }
     // JS `Uint8Array.set` throws a RangeError for a negative offset.
-    let at = usize::try_from(offset).map_err(|_| {
-        format!(
-            "offset is out of bounds (code starts at ${})",
-            hex_upper(code_start, 0)
-        )
-    })?;
+    usize::try_from(offset).map_err(|_| "offset is out of bounds".to_string())
+}
+
+/// iNES header, 32K of PRG-ROM with the code at $8000 and the vectors on top, 8K of CHR-ROM.
+pub fn file(
+    load: i64,
+    body: &[u8],
+    code_start: i64,
+    extras: &ImageExtras,
+) -> Result<Vec<u8>, String> {
+    let at = check_fit(load, body.len(), code_start)?;
 
     let mut prg = vec![ROM_FILL; PRG_ROM_BYTES];
     prg[at..at + body.len()].copy_from_slice(body);

@@ -13,6 +13,8 @@ use crate::tree::{DumpFile, read_tree};
 pub struct Options {
     pub stages: Option<Vec<String>>,
     pub corpus: Option<String>,
+    /// Ids (globs) left out of the run: a stage whose Rust port does not exist yet.
+    pub exclude: Vec<String>,
     pub divergences: String,
 }
 
@@ -157,6 +159,7 @@ fn validate(divergences: &[Divergence], report: &mut Report) {
 fn selected(f: &DumpFile, opts: &Options) -> bool {
     opts.stages.as_ref().is_none_or(|s| s.contains(&f.stage))
         && opts.corpus.as_ref().is_none_or(|g| glob_match(g, &f.id))
+        && !opts.exclude.iter().any(|g| glob_match(g, &f.id))
 }
 
 fn diff_files(x: &DumpFile, y: &DumpFile) -> Result<Vec<Mismatch>, String> {
