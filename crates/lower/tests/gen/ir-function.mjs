@@ -250,6 +250,17 @@ fn run(p: u8, s: string) {
     C = 2;
 }
 `,
+  'port forms': `let mut g: u8;
+fn run() {
+    port::read(3);
+    g = port::write(1, 2);
+    port::write(1, 2);
+}
+`,
+  'string member refusal': `fn run(s: string) -> u8 {
+    return s.size;
+}
+`,
   'string work': `const GREETING: string = "HI";
 let mut buf: string<8>;
 fn show(s: string) -> u8 { return s.length + s[0]; }

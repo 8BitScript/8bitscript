@@ -194,7 +194,7 @@ pub fn type_of(expr: &Expr) -> Option<&str> {
         Expr::StringLength(e) => Some(&e.ty),
         Expr::MemoryRead(e) => Some(&e.ty),
         Expr::PortRead(e) => Some(&e.ty),
-        Expr::Record(_) => None,
+        Expr::Record(_) | Expr::PortWrite(_) => None,
     }
 }
 

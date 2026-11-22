@@ -167,19 +167,22 @@ impl Lowering {
         self.current_params = outer_params;
         self.current_array_params = outer_array_params;
 
-        let mangled = mangled_name.filter(|m| !m.is_empty());
         // The name's span, so the linker's entry-export rule can point at it.
         let (start, length) = name
             .as_deref()
             .map_or((node.start, node.length), |n| (n.start, n.length));
         self.functions.push(Function {
-            name: mangled
+            name: mangled_name
                 .map(str::to_string)
                 .or_else(|| name.as_deref().and_then(name_of).map(str::to_string))
                 .unwrap_or_else(|| "anonymous".to_string()),
             // A namespace member is only ever reached through the namespace; its mangled name
             // is never itself an exportable top-level binding.
-            exported: if mangled.is_some() { false } else { *exported },
+            exported: if mangled_name.is_some_and(|m| !m.is_empty()) {
+                false
+            } else {
+                *exported
+            },
             // An 8BX component, elaborated to this function.
             component: Some(*component == Some(true)),
             // The template globals a stateful component's body reads and writes, per field.

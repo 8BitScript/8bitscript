@@ -3,7 +3,7 @@
 use jsnum::Nullable;
 use serde::{Deserialize, Serialize};
 
-use crate::expr::{Call, Expr, MemoryRead, NamespaceCall};
+use crate::expr::{Call, Expr, MemoryRead, NamespaceCall, PortRead};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
@@ -29,6 +29,8 @@ pub enum Stmt {
     PortWrite(PortWrite),
     StringCopy(StringCopy),
     NamespaceCall(NamespaceCall),
+    /// A discarded `port.read(...)`: the same node as the expression; no backend lowers it.
+    PortRead(PortRead),
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

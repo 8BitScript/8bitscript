@@ -403,6 +403,7 @@ pub fn expr_kind(node: &Expr) -> &'static str {
         Expr::NamespaceCall(_) => "namespaceCall",
         Expr::NamespaceConst(_) => "namespaceConst",
         Expr::Record(_) => "record",
+        Expr::PortWrite(_) => "portWrite",
     }
 }
 
@@ -424,7 +425,7 @@ pub fn expr_type(node: &Expr) -> Option<&str> {
         Expr::PortRead(n) => Some(&n.ty),
         Expr::NamespaceCall(n) => n.ty.as_option().map(String::as_str),
         Expr::NamespaceConst(n) => n.ty.as_option().map(String::as_str),
-        Expr::Record(_) => None,
+        Expr::Record(_) | Expr::PortWrite(_) => None,
     }
 }
 

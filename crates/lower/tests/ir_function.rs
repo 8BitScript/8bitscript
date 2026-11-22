@@ -78,6 +78,7 @@ fn each_refusal_is_reported_with_its_text() {
         "arity refusals",
         "parameter refusals",
         "array parameter refusals",
+        "string member refusal",
     ]
     .iter()
     .flat_map(|n| messages(n))
@@ -110,9 +111,24 @@ fn each_refusal_is_reported_with_its_text() {
         "a parameter of type thing is not compilable yet",
         "a parameter of type (none) is not compilable yet",
         "a return type of thing is not compilable yet",
+        "a string has no 'size'; it has .length and s[i]",
     ] {
         assert!(all.iter().any(|m| m == expected), "missing: {expected}");
     }
+}
+
+#[test]
+fn a_port_call_in_the_wrong_position_is_passed_through_for_the_backend_to_refuse() {
+    use mos_ir::{Expr, Stmt};
+    let result = lowered(&row("port forms"));
+    assert!(result.diagnostics.is_empty());
+    let body = &result.ir.functions[0].body;
+    assert!(matches!(body[0], Stmt::PortRead(_)));
+    let Stmt::Assign(assign) = &body[1] else {
+        panic!("not an assignment: {:?}", body[1]);
+    };
+    assert!(matches!(assign.value, Expr::PortWrite(_)));
+    assert!(matches!(body[2], Stmt::PortWrite(_)));
 }
 
 #[test]

@@ -35,7 +35,7 @@ pub enum CallIr {
 }
 
 impl CallIr {
-    /// The call as a statement. `None` for `port.read`, which has no statement form.
+    /// The call as a statement.
     #[must_use]
     pub fn into_stmt(self) -> Option<Stmt> {
         match self {
@@ -45,11 +45,11 @@ impl CallIr {
             CallIr::MemoryWrite(c) => Some(Stmt::MemoryWrite(c)),
             CallIr::PortWrite(c) => Some(Stmt::PortWrite(c)),
             CallIr::WaitFrame(c) => Some(Stmt::WaitFrame(c)),
-            CallIr::PortRead(_) => None,
+            CallIr::PortRead(c) => Some(Stmt::PortRead(c)),
         }
     }
 
-    /// The call as an expression. `None` for `port.write`, which has no expression form.
+    /// The call as an expression. `None` for `memory.write` and `waitFrame`, which the caller refuses first.
     #[must_use]
     pub fn into_expr(self) -> Option<Expr> {
         match self {
@@ -57,7 +57,8 @@ impl CallIr {
             CallIr::NamespaceCall(c) => Some(Expr::NamespaceCall(c)),
             CallIr::MemoryRead(c) => Some(Expr::MemoryRead(c)),
             CallIr::PortRead(c) => Some(Expr::PortRead(c)),
-            CallIr::MemoryWrite(_) | CallIr::PortWrite(_) | CallIr::WaitFrame(_) => None,
+            CallIr::PortWrite(c) => Some(Expr::PortWrite(Box::new(c))),
+            CallIr::MemoryWrite(_) | CallIr::WaitFrame(_) => None,
         }
     }
 }
@@ -501,7 +502,7 @@ impl Lowering {
             start,
             length,
             // An element's instance tag, when the elaborator gave the call one.
-            instance: instance.clone(),
+            instance: instance.clone().filter(|i| !i.is_empty()),
         }))
     }
 
